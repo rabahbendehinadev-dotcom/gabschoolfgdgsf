@@ -24,7 +24,7 @@ export function AdminVideos() {
   const [previewUrl, setPreviewUrl] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const defaultForm: CreateVideoInput = { title: "", description: "", thumbnailUrl: "", driveEmbedUrl: "", categoryId: 0, isVipOnly: false, isVisible: true };
+  const defaultForm: CreateVideoInput = { title: "", description: "", thumbnailUrl: "", driveEmbedUrl: "", categoryId: 0, accessType: "normal", isVipOnly: false, isVisible: true };
   const [formData, setFormData] = useState<CreateVideoInput>(defaultForm);
 
   const handleOpen = (video?: AdminVideo) => {
@@ -32,7 +32,9 @@ export function AdminVideos() {
       setEditingId(video.id);
       setFormData({
         title: video.title, description: video.description, thumbnailUrl: video.thumbnailUrl,
-        driveEmbedUrl: video.driveEmbedUrl, categoryId: video.categoryId, isVipOnly: video.isVipOnly, isVisible: video.isVisible
+        driveEmbedUrl: video.driveEmbedUrl, categoryId: video.categoryId,
+        accessType: (video.accessType as "visitor" | "normal" | "vip") || "normal",
+        isVipOnly: video.isVipOnly, isVisible: video.isVisible
       });
       setPreviewUrl(video.thumbnailUrl || "");
     } else {
@@ -120,7 +122,8 @@ export function AdminVideos() {
             <div className="p-4 flex-1 flex flex-col">
               <div className="flex gap-2 mb-2">
                 <Badge variant="outline" className="text-xs">{v.categoryName}</Badge>
-                {v.isVipOnly && <Badge variant="vip" className="text-xs">VIP</Badge>}
+                {v.accessType === "vip" && <Badge variant="vip" className="text-xs">VIP</Badge>}
+                {v.accessType === "visitor" && <Badge variant="outline" className="text-xs border-green-500/40 text-green-400">مجاني</Badge>}
               </div>
               <h3 className="font-bold line-clamp-1 mb-1">{v.title}</h3>
               <div className="mt-auto pt-4 flex gap-2 border-t border-white/5">
@@ -200,11 +203,22 @@ export function AdminVideos() {
                   {categories?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
-              <div className="space-y-4 pt-6">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={formData.isVipOnly} onChange={e => setFormData({ ...formData, isVipOnly: e.target.checked })} className="rounded bg-black border-white/20 text-primary w-4 h-4" />
-                  <span className="text-sm">خاص بحسابات VIP فقط</span>
-                </label>
+              <div className="space-y-4 pt-2">
+                <div className="space-y-2">
+                  <Label>مستوى الوصول</Label>
+                  <select
+                    className="flex h-10 w-full rounded-md border border-white/10 bg-background px-3 py-2 text-sm"
+                    value={formData.accessType || "normal"}
+                    onChange={e => {
+                      const at = e.target.value as "visitor" | "normal" | "vip";
+                      setFormData({ ...formData, accessType: at, isVipOnly: at === "vip" });
+                    }}
+                  >
+                    <option value="visitor">زائر (مجاني للجميع)</option>
+                    <option value="normal">عادي (مشتركون فقط)</option>
+                    <option value="vip">VIP (حسابات VIP فقط)</option>
+                  </select>
+                </div>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" checked={formData.isVisible} onChange={e => setFormData({ ...formData, isVisible: e.target.checked })} className="rounded bg-black border-white/20 text-primary w-4 h-4" />
                   <span className="text-sm">مرئي للطلاب</span>

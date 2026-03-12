@@ -105,22 +105,38 @@ export function Videos() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {videos?.map((video, i) => {
-              const lockMessage = isDemo
-                ? "ترقية حسابك للمشاهدة"
-                : "اشترك لمشاهدة هذا الدرس";
+              const at = video.accessType || "normal";
+              const isVipVideo = at === "vip";
+              const isVisitorVideo = at === "visitor";
+
+              const videoLocked = isVisitorVideo
+                ? false
+                : isVipVideo
+                  ? user?.accountType !== "vip"
+                  : isLocked;
+
+              const lockMessage = isVipVideo
+                ? "مخصص لحسابات VIP فقط"
+                : isDemo
+                  ? "ترقية حسابك للمشاهدة"
+                  : "اشترك لمشاهدة هذا الدرس";
+
+              const href = videoLocked
+                ? isVipVideo ? "/subscribe" : (isLoggedIn ? "/subscribe" : "/login")
+                : `/videos/${video.id}`;
 
               const card = (
-                <Card className={`overflow-hidden glass-card transition-all duration-300 group h-full flex flex-col ${!isLocked ? "hover:-translate-y-1 hover:border-primary/50 cursor-pointer" : "cursor-pointer hover:-translate-y-1 hover:border-primary/30"}`}>
+                <Card className={`overflow-hidden glass-card transition-all duration-300 group h-full flex flex-col cursor-pointer ${!videoLocked ? "hover:-translate-y-1 hover:border-primary/50" : "hover:-translate-y-1 hover:border-primary/30"}`}>
                   <div className="relative aspect-video bg-black overflow-hidden">
                     <img 
                       src={video.thumbnailUrl || `https://images.unsplash.com/photo-1580927752452-89d86da3fa0a?w=800&q=80`} 
                       alt={video.title}
-                      className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 ${isLocked ? "opacity-50" : "opacity-80 group-hover:opacity-100"}`}
+                      className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 ${videoLocked ? "opacity-50" : "opacity-80 group-hover:opacity-100"}`}
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
 
                     <div className="absolute inset-0 flex items-center justify-center">
-                      {isLocked ? (
+                      {videoLocked ? (
                         <div className="w-14 h-14 rounded-full bg-black/70 border border-white/20 text-white/80 flex items-center justify-center backdrop-blur-sm group-hover:bg-primary/20 group-hover:border-primary/40 transition-all">
                           <Lock className="w-6 h-6" />
                         </div>
@@ -132,9 +148,14 @@ export function Videos() {
                     </div>
 
                     <div className="absolute top-3 right-3 flex gap-2">
-                      {video.isVipOnly && (
+                      {isVipVideo && (
                         <Badge variant="vip" className="shadow-lg">
                           <Crown className="w-3 h-3 ml-1" /> VIP
+                        </Badge>
+                      )}
+                      {isVisitorVideo && (
+                        <Badge variant="outline" className="shadow-lg bg-green-500/80 text-white border-green-400 backdrop-blur-md">
+                          مجاني
                         </Badge>
                       )}
                     </div>
@@ -146,13 +167,13 @@ export function Videos() {
                   </div>
                   
                   <div className="p-5 flex-1 flex flex-col">
-                    <h3 className={`font-bold text-lg leading-tight mb-2 line-clamp-2 transition-colors ${isLocked ? "text-foreground/70" : "group-hover:text-primary"}`}>
+                    <h3 className={`font-bold text-lg leading-tight mb-2 line-clamp-2 transition-colors ${videoLocked ? "text-foreground/70" : "group-hover:text-primary"}`}>
                       {video.title}
                     </h3>
                     <p className="text-sm text-foreground/60 line-clamp-2 mt-auto">
                       {video.description}
                     </p>
-                    {isLocked && (
+                    {videoLocked && (
                       <div className="mt-3 pt-3 border-t border-white/10">
                         <p className="text-xs text-primary font-medium flex items-center gap-1">
                           <Lock className="w-3 h-3" />
@@ -163,8 +184,6 @@ export function Videos() {
                   </div>
                 </Card>
               );
-
-              const href = isLocked ? "/subscribe" : `/videos/${video.id}`;
 
               return (
                 <motion.div

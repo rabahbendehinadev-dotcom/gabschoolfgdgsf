@@ -11,6 +11,7 @@ export const videosTable = pgTable("videos", {
   driveEmbedUrl: text("drive_embed_url").notNull(),
   categoryId: integer("category_id").notNull().references(() => categoriesTable.id),
   isVipOnly: boolean("is_vip_only").notNull().default(false),
+  accessType: varchar("access_type", { length: 20 }).notNull().default("normal"),
   isVisible: boolean("is_visible").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });

@@ -205,6 +205,7 @@ router.get("/admin/videos", adminAuth, async (_req, res) => {
       categoryId: videosTable.categoryId,
       categoryName: categoriesTable.name,
       isVipOnly: videosTable.isVipOnly,
+      accessType: videosTable.accessType,
       isVisible: videosTable.isVisible,
       createdAt: videosTable.createdAt,
     })
@@ -225,29 +226,26 @@ router.get("/admin/videos", adminAuth, async (_req, res) => {
 router.post("/admin/videos", adminAuth, async (req, res) => {
   try {
     const body = CreateVideoBody.parse(req.body);
+    const accessType = body.accessType ?? (body.isVipOnly ? "vip" : "normal");
     const [video] = await db.insert(videosTable).values({
       title: body.title,
       description: body.description,
       thumbnailUrl: body.thumbnailUrl,
       driveEmbedUrl: body.driveEmbedUrl,
       categoryId: body.categoryId,
-      isVipOnly: body.isVipOnly ?? false,
+      isVipOnly: accessType === "vip",
+      accessType,
       isVisible: body.isVisible ?? true,
     }).returning();
 
     const [cat] = await db.select().from(categoriesTable).where(eq(categoriesTable.id, video.categoryId)).limit(1);
 
     res.status(201).json({
-      id: video.id,
-      title: video.title,
-      description: video.description,
-      thumbnailUrl: video.thumbnailUrl,
-      driveEmbedUrl: video.driveEmbedUrl,
-      categoryId: video.categoryId,
-      categoryName: cat?.name || "",
-      isVipOnly: video.isVipOnly,
-      isVisible: video.isVisible,
-      createdAt: video.createdAt.toISOString(),
+      id: video.id, title: video.title, description: video.description,
+      thumbnailUrl: video.thumbnailUrl, driveEmbedUrl: video.driveEmbedUrl,
+      categoryId: video.categoryId, categoryName: cat?.name || "",
+      isVipOnly: video.isVipOnly, accessType: video.accessType,
+      isVisible: video.isVisible, createdAt: video.createdAt.toISOString(),
     });
   } catch (error: unknown) {
     res.status(400).json({ message: error instanceof Error ? error.message : "Unknown error" || "Failed to create video" });
@@ -265,8 +263,13 @@ router.patch("/admin/videos/:id", adminAuth, async (req, res) => {
     if (body.thumbnailUrl !== undefined) updateData.thumbnailUrl = body.thumbnailUrl;
     if (body.driveEmbedUrl !== undefined) updateData.driveEmbedUrl = body.driveEmbedUrl;
     if (body.categoryId !== undefined) updateData.categoryId = body.categoryId;
-    if (body.isVipOnly !== undefined) updateData.isVipOnly = body.isVipOnly;
     if (body.isVisible !== undefined) updateData.isVisible = body.isVisible;
+    if (body.accessType !== undefined) {
+      updateData.accessType = body.accessType;
+      updateData.isVipOnly = body.accessType === "vip";
+    } else if (body.isVipOnly !== undefined) {
+      updateData.isVipOnly = body.isVipOnly;
+    }
 
     const [video] = await db.update(videosTable).set(updateData)
       .where(eq(videosTable.id, id)).returning();
@@ -279,16 +282,11 @@ router.patch("/admin/videos/:id", adminAuth, async (req, res) => {
     const [cat] = await db.select().from(categoriesTable).where(eq(categoriesTable.id, video.categoryId)).limit(1);
 
     res.json({
-      id: video.id,
-      title: video.title,
-      description: video.description,
-      thumbnailUrl: video.thumbnailUrl,
-      driveEmbedUrl: video.driveEmbedUrl,
-      categoryId: video.categoryId,
-      categoryName: cat?.name || "",
-      isVipOnly: video.isVipOnly,
-      isVisible: video.isVisible,
-      createdAt: video.createdAt.toISOString(),
+      id: video.id, title: video.title, description: video.description,
+      thumbnailUrl: video.thumbnailUrl, driveEmbedUrl: video.driveEmbedUrl,
+      categoryId: video.categoryId, categoryName: cat?.name || "",
+      isVipOnly: video.isVipOnly, accessType: video.accessType,
+      isVisible: video.isVisible, createdAt: video.createdAt.toISOString(),
     });
   } catch (error: unknown) {
     res.status(400).json({ message: error instanceof Error ? error.message : "Unknown error" || "Failed to update video" });

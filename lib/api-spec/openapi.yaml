@@ -717,6 +717,9 @@ components:
           type: string
         isVipOnly:
           type: boolean
+        accessType:
+          type: string
+          enum: [visitor, normal, vip]
         createdAt:
           type: string
           format: date-time
@@ -728,6 +731,7 @@ components:
         - driveEmbedUrl
         - categoryId
         - isVipOnly
+        - accessType
         - createdAt
 
     AdminVideo:
@@ -749,6 +753,9 @@ components:
           type: string
         isVipOnly:
           type: boolean
+        accessType:
+          type: string
+          enum: [visitor, normal, vip]
         isVisible:
           type: boolean
         createdAt:
@@ -762,6 +769,7 @@ components:
         - driveEmbedUrl
         - categoryId
         - isVipOnly
+        - accessType
         - isVisible
         - createdAt
 
@@ -780,6 +788,9 @@ components:
           type: integer
         isVipOnly:
           type: boolean
+        accessType:
+          type: string
+          enum: [visitor, normal, vip]
         isVisible:
           type: boolean
       required:
@@ -804,6 +815,9 @@ components:
           type: integer
         isVipOnly:
           type: boolean
+        accessType:
+          type: string
+          enum: [visitor, normal, vip]
         isVisible:
           type: boolean
 

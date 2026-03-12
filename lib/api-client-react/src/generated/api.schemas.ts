@@ -79,6 +79,15 @@ export interface ChangePasswordInput {
   newPassword: string;
 }
 
+export type VideoAccessType =
+  (typeof VideoAccessType)[keyof typeof VideoAccessType];
+
+export const VideoAccessType = {
+  visitor: "visitor",
+  normal: "normal",
+  vip: "vip",
+} as const;
+
 export interface Video {
   id: number;
   title: string;
@@ -88,8 +97,18 @@ export interface Video {
   categoryId: number;
   categoryName?: string;
   isVipOnly: boolean;
+  accessType: VideoAccessType;
   createdAt: string;
 }
+
+export type AdminVideoAccessType =
+  (typeof AdminVideoAccessType)[keyof typeof AdminVideoAccessType];
+
+export const AdminVideoAccessType = {
+  visitor: "visitor",
+  normal: "normal",
+  vip: "vip",
+} as const;
 
 export interface AdminVideo {
   id: number;
@@ -100,9 +119,19 @@ export interface AdminVideo {
   categoryId: number;
   categoryName?: string;
   isVipOnly: boolean;
+  accessType: AdminVideoAccessType;
   isVisible: boolean;
   createdAt: string;
 }
+
+export type CreateVideoInputAccessType =
+  (typeof CreateVideoInputAccessType)[keyof typeof CreateVideoInputAccessType];
+
+export const CreateVideoInputAccessType = {
+  visitor: "visitor",
+  normal: "normal",
+  vip: "vip",
+} as const;
 
 export interface CreateVideoInput {
   title: string;
@@ -111,8 +140,18 @@ export interface CreateVideoInput {
   driveEmbedUrl: string;
   categoryId: number;
   isVipOnly?: boolean;
+  accessType?: CreateVideoInputAccessType;
   isVisible?: boolean;
 }
+
+export type UpdateVideoInputAccessType =
+  (typeof UpdateVideoInputAccessType)[keyof typeof UpdateVideoInputAccessType];
+
+export const UpdateVideoInputAccessType = {
+  visitor: "visitor",
+  normal: "normal",
+  vip: "vip",
+} as const;
 
 export interface UpdateVideoInput {
   title?: string;
@@ -121,6 +160,7 @@ export interface UpdateVideoInput {
   driveEmbedUrl?: string;
   categoryId?: number;
   isVipOnly?: boolean;
+  accessType?: UpdateVideoInputAccessType;
   isVisible?: boolean;
 }
 
