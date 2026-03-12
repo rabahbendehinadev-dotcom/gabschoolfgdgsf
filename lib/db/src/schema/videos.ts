@@ -1,0 +1,20 @@
+import { pgTable, serial, varchar, text, integer, boolean, timestamp } from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
+import { z } from "zod/v4";
+import { categoriesTable } from "./categories";
+
+export const videosTable = pgTable("videos", {
+  id: serial("id").primaryKey(),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description").notNull(),
+  thumbnailUrl: text("thumbnail_url").notNull(),
+  driveEmbedUrl: text("drive_embed_url").notNull(),
+  categoryId: integer("category_id").notNull().references(() => categoriesTable.id),
+  isVipOnly: boolean("is_vip_only").notNull().default(false),
+  isVisible: boolean("is_visible").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertVideoSchema = createInsertSchema(videosTable).omit({ id: true, createdAt: true });
+export type InsertVideo = z.infer<typeof insertVideoSchema>;
+export type Video = typeof videosTable.$inferSelect;
