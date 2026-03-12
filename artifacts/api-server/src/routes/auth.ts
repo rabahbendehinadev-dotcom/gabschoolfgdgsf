@@ -108,7 +108,7 @@ router.post("/auth/login", async (req, res) => {
     } else {
       // Both IPs registered and client doesn't match either
       res.status(403).json({
-        message: "تم تسجيل الدخول من جهاز غير مسموح به. هذا الحساب مرتبط بجهازين مختلفين. تواصل مع الأدمن لإعادة ضبط الأجهزة المسجلة."
+        message: "لقد وصلت إلى الحد الأقصى للأجهزة المسموح بها. سجّل الدخول من الجهاز الذي دخلت منه أول مرة، أو تواصل مع الأدمن لإعادة الضبط."
       });
       return;
     }

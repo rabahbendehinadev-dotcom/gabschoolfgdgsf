@@ -36,11 +36,16 @@ export function Login() {
       },
       onError: async (err) => {
         let description = "بيانات الدخول غير صحيحة";
+        let title = "فشل تسجيل الدخول";
         try {
-          const body = await (err as Error & { response?: Response }).response?.json();
-          if (body?.message) description = body.message;
+          const res = (err as Error & { response?: Response }).response;
+          const body = await res?.json();
+          if (body?.message) {
+            description = body.message;
+            if (res?.status === 403) title = "جهاز غير مسموح به";
+          }
         } catch { }
-        toast({ variant: "destructive", title: "خطأ في تسجيل الدخول", description });
+        toast({ variant: "destructive", title, description });
       }
     });
   };
