@@ -34,17 +34,10 @@ export function Login() {
         toast({ title: "تم تسجيل الدخول بنجاح", className: "bg-green-600 text-white border-none" });
         navigate("/videos");
       },
-      onError: async (err) => {
-        let description = "بيانات الدخول غير صحيحة";
-        let title = "فشل تسجيل الدخول";
-        try {
-          const res = (err as Error & { response?: Response }).response;
-          const body = await res?.json();
-          if (body?.message) {
-            description = body.message;
-            if (res?.status === 403) title = "جهاز غير مسموح به";
-          }
-        } catch { }
+      onError: (err) => {
+        const apiErr = err as Error & { status?: number; data?: { message?: string } };
+        const description = apiErr.data?.message || "بيانات الدخول غير صحيحة";
+        const title = apiErr.status === 403 ? "جهاز غير مسموح به" : "فشل تسجيل الدخول";
         toast({ variant: "destructive", title, description });
       }
     });
