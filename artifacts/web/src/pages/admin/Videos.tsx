@@ -1,26 +1,29 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useGetAdminVideos, useCreateVideo, useUpdateVideo, useDeleteVideo, useGetAdminCategories } from "@workspace/api-client-react/src/generated/api";
 import { AdminVideo, CreateVideoInput } from "@workspace/api-client-react/src/generated/api.schemas";
 import { useAuth } from "@/lib/auth";
 import { Card, Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label } from "@/components/ui";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Edit, Trash2, Video as VideoIcon } from "lucide-react";
+import { Plus, Edit, Trash2, Upload, ImageIcon, X, Loader2 } from "lucide-react";
 
 export function AdminVideos() {
   const { getAdminAuthHeaders } = useAuth();
   const { toast } = useToast();
-  
+
   const reqOpts = { request: getAdminAuthHeaders() };
   const { data: videos, refetch } = useGetAdminVideos(reqOpts);
   const { data: categories } = useGetAdminCategories(reqOpts);
-  
+
   const createMut = useCreateVideo({ request: getAdminAuthHeaders() });
   const updateMut = useUpdateVideo({ request: getAdminAuthHeaders() });
   const deleteMut = useDeleteVideo({ request: getAdminAuthHeaders() });
 
   const [isOpen, setIsOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  
+  const [uploading, setUploading] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string>("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const defaultForm: CreateVideoInput = { title: "", description: "", thumbnailUrl: "", driveEmbedUrl: "", categoryId: 0, isVipOnly: false, isVisible: true };
   const [formData, setFormData] = useState<CreateVideoInput>(defaultForm);
 
@@ -31,15 +34,57 @@ export function AdminVideos() {
         title: video.title, description: video.description, thumbnailUrl: video.thumbnailUrl,
         driveEmbedUrl: video.driveEmbedUrl, categoryId: video.categoryId, isVipOnly: video.isVipOnly, isVisible: video.isVisible
       });
+      setPreviewUrl(video.thumbnailUrl || "");
     } else {
       setEditingId(null);
       setFormData({ ...defaultForm, categoryId: categories?.[0]?.id || 0 });
+      setPreviewUrl("");
     }
     setIsOpen(true);
   };
 
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const localPreview = URL.createObjectURL(file);
+    setPreviewUrl(localPreview);
+
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("thumbnail", file);
+
+      const authHeaders = getAdminAuthHeaders();
+      const res = await fetch("/api/admin/upload-thumbnail", {
+        method: "POST",
+        headers: authHeaders?.headers,
+        body: fd,
+      });
+
+      if (!res.ok) throw new Error("فشل رفع الصورة");
+
+      const { url } = await res.json() as { url: string };
+      setFormData(prev => ({ ...prev, thumbnailUrl: url }));
+      setPreviewUrl(url);
+      toast({ title: "تم رفع الصورة بنجاح" });
+    } catch {
+      toast({ variant: "destructive", title: "فشل رفع الصورة" });
+      setPreviewUrl("");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const removeThumbnail = () => {
+    setPreviewUrl("");
+    setFormData(prev => ({ ...prev, thumbnailUrl: "" }));
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
   const handleSave = () => {
-    const action = editingId 
+    const action = editingId
       ? updateMut.mutateAsync({ id: editingId, data: formData })
       : createMut.mutateAsync({ data: formData });
 
@@ -51,7 +96,7 @@ export function AdminVideos() {
   };
 
   const handleDelete = (id: number) => {
-    if(!confirm("حذف الفيديو؟")) return;
+    if (!confirm("حذف الفيديو؟")) return;
     deleteMut.mutate({ id }, { onSuccess: () => { toast({ title: "تم الحذف" }); refetch(); } });
   };
 
@@ -66,7 +111,10 @@ export function AdminVideos() {
         {videos?.map(v => (
           <Card key={v.id} className="border-white/5 bg-card overflow-hidden flex flex-col">
             <div className="aspect-video relative bg-black">
-              <img src={v.thumbnailUrl} className="w-full h-full object-cover opacity-80" alt={v.title} />
+              {v.thumbnailUrl
+                ? <img src={v.thumbnailUrl} className="w-full h-full object-cover opacity-80" alt={v.title} />
+                : <div className="w-full h-full flex items-center justify-center text-foreground/20"><ImageIcon className="w-12 h-12" /></div>
+              }
               {!v.isVisible && <div className="absolute inset-0 bg-background/80 flex items-center justify-center font-bold text-destructive backdrop-blur-sm">مخفي</div>}
             </div>
             <div className="p-4 flex-1 flex flex-col">
@@ -76,8 +124,8 @@ export function AdminVideos() {
               </div>
               <h3 className="font-bold line-clamp-1 mb-1">{v.title}</h3>
               <div className="mt-auto pt-4 flex gap-2 border-t border-white/5">
-                <Button variant="secondary" className="flex-1 text-xs" onClick={() => handleOpen(v)}><Edit className="w-3 h-3 ml-1"/> تعديل</Button>
-                <Button variant="destructive" size="icon" onClick={() => handleDelete(v.id)}><Trash2 className="w-4 h-4"/></Button>
+                <Button variant="secondary" className="flex-1 text-xs" onClick={() => handleOpen(v)}><Edit className="w-3 h-3 ml-1" /> تعديل</Button>
+                <Button variant="destructive" size="icon" onClick={() => handleDelete(v.id)}><Trash2 className="w-4 h-4" /></Button>
               </div>
             </div>
           </Card>
@@ -91,39 +139,81 @@ export function AdminVideos() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2 col-span-2">
                 <Label>العنوان</Label>
-                <Input value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} />
+                <Input value={formData.title} onChange={e => setFormData({ ...formData, title: e.target.value })} />
               </div>
               <div className="space-y-2 col-span-2">
                 <Label>الوصف</Label>
-                <textarea className="flex min-h-[80px] w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />
+                <textarea className="flex min-h-[80px] w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} />
               </div>
+
+              {/* Thumbnail Upload */}
               <div className="space-y-2 col-span-2">
-                <Label>رابط الصورة (Thumbnail)</Label>
-                <Input dir="ltr" className="text-left" value={formData.thumbnailUrl} onChange={e => setFormData({...formData, thumbnailUrl: e.target.value})} />
+                <Label>صورة الغلاف (Thumbnail)</Label>
+
+                {previewUrl ? (
+                  <div className="relative rounded-xl overflow-hidden border border-white/10 aspect-video">
+                    <img src={previewUrl} alt="preview" className="w-full h-full object-cover" />
+                    {uploading && (
+                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                      </div>
+                    )}
+                    {!uploading && (
+                      <button
+                        onClick={removeThumbnail}
+                        className="absolute top-2 left-2 w-7 h-7 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-destructive transition-colors"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                    className="w-full flex flex-col items-center justify-center gap-3 border-2 border-dashed border-white/20 rounded-xl p-10 text-foreground/50 hover:border-primary/50 hover:text-primary hover:bg-primary/5 transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {uploading ? <Loader2 className="w-8 h-8 animate-spin" /> : <Upload className="w-8 h-8" />}
+                    <span className="text-sm font-medium">{uploading ? "جاري الرفع..." : "اضغط لرفع صورة الغلاف"}</span>
+                    <span className="text-xs opacity-60">PNG, JPG, WEBP — حد أقصى 5MB</span>
+                  </button>
+                )}
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleFileChange}
+                />
               </div>
+
               <div className="space-y-2 col-span-2">
                 <Label>رابط تضمين جوجل درايف (Embed URL)</Label>
-                <Input dir="ltr" className="text-left" value={formData.driveEmbedUrl} onChange={e => setFormData({...formData, driveEmbedUrl: e.target.value})} />
+                <Input dir="ltr" className="text-left" value={formData.driveEmbedUrl} onChange={e => setFormData({ ...formData, driveEmbedUrl: e.target.value })} />
               </div>
               <div className="space-y-2">
                 <Label>التصنيف</Label>
-                <select className="flex h-10 w-full rounded-md border border-white/10 bg-background px-3 py-2 text-sm" value={formData.categoryId} onChange={e => setFormData({...formData, categoryId: parseInt(e.target.value)})}>
+                <select className="flex h-10 w-full rounded-md border border-white/10 bg-background px-3 py-2 text-sm" value={formData.categoryId} onChange={e => setFormData({ ...formData, categoryId: parseInt(e.target.value) })}>
                   <option value={0} disabled>اختر تصنيف</option>
                   {categories?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
               <div className="space-y-4 pt-6">
                 <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={formData.isVipOnly} onChange={e => setFormData({...formData, isVipOnly: e.target.checked})} className="rounded bg-black border-white/20 text-primary w-4 h-4" />
+                  <input type="checkbox" checked={formData.isVipOnly} onChange={e => setFormData({ ...formData, isVipOnly: e.target.checked })} className="rounded bg-black border-white/20 text-primary w-4 h-4" />
                   <span className="text-sm">خاص بحسابات VIP فقط</span>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={formData.isVisible} onChange={e => setFormData({...formData, isVisible: e.target.checked})} className="rounded bg-black border-white/20 text-primary w-4 h-4" />
+                  <input type="checkbox" checked={formData.isVisible} onChange={e => setFormData({ ...formData, isVisible: e.target.checked })} className="rounded bg-black border-white/20 text-primary w-4 h-4" />
                   <span className="text-sm">مرئي للطلاب</span>
                 </label>
               </div>
             </div>
-            <Button className="w-full mt-4" onClick={handleSave} disabled={createMut.isPending || updateMut.isPending}>حفظ</Button>
+            <Button className="w-full mt-4" onClick={handleSave} disabled={createMut.isPending || updateMut.isPending || uploading}>
+              {(createMut.isPending || updateMut.isPending) ? <Loader2 className="w-4 h-4 animate-spin" /> : "حفظ"}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

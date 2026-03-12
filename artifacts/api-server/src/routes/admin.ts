@@ -1,4 +1,8 @@
+import path from "path";
+import { fileURLToPath } from "url";
+import fs from "fs";
 import { Router, type IRouter } from "express";
+import multer from "multer";
 import { db, usersTable, videosTable, categoriesTable, subscriptionPlansTable, visitLogsTable } from "@workspace/db";
 import { eq, sql, count, desc } from "drizzle-orm";
 import { adminAuth } from "../middlewares/auth";
@@ -10,6 +14,29 @@ import {
   UpdateCategoryBody,
   UpdateSubscriptionPlanBody,
 } from "@workspace/api-zod";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const uploadsDir = path.join(__dirname, "../../uploads");
+fs.mkdirSync(uploadsDir, { recursive: true });
+
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, uploadsDir),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, `thumb_${Date.now()}${ext}`);
+  },
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype.startsWith("image/")) cb(null, true);
+    else cb(new Error("Only image files are allowed"));
+  },
+});
 
 const router: IRouter = Router();
 
@@ -367,6 +394,17 @@ router.patch("/admin/subscription-plans/:id", adminAuth, async (req, res) => {
   } catch (error: unknown) {
     res.status(400).json({ message: error instanceof Error ? error.message : "Unknown error" || "Failed to update plan" });
   }
+});
+
+router.post("/admin/upload-thumbnail", adminAuth, upload.single("thumbnail"), (req, res) => {
+  if (!req.file) {
+    res.status(400).json({ message: "No file uploaded" });
+    return;
+  }
+  const protocol = req.protocol;
+  const host = req.get("host");
+  const url = `${protocol}://${host}/uploads/${req.file.filename}`;
+  res.json({ url });
 });
 
 export default router;
