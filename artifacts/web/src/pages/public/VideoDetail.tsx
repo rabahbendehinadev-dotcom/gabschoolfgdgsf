@@ -14,10 +14,9 @@ export function VideoDetail() {
   
   const { data: video, isLoading, error } = useGetVideo(id, { 
     request: getAuthHeaders(),
-    query: { retry: false } as any
   });
 
-  const isRestricted = (error as any)?.response?.status === 403 || (video?.isVipOnly && user?.accountType !== 'vip');
+  const isRestricted = (error instanceof Error && 'response' in error && (error as Error & { response: { status: number } }).response?.status === 403) || (video?.isVipOnly && user?.accountType !== 'vip');
 
   if (isLoading) return <div className="min-h-screen flex items-center justify-center"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div></div>;
 

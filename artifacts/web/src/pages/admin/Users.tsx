@@ -119,7 +119,7 @@ export function AdminUsers() {
               <select 
                 className="flex h-10 w-full rounded-md border border-white/10 bg-background px-3 py-2 text-sm"
                 value={formData.accountType}
-                onChange={e => setFormData({...formData, accountType: e.target.value as any})}
+                onChange={e => setFormData({...formData, accountType: e.target.value as "vip" | "normal"})}
               >
                 <option value="normal">عادي</option>
                 <option value="vip">VIP</option>
@@ -130,7 +130,7 @@ export function AdminUsers() {
               <select 
                 className="flex h-10 w-full rounded-md border border-white/10 bg-background px-3 py-2 text-sm"
                 value={formData.subscriptionType}
-                onChange={e => setFormData({...formData, subscriptionType: e.target.value as any})}
+                onChange={e => setFormData({...formData, subscriptionType: e.target.value as "demo" | "annual" | "lifetime"})}
               >
                 <option value="demo">تجريبي</option>
                 <option value="annual">سنوي</option>
