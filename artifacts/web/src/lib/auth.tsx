@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useRef, ReactNode, useCallback } from "react";
 import { UserProfile, AdminAuthResponseAdmin } from "@workspace/api-client-react/src/generated/api.schemas";
 import { useLocation } from "wouter";
 
@@ -17,6 +17,8 @@ type AuthState = {
 
 const AuthContext = createContext<AuthState | null>(null);
 
+const REFRESH_INTERVAL_MS = 20_000;
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [, navigate] = useLocation();
   const [token, setTokenState] = useState<string | null>(() => localStorage.getItem("token"));
@@ -30,6 +32,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const saved = localStorage.getItem("admin");
     return saved ? JSON.parse(saved) : null;
   });
+
+  const tokenRef = useRef(token);
+  useEffect(() => { tokenRef.current = token; }, [token]);
+
+  const refreshUser = useCallback(async () => {
+    const currentToken = tokenRef.current;
+    if (!currentToken) return;
+    try {
+      const res = await fetch("/api/auth/me", {
+        headers: { Authorization: `Bearer ${currentToken}` },
+      });
+      if (res.status === 401) {
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        setTokenState(null);
+        setUser(null);
+        return;
+      }
+      if (!res.ok) return;
+      const fresh: UserProfile = await res.json();
+      setUser(prev => {
+        const changed =
+          prev?.accountType !== fresh.accountType ||
+          prev?.subscriptionType !== fresh.subscriptionType ||
+          prev?.isActive !== fresh.isActive ||
+          prev?.subscriptionExpiresAt !== fresh.subscriptionExpiresAt;
+        if (!changed) return prev;
+        localStorage.setItem("user", JSON.stringify(fresh));
+        return fresh;
+      });
+    } catch { }
+  }, []);
+
+  useEffect(() => {
+    if (!token) return;
+
+    refreshUser();
+    const timer = setInterval(refreshUser, REFRESH_INTERVAL_MS);
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") refreshUser();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [token, refreshUser]);
 
   const setAuth = (newToken: string, newUser: UserProfile) => {
     localStorage.setItem("token", newToken);
@@ -72,8 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider value={{
       token, user, adminToken, admin,
-      setAuth, setAdminAuth, logout, adminLogout,
-      getAuthHeaders, getAdminAuthHeaders
+      setAuth, setAdminAuth, logout, adminLogout, getAuthHeaders, getAdminAuthHeaders
     }}>
       {children}
     </AuthContext.Provider>
