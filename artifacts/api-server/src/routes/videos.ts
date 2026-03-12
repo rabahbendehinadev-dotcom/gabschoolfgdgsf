@@ -84,14 +84,16 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
     }
 
     const accessType = video.accessType || "normal";
+    const isVipUser = user?.accountType === "vip";
+    const isSubscribed = user && user.subscriptionType !== "demo";
 
     if (accessType === "vip") {
-      if (!user || user.accountType !== "vip") {
+      if (!isVipUser) {
         res.status(403).json({ message: "This video is only available for VIP accounts" });
         return;
       }
     } else if (accessType === "normal") {
-      if (!user || user.subscriptionType === "demo") {
+      if (!isVipUser && !isSubscribed) {
         res.status(403).json({ message: "Subscribe to watch this video" });
         return;
       }

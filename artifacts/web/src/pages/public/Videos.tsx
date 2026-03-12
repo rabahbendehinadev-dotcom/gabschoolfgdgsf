@@ -20,7 +20,8 @@ export function Videos() {
 
   const isLoggedIn = !!user;
   const isDemo = user?.subscriptionType === "demo";
-  const isLocked = !isLoggedIn || isDemo;
+  const isVipUser = user?.accountType === "vip";
+  const isLocked = !isLoggedIn || (isDemo && !isVipUser);
 
   return (
     <div className="min-h-screen py-12">
@@ -112,8 +113,8 @@ export function Videos() {
               const videoLocked = isVisitorVideo
                 ? false
                 : isVipVideo
-                  ? user?.accountType !== "vip"
-                  : isLocked;
+                  ? !isVipUser
+                  : !isVipUser && isLocked;
 
               const lockMessage = isVipVideo
                 ? "مخصص لحسابات VIP فقط"

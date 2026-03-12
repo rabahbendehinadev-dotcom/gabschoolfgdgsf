@@ -27,16 +27,28 @@ export function AdminVideos() {
   const defaultForm: CreateVideoInput = { title: "", description: "", thumbnailUrl: "", driveEmbedUrl: "", categoryId: 0, accessType: "normal", isVipOnly: false, isVisible: true };
   const [formData, setFormData] = useState<CreateVideoInput>(defaultForm);
 
+  const normalizeThumbnailUrl = (url: string) => {
+    if (!url) return "";
+    try {
+      const parsed = new URL(url);
+      if (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1") {
+        return parsed.pathname + parsed.search;
+      }
+    } catch { /* not absolute URL, return as-is */ }
+    return url;
+  };
+
   const handleOpen = (video?: AdminVideo) => {
     if (video) {
       setEditingId(video.id);
+      const thumbUrl = normalizeThumbnailUrl(video.thumbnailUrl || "");
       setFormData({
-        title: video.title, description: video.description, thumbnailUrl: video.thumbnailUrl,
+        title: video.title, description: video.description, thumbnailUrl: thumbUrl,
         driveEmbedUrl: video.driveEmbedUrl, categoryId: video.categoryId,
         accessType: (video.accessType as "visitor" | "normal" | "vip") || "normal",
         isVipOnly: video.isVipOnly, isVisible: video.isVisible
       });
-      setPreviewUrl(video.thumbnailUrl || "");
+      setPreviewUrl(thumbUrl);
     } else {
       setEditingId(null);
       setFormData({ ...defaultForm, categoryId: categories?.[0]?.id || 0 });
@@ -149,39 +161,57 @@ export function AdminVideos() {
                 <textarea className="flex min-h-[80px] w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} />
               </div>
 
-              {/* Thumbnail Upload */}
-              <div className="space-y-2 col-span-2">
+              {/* Thumbnail */}
+              <div className="space-y-3 col-span-2">
                 <Label>صورة الغلاف (Thumbnail)</Label>
 
+                {/* Direct URL input */}
+                <div className="flex gap-2">
+                  <Input
+                    dir="ltr"
+                    className="text-left text-sm"
+                    placeholder="الصق رابط صورة مباشر (https://...) أو ارفع ملف أدناه"
+                    value={formData.thumbnailUrl || ""}
+                    onChange={e => {
+                      const v = e.target.value;
+                      setFormData(prev => ({ ...prev, thumbnailUrl: v }));
+                      setPreviewUrl(v);
+                    }}
+                  />
+                  {formData.thumbnailUrl && (
+                    <button onClick={removeThumbnail} className="shrink-0 w-9 h-9 rounded-md bg-white/5 border border-white/10 text-foreground/50 hover:text-destructive hover:border-destructive/40 flex items-center justify-center transition-colors">
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Image preview */}
                 {previewUrl ? (
-                  <div className="relative rounded-xl overflow-hidden border border-white/10 aspect-video">
-                    <img src={previewUrl} alt="preview" className="w-full h-full object-cover" />
+                  <div className="relative rounded-xl overflow-hidden border border-white/10 aspect-video bg-black">
+                    <img
+                      src={previewUrl}
+                      alt="preview"
+                      className="w-full h-full object-cover"
+                      onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
+                    />
                     {uploading && (
                       <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
                         <Loader2 className="w-8 h-8 animate-spin text-primary" />
                       </div>
                     )}
-                    {!uploading && (
-                      <button
-                        onClick={removeThumbnail}
-                        className="absolute top-2 left-2 w-7 h-7 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-destructive transition-colors"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    )}
                   </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={uploading}
-                    className="w-full flex flex-col items-center justify-center gap-3 border-2 border-dashed border-white/20 rounded-xl p-10 text-foreground/50 hover:border-primary/50 hover:text-primary hover:bg-primary/5 transition-all cursor-pointer disabled:opacity-50"
-                  >
-                    {uploading ? <Loader2 className="w-8 h-8 animate-spin" /> : <Upload className="w-8 h-8" />}
-                    <span className="text-sm font-medium">{uploading ? "جاري الرفع..." : "اضغط لرفع صورة الغلاف"}</span>
-                    <span className="text-xs opacity-60">PNG, JPG, WEBP — حد أقصى 5MB</span>
-                  </button>
-                )}
+                ) : null}
+
+                {/* File upload button */}
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="w-full flex items-center justify-center gap-2 border border-dashed border-white/15 rounded-xl p-4 text-foreground/40 hover:border-primary/50 hover:text-primary hover:bg-primary/5 transition-all cursor-pointer disabled:opacity-50 text-sm"
+                >
+                  {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                  {uploading ? "جاري الرفع..." : "أو ارفع صورة من جهازك (PNG, JPG, WEBP — 5MB)"}
+                </button>
 
                 <input
                   ref={fileInputRef}
