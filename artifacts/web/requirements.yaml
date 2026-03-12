@@ -1,0 +1,34 @@
+packages:
+  "framer-motion": "For stunning page transitions, scroll reveals, and micro-interactions"
+  "recharts": "For the admin dashboard statistics and analytics charts"
+  "date-fns": "For formatting subscription dates and registration logs"
+  "embla-carousel-react": "For the premium hero slider and category carousels"
+  "lucide-react": "For beautiful, consistent iconography across the app"
+  "react-hook-form": "For robust form state management"
+  "@hookform/resolvers": "For Zod validation integration with forms"
+  "zod": "For runtime schema validation on the frontend"
+  "clsx": "For conditional tailwind classes"
+  "tailwind-merge": "For merging tailwind classes in UI components"
+  "@radix-ui/react-dialog": "For accessible modals and dialogs"
+  "@radix-ui/react-select": "For accessible custom select dropdowns"
+  "@radix-ui/react-dropdown-menu": "For accessible dropdown menus"
+
+images:
+  - path: "artifacts/web/public/images/hero-bg.png"
+    description: "Dark, luxurious abstract background with glowing neon orange geometric shapes, soft light leaks, premium VIP feel"
+    aspect_ratio: "16:9"
+  - path: "artifacts/web/public/images/vip-badge.png"
+    description: "3D rendered golden crown on a dark metallic shield with orange glowing accents, luxurious"
+    aspect_ratio: "1:1"
+  - path: "artifacts/web/public/images/logo.png"
+    description: "Modern minimalist logo mark for a tech platform, featuring a glowing orange flash/lightning bolt on dark background"
+    aspect_ratio: "1:1"
+  - path: "artifacts/web/public/images/phone-matrix.png"
+    description: "Abstract 3D composition of modern smartphones floating in dark space with orange glowing circuitry lines"
+    aspect_ratio: "16:9"
+
+notes:
+  - Application uses RTL (Right-to-Left) layout for Arabic content by default.
+  - Orval generated hooks from @workspace/api-client-react are used for all API calls.
+  - Auth token is stored in localStorage and passed via request headers in hook options.
+  - VIP/Normal access control is enforced on the frontend alongside the backend.
