@@ -19,6 +19,8 @@ export function Videos() {
   const { data: categories } = useGetCategories();
 
   const isLoggedIn = !!user;
+  const isDemo = user?.subscriptionType === "demo";
+  const isLocked = !isLoggedIn || isDemo;
 
   return (
     <div className="min-h-screen py-12">
@@ -63,8 +65,8 @@ export function Videos() {
             ))}
           </div>
 
-          {/* Guest notice banner */}
-          {!isLoggedIn && (
+          {/* Locked notice banner */}
+          {isLocked && (
             <motion.div
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
@@ -73,11 +75,15 @@ export function Videos() {
               <div className="flex items-center gap-3">
                 <Lock className="w-5 h-5 text-primary shrink-0" />
                 <p className="text-sm font-medium">
-                  قم بتسجيل الدخول للوصول إلى الدروس والمحتوى
+                  {isDemo
+                    ? "حسابك التجريبي لا يتيح مشاهدة الدروس — قم بترقيته الآن"
+                    : "قم بتسجيل الدخول والاشتراك للوصول إلى جميع الدروس"}
                 </p>
               </div>
-              <Link href="/login">
-                <Button size="sm" className="shrink-0">تسجيل الدخول</Button>
+              <Link href="/subscribe">
+                <Button size="sm" className="shrink-0">
+                  {isDemo ? "ترقية الحساب" : "عرض الاشتراكات"}
+                </Button>
               </Link>
             </motion.div>
           )}
@@ -99,29 +105,31 @@ export function Videos() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {videos?.map((video, i) => {
+              const lockMessage = isDemo
+                ? "ترقية حسابك للمشاهدة"
+                : "اشترك لمشاهدة هذا الدرس";
+
               const card = (
-                <Card className={`overflow-hidden glass-card transition-all duration-300 group h-full flex flex-col ${isLoggedIn ? "hover:-translate-y-1 hover:border-primary/50 cursor-pointer" : "cursor-not-allowed opacity-75"}`}>
+                <Card className={`overflow-hidden glass-card transition-all duration-300 group h-full flex flex-col ${!isLocked ? "hover:-translate-y-1 hover:border-primary/50 cursor-pointer" : "cursor-pointer hover:-translate-y-1 hover:border-primary/30"}`}>
                   <div className="relative aspect-video bg-black overflow-hidden">
                     <img 
                       src={video.thumbnailUrl || `https://images.unsplash.com/photo-1580927752452-89d86da3fa0a?w=800&q=80`} 
                       alt={video.title}
-                      className={`w-full h-full object-cover transition-transform duration-500 ${isLoggedIn ? "opacity-80 group-hover:opacity-100 group-hover:scale-105" : "opacity-50"}`}
+                      className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 ${isLocked ? "opacity-50" : "opacity-80 group-hover:opacity-100"}`}
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
 
-                    {isLoggedIn ? (
-                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                        <div className="w-14 h-14 rounded-full bg-primary/90 text-white flex items-center justify-center backdrop-blur-sm shadow-lg glow-primary">
-                          <PlayCircle className="w-8 h-8 ml-1" />
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="w-14 h-14 rounded-full bg-black/60 border border-white/20 text-white/70 flex items-center justify-center backdrop-blur-sm">
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      {isLocked ? (
+                        <div className="w-14 h-14 rounded-full bg-black/70 border border-white/20 text-white/80 flex items-center justify-center backdrop-blur-sm group-hover:bg-primary/20 group-hover:border-primary/40 transition-all">
                           <Lock className="w-6 h-6" />
                         </div>
-                      </div>
-                    )}
+                      ) : (
+                        <div className="w-14 h-14 rounded-full bg-primary/90 text-white flex items-center justify-center backdrop-blur-sm shadow-lg glow-primary opacity-0 group-hover:opacity-100 transition-opacity">
+                          <PlayCircle className="w-8 h-8 ml-1" />
+                        </div>
+                      )}
+                    </div>
 
                     <div className="absolute top-3 right-3 flex gap-2">
                       {video.isVipOnly && (
@@ -138,23 +146,25 @@ export function Videos() {
                   </div>
                   
                   <div className="p-5 flex-1 flex flex-col">
-                    <h3 className={`font-bold text-lg leading-tight mb-2 line-clamp-2 transition-colors ${isLoggedIn ? "group-hover:text-primary" : "text-foreground/70"}`}>
+                    <h3 className={`font-bold text-lg leading-tight mb-2 line-clamp-2 transition-colors ${isLocked ? "text-foreground/70" : "group-hover:text-primary"}`}>
                       {video.title}
                     </h3>
                     <p className="text-sm text-foreground/60 line-clamp-2 mt-auto">
                       {video.description}
                     </p>
-                    {!isLoggedIn && (
+                    {isLocked && (
                       <div className="mt-3 pt-3 border-t border-white/10">
-                        <p className="text-xs text-primary/80 font-medium flex items-center gap-1">
+                        <p className="text-xs text-primary font-medium flex items-center gap-1">
                           <Lock className="w-3 h-3" />
-                          سجّل دخولك لمشاهدة هذا الدرس
+                          {lockMessage}
                         </p>
                       </div>
                     )}
                   </div>
                 </Card>
               );
+
+              const href = isLocked ? "/subscribe" : `/videos/${video.id}`;
 
               return (
                 <motion.div
@@ -163,11 +173,7 @@ export function Videos() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.05 }}
                 >
-                  {isLoggedIn ? (
-                    <Link href={`/videos/${video.id}`}>{card}</Link>
-                  ) : (
-                    card
-                  )}
+                  <Link href={href}>{card}</Link>
                 </motion.div>
               );
             })}

@@ -12,6 +12,7 @@ import { Register } from "@/pages/public/Register";
 import { Videos } from "@/pages/public/Videos";
 import { VideoDetail } from "@/pages/public/VideoDetail";
 import { Dashboard } from "@/pages/public/Dashboard";
+import { Subscribe } from "@/pages/public/Subscribe";
 import { AdminLogin } from "@/pages/admin/AdminLogin";
 import { AdminDashboard } from "@/pages/admin/Dashboard";
 import { AdminUsers } from "@/pages/admin/Users";
@@ -52,6 +53,9 @@ function Router() {
       </Route>
       <Route path="/dashboard">
         <PublicLayout><Dashboard /></PublicLayout>
+      </Route>
+      <Route path="/subscribe">
+        <PublicLayout><Subscribe /></PublicLayout>
       </Route>
       <Route path="/admin/login">
         <AdminLogin />
