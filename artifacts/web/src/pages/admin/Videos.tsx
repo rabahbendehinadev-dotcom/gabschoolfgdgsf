@@ -21,8 +21,8 @@ export function AdminVideos() {
   const [isOpen, setIsOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   
-  const defaultForm = { title: "", description: "", thumbnailUrl: "", driveEmbedUrl: "", categoryId: 0, isVipOnly: false, isVisible: true };
-  const [formData, setFormData] = useState<CreateVideoInput>(defaultForm as any);
+  const defaultForm: CreateVideoInput = { title: "", description: "", thumbnailUrl: "", driveEmbedUrl: "", categoryId: 0, isVipOnly: false, isVisible: true };
+  const [formData, setFormData] = useState<CreateVideoInput>(defaultForm);
 
   const handleOpen = (video?: AdminVideo) => {
     if (video) {
