@@ -395,9 +395,7 @@ router.post("/admin/upload-thumbnail", adminAuth, upload.single("thumbnail"), (r
     res.status(400).json({ message: "No file uploaded" });
     return;
   }
-  const protocol = req.protocol;
-  const host = req.get("host");
-  const url = `${protocol}://${host}/uploads/${req.file.filename}`;
+  const url = `/uploads/${req.file!.filename}`;
   res.json({ url });
 });
 
