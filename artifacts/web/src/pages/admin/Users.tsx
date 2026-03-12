@@ -89,7 +89,24 @@ export function AdminUsers() {
                   </td>
                   <td className="px-6 py-4">{user.subscriptionType}</td>
                   <td className="px-6 py-4 whitespace-nowrap">{formatDate(user.createdAt)}</td>
-                  <td className="px-6 py-4 text-xs font-mono text-left">{user.ipAddress || 'لم يسجل دخول'}</td>
+                  <td className="px-6 py-4 text-left">
+                    {user.ipAddress ? (
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] text-muted-foreground shrink-0">١</span>
+                          <span className="text-xs font-mono">{user.ipAddress}</span>
+                        </div>
+                        {(user as typeof user & { ipAddress2?: string }).ipAddress2 && (
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] text-muted-foreground shrink-0">٢</span>
+                            <span className="text-xs font-mono">{(user as typeof user & { ipAddress2?: string }).ipAddress2}</span>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">لم يسجل دخول</span>
+                    )}
+                  </td>
                   <td className="px-6 py-4">
                     {user.isActive ? <Badge className="bg-green-500/20 text-green-500 hover:bg-green-500/20 border-0">نشط</Badge> : <Badge variant="destructive">موقوف</Badge>}
                   </td>
@@ -97,7 +114,7 @@ export function AdminUsers() {
                     <Button variant="ghost" size="icon" onClick={() => handleEdit(user)}>
                       <Edit className="w-4 h-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" title="تصفير IP" onClick={() => handleResetIp(user.id)} disabled={!user.ipAddress}>
+                    <Button variant="ghost" size="icon" title="تصفير الأجهزة المسجلة" onClick={() => handleResetIp(user.id)} disabled={!user.ipAddress}>
                       <RefreshCw className="w-4 h-4 text-blue-400" />
                     </Button>
                   </td>
