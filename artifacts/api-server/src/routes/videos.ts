@@ -1,19 +1,19 @@
 import { Router, type IRouter } from "express";
 import { db, videosTable, categoriesTable, visitLogsTable } from "@workspace/db";
-import { eq, and, ilike, sql } from "drizzle-orm";
-import { userAuth } from "../middlewares/auth";
+import { eq, and } from "drizzle-orm";
+import { userAuth, optionalUserAuth } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
-router.get("/videos", userAuth, async (req, res) => {
+router.get("/videos", optionalUserAuth, async (req, res) => {
   try {
-    const user = req.user!;
     const categoryId = req.query.categoryId ? Number(req.query.categoryId) : undefined;
     const search = req.query.search as string | undefined;
 
+    const isVip = req.user?.accountType === "vip";
     let conditions = [eq(videosTable.isVisible, true)];
 
-    if (user.accountType !== "vip") {
+    if (!isVip) {
       conditions.push(eq(videosTable.isVipOnly, false));
     }
 
@@ -47,12 +47,14 @@ router.get("/videos", userAuth, async (req, res) => {
       );
     }
 
-    const clientIp = req.ip || req.headers["x-forwarded-for"]?.toString().split(",")[0]?.trim() || "unknown";
-    await db.insert(visitLogsTable).values({
-      userId: user.id,
-      path: "/videos",
-      ip: clientIp,
-    });
+    if (req.user) {
+      const clientIp = req.ip || req.headers["x-forwarded-for"]?.toString().split(",")[0]?.trim() || "unknown";
+      await db.insert(visitLogsTable).values({
+        userId: req.user.id,
+        path: "/videos",
+        ip: clientIp,
+      });
+    }
 
     res.json(results.map(v => ({
       ...v,

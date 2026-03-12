@@ -76,6 +76,32 @@ export async function userAuth(req: Request, res: Response, next: NextFunction) 
   next();
 }
 
+export async function optionalUserAuth(req: Request, _res: Response, next: NextFunction) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith("Bearer ")) {
+    next();
+    return;
+  }
+  const token = authHeader.substring(7);
+  const payload = verifyToken(token);
+  if (!payload) { next(); return; }
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, payload.userId)).limit(1);
+  if (user && user.isActive) {
+    req.user = {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      accountType: user.accountType,
+      subscriptionType: user.subscriptionType,
+      subscriptionExpiresAt: user.subscriptionExpiresAt,
+      ipAddress: user.ipAddress,
+      isActive: user.isActive,
+    };
+    req.userCreatedAt = user.createdAt;
+  }
+  next();
+}
+
 export async function adminAuth(req: Request, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith("Bearer ")) {
