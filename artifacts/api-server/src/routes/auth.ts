@@ -155,6 +155,10 @@ router.get("/auth/me", userAuth, async (req, res) => {
   });
 });
 
+router.post("/auth/logout", userAuth, async (_req, res) => {
+  res.json({ message: "Logged out successfully" });
+});
+
 router.post("/auth/change-password", userAuth, async (req, res) => {
   try {
     const body = ChangePasswordBody.parse(req.body);

@@ -55,6 +55,11 @@ export async function userAuth(req: Request, res: Response, next: NextFunction) 
     await db.update(usersTable).set({ ipAddress: clientIp }).where(eq(usersTable.id, user.id));
   }
 
+  if (user.subscriptionExpiresAt && new Date(user.subscriptionExpiresAt) < new Date()) {
+    res.status(403).json({ message: "Your subscription has expired. Please renew to continue accessing content." });
+    return;
+  }
+
   req.user = {
     id: user.id,
     username: user.username,

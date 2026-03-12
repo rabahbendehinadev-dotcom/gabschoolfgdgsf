@@ -133,6 +133,16 @@ router.patch("/admin/users/:id", adminAuth, async (req, res) => {
   }
 });
 
+router.delete("/admin/users/:id", adminAuth, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    await db.delete(usersTable).where(eq(usersTable.id, id));
+    res.json({ message: "User deleted successfully" });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message || "Failed to delete user" });
+  }
+});
+
 router.post("/admin/users/:id/reset-ip", adminAuth, async (req, res) => {
   try {
     const id = Number(req.params.id);
