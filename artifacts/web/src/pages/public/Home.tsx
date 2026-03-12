@@ -57,6 +57,127 @@ export function Home() {
         </div>
       </section>
 
+      {/* Videos Showcase Section - Marketing */}
+      <section id="courses" className="py-24 bg-black/30 relative">
+        <div className="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent pointer-events-none" />
+        <div className="container mx-auto px-4 relative z-10">
+          {/* Section header */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-12"
+          >
+            <Badge variant="outline" className="mb-4 border-primary/30 bg-primary/10 text-primary">
+              <Lock className="w-3.5 h-3.5 ml-1.5 inline-block" /> محتوى حصري
+            </Badge>
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">الدروس المتاحة</h2>
+            <p className="text-foreground/60 max-w-xl mx-auto">اكتشف مئات الدروس الاحترافية — اشترك الآن للوصول إليها</p>
+          </motion.div>
+
+          {/* Category filter tabs */}
+          <div className="flex flex-wrap justify-center gap-2 mb-10">
+            <button
+              onClick={() => setActiveCategory(undefined)}
+              className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                activeCategory === undefined
+                  ? "bg-primary text-white shadow-[0_0_12px_rgba(234,88,12,0.4)]"
+                  : "bg-white/5 border border-white/10 text-foreground/70 hover:bg-white/10"
+              }`}
+            >
+              الكل
+            </button>
+            {categories?.map(cat => (
+              <button
+                key={cat.id}
+                onClick={() => setActiveCategory(cat.id)}
+                className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                  activeCategory === cat.id
+                    ? "bg-primary text-white shadow-[0_0_12px_rgba(234,88,12,0.4)]"
+                    : "bg-white/5 border border-white/10 text-foreground/70 hover:bg-white/10"
+                }`}
+              >
+                {cat.name}
+              </button>
+            ))}
+          </div>
+
+          {/* Videos grid — all locked */}
+          {videos && videos.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+              {videos.map((video, i) => (
+                <motion.div
+                  key={video.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: (i % 8) * 0.07 }}
+                >
+                  <Link href="/subscribe">
+                    <div className="group relative rounded-2xl overflow-hidden bg-card border border-white/10 hover:border-primary/40 transition-all duration-300 hover:-translate-y-1 cursor-pointer">
+                      <div className="relative aspect-video bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center overflow-hidden">
+                        {video.thumbnailUrl ? (
+                          <img src={video.thumbnailUrl} alt={video.title} className="w-full h-full object-cover opacity-60 group-hover:opacity-40 transition-opacity" />
+                        ) : (
+                          <div className="w-full h-full bg-gradient-to-br from-primary/10 to-orange-900/20" />
+                        )}
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 group-hover:bg-black/60 transition-colors">
+                          <div className="w-12 h-12 rounded-full bg-primary/20 border-2 border-primary/40 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform group-hover:bg-primary/40">
+                            <Lock className="w-5 h-5 text-primary" />
+                          </div>
+                        </div>
+                        {video.isVipOnly && (
+                          <div className="absolute top-2 right-2 flex items-center gap-1 bg-gradient-to-r from-amber-500 to-orange-500 text-black text-[10px] font-black px-2 py-0.5 rounded-full">
+                            <Crown className="w-2.5 h-2.5" /> VIP
+                          </div>
+                        )}
+                      </div>
+                      <div className="p-4">
+                        <h3 className="font-bold text-sm leading-snug text-foreground/90 group-hover:text-white line-clamp-2 transition-colors">
+                          {video.title}
+                        </h3>
+                        {video.description && (
+                          <p className="text-xs text-foreground/50 mt-1 line-clamp-1">{video.description}</p>
+                        )}
+                        <div className="mt-3 flex items-center justify-between">
+                          <span className="text-[10px] text-primary/70 font-medium">
+                            {categories?.find(c => c.id === video.categoryId)?.name ?? "عام"}
+                          </span>
+                          <span className="text-[10px] text-foreground/40 flex items-center gap-1">
+                            <Lock className="w-2.5 h-2.5" /> مقفل
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </Link>
+                </motion.div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-20 text-foreground/40">
+              <Search className="w-12 h-12 mb-4 opacity-30" />
+              <p className="text-lg">لا توجد دروس في هذه الفئة</p>
+            </div>
+          )}
+
+          {/* CTA */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mt-14"
+          >
+            <p className="text-foreground/60 mb-5">اشترك الآن وابدأ مسيرتك نحو الاحتراف</p>
+            <Link href="/subscribe">
+              <Button size="lg" className="rounded-full px-12 glow-primary">
+                اشترك وشاهد جميع الدروس
+                <Play className="w-5 h-5 mr-2" />
+              </Button>
+            </Link>
+          </motion.div>
+        </div>
+      </section>
+
       {/* Features Section */}
       <section className="py-24 bg-black/40 relative">
         <div className="container mx-auto px-4">
@@ -126,132 +247,6 @@ export function Home() {
               </motion.div>
             ))}
           </div>
-        </div>
-      </section>
-
-      {/* Videos Showcase Section - Marketing */}
-      <section id="courses" className="py-24 bg-black/30 relative">
-        <div className="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent pointer-events-none" />
-        <div className="container mx-auto px-4 relative z-10">
-          {/* Section header */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-center mb-12"
-          >
-            <Badge variant="outline" className="mb-4 border-primary/30 bg-primary/10 text-primary">
-              <Lock className="w-3.5 h-3.5 ml-1.5 inline-block" /> محتوى حصري
-            </Badge>
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">الدروس المتاحة</h2>
-            <p className="text-foreground/60 max-w-xl mx-auto">اكتشف مئات الدروس الاحترافية — اشترك الآن للوصول إليها</p>
-          </motion.div>
-
-          {/* Category filter tabs */}
-          <div className="flex flex-wrap justify-center gap-2 mb-10">
-            <button
-              onClick={() => setActiveCategory(undefined)}
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                activeCategory === undefined
-                  ? "bg-primary text-white shadow-[0_0_12px_rgba(234,88,12,0.4)]"
-                  : "bg-white/5 border border-white/10 text-foreground/70 hover:bg-white/10"
-              }`}
-            >
-              الكل
-            </button>
-            {categories?.map(cat => (
-              <button
-                key={cat.id}
-                onClick={() => setActiveCategory(cat.id)}
-                className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                  activeCategory === cat.id
-                    ? "bg-primary text-white shadow-[0_0_12px_rgba(234,88,12,0.4)]"
-                    : "bg-white/5 border border-white/10 text-foreground/70 hover:bg-white/10"
-                }`}
-              >
-                {cat.name}
-              </button>
-            ))}
-          </div>
-
-          {/* Videos grid — all locked */}
-          {videos && videos.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-              {videos.map((video, i) => (
-                <motion.div
-                  key={video.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: (i % 8) * 0.07 }}
-                >
-                  <Link href="/subscribe">
-                    <div className="group relative rounded-2xl overflow-hidden bg-card border border-white/10 hover:border-primary/40 transition-all duration-300 hover:-translate-y-1 cursor-pointer">
-                      {/* Thumbnail */}
-                      <div className="relative aspect-video bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center overflow-hidden">
-                        {video.thumbnailUrl ? (
-                          <img src={video.thumbnailUrl} alt={video.title} className="w-full h-full object-cover opacity-60 group-hover:opacity-40 transition-opacity" />
-                        ) : (
-                          <div className="w-full h-full bg-gradient-to-br from-primary/10 to-orange-900/20" />
-                        )}
-                        {/* Lock overlay */}
-                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 group-hover:bg-black/60 transition-colors">
-                          <div className="w-12 h-12 rounded-full bg-primary/20 border-2 border-primary/40 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform group-hover:bg-primary/40">
-                            <Lock className="w-5 h-5 text-primary" />
-                          </div>
-                        </div>
-                        {/* VIP badge */}
-                        {video.isVipOnly && (
-                          <div className="absolute top-2 right-2 flex items-center gap-1 bg-gradient-to-r from-amber-500 to-orange-500 text-black text-[10px] font-black px-2 py-0.5 rounded-full">
-                            <Crown className="w-2.5 h-2.5" /> VIP
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Info */}
-                      <div className="p-4">
-                        <h3 className="font-bold text-sm leading-snug text-foreground/90 group-hover:text-white line-clamp-2 transition-colors">
-                          {video.title}
-                        </h3>
-                        {video.description && (
-                          <p className="text-xs text-foreground/50 mt-1 line-clamp-1">{video.description}</p>
-                        )}
-                        <div className="mt-3 flex items-center justify-between">
-                          <span className="text-[10px] text-primary/70 font-medium">
-                            {categories?.find(c => c.id === video.categoryId)?.name ?? "عام"}
-                          </span>
-                          <span className="text-[10px] text-foreground/40 flex items-center gap-1">
-                            <Lock className="w-2.5 h-2.5" /> مقفل
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </Link>
-                </motion.div>
-              ))}
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-20 text-foreground/40">
-              <Search className="w-12 h-12 mb-4 opacity-30" />
-              <p className="text-lg">لا توجد دروس في هذه الفئة</p>
-            </div>
-          )}
-
-          {/* CTA */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-center mt-14"
-          >
-            <p className="text-foreground/60 mb-5">اشترك الآن وابدأ مسيرتك نحو الاحتراف</p>
-            <Link href="/subscribe">
-              <Button size="lg" className="rounded-full px-12 glow-primary">
-                اشترك وشاهد جميع الدروس
-                <Play className="w-5 h-5 mr-2" />
-              </Button>
-            </Link>
-          </motion.div>
         </div>
       </section>
 
