@@ -34,11 +34,11 @@ export function Login() {
         toast({ title: "تم تسجيل الدخول بنجاح", className: "bg-green-600 text-white border-none" });
         navigate("/videos");
       },
-      onError: (err: any) => {
+      onError: () => {
         toast({ 
           variant: "destructive", 
           title: "خطأ في تسجيل الدخول", 
-          description: err.response?.data?.message || "بيانات الدخول غير صحيحة" 
+          description: "بيانات الدخول غير صحيحة" 
         });
       }
     });

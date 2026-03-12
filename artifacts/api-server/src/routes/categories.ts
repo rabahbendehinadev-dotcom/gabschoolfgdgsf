@@ -7,8 +7,8 @@ router.get("/categories", async (_req, res) => {
   try {
     const categories = await db.select().from(categoriesTable);
     res.json(categories);
-  } catch (error: any) {
-    res.status(500).json({ message: error.message || "Failed to fetch categories" });
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" || "Failed to fetch categories" });
   }
 });
 
