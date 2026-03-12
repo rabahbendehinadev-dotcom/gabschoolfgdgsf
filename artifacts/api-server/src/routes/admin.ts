@@ -101,7 +101,7 @@ router.patch("/admin/users/:id", adminAuth, async (req, res) => {
     const id = Number(req.params.id);
     const body = UpdateAdminUserBody.parse(req.body);
 
-    const updateData: any = {};
+    const updateData: Partial<Record<string, unknown>> = {};
     if (body.accountType !== undefined) updateData.accountType = body.accountType;
     if (body.subscriptionType !== undefined) updateData.subscriptionType = body.subscriptionType;
     if (body.isActive !== undefined) updateData.isActive = body.isActive;
@@ -219,7 +219,7 @@ router.patch("/admin/videos/:id", adminAuth, async (req, res) => {
     const id = Number(req.params.id);
     const body = UpdateVideoBody.parse(req.body);
 
-    const updateData: any = {};
+    const updateData: Partial<Record<string, unknown>> = {};
     if (body.title !== undefined) updateData.title = body.title;
     if (body.description !== undefined) updateData.description = body.description;
     if (body.thumbnailUrl !== undefined) updateData.thumbnailUrl = body.thumbnailUrl;
@@ -294,7 +294,7 @@ router.patch("/admin/categories/:id", adminAuth, async (req, res) => {
     const id = Number(req.params.id);
     const body = UpdateCategoryBody.parse(req.body);
 
-    const updateData: any = {};
+    const updateData: Partial<Record<string, unknown>> = {};
     if (body.name !== undefined) updateData.name = body.name;
     if (body.slug !== undefined) updateData.slug = body.slug;
     if (body.icon !== undefined) updateData.icon = body.icon;
@@ -337,7 +337,7 @@ router.patch("/admin/subscription-plans/:id", adminAuth, async (req, res) => {
     const id = Number(req.params.id);
     const body = UpdateSubscriptionPlanBody.parse(req.body);
 
-    const updateData: any = {};
+    const updateData: Partial<Record<string, unknown>> = {};
     if (body.price !== undefined) updateData.price = body.price;
     if (body.description !== undefined) updateData.description = body.description;
     if (body.durationDays !== undefined) updateData.durationDays = body.durationDays;
