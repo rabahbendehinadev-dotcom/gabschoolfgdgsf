@@ -1,46 +1,69 @@
-import { useRoute } from "wouter";
+import { useRoute, useLocation } from "wouter";
 import { useGetVideo } from "@workspace/api-client-react/src/generated/api";
 import { useAuth } from "@/lib/auth";
 import { Card, Badge, Button } from "@/components/ui";
-import { Crown, AlertTriangle, ArrowRight, PlaySquare } from "lucide-react";
+import { Crown, ArrowRight, PlaySquare } from "lucide-react";
 import { Link } from "wouter";
 import { formatDate } from "@/lib/utils";
+import { useEffect } from "react";
 
 export function VideoDetail() {
   const [, params] = useRoute("/videos/:id");
+  const [, navigate] = useLocation();
   const { user, getAuthHeaders } = useAuth();
   
   const id = params?.id ? parseInt(params.id) : 0;
-  
+
+  const isDemo = !user || user.subscriptionType === "demo";
+
+  useEffect(() => {
+    if (isDemo) {
+      navigate("/subscribe");
+    }
+  }, [isDemo, navigate]);
+
   const { data: video, isLoading, error } = useGetVideo(id, { 
     request: getAuthHeaders(),
   });
 
-  const isRestricted = (error instanceof Error && 'response' in error && (error as Error & { response: { status: number } }).response?.status === 403) || (video?.isVipOnly && user?.accountType !== 'vip');
+  const isVipRestricted = (error instanceof Error && 'response' in error && (error as Error & { response: { status: number } }).response?.status === 403) || (video?.isVipOnly && user?.accountType !== 'vip');
+
+  if (isDemo) return null;
 
   if (isLoading) return <div className="min-h-screen flex items-center justify-center"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div></div>;
 
-  if (isRestricted || error) {
+  if (isVipRestricted) {
     return (
       <div className="min-h-[80vh] flex items-center justify-center p-4">
-        <Card className="max-w-md w-full p-8 text-center glass-card border-destructive/20">
-          <div className="w-20 h-20 mx-auto bg-destructive/10 text-destructive rounded-full flex items-center justify-center mb-6">
-            {video?.isVipOnly ? <Crown className="w-10 h-10" /> : <AlertTriangle className="w-10 h-10" />}
+        <Card className="max-w-md w-full p-8 text-center glass-card border-amber-500/20">
+          <div className="w-20 h-20 mx-auto bg-amber-500/10 text-amber-400 rounded-full flex items-center justify-center mb-6">
+            <Crown className="w-10 h-10" />
           </div>
-          <h2 className="text-2xl font-bold mb-4">
-            {video?.isVipOnly ? "محتوى حصري للمشتركين (VIP)" : "غير مصرح لك بالمشاهدة"}
-          </h2>
+          <h2 className="text-2xl font-bold mb-4">محتوى حصري VIP</h2>
           <p className="text-muted-foreground mb-8">
-            {"هذا الدرس متاح فقط لأصحاب الاشتراكات المدفوعة. قم بترقية حسابك الآن لتتمكن من المشاهدة."}
+            هذا الدرس متاح فقط لأصحاب الاشتراكات المدفوعة. قم بترقية حسابك الآن للوصول إليه.
           </p>
           <div className="flex flex-col gap-3">
-            <Link href="/#pricing">
-              <Button className="w-full h-12 bg-gradient-to-r from-amber-500 to-orange-600 text-black font-bold">ترقية الحساب (VIP)</Button>
+            <Link href="/subscribe">
+              <Button className="w-full h-12 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold">
+                <Crown className="w-4 h-4 ml-2" /> ترقية الحساب
+              </Button>
             </Link>
             <Link href="/videos">
               <Button variant="outline" className="w-full h-12">العودة للمكتبة</Button>
             </Link>
           </div>
+        </Card>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-[80vh] flex items-center justify-center p-4">
+        <Card className="max-w-md w-full p-8 text-center glass-card">
+          <h2 className="text-xl font-bold mb-4">تعذر تحميل الدرس</h2>
+          <Link href="/videos"><Button variant="outline">العودة للمكتبة</Button></Link>
         </Card>
       </div>
     );
