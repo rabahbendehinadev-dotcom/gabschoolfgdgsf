@@ -80,6 +80,13 @@ export const GetMeResponse = zod.object({
 });
 
 /**
+ * @summary User logout
+ */
+export const LogoutResponse = zod.object({
+  message: zod.string(),
+});
+
+/**
  * @summary Change password
  */
 export const changePasswordBodyNewPasswordMin = 6;
@@ -219,6 +226,17 @@ export const UpdateAdminUserResponse = zod.object({
   ipAddress: zod.string().nullish(),
   isActive: zod.boolean(),
   createdAt: zod.date(),
+});
+
+/**
+ * @summary Delete user
+ */
+export const DeleteAdminUserParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const DeleteAdminUserResponse = zod.object({
+  message: zod.string(),
 });
 
 /**
