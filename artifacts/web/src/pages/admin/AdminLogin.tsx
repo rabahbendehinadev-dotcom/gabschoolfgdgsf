@@ -32,8 +32,8 @@ export function AdminLogin() {
         toast({ title: "تم تسجيل الدخول", className: "bg-green-600 text-white" });
         navigate("/admin");
       },
-      onError: (err: any) => {
-        toast({ variant: "destructive", title: "خطأ", description: err.response?.data?.message || "بيانات غير صحيحة" });
+      onError: () => {
+        toast({ variant: "destructive", title: "خطأ", description: "بيانات غير صحيحة" });
       }
     });
   };
