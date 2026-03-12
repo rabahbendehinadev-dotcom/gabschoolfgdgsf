@@ -151,7 +151,7 @@ router.get("/auth/me", userAuth, async (req, res) => {
     subscriptionType: user.subscriptionType,
     subscriptionExpiresAt: user.subscriptionExpiresAt?.toISOString() || null,
     isActive: user.isActive,
-    createdAt: new Date().toISOString(),
+    createdAt: req.userCreatedAt?.toISOString() || new Date().toISOString(),
   });
 });
 

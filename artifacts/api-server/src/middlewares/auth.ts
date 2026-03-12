@@ -20,6 +20,7 @@ declare global {
         id: number;
         username: string;
       };
+      userCreatedAt?: Date;
     }
   }
 }
@@ -70,6 +71,7 @@ export async function userAuth(req: Request, res: Response, next: NextFunction) 
     ipAddress: user.ipAddress || clientIp,
     isActive: user.isActive,
   };
+  req.userCreatedAt = user.createdAt;
 
   next();
 }

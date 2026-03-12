@@ -9,7 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ShieldAlert, Loader2 } from "lucide-react";
 
 const loginSchema = z.object({
-  email: z.string(), // Admin uses username or email depending on backend, let's use string
+  email: z.string().min(1, "مطلوب"),
   password: z.string().min(1, "مطلوب"),
 });
 
