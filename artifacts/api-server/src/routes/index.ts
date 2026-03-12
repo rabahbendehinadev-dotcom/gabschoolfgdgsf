@@ -5,6 +5,7 @@ import videosRouter from "./videos";
 import categoriesRouter from "./categories";
 import subscriptionPlansRouter from "./subscriptionPlans";
 import adminRouter from "./admin";
+import storageRouter from "./storage";
 
 const router: IRouter = Router();
 
@@ -14,5 +15,6 @@ router.use(videosRouter);
 router.use(categoriesRouter);
 router.use(subscriptionPlansRouter);
 router.use(adminRouter);
+router.use(storageRouter);
 
 export default router;
