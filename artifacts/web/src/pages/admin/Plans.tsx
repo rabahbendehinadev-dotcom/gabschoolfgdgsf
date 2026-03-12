@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useGetAdminSubscriptionPlans, useUpdateSubscriptionPlan } from "@workspace/api-client-react/src/generated/api";
+import { SubscriptionPlan } from "@workspace/api-client-react/src/generated/api.schemas";
 import { useAuth } from "@/lib/auth";
 import { Card, Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label } from "@/components/ui";
 import { useToast } from "@/hooks/use-toast";
@@ -15,11 +16,11 @@ export function AdminPlans() {
 
   const [isOpen, setIsOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [formData, setFormData] = useState({ price: "", description: "", durationDays: null as number | null });
+  const [formData, setFormData] = useState<{ price: string; description: string; durationDays: number | null }>({ price: "", description: "", durationDays: null });
 
-  const handleOpen = (plan: any) => {
+  const handleOpen = (plan: SubscriptionPlan) => {
     setEditingId(plan.id);
-    setFormData({ price: plan.price, description: plan.description, durationDays: plan.durationDays });
+    setFormData({ price: plan.price, description: plan.description, durationDays: plan.durationDays ?? null });
     setIsOpen(true);
   };
 

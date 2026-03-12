@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { db, usersTable, adminsTable } from "@workspace/db";
+import { db, usersTable, adminsTable, subscriptionPlansTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { hashPassword, comparePassword, generateToken, generateAdminToken } from "../lib/auth";
 import { userAuth } from "../middlewares/auth";
@@ -32,12 +32,22 @@ router.post("/auth/register", async (req, res) => {
     }
 
     const passwordHash = await hashPassword(body.password);
+
+    const [demoPlan] = await db.select().from(subscriptionPlansTable)
+      .where(eq(subscriptionPlansTable.type, "demo")).limit(1);
+    let subscriptionExpiresAt: Date | undefined;
+    if (demoPlan?.durationDays) {
+      subscriptionExpiresAt = new Date();
+      subscriptionExpiresAt.setDate(subscriptionExpiresAt.getDate() + demoPlan.durationDays);
+    }
+
     const [user] = await db.insert(usersTable).values({
       username: body.username,
       email: body.email,
       passwordHash,
       accountType: "normal",
       subscriptionType: "demo",
+      subscriptionExpiresAt,
     }).returning();
 
     const token = generateToken({ userId: user.id });
@@ -55,8 +65,8 @@ router.post("/auth/register", async (req, res) => {
         createdAt: user.createdAt.toISOString(),
       },
     });
-  } catch (error: any) {
-    res.status(400).json({ message: error.message || "Registration failed" });
+  } catch (error: unknown) {
+    res.status(400).json({ message: error instanceof Error ? error.message : "Unknown error" || "Registration failed" });
   }
 });
 
@@ -108,8 +118,8 @@ router.post("/auth/login", async (req, res) => {
         createdAt: user.createdAt.toISOString(),
       },
     });
-  } catch (error: any) {
-    res.status(400).json({ message: error.message || "Login failed" });
+  } catch (error: unknown) {
+    res.status(400).json({ message: error instanceof Error ? error.message : "Unknown error" || "Login failed" });
   }
 });
 
@@ -136,8 +146,8 @@ router.post("/auth/admin-login", async (req, res) => {
       token,
       admin: { id: admin.id, username: admin.username },
     });
-  } catch (error: any) {
-    res.status(400).json({ message: error.message || "Admin login failed" });
+  } catch (error: unknown) {
+    res.status(400).json({ message: error instanceof Error ? error.message : "Unknown error" || "Admin login failed" });
   }
 });
 
@@ -176,8 +186,8 @@ router.post("/auth/change-password", userAuth, async (req, res) => {
       .where(eq(usersTable.id, req.user!.id));
 
     res.json({ message: "Password changed successfully" });
-  } catch (error: any) {
-    res.status(400).json({ message: error.message || "Failed to change password" });
+  } catch (error: unknown) {
+    res.status(400).json({ message: error instanceof Error ? error.message : "Unknown error" || "Failed to change password" });
   }
 });
 

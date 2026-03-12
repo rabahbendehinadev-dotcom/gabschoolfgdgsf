@@ -72,8 +72,8 @@ router.get("/admin/stats", adminAuth, async (_req, res) => {
       recentRegistrations: recentRegs.map(r => ({ date: r.date, count: Number(r.count) })),
       totalVisits: visitStats.totalVisits,
     });
-  } catch (error: any) {
-    res.status(500).json({ message: error.message || "Failed to fetch stats" });
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" || "Failed to fetch stats" });
   }
 });
 
@@ -91,8 +91,8 @@ router.get("/admin/users", adminAuth, async (_req, res) => {
       isActive: u.isActive,
       createdAt: u.createdAt.toISOString(),
     })));
-  } catch (error: any) {
-    res.status(500).json({ message: error.message || "Failed to fetch users" });
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" || "Failed to fetch users" });
   }
 });
 
@@ -103,7 +103,20 @@ router.patch("/admin/users/:id", adminAuth, async (req, res) => {
 
     const updateData: Partial<Record<string, unknown>> = {};
     if (body.accountType !== undefined) updateData.accountType = body.accountType;
-    if (body.subscriptionType !== undefined) updateData.subscriptionType = body.subscriptionType;
+    if (body.subscriptionType !== undefined) {
+      updateData.subscriptionType = body.subscriptionType;
+      if (!body.subscriptionExpiresAt) {
+        const [plan] = await db.select().from(subscriptionPlansTable)
+          .where(eq(subscriptionPlansTable.type, body.subscriptionType)).limit(1);
+        if (plan?.durationDays) {
+          const expiresAt = new Date();
+          expiresAt.setDate(expiresAt.getDate() + plan.durationDays);
+          updateData.subscriptionExpiresAt = expiresAt;
+        } else {
+          updateData.subscriptionExpiresAt = null;
+        }
+      }
+    }
     if (body.isActive !== undefined) updateData.isActive = body.isActive;
     if (body.subscriptionExpiresAt !== undefined) {
       updateData.subscriptionExpiresAt = body.subscriptionExpiresAt ? new Date(body.subscriptionExpiresAt) : null;
@@ -128,8 +141,8 @@ router.patch("/admin/users/:id", adminAuth, async (req, res) => {
       isActive: user.isActive,
       createdAt: user.createdAt.toISOString(),
     });
-  } catch (error: any) {
-    res.status(400).json({ message: error.message || "Failed to update user" });
+  } catch (error: unknown) {
+    res.status(400).json({ message: error instanceof Error ? error.message : "Unknown error" || "Failed to update user" });
   }
 });
 
@@ -138,8 +151,8 @@ router.delete("/admin/users/:id", adminAuth, async (req, res) => {
     const id = Number(req.params.id);
     await db.delete(usersTable).where(eq(usersTable.id, id));
     res.json({ message: "User deleted successfully" });
-  } catch (error: any) {
-    res.status(500).json({ message: error.message || "Failed to delete user" });
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" || "Failed to delete user" });
   }
 });
 
@@ -149,8 +162,8 @@ router.post("/admin/users/:id/reset-ip", adminAuth, async (req, res) => {
     await db.update(usersTable).set({ ipAddress: null })
       .where(eq(usersTable.id, id));
     res.json({ message: "IP address reset successfully" });
-  } catch (error: any) {
-    res.status(500).json({ message: error.message || "Failed to reset IP" });
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" || "Failed to reset IP" });
   }
 });
 
@@ -177,8 +190,8 @@ router.get("/admin/videos", adminAuth, async (_req, res) => {
       categoryName: v.categoryName || "",
       createdAt: v.createdAt.toISOString(),
     })));
-  } catch (error: any) {
-    res.status(500).json({ message: error.message || "Failed to fetch videos" });
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" || "Failed to fetch videos" });
   }
 });
 
@@ -209,8 +222,8 @@ router.post("/admin/videos", adminAuth, async (req, res) => {
       isVisible: video.isVisible,
       createdAt: video.createdAt.toISOString(),
     });
-  } catch (error: any) {
-    res.status(400).json({ message: error.message || "Failed to create video" });
+  } catch (error: unknown) {
+    res.status(400).json({ message: error instanceof Error ? error.message : "Unknown error" || "Failed to create video" });
   }
 });
 
@@ -250,8 +263,8 @@ router.patch("/admin/videos/:id", adminAuth, async (req, res) => {
       isVisible: video.isVisible,
       createdAt: video.createdAt.toISOString(),
     });
-  } catch (error: any) {
-    res.status(400).json({ message: error.message || "Failed to update video" });
+  } catch (error: unknown) {
+    res.status(400).json({ message: error instanceof Error ? error.message : "Unknown error" || "Failed to update video" });
   }
 });
 
@@ -260,8 +273,8 @@ router.delete("/admin/videos/:id", adminAuth, async (req, res) => {
     const id = Number(req.params.id);
     await db.delete(videosTable).where(eq(videosTable.id, id));
     res.json({ message: "Video deleted successfully" });
-  } catch (error: any) {
-    res.status(500).json({ message: error.message || "Failed to delete video" });
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" || "Failed to delete video" });
   }
 });
 
@@ -269,8 +282,8 @@ router.get("/admin/categories", adminAuth, async (_req, res) => {
   try {
     const categories = await db.select().from(categoriesTable);
     res.json(categories);
-  } catch (error: any) {
-    res.status(500).json({ message: error.message || "Failed to fetch categories" });
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" || "Failed to fetch categories" });
   }
 });
 
@@ -284,8 +297,8 @@ router.post("/admin/categories", adminAuth, async (req, res) => {
     }).returning();
 
     res.status(201).json(category);
-  } catch (error: any) {
-    res.status(400).json({ message: error.message || "Failed to create category" });
+  } catch (error: unknown) {
+    res.status(400).json({ message: error instanceof Error ? error.message : "Unknown error" || "Failed to create category" });
   }
 });
 
@@ -308,8 +321,8 @@ router.patch("/admin/categories/:id", adminAuth, async (req, res) => {
     }
 
     res.json(category);
-  } catch (error: any) {
-    res.status(400).json({ message: error.message || "Failed to update category" });
+  } catch (error: unknown) {
+    res.status(400).json({ message: error instanceof Error ? error.message : "Unknown error" || "Failed to update category" });
   }
 });
 
@@ -318,8 +331,8 @@ router.delete("/admin/categories/:id", adminAuth, async (req, res) => {
     const id = Number(req.params.id);
     await db.delete(categoriesTable).where(eq(categoriesTable.id, id));
     res.json({ message: "Category deleted successfully" });
-  } catch (error: any) {
-    res.status(500).json({ message: error.message || "Failed to delete category" });
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" || "Failed to delete category" });
   }
 });
 
@@ -327,8 +340,8 @@ router.get("/admin/subscription-plans", adminAuth, async (_req, res) => {
   try {
     const plans = await db.select().from(subscriptionPlansTable);
     res.json(plans);
-  } catch (error: any) {
-    res.status(500).json({ message: error.message || "Failed to fetch plans" });
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" || "Failed to fetch plans" });
   }
 });
 
@@ -351,8 +364,8 @@ router.patch("/admin/subscription-plans/:id", adminAuth, async (req, res) => {
     }
 
     res.json(plan);
-  } catch (error: any) {
-    res.status(400).json({ message: error.message || "Failed to update plan" });
+  } catch (error: unknown) {
+    res.status(400).json({ message: error instanceof Error ? error.message : "Unknown error" || "Failed to update plan" });
   }
 });
 

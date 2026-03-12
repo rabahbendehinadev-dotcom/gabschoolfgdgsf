@@ -59,8 +59,8 @@ router.get("/videos", userAuth, async (req, res) => {
       categoryName: v.categoryName || "",
       createdAt: v.createdAt.toISOString(),
     })));
-  } catch (error: any) {
-    res.status(500).json({ message: error.message || "Failed to fetch videos" });
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" || "Failed to fetch videos" });
   }
 });
 
@@ -119,8 +119,8 @@ router.get("/videos/:id", userAuth, async (req, res) => {
       isVipOnly: video.isVipOnly,
       createdAt: video.createdAt.toISOString(),
     });
-  } catch (error: any) {
-    res.status(500).json({ message: error.message || "Failed to fetch video" });
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" || "Failed to fetch video" });
   }
 });
 

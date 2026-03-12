@@ -34,11 +34,11 @@ export function Register() {
         toast({ title: "تم إنشاء الحساب بنجاح", className: "bg-green-600 text-white border-none" });
         navigate("/dashboard");
       },
-      onError: (err: any) => {
+      onError: () => {
         toast({ 
           variant: "destructive", 
           title: "خطأ في التسجيل", 
-          description: err.response?.data?.message || "حدث خطأ غير متوقع" 
+          description: "حدث خطأ غير متوقع" 
         });
       }
     });
