@@ -2,7 +2,7 @@ import { useRoute, useLocation } from "wouter";
 import { useGetVideo } from "@workspace/api-client-react/src/generated/api";
 import { useAuth } from "@/lib/auth";
 import { Card, Badge, Button } from "@/components/ui";
-import { Crown, ArrowRight, PlaySquare, ExternalLink, Lock } from "lucide-react";
+import { Crown, ArrowRight, PlaySquare, ExternalLink, Lock, CalendarDays, Tag } from "lucide-react";
 import { Link } from "wouter";
 import { formatDate } from "@/lib/utils";
 
@@ -34,7 +34,7 @@ export function VideoDetail() {
             <Crown className="w-10 h-10" />
           </div>
           <h2 className="text-2xl font-bold mb-4">
-            {isVipRestricted ? "محتوى حصري VIP" : "يجب تسجيل الدخول أولاً"}
+            {isVipRestricted ? "محتوى حصري VIP" : "يجب الاشتراك أولاً"}
           </h2>
           <p className="text-muted-foreground mb-8">
             {isVipRestricted
@@ -78,86 +78,94 @@ export function VideoDetail() {
 
   return (
     <div className="min-h-screen py-8">
-      <div className="container mx-auto px-4 max-w-6xl">
-        <Link href="/videos" className="inline-flex items-center text-muted-foreground hover:text-primary mb-6 transition-colors font-medium">
-          <ArrowRight className="w-4 h-4 ml-2" /> العودة للدروس
+      <div className="container mx-auto px-4 max-w-4xl">
+
+        {/* Back link */}
+        <Link href="/videos" className="inline-flex items-center text-muted-foreground hover:text-primary mb-8 transition-colors font-medium group">
+          <ArrowRight className="w-4 h-4 ml-2 group-hover:-translate-x-1 transition-transform" />
+          العودة للدروس
         </Link>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 space-y-6">
-            {/* Thumbnail + Watch Button */}
-            <div className="relative w-full aspect-video bg-black/60 rounded-2xl overflow-hidden shadow-2xl border border-white/10 group">
-              {video.thumbnailUrl ? (
-                <img
-                  src={video.thumbnailUrl}
-                  alt={video.title}
-                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                />
-              ) : (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-                  <PlaySquare className="w-20 h-20 text-white/20" />
-                </div>
-              )}
+        {/* Title */}
+        <h1 className="text-3xl md:text-4xl font-bold leading-tight mb-4">
+          {video.title}
+        </h1>
 
-              {/* Overlay */}
-              <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center gap-4 opacity-100 group-hover:bg-black/55 transition-all">
-                {video.driveEmbedUrl ? (
-                  <a
-                    href={video.driveEmbedUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-3 px-8 py-4 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-500 text-white font-bold text-xl shadow-2xl hover:scale-105 transition-transform duration-200"
-                  >
-                    <PlaySquare className="w-7 h-7" />
-                    شاهد الآن
-                    <ExternalLink className="w-5 h-5 opacity-70" />
-                  </a>
-                ) : (
-                  <p className="text-white/60 text-sm">رابط الفيديو غير متوفر</p>
-                )}
-              </div>
+        {/* Meta row */}
+        <div className="flex flex-wrap items-center gap-3 mb-6">
+          <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+            <Tag className="w-3.5 h-3.5" />
+            {video.categoryName}
+          </span>
+          <span className="text-white/20">•</span>
+          <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+            <CalendarDays className="w-3.5 h-3.5" />
+            {formatDate(video.createdAt)}
+          </span>
+          {video.accessType === "vip" && (
+            <Badge variant="vip"><Crown className="w-3 h-3 ml-1" /> VIP</Badge>
+          )}
+          {video.accessType === "visitor" && (
+            <Badge variant="outline" className="border-green-500/40 text-green-400">مجاني</Badge>
+          )}
+        </div>
+
+        {/* Thumbnail + Watch Button */}
+        <div className="relative w-full aspect-video bg-black/60 rounded-2xl overflow-hidden shadow-2xl border border-white/10 group mb-8">
+          {video.thumbnailUrl ? (
+            <img
+              src={video.thumbnailUrl}
+              alt={video.title}
+              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+            />
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+              <PlaySquare className="w-20 h-20 text-white/20" />
             </div>
+          )}
 
-            {/* Title & Meta */}
-            <div className="space-y-4">
-              <div className="flex flex-wrap items-center gap-3">
-                <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20">
-                  {video.categoryName}
-                </Badge>
-                {video.accessType === "vip" && (
-                  <Badge variant="vip"><Crown className="w-3 h-3 ml-1" /> VIP</Badge>
-                )}
-                {video.accessType === "visitor" && (
-                  <Badge variant="outline" className="border-green-500/40 text-green-400">مجاني</Badge>
-                )}
-                <span className="text-sm text-muted-foreground">{formatDate(video.createdAt)}</span>
-              </div>
-              <h1 className="text-3xl md:text-4xl font-bold leading-tight">{video.title}</h1>
-            </div>
-          </div>
-
-          {/* Description Sidebar */}
-          <div className="lg:col-span-1">
-            <Card className="p-6 glass-card sticky top-24">
-              <h3 className="text-xl font-bold mb-4 border-b border-white/10 pb-4">وصف الدرس</h3>
-              <div className="prose prose-invert prose-orange max-w-none text-foreground/80 leading-relaxed whitespace-pre-wrap">
-                {video.description}
-              </div>
-
-              {video.driveEmbedUrl && (
-                <a
-                  href={video.driveEmbedUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-6 w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-primary text-white font-bold hover:bg-primary/90 transition-colors"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                  فتح الدرس
-                </a>
-              )}
-            </Card>
+          <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center gap-4 group-hover:bg-black/55 transition-all">
+            {video.driveEmbedUrl ? (
+              <a
+                href={video.driveEmbedUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-3 px-8 py-4 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-500 text-white font-bold text-xl shadow-2xl hover:scale-105 transition-transform duration-200"
+              >
+                <PlaySquare className="w-7 h-7" />
+                شاهد الآن
+                <ExternalLink className="w-5 h-5 opacity-70" />
+              </a>
+            ) : (
+              <p className="text-white/60 text-sm">رابط الفيديو غير متوفر</p>
+            )}
           </div>
         </div>
+
+        {/* Description */}
+        {video.description && (
+          <Card className="p-6 glass-card">
+            <h3 className="text-lg font-bold mb-4 text-primary border-b border-white/10 pb-3">
+              وصف الدرس
+            </h3>
+            <div className="text-foreground/80 leading-loose whitespace-pre-wrap text-[15px]">
+              {video.description}
+            </div>
+
+            {video.driveEmbedUrl && (
+              <a
+                href={video.driveEmbedUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-6 inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-primary text-white font-bold hover:bg-primary/90 transition-colors"
+              >
+                <ExternalLink className="w-4 h-4" />
+                فتح الدرس
+              </a>
+            )}
+          </Card>
+        )}
+
       </div>
     </div>
   );
