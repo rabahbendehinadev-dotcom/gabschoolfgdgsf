@@ -1,6 +1,7 @@
 import app from "./app";
 import { db, adminsTable, categoriesTable, subscriptionPlansTable } from "@workspace/db";
 import bcrypt from "bcryptjs";
+import { sql } from "drizzle-orm";
 
 const rawPort = process.env["PORT"];
 
@@ -14,6 +15,23 @@ const port = Number(rawPort);
 
 if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
+}
+
+async function runMigrations() {
+  try {
+    await db.execute(sql`
+      ALTER TABLE videos
+        ADD COLUMN IF NOT EXISTS access_type VARCHAR(20) NOT NULL DEFAULT 'normal'
+    `);
+    await db.execute(sql`
+      UPDATE videos
+        SET access_type = CASE WHEN is_vip_only = true THEN 'vip' ELSE 'normal' END
+        WHERE access_type = 'normal' AND is_vip_only = true
+    `);
+    console.log("[migrations] Schema up to date.");
+  } catch (err) {
+    console.error("[migrations] Migration error:", err);
+  }
 }
 
 async function ensureSeed() {
@@ -58,7 +76,7 @@ async function ensureSeed() {
   }
 }
 
-ensureSeed().then(() => {
+runMigrations().then(() => ensureSeed()).then(() => {
   app.listen(port, () => {
     console.log(`Server listening on port ${port}`);
   });
