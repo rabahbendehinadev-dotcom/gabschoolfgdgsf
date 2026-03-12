@@ -11,6 +11,7 @@ export const usersTable = pgTable("users", {
   subscriptionType: varchar("subscription_type", { length: 20 }).notNull().default("demo"),
   subscriptionExpiresAt: timestamp("subscription_expires_at"),
   ipAddress: varchar("ip_address", { length: 45 }),
+  ipAddress2: varchar("ip_address_2", { length: 45 }),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });

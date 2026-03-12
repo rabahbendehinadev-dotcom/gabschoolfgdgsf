@@ -111,6 +111,7 @@ router.get("/admin/users", adminAuth, async (_req, res) => {
       subscriptionType: u.subscriptionType,
       subscriptionExpiresAt: u.subscriptionExpiresAt?.toISOString() || null,
       ipAddress: u.ipAddress,
+      ipAddress2: u.ipAddress2,
       isActive: u.isActive,
       createdAt: u.createdAt.toISOString(),
     })));
@@ -161,6 +162,7 @@ router.patch("/admin/users/:id", adminAuth, async (req, res) => {
       subscriptionType: user.subscriptionType,
       subscriptionExpiresAt: user.subscriptionExpiresAt?.toISOString() || null,
       ipAddress: user.ipAddress,
+      ipAddress2: user.ipAddress2,
       isActive: user.isActive,
       createdAt: user.createdAt.toISOString(),
     });
@@ -182,7 +184,7 @@ router.delete("/admin/users/:id", adminAuth, async (req, res) => {
 router.post("/admin/users/:id/reset-ip", adminAuth, async (req, res) => {
   try {
     const id = Number(req.params.id);
-    await db.update(usersTable).set({ ipAddress: null })
+    await db.update(usersTable).set({ ipAddress: null, ipAddress2: null })
       .where(eq(usersTable.id, id));
     res.json({ message: "IP address reset successfully" });
   } catch (error: unknown) {

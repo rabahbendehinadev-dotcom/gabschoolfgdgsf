@@ -94,13 +94,23 @@ router.post("/auth/login", async (req, res) => {
 
     const clientIp = req.ip || req.headers["x-forwarded-for"]?.toString().split(",")[0]?.trim() || "unknown";
 
-    if (user.ipAddress && user.ipAddress !== clientIp) {
-      res.status(403).json({ message: "Access denied: This account is linked to a different IP address. Please contact admin to reset your IP." });
-      return;
-    }
+    const ip1 = user.ipAddress;
+    const ip2 = user.ipAddress2;
 
-    if (!user.ipAddress) {
+    if (!ip1) {
+      // First login — register this as the primary IP
       await db.update(usersTable).set({ ipAddress: clientIp }).where(eq(usersTable.id, user.id));
+    } else if (clientIp === ip1 || clientIp === ip2) {
+      // IP matches one of the registered devices — allow
+    } else if (!ip2) {
+      // Second device — register it
+      await db.update(usersTable).set({ ipAddress2: clientIp }).where(eq(usersTable.id, user.id));
+    } else {
+      // Both IPs registered and client doesn't match either
+      res.status(403).json({
+        message: "تم تسجيل الدخول من جهاز غير مسموح به. هذا الحساب مرتبط بجهازين مختلفين. تواصل مع الأدمن لإعادة ضبط الأجهزة المسجلة."
+      });
+      return;
     }
 
     const token = generateToken({ userId: user.id });

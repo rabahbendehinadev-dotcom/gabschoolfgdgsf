@@ -34,12 +34,13 @@ export function Login() {
         toast({ title: "تم تسجيل الدخول بنجاح", className: "bg-green-600 text-white border-none" });
         navigate("/videos");
       },
-      onError: () => {
-        toast({ 
-          variant: "destructive", 
-          title: "خطأ في تسجيل الدخول", 
-          description: "بيانات الدخول غير صحيحة" 
-        });
+      onError: async (err) => {
+        let description = "بيانات الدخول غير صحيحة";
+        try {
+          const body = await (err as Error & { response?: Response }).response?.json();
+          if (body?.message) description = body.message;
+        } catch { }
+        toast({ variant: "destructive", title: "خطأ في تسجيل الدخول", description });
       }
     });
   };

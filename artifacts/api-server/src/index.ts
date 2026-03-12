@@ -28,6 +28,10 @@ async function runMigrations() {
         SET access_type = CASE WHEN is_vip_only = true THEN 'vip' ELSE 'normal' END
         WHERE access_type = 'normal' AND is_vip_only = true
     `);
+    await db.execute(sql`
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS ip_address_2 VARCHAR(45)
+    `);
     console.log("[migrations] Schema up to date.");
   } catch (err) {
     console.error("[migrations] Migration error:", err);
