@@ -117,6 +117,7 @@ export const GetVideosResponseItem = zod.object({
   categoryId: zod.number(),
   categoryName: zod.string().optional(),
   isVipOnly: zod.boolean(),
+  accessType: zod.enum(["visitor", "normal", "vip"]),
   createdAt: zod.date(),
 });
 export const GetVideosResponse = zod.array(GetVideosResponseItem);
@@ -137,6 +138,7 @@ export const GetVideoResponse = zod.object({
   categoryId: zod.number(),
   categoryName: zod.string().optional(),
   isVipOnly: zod.boolean(),
+  accessType: zod.enum(["visitor", "normal", "vip"]),
   createdAt: zod.date(),
 });
 
@@ -262,6 +264,7 @@ export const GetAdminVideosResponseItem = zod.object({
   categoryId: zod.number(),
   categoryName: zod.string().optional(),
   isVipOnly: zod.boolean(),
+  accessType: zod.enum(["visitor", "normal", "vip"]),
   isVisible: zod.boolean(),
   createdAt: zod.date(),
 });
@@ -277,6 +280,7 @@ export const CreateVideoBody = zod.object({
   driveEmbedUrl: zod.string(),
   categoryId: zod.number(),
   isVipOnly: zod.boolean().optional(),
+  accessType: zod.enum(["visitor", "normal", "vip"]).optional(),
   isVisible: zod.boolean().optional(),
 });
 
@@ -294,6 +298,7 @@ export const UpdateVideoBody = zod.object({
   driveEmbedUrl: zod.string().optional(),
   categoryId: zod.number().optional(),
   isVipOnly: zod.boolean().optional(),
+  accessType: zod.enum(["visitor", "normal", "vip"]).optional(),
   isVisible: zod.boolean().optional(),
 });
 
@@ -306,6 +311,7 @@ export const UpdateVideoResponse = zod.object({
   categoryId: zod.number(),
   categoryName: zod.string().optional(),
   isVipOnly: zod.boolean(),
+  accessType: zod.enum(["visitor", "normal", "vip"]),
   isVisible: zod.boolean(),
   createdAt: zod.date(),
 });

@@ -5,6 +5,7 @@
  * Cours Online API
  * OpenAPI spec version: 0.1.0
  */
+import type { UpdateVideoInputAccessType } from "./updateVideoInputAccessType";
 
 export interface UpdateVideoInput {
   title?: string;
@@ -13,5 +14,6 @@ export interface UpdateVideoInput {
   driveEmbedUrl?: string;
   categoryId?: number;
   isVipOnly?: boolean;
+  accessType?: UpdateVideoInputAccessType;
   isVisible?: boolean;
 }

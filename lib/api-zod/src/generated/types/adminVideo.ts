@@ -5,6 +5,7 @@
  * Cours Online API
  * OpenAPI spec version: 0.1.0
  */
+import type { AdminVideoAccessType } from "./adminVideoAccessType";
 
 export interface AdminVideo {
   id: number;
@@ -15,6 +16,7 @@ export interface AdminVideo {
   categoryId: number;
   categoryName?: string;
   isVipOnly: boolean;
+  accessType: AdminVideoAccessType;
   isVisible: boolean;
   createdAt: Date;
 }

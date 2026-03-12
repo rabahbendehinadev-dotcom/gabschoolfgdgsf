@@ -2,51 +2,50 @@ import { useRoute, useLocation } from "wouter";
 import { useGetVideo } from "@workspace/api-client-react/src/generated/api";
 import { useAuth } from "@/lib/auth";
 import { Card, Badge, Button } from "@/components/ui";
-import { Crown, ArrowRight, PlaySquare } from "lucide-react";
+import { Crown, ArrowRight, PlaySquare, ExternalLink, Lock } from "lucide-react";
 import { Link } from "wouter";
 import { formatDate } from "@/lib/utils";
-import { useEffect } from "react";
 
 export function VideoDetail() {
   const [, params] = useRoute("/videos/:id");
   const [, navigate] = useLocation();
   const { user, getAuthHeaders } = useAuth();
-  
+
   const id = params?.id ? parseInt(params.id) : 0;
 
-  const isDemo = !user || user.subscriptionType === "demo";
-
-  useEffect(() => {
-    if (isDemo) {
-      navigate("/subscribe");
-    }
-  }, [isDemo, navigate]);
-
-  const { data: video, isLoading, error } = useGetVideo(id, { 
+  const { data: video, isLoading, error } = useGetVideo(id, {
     request: getAuthHeaders(),
   });
 
-  const isVipRestricted = (error instanceof Error && 'response' in error && (error as Error & { response: { status: number } }).response?.status === 403) || (video?.isVipOnly && user?.accountType !== 'vip');
+  const status = (error as (Error & { response?: { status: number } }) | null)?.response?.status;
 
-  if (isDemo) return null;
+  if (isLoading) return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
 
-  if (isLoading) return <div className="min-h-screen flex items-center justify-center"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div></div>;
-
-  if (isVipRestricted) {
+  if (status === 403) {
+    const isVipRestricted = video?.accessType === "vip" || error;
     return (
       <div className="min-h-[80vh] flex items-center justify-center p-4">
         <Card className="max-w-md w-full p-8 text-center glass-card border-amber-500/20">
           <div className="w-20 h-20 mx-auto bg-amber-500/10 text-amber-400 rounded-full flex items-center justify-center mb-6">
             <Crown className="w-10 h-10" />
           </div>
-          <h2 className="text-2xl font-bold mb-4">محتوى حصري VIP</h2>
+          <h2 className="text-2xl font-bold mb-4">
+            {isVipRestricted ? "محتوى حصري VIP" : "يجب تسجيل الدخول أولاً"}
+          </h2>
           <p className="text-muted-foreground mb-8">
-            هذا الدرس متاح فقط لأصحاب الاشتراكات المدفوعة. قم بترقية حسابك الآن للوصول إليه.
+            {isVipRestricted
+              ? "هذا الدرس متاح فقط لأصحاب اشتراكات VIP. قم بترقية حسابك الآن للوصول إليه."
+              : "اشترك الآن للوصول إلى هذا الدرس وجميع الدروس الأخرى."}
           </p>
           <div className="flex flex-col gap-3">
             <Link href="/subscribe">
               <Button className="w-full h-12 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold">
-                <Crown className="w-4 h-4 ml-2" /> ترقية الحساب
+                <Crown className="w-4 h-4 ml-2" />
+                {isVipRestricted ? "ترقية الحساب إلى VIP" : "الاشتراك الآن"}
               </Button>
             </Link>
             <Link href="/videos">
@@ -58,10 +57,16 @@ export function VideoDetail() {
     );
   }
 
+  if (status === 401 || (!user && error)) {
+    navigate("/login");
+    return null;
+  }
+
   if (error) {
     return (
       <div className="min-h-[80vh] flex items-center justify-center p-4">
         <Card className="max-w-md w-full p-8 text-center glass-card">
+          <Lock className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
           <h2 className="text-xl font-bold mb-4">تعذر تحميل الدرس</h2>
           <Link href="/videos"><Button variant="outline">العودة للمكتبة</Button></Link>
         </Card>
@@ -80,28 +85,51 @@ export function VideoDetail() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-6">
-            {/* Video Player */}
-            <div className="relative w-full aspect-video bg-black rounded-2xl overflow-hidden shadow-2xl border border-white/10 group">
-              {video.driveEmbedUrl ? (
-                <iframe 
-                  src={video.driveEmbedUrl} 
-                  className="w-full h-full border-0" 
-                  allow="autoplay; fullscreen"
-                  allowFullScreen
-                ></iframe>
+            {/* Thumbnail + Watch Button */}
+            <div className="relative w-full aspect-video bg-black/60 rounded-2xl overflow-hidden shadow-2xl border border-white/10 group">
+              {video.thumbnailUrl ? (
+                <img
+                  src={video.thumbnailUrl}
+                  alt={video.title}
+                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                />
               ) : (
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground">
-                  <PlaySquare className="w-16 h-16 mb-4 opacity-20" />
-                  <p>رابط الفيديو غير متوفر</p>
+                <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                  <PlaySquare className="w-20 h-20 text-white/20" />
                 </div>
               )}
+
+              {/* Overlay */}
+              <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center gap-4 opacity-100 group-hover:bg-black/55 transition-all">
+                {video.driveEmbedUrl ? (
+                  <a
+                    href={video.driveEmbedUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-3 px-8 py-4 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-500 text-white font-bold text-xl shadow-2xl hover:scale-105 transition-transform duration-200"
+                  >
+                    <PlaySquare className="w-7 h-7" />
+                    شاهد الآن
+                    <ExternalLink className="w-5 h-5 opacity-70" />
+                  </a>
+                ) : (
+                  <p className="text-white/60 text-sm">رابط الفيديو غير متوفر</p>
+                )}
+              </div>
             </div>
 
             {/* Title & Meta */}
             <div className="space-y-4">
               <div className="flex flex-wrap items-center gap-3">
-                <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20">{video.categoryName}</Badge>
-                {video.isVipOnly && <Badge variant="vip"><Crown className="w-3 h-3 ml-1"/> VIP</Badge>}
+                <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20">
+                  {video.categoryName}
+                </Badge>
+                {video.accessType === "vip" && (
+                  <Badge variant="vip"><Crown className="w-3 h-3 ml-1" /> VIP</Badge>
+                )}
+                {video.accessType === "visitor" && (
+                  <Badge variant="outline" className="border-green-500/40 text-green-400">مجاني</Badge>
+                )}
                 <span className="text-sm text-muted-foreground">{formatDate(video.createdAt)}</span>
               </div>
               <h1 className="text-3xl md:text-4xl font-bold leading-tight">{video.title}</h1>
@@ -115,6 +143,18 @@ export function VideoDetail() {
               <div className="prose prose-invert prose-orange max-w-none text-foreground/80 leading-relaxed whitespace-pre-wrap">
                 {video.description}
               </div>
+
+              {video.driveEmbedUrl && (
+                <a
+                  href={video.driveEmbedUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-6 w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-primary text-white font-bold hover:bg-primary/90 transition-colors"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  فتح الدرس
+                </a>
+              )}
             </Card>
           </div>
         </div>

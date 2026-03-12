@@ -126,9 +126,14 @@ export function Home() {
                             <Lock className="w-5 h-5 text-primary" />
                           </div>
                         </div>
-                        {video.isVipOnly && (
+                        {video.accessType === "vip" && (
                           <div className="absolute top-2 right-2 flex items-center gap-1 bg-gradient-to-r from-amber-500 to-orange-500 text-black text-[10px] font-black px-2 py-0.5 rounded-full">
                             <Crown className="w-2.5 h-2.5" /> VIP
+                          </div>
+                        )}
+                        {video.accessType === "visitor" && (
+                          <div className="absolute top-2 right-2 flex items-center gap-1 bg-green-500/90 text-white text-[10px] font-black px-2 py-0.5 rounded-full">
+                            مجاني
                           </div>
                         )}
                       </div>
