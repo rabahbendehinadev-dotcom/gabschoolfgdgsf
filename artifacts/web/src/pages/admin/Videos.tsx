@@ -66,21 +66,25 @@ export function AdminVideos() {
 
     setUploading(true);
     try {
-      const fd = new FormData();
-      fd.append("thumbnail", file);
-
-      const authHeaders = getAdminAuthHeaders();
-      const res = await fetch("/api/admin/upload-thumbnail", {
+      const step1 = await fetch("/api/storage/uploads/request-url", {
         method: "POST",
-        headers: authHeaders?.headers,
-        body: fd,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }),
       });
+      if (!step1.ok) throw new Error("فشل طلب رابط الرفع");
 
-      if (!res.ok) throw new Error("فشل رفع الصورة");
+      const { uploadURL, objectPath } = await step1.json() as { uploadURL: string; objectPath: string };
 
-      const { url } = await res.json() as { url: string };
-      setFormData(prev => ({ ...prev, thumbnailUrl: url }));
-      setPreviewUrl(url);
+      const step2 = await fetch(uploadURL, {
+        method: "PUT",
+        headers: { "Content-Type": file.type },
+        body: file,
+      });
+      if (!step2.ok) throw new Error("فشل رفع الصورة إلى التخزين");
+
+      const serveUrl = `/api/storage${objectPath}`;
+      setFormData(prev => ({ ...prev, thumbnailUrl: serveUrl }));
+      setPreviewUrl(serveUrl);
       toast({ title: "تم رفع الصورة بنجاح" });
     } catch {
       toast({ variant: "destructive", title: "فشل رفع الصورة" });
