@@ -15,6 +15,8 @@ export interface Video {
   driveEmbedUrl: string;
   categoryId: number;
   categoryName?: string;
+  playlistId?: number | null;
+  partNumber?: number | null;
   isVipOnly: boolean;
   accessType: VideoAccessType;
   createdAt: Date;

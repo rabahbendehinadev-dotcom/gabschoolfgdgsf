@@ -69,6 +69,9 @@ artifacts-monorepo/
 - `POST /admin/users/:id/reset-ip` - Reset user IP
 - `GET/POST/PUT/DELETE /admin/videos` - Video CRUD
 - `GET/POST/PUT/DELETE /admin/categories` - Category CRUD
+- `GET/POST/PATCH/DELETE /admin/playlists` - Playlist CRUD
+- `GET /playlists` - Public playlist list
+- `GET /playlists/:id` - Public playlist detail with videos
 - `GET/PUT /admin/subscription-plans` - Plan management
 
 ## Frontend Pages
@@ -76,14 +79,15 @@ artifacts-monorepo/
 - `/` - Homepage with hero, features, categories, pricing
 - `/login` - User login
 - `/register` - User registration
-- `/videos` - Video library with search and category filter
-- `/videos/:id` - Video detail with Google Drive embed player
+- `/videos` - Video library with search, category filter, and Playlists tab
+- `/videos/:id` - Video detail with playlist sidebar and prev/next navigation
 - `/dashboard` - User profile and subscription info
 - `/admin/login` - Admin login
 - `/admin` - Admin dashboard with stats and charts
 - `/admin/users` - User management (edit, IP reset)
-- `/admin/videos` - Video CRUD
+- `/admin/videos` - Video CRUD (with playlist assignment + part number)
 - `/admin/categories` - Category CRUD
+- `/admin/playlists` - Playlist/Series management (CRUD, video grouping)
 - `/admin/plans` - Subscription plan management
 
 ## Design

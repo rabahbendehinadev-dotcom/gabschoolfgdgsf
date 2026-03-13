@@ -25,16 +25,20 @@ import type {
   Category,
   ChangePasswordInput,
   CreateCategoryInput,
+  CreatePlaylistInput,
   CreateVideoInput,
   ErrorResponse,
+  GetPlaylistsParams,
   GetVideosParams,
   HealthStatus,
   LoginInput,
   MessageResponse,
+  Playlist,
   RegisterInput,
   SubscriptionPlan,
   UpdateCategoryInput,
   UpdatePlanInput,
+  UpdatePlaylistInput,
   UpdateUserInput,
   UpdateVideoInput,
   UserProfile,
@@ -859,6 +863,187 @@ export function useGetCategories<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetCategoriesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get all visible playlists with their videos
+ */
+export const getGetPlaylistsUrl = (params?: GetPlaylistsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/playlists?${stringifiedParams}`
+    : `/api/playlists`;
+};
+
+export const getPlaylists = async (
+  params?: GetPlaylistsParams,
+  options?: RequestInit,
+): Promise<Playlist[]> => {
+  return customFetch<Playlist[]>(getGetPlaylistsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetPlaylistsQueryKey = (params?: GetPlaylistsParams) => {
+  return [`/api/playlists`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetPlaylistsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPlaylists>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetPlaylistsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPlaylists>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetPlaylistsQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getPlaylists>>> = ({
+    signal,
+  }) => getPlaylists(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPlaylists>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetPlaylistsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPlaylists>>
+>;
+export type GetPlaylistsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get all visible playlists with their videos
+ */
+
+export function useGetPlaylists<
+  TData = Awaited<ReturnType<typeof getPlaylists>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetPlaylistsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPlaylists>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetPlaylistsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get a single playlist with its videos
+ */
+export const getGetPlaylistUrl = (id: number) => {
+  return `/api/playlists/${id}`;
+};
+
+export const getPlaylist = async (
+  id: number,
+  options?: RequestInit,
+): Promise<Playlist> => {
+  return customFetch<Playlist>(getGetPlaylistUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetPlaylistQueryKey = (id: number) => {
+  return [`/api/playlists/${id}`] as const;
+};
+
+export const getGetPlaylistQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPlaylist>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPlaylist>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetPlaylistQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getPlaylist>>> = ({
+    signal,
+  }) => getPlaylist(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPlaylist>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetPlaylistQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPlaylist>>
+>;
+export type GetPlaylistQueryError = ErrorType<void>;
+
+/**
+ * @summary Get a single playlist with its videos
+ */
+
+export function useGetPlaylist<
+  TData = Awaited<ReturnType<typeof getPlaylist>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPlaylist>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetPlaylistQueryOptions(id, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;
@@ -2009,6 +2194,338 @@ export const useDeleteCategory = <
   TContext
 > => {
   return useMutation(getDeleteCategoryMutationOptions(options));
+};
+
+/**
+ * @summary Get all playlists (admin)
+ */
+export const getGetAdminPlaylistsUrl = () => {
+  return `/api/admin/playlists`;
+};
+
+export const getAdminPlaylists = async (
+  options?: RequestInit,
+): Promise<Playlist[]> => {
+  return customFetch<Playlist[]>(getGetAdminPlaylistsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetAdminPlaylistsQueryKey = () => {
+  return [`/api/admin/playlists`] as const;
+};
+
+export const getGetAdminPlaylistsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAdminPlaylists>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getAdminPlaylists>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetAdminPlaylistsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getAdminPlaylists>>
+  > = ({ signal }) => getAdminPlaylists({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAdminPlaylists>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetAdminPlaylistsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAdminPlaylists>>
+>;
+export type GetAdminPlaylistsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get all playlists (admin)
+ */
+
+export function useGetAdminPlaylists<
+  TData = Awaited<ReturnType<typeof getAdminPlaylists>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getAdminPlaylists>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetAdminPlaylistsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create playlist
+ */
+export const getCreatePlaylistUrl = () => {
+  return `/api/admin/playlists`;
+};
+
+export const createPlaylist = async (
+  createPlaylistInput: CreatePlaylistInput,
+  options?: RequestInit,
+): Promise<Playlist> => {
+  return customFetch<Playlist>(getCreatePlaylistUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createPlaylistInput),
+  });
+};
+
+export const getCreatePlaylistMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createPlaylist>>,
+    TError,
+    { data: BodyType<CreatePlaylistInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createPlaylist>>,
+  TError,
+  { data: BodyType<CreatePlaylistInput> },
+  TContext
+> => {
+  const mutationKey = ["createPlaylist"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createPlaylist>>,
+    { data: BodyType<CreatePlaylistInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createPlaylist(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreatePlaylistMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createPlaylist>>
+>;
+export type CreatePlaylistMutationBody = BodyType<CreatePlaylistInput>;
+export type CreatePlaylistMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create playlist
+ */
+export const useCreatePlaylist = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createPlaylist>>,
+    TError,
+    { data: BodyType<CreatePlaylistInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createPlaylist>>,
+  TError,
+  { data: BodyType<CreatePlaylistInput> },
+  TContext
+> => {
+  return useMutation(getCreatePlaylistMutationOptions(options));
+};
+
+/**
+ * @summary Update playlist
+ */
+export const getUpdatePlaylistUrl = (id: number) => {
+  return `/api/admin/playlists/${id}`;
+};
+
+export const updatePlaylist = async (
+  id: number,
+  updatePlaylistInput: UpdatePlaylistInput,
+  options?: RequestInit,
+): Promise<Playlist> => {
+  return customFetch<Playlist>(getUpdatePlaylistUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updatePlaylistInput),
+  });
+};
+
+export const getUpdatePlaylistMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updatePlaylist>>,
+    TError,
+    { id: number; data: BodyType<UpdatePlaylistInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updatePlaylist>>,
+  TError,
+  { id: number; data: BodyType<UpdatePlaylistInput> },
+  TContext
+> => {
+  const mutationKey = ["updatePlaylist"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updatePlaylist>>,
+    { id: number; data: BodyType<UpdatePlaylistInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updatePlaylist(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdatePlaylistMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updatePlaylist>>
+>;
+export type UpdatePlaylistMutationBody = BodyType<UpdatePlaylistInput>;
+export type UpdatePlaylistMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update playlist
+ */
+export const useUpdatePlaylist = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updatePlaylist>>,
+    TError,
+    { id: number; data: BodyType<UpdatePlaylistInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updatePlaylist>>,
+  TError,
+  { id: number; data: BodyType<UpdatePlaylistInput> },
+  TContext
+> => {
+  return useMutation(getUpdatePlaylistMutationOptions(options));
+};
+
+/**
+ * @summary Delete playlist
+ */
+export const getDeletePlaylistUrl = (id: number) => {
+  return `/api/admin/playlists/${id}`;
+};
+
+export const deletePlaylist = async (
+  id: number,
+  options?: RequestInit,
+): Promise<MessageResponse> => {
+  return customFetch<MessageResponse>(getDeletePlaylistUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeletePlaylistMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deletePlaylist>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deletePlaylist>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deletePlaylist"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deletePlaylist>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deletePlaylist(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeletePlaylistMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deletePlaylist>>
+>;
+
+export type DeletePlaylistMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete playlist
+ */
+export const useDeletePlaylist = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deletePlaylist>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deletePlaylist>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeletePlaylistMutationOptions(options));
 };
 
 /**

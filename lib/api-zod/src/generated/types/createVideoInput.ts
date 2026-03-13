@@ -16,4 +16,6 @@ export interface CreateVideoInput {
   isVipOnly?: boolean;
   accessType?: CreateVideoInputAccessType;
   isVisible?: boolean;
+  playlistId?: number | null;
+  partNumber?: number | null;
 }

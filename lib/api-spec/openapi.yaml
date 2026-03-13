@@ -19,6 +19,8 @@ tags:
     description: Video operations
   - name: categories
     description: Category operations
+  - name: playlists
+    description: Playlist operations
   - name: subscriptions
     description: Subscription plan operations
   - name: stats
@@ -236,6 +238,47 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Category"
+
+  /playlists:
+    get:
+      operationId: getPlaylists
+      tags: [playlists]
+      summary: Get all visible playlists with their videos
+      parameters:
+        - name: categoryId
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Playlists list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Playlist"
+
+  /playlists/{id}:
+    get:
+      operationId: getPlaylist
+      tags: [playlists]
+      summary: Get a single playlist with its videos
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Playlist detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Playlist"
+        "404":
+          description: Not found
 
   /subscription-plans:
     get:
@@ -515,6 +558,88 @@ paths:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
 
+  /admin/playlists:
+    get:
+      operationId: getAdminPlaylists
+      tags: [admin]
+      summary: Get all playlists (admin)
+      security:
+        - adminAuth: []
+      responses:
+        "200":
+          description: Playlists list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Playlist"
+    post:
+      operationId: createPlaylist
+      tags: [admin]
+      summary: Create playlist
+      security:
+        - adminAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePlaylistInput"
+      responses:
+        "201":
+          description: Playlist created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Playlist"
+
+  /admin/playlists/{id}:
+    patch:
+      operationId: updatePlaylist
+      tags: [admin]
+      summary: Update playlist
+      security:
+        - adminAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePlaylistInput"
+      responses:
+        "200":
+          description: Playlist updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Playlist"
+    delete:
+      operationId: deletePlaylist
+      tags: [admin]
+      summary: Delete playlist
+      security:
+        - adminAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Playlist deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
   /admin/subscription-plans:
     get:
       operationId: getAdminSubscriptionPlans
@@ -715,6 +840,12 @@ components:
           type: integer
         categoryName:
           type: string
+        playlistId:
+          type: integer
+          nullable: true
+        partNumber:
+          type: integer
+          nullable: true
         isVipOnly:
           type: boolean
         accessType:
@@ -751,6 +882,12 @@ components:
           type: integer
         categoryName:
           type: string
+        playlistId:
+          type: integer
+          nullable: true
+        partNumber:
+          type: integer
+          nullable: true
         isVipOnly:
           type: boolean
         accessType:
@@ -793,6 +930,12 @@ components:
           enum: [visitor, normal, vip]
         isVisible:
           type: boolean
+        playlistId:
+          type: integer
+          nullable: true
+        partNumber:
+          type: integer
+          nullable: true
       required:
         - title
         - description
@@ -818,6 +961,106 @@ components:
         accessType:
           type: string
           enum: [visitor, normal, vip]
+        isVisible:
+          type: boolean
+        playlistId:
+          type: integer
+          nullable: true
+        partNumber:
+          type: integer
+          nullable: true
+
+    PlaylistVideo:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        thumbnailUrl:
+          type: string
+        driveEmbedUrl:
+          type: string
+        partNumber:
+          type: integer
+          nullable: true
+        accessType:
+          type: string
+          enum: [visitor, normal, vip]
+        isVisible:
+          type: boolean
+        createdAt:
+          type: string
+      required:
+        - id
+        - title
+        - thumbnailUrl
+        - driveEmbedUrl
+        - accessType
+        - isVisible
+        - createdAt
+
+    Playlist:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+        categoryId:
+          type: integer
+        categoryName:
+          type: string
+        sortOrder:
+          type: integer
+        isVisible:
+          type: boolean
+        createdAt:
+          type: string
+        videos:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlaylistVideo"
+      required:
+        - id
+        - title
+        - description
+        - categoryId
+        - sortOrder
+        - isVisible
+        - createdAt
+        - videos
+
+    CreatePlaylistInput:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        categoryId:
+          type: integer
+        sortOrder:
+          type: integer
+        isVisible:
+          type: boolean
+      required:
+        - title
+        - categoryId
+
+    UpdatePlaylistInput:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        categoryId:
+          type: integer
+        sortOrder:
+          type: integer
         isVisible:
           type: boolean
 

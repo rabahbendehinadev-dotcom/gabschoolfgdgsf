@@ -116,6 +116,8 @@ export const GetVideosResponseItem = zod.object({
   driveEmbedUrl: zod.string(),
   categoryId: zod.number(),
   categoryName: zod.string().optional(),
+  playlistId: zod.number().nullish(),
+  partNumber: zod.number().nullish(),
   isVipOnly: zod.boolean(),
   accessType: zod.enum(["visitor", "normal", "vip"]),
   createdAt: zod.date(),
@@ -137,6 +139,8 @@ export const GetVideoResponse = zod.object({
   driveEmbedUrl: zod.string(),
   categoryId: zod.number(),
   categoryName: zod.string().optional(),
+  playlistId: zod.number().nullish(),
+  partNumber: zod.number().nullish(),
   isVipOnly: zod.boolean(),
   accessType: zod.enum(["visitor", "normal", "vip"]),
   createdAt: zod.date(),
@@ -152,6 +156,67 @@ export const GetCategoriesResponseItem = zod.object({
   icon: zod.string().optional(),
 });
 export const GetCategoriesResponse = zod.array(GetCategoriesResponseItem);
+
+/**
+ * @summary Get all visible playlists with their videos
+ */
+export const GetPlaylistsQueryParams = zod.object({
+  categoryId: zod.coerce.number().optional(),
+});
+
+export const GetPlaylistsResponseItem = zod.object({
+  id: zod.number(),
+  title: zod.string(),
+  description: zod.string(),
+  categoryId: zod.number(),
+  categoryName: zod.string().optional(),
+  sortOrder: zod.number(),
+  isVisible: zod.boolean(),
+  createdAt: zod.string(),
+  videos: zod.array(
+    zod.object({
+      id: zod.number(),
+      title: zod.string(),
+      thumbnailUrl: zod.string(),
+      driveEmbedUrl: zod.string(),
+      partNumber: zod.number().nullish(),
+      accessType: zod.enum(["visitor", "normal", "vip"]),
+      isVisible: zod.boolean(),
+      createdAt: zod.string(),
+    }),
+  ),
+});
+export const GetPlaylistsResponse = zod.array(GetPlaylistsResponseItem);
+
+/**
+ * @summary Get a single playlist with its videos
+ */
+export const GetPlaylistParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetPlaylistResponse = zod.object({
+  id: zod.number(),
+  title: zod.string(),
+  description: zod.string(),
+  categoryId: zod.number(),
+  categoryName: zod.string().optional(),
+  sortOrder: zod.number(),
+  isVisible: zod.boolean(),
+  createdAt: zod.string(),
+  videos: zod.array(
+    zod.object({
+      id: zod.number(),
+      title: zod.string(),
+      thumbnailUrl: zod.string(),
+      driveEmbedUrl: zod.string(),
+      partNumber: zod.number().nullish(),
+      accessType: zod.enum(["visitor", "normal", "vip"]),
+      isVisible: zod.boolean(),
+      createdAt: zod.string(),
+    }),
+  ),
+});
 
 /**
  * @summary Get subscription plans
@@ -263,6 +328,8 @@ export const GetAdminVideosResponseItem = zod.object({
   driveEmbedUrl: zod.string(),
   categoryId: zod.number(),
   categoryName: zod.string().optional(),
+  playlistId: zod.number().nullish(),
+  partNumber: zod.number().nullish(),
   isVipOnly: zod.boolean(),
   accessType: zod.enum(["visitor", "normal", "vip"]),
   isVisible: zod.boolean(),
@@ -282,6 +349,8 @@ export const CreateVideoBody = zod.object({
   isVipOnly: zod.boolean().optional(),
   accessType: zod.enum(["visitor", "normal", "vip"]).optional(),
   isVisible: zod.boolean().optional(),
+  playlistId: zod.number().nullish(),
+  partNumber: zod.number().nullish(),
 });
 
 /**
@@ -300,6 +369,8 @@ export const UpdateVideoBody = zod.object({
   isVipOnly: zod.boolean().optional(),
   accessType: zod.enum(["visitor", "normal", "vip"]).optional(),
   isVisible: zod.boolean().optional(),
+  playlistId: zod.number().nullish(),
+  partNumber: zod.number().nullish(),
 });
 
 export const UpdateVideoResponse = zod.object({
@@ -310,6 +381,8 @@ export const UpdateVideoResponse = zod.object({
   driveEmbedUrl: zod.string(),
   categoryId: zod.number(),
   categoryName: zod.string().optional(),
+  playlistId: zod.number().nullish(),
+  partNumber: zod.number().nullish(),
   isVipOnly: zod.boolean(),
   accessType: zod.enum(["visitor", "normal", "vip"]),
   isVisible: zod.boolean(),
@@ -377,6 +450,95 @@ export const DeleteCategoryParams = zod.object({
 });
 
 export const DeleteCategoryResponse = zod.object({
+  message: zod.string(),
+});
+
+/**
+ * @summary Get all playlists (admin)
+ */
+export const GetAdminPlaylistsResponseItem = zod.object({
+  id: zod.number(),
+  title: zod.string(),
+  description: zod.string(),
+  categoryId: zod.number(),
+  categoryName: zod.string().optional(),
+  sortOrder: zod.number(),
+  isVisible: zod.boolean(),
+  createdAt: zod.string(),
+  videos: zod.array(
+    zod.object({
+      id: zod.number(),
+      title: zod.string(),
+      thumbnailUrl: zod.string(),
+      driveEmbedUrl: zod.string(),
+      partNumber: zod.number().nullish(),
+      accessType: zod.enum(["visitor", "normal", "vip"]),
+      isVisible: zod.boolean(),
+      createdAt: zod.string(),
+    }),
+  ),
+});
+export const GetAdminPlaylistsResponse = zod.array(
+  GetAdminPlaylistsResponseItem,
+);
+
+/**
+ * @summary Create playlist
+ */
+export const CreatePlaylistBody = zod.object({
+  title: zod.string(),
+  description: zod.string().optional(),
+  categoryId: zod.number(),
+  sortOrder: zod.number().optional(),
+  isVisible: zod.boolean().optional(),
+});
+
+/**
+ * @summary Update playlist
+ */
+export const UpdatePlaylistParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdatePlaylistBody = zod.object({
+  title: zod.string().optional(),
+  description: zod.string().optional(),
+  categoryId: zod.number().optional(),
+  sortOrder: zod.number().optional(),
+  isVisible: zod.boolean().optional(),
+});
+
+export const UpdatePlaylistResponse = zod.object({
+  id: zod.number(),
+  title: zod.string(),
+  description: zod.string(),
+  categoryId: zod.number(),
+  categoryName: zod.string().optional(),
+  sortOrder: zod.number(),
+  isVisible: zod.boolean(),
+  createdAt: zod.string(),
+  videos: zod.array(
+    zod.object({
+      id: zod.number(),
+      title: zod.string(),
+      thumbnailUrl: zod.string(),
+      driveEmbedUrl: zod.string(),
+      partNumber: zod.number().nullish(),
+      accessType: zod.enum(["visitor", "normal", "vip"]),
+      isVisible: zod.boolean(),
+      createdAt: zod.string(),
+    }),
+  ),
+});
+
+/**
+ * @summary Delete playlist
+ */
+export const DeletePlaylistParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const DeletePlaylistResponse = zod.object({
   message: zod.string(),
 });
 

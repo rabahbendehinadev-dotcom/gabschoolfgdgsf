@@ -18,6 +18,7 @@ import { AdminDashboard } from "@/pages/admin/Dashboard";
 import { AdminUsers } from "@/pages/admin/Users";
 import { AdminVideos } from "@/pages/admin/Videos";
 import { AdminCategories } from "@/pages/admin/Categories";
+import { AdminPlaylists } from "@/pages/admin/Playlists";
 import { AdminPlans } from "@/pages/admin/Plans";
 import NotFound from "@/pages/not-found";
 
@@ -71,6 +72,9 @@ function Router() {
       </Route>
       <Route path="/admin/categories">
         <AdminLayout><AdminCategories /></AdminLayout>
+      </Route>
+      <Route path="/admin/playlists">
+        <AdminLayout><AdminPlaylists /></AdminLayout>
       </Route>
       <Route path="/admin/plans">
         <AdminLayout><AdminPlans /></AdminLayout>

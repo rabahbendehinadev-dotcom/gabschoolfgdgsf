@@ -2,6 +2,7 @@ import { pgTable, serial, varchar, text, integer, boolean, timestamp } from "dri
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { categoriesTable } from "./categories";
+import { playlistsTable } from "./playlists";
 
 export const videosTable = pgTable("videos", {
   id: serial("id").primaryKey(),
@@ -10,6 +11,8 @@ export const videosTable = pgTable("videos", {
   thumbnailUrl: text("thumbnail_url").notNull(),
   driveEmbedUrl: text("drive_embed_url").notNull(),
   categoryId: integer("category_id").notNull().references(() => categoriesTable.id),
+  playlistId: integer("playlist_id").references(() => playlistsTable.id, { onDelete: "set null" }),
+  partNumber: integer("part_number"),
   isVipOnly: boolean("is_vip_only").notNull().default(false),
   accessType: varchar("access_type", { length: 20 }).notNull().default("normal"),
   isVisible: boolean("is_visible").notNull().default(true),

@@ -32,6 +32,25 @@ async function runMigrations() {
       ALTER TABLE users
         ADD COLUMN IF NOT EXISTS ip_address_2 VARCHAR(45)
     `);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS playlists (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        category_id INTEGER NOT NULL REFERENCES categories(id),
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        is_visible BOOLEAN NOT NULL DEFAULT true,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`
+      ALTER TABLE videos
+        ADD COLUMN IF NOT EXISTS playlist_id INTEGER REFERENCES playlists(id) ON DELETE SET NULL
+    `);
+    await db.execute(sql`
+      ALTER TABLE videos
+        ADD COLUMN IF NOT EXISTS part_number INTEGER
+    `);
     console.log("[migrations] Schema up to date.");
   } catch (err) {
     console.error("[migrations] Migration error:", err);

@@ -15,6 +15,8 @@ export interface AdminVideo {
   driveEmbedUrl: string;
   categoryId: number;
   categoryName?: string;
+  playlistId?: number | null;
+  partNumber?: number | null;
   isVipOnly: boolean;
   accessType: AdminVideoAccessType;
   isVisible: boolean;
