@@ -25,13 +25,8 @@ export function Navbar() {
         <div className="flex h-16 md:h-20 items-center justify-between">
 
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2.5 group" onClick={() => setMobileOpen(false)}>
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/20 text-primary group-hover:bg-primary group-hover:text-white transition-all duration-300 glow-primary">
-              <PlayCircle className="h-5 w-5" />
-            </div>
-            <span className="text-xl font-bold font-display tracking-tight text-white group-hover:text-primary transition-colors">
-              Cours <span className="text-primary">Online</span>
-            </span>
+          <Link href="/" className="flex items-center group" onClick={() => setMobileOpen(false)}>
+            <img src="/logo.png" alt="GAB Logo" className="h-14 w-auto rounded-xl bg-white px-3 py-1.5 shadow-md group-hover:shadow-primary/40 transition-all" />
           </Link>
 
           {/* Desktop nav links */}
