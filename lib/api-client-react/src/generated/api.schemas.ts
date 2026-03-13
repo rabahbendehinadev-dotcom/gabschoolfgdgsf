@@ -96,6 +96,8 @@ export interface Video {
   driveEmbedUrl: string;
   categoryId: number;
   categoryName?: string;
+  playlistId?: number | null;
+  partNumber?: number | null;
   isVipOnly: boolean;
   accessType: VideoAccessType;
   createdAt: string;
@@ -118,6 +120,8 @@ export interface AdminVideo {
   driveEmbedUrl: string;
   categoryId: number;
   categoryName?: string;
+  playlistId?: number | null;
+  partNumber?: number | null;
   isVipOnly: boolean;
   accessType: AdminVideoAccessType;
   isVisible: boolean;
@@ -142,6 +146,8 @@ export interface CreateVideoInput {
   isVipOnly?: boolean;
   accessType?: CreateVideoInputAccessType;
   isVisible?: boolean;
+  playlistId?: number | null;
+  partNumber?: number | null;
 }
 
 export type UpdateVideoInputAccessType =
@@ -161,6 +167,56 @@ export interface UpdateVideoInput {
   categoryId?: number;
   isVipOnly?: boolean;
   accessType?: UpdateVideoInputAccessType;
+  isVisible?: boolean;
+  playlistId?: number | null;
+  partNumber?: number | null;
+}
+
+export type PlaylistVideoAccessType =
+  (typeof PlaylistVideoAccessType)[keyof typeof PlaylistVideoAccessType];
+
+export const PlaylistVideoAccessType = {
+  visitor: "visitor",
+  normal: "normal",
+  vip: "vip",
+} as const;
+
+export interface PlaylistVideo {
+  id: number;
+  title: string;
+  thumbnailUrl: string;
+  driveEmbedUrl: string;
+  partNumber?: number | null;
+  accessType: PlaylistVideoAccessType;
+  isVisible: boolean;
+  createdAt: string;
+}
+
+export interface Playlist {
+  id: number;
+  title: string;
+  description: string;
+  categoryId: number;
+  categoryName?: string;
+  sortOrder: number;
+  isVisible: boolean;
+  createdAt: string;
+  videos: PlaylistVideo[];
+}
+
+export interface CreatePlaylistInput {
+  title: string;
+  description?: string;
+  categoryId: number;
+  sortOrder?: number;
+  isVisible?: boolean;
+}
+
+export interface UpdatePlaylistInput {
+  title?: string;
+  description?: string;
+  categoryId?: number;
+  sortOrder?: number;
   isVisible?: boolean;
 }
 
@@ -280,4 +336,8 @@ export interface AdminStats {
 export type GetVideosParams = {
   categoryId?: number;
   search?: string;
+};
+
+export type GetPlaylistsParams = {
+  categoryId?: number;
 };

@@ -2,7 +2,7 @@ import path from "path";
 import fs from "fs";
 import { Router, type IRouter } from "express";
 import multer from "multer";
-import { db, usersTable, videosTable, categoriesTable, subscriptionPlansTable, visitLogsTable } from "@workspace/db";
+import { db, usersTable, videosTable, categoriesTable, playlistsTable, subscriptionPlansTable, visitLogsTable } from "@workspace/db";
 import { eq, sql, count, desc } from "drizzle-orm";
 import { adminAuth } from "../middlewares/auth";
 import {
@@ -202,6 +202,8 @@ router.get("/admin/videos", adminAuth, async (_req, res) => {
       driveEmbedUrl: videosTable.driveEmbedUrl,
       categoryId: videosTable.categoryId,
       categoryName: categoriesTable.name,
+      playlistId: videosTable.playlistId,
+      partNumber: videosTable.partNumber,
       isVipOnly: videosTable.isVipOnly,
       accessType: videosTable.accessType,
       isVisible: videosTable.isVisible,
@@ -234,6 +236,8 @@ router.post("/admin/videos", adminAuth, async (req, res) => {
       isVipOnly: accessType === "vip",
       accessType,
       isVisible: body.isVisible ?? true,
+      playlistId: body.playlistId ?? null,
+      partNumber: body.partNumber ?? null,
     }).returning();
 
     const [cat] = await db.select().from(categoriesTable).where(eq(categoriesTable.id, video.categoryId)).limit(1);
@@ -242,6 +246,7 @@ router.post("/admin/videos", adminAuth, async (req, res) => {
       id: video.id, title: video.title, description: video.description,
       thumbnailUrl: video.thumbnailUrl, driveEmbedUrl: video.driveEmbedUrl,
       categoryId: video.categoryId, categoryName: cat?.name || "",
+      playlistId: video.playlistId, partNumber: video.partNumber,
       isVipOnly: video.isVipOnly, accessType: video.accessType,
       isVisible: video.isVisible, createdAt: video.createdAt.toISOString(),
     });
@@ -268,6 +273,8 @@ router.patch("/admin/videos/:id", adminAuth, async (req, res) => {
     } else if (body.isVipOnly !== undefined) {
       updateData.isVipOnly = body.isVipOnly;
     }
+    if ("playlistId" in body) updateData.playlistId = body.playlistId ?? null;
+    if ("partNumber" in body) updateData.partNumber = body.partNumber ?? null;
 
     const [video] = await db.update(videosTable).set(updateData)
       .where(eq(videosTable.id, id)).returning();
@@ -283,6 +290,7 @@ router.patch("/admin/videos/:id", adminAuth, async (req, res) => {
       id: video.id, title: video.title, description: video.description,
       thumbnailUrl: video.thumbnailUrl, driveEmbedUrl: video.driveEmbedUrl,
       categoryId: video.categoryId, categoryName: cat?.name || "",
+      playlistId: video.playlistId, partNumber: video.partNumber,
       isVipOnly: video.isVipOnly, accessType: video.accessType,
       isVisible: video.isVisible, createdAt: video.createdAt.toISOString(),
     });
@@ -356,6 +364,70 @@ router.delete("/admin/categories/:id", adminAuth, async (req, res) => {
     res.json({ message: "Category deleted successfully" });
   } catch (error: unknown) {
     res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" || "Failed to delete category" });
+  }
+});
+
+router.get("/admin/playlists", adminAuth, async (_req, res) => {
+  try {
+    const rows = await db.select({ playlist: playlistsTable, categoryName: categoriesTable.name })
+      .from(playlistsTable)
+      .leftJoin(categoriesTable, eq(playlistsTable.categoryId, categoriesTable.id))
+      .orderBy(desc(playlistsTable.createdAt));
+    const allVideos = await db.select().from(videosTable);
+    res.json(rows.map(({ playlist, categoryName }) => ({
+      id: playlist.id, title: playlist.title, description: playlist.description,
+      categoryId: playlist.categoryId, categoryName: categoryName ?? "",
+      sortOrder: playlist.sortOrder, isVisible: playlist.isVisible,
+      createdAt: playlist.createdAt.toISOString(),
+      videos: allVideos
+        .filter(v => v.playlistId === playlist.id)
+        .sort((a, b) => (a.partNumber ?? 999) - (b.partNumber ?? 999))
+        .map(v => ({ id: v.id, title: v.title, thumbnailUrl: v.thumbnailUrl, driveEmbedUrl: v.driveEmbedUrl, partNumber: v.partNumber, accessType: v.accessType, isVisible: v.isVisible, createdAt: v.createdAt.toISOString() })),
+    })));
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Failed to fetch playlists" });
+  }
+});
+
+router.post("/admin/playlists", adminAuth, async (req, res) => {
+  try {
+    const { title, description, categoryId, sortOrder, isVisible } = req.body;
+    const [playlist] = await db.insert(playlistsTable).values({
+      title, description: description ?? "", categoryId: Number(categoryId),
+      sortOrder: sortOrder ?? 0, isVisible: isVisible ?? true,
+    }).returning();
+    res.status(201).json({ id: playlist.id, title: playlist.title, description: playlist.description, categoryId: playlist.categoryId, categoryName: "", sortOrder: playlist.sortOrder, isVisible: playlist.isVisible, createdAt: playlist.createdAt.toISOString(), videos: [] });
+  } catch (error: unknown) {
+    res.status(400).json({ message: error instanceof Error ? error.message : "Failed to create playlist" });
+  }
+});
+
+router.patch("/admin/playlists/:id", adminAuth, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const { title, description, categoryId, sortOrder, isVisible } = req.body;
+    const updateData: Record<string, unknown> = {};
+    if (title !== undefined) updateData.title = title;
+    if (description !== undefined) updateData.description = description;
+    if (categoryId !== undefined) updateData.categoryId = Number(categoryId);
+    if (sortOrder !== undefined) updateData.sortOrder = sortOrder;
+    if (isVisible !== undefined) updateData.isVisible = isVisible;
+    const [playlist] = await db.update(playlistsTable).set(updateData).where(eq(playlistsTable.id, id)).returning();
+    if (!playlist) { res.status(404).json({ message: "Playlist not found" }); return; }
+    res.json({ id: playlist.id, title: playlist.title, description: playlist.description, categoryId: playlist.categoryId, categoryName: "", sortOrder: playlist.sortOrder, isVisible: playlist.isVisible, createdAt: playlist.createdAt.toISOString(), videos: [] });
+  } catch (error: unknown) {
+    res.status(400).json({ message: error instanceof Error ? error.message : "Failed to update playlist" });
+  }
+});
+
+router.delete("/admin/playlists/:id", adminAuth, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    await db.update(videosTable).set({ playlistId: null, partNumber: null }).where(eq(videosTable.playlistId, id));
+    await db.delete(playlistsTable).where(eq(playlistsTable.id, id));
+    res.json({ message: "Playlist deleted successfully" });
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Failed to delete playlist" });
   }
 });
 

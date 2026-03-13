@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { db, videosTable, categoriesTable, visitLogsTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { db, videosTable, categoriesTable, visitLogsTable, playlistsTable } from "@workspace/db";
+import { eq, and, asc } from "drizzle-orm";
 import { optionalUserAuth } from "../middlewares/auth";
 
 const router: IRouter = Router();
@@ -23,6 +23,8 @@ router.get("/videos", optionalUserAuth, async (req, res) => {
       driveEmbedUrl: videosTable.driveEmbedUrl,
       categoryId: videosTable.categoryId,
       categoryName: categoriesTable.name,
+      playlistId: videosTable.playlistId,
+      partNumber: videosTable.partNumber,
       isVipOnly: videosTable.isVipOnly,
       accessType: videosTable.accessType,
       createdAt: videosTable.createdAt,
@@ -68,6 +70,8 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
       driveEmbedUrl: videosTable.driveEmbedUrl,
       categoryId: videosTable.categoryId,
       categoryName: categoriesTable.name,
+      playlistId: videosTable.playlistId,
+      partNumber: videosTable.partNumber,
       isVipOnly: videosTable.isVipOnly,
       accessType: videosTable.accessType,
       isVisible: videosTable.isVisible,
@@ -104,6 +108,22 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
       await db.insert(visitLogsTable).values({ userId: user.id, path: `/videos/${id}`, ip: clientIp });
     }
 
+    // Fetch playlist info if video belongs to a playlist
+    let playlistInfo = null;
+    if (video.playlistId) {
+      const [pl] = await db.select().from(playlistsTable).where(eq(playlistsTable.id, video.playlistId)).limit(1);
+      const siblingVideos = await db.select({
+        id: videosTable.id, title: videosTable.title, partNumber: videosTable.partNumber,
+        thumbnailUrl: videosTable.thumbnailUrl, accessType: videosTable.accessType, isVisible: videosTable.isVisible,
+      }).from(videosTable).where(and(eq(videosTable.playlistId, video.playlistId), eq(videosTable.isVisible, true))).orderBy(asc(videosTable.partNumber));
+      if (pl) {
+        playlistInfo = {
+          id: pl.id, title: pl.title, description: pl.description,
+          videos: siblingVideos,
+        };
+      }
+    }
+
     res.json({
       id: video.id,
       title: video.title,
@@ -112,9 +132,12 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
       driveEmbedUrl: video.driveEmbedUrl,
       categoryId: video.categoryId,
       categoryName: video.categoryName || "",
+      playlistId: video.playlistId,
+      partNumber: video.partNumber,
       isVipOnly: video.isVipOnly,
       accessType: video.accessType,
       createdAt: video.createdAt.toISOString(),
+      playlist: playlistInfo,
     });
   } catch (error: unknown) {
     res.status(500).json({ message: error instanceof Error ? error.message : "Failed to fetch video" });

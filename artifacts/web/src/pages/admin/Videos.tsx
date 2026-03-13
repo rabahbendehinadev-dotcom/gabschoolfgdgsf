@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { useGetAdminVideos, useCreateVideo, useUpdateVideo, useDeleteVideo, useGetAdminCategories } from "@workspace/api-client-react/src/generated/api";
+import { useGetAdminVideos, useCreateVideo, useUpdateVideo, useDeleteVideo, useGetAdminCategories, useGetAdminPlaylists } from "@workspace/api-client-react/src/generated/api";
 import { AdminVideo, CreateVideoInput } from "@workspace/api-client-react/src/generated/api.schemas";
 import { useAuth } from "@/lib/auth";
 import { Card, Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label } from "@/components/ui";
@@ -13,6 +13,7 @@ export function AdminVideos() {
   const reqOpts = { request: getAdminAuthHeaders() };
   const { data: videos, refetch } = useGetAdminVideos(reqOpts);
   const { data: categories } = useGetAdminCategories(reqOpts);
+  const { data: playlists } = useGetAdminPlaylists(reqOpts);
 
   const createMut = useCreateVideo({ request: getAdminAuthHeaders() });
   const updateMut = useUpdateVideo({ request: getAdminAuthHeaders() });
@@ -24,7 +25,7 @@ export function AdminVideos() {
   const [previewUrl, setPreviewUrl] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const defaultForm: CreateVideoInput = { title: "", description: "", thumbnailUrl: "", driveEmbedUrl: "", categoryId: 0, accessType: "normal", isVipOnly: false, isVisible: true };
+  const defaultForm: CreateVideoInput = { title: "", description: "", thumbnailUrl: "", driveEmbedUrl: "", categoryId: 0, accessType: "normal", isVipOnly: false, isVisible: true, playlistId: null, partNumber: null };
   const [formData, setFormData] = useState<CreateVideoInput>(defaultForm);
 
   const normalizeThumbnailUrl = (url: string) => {
@@ -46,7 +47,8 @@ export function AdminVideos() {
         title: video.title, description: video.description, thumbnailUrl: thumbUrl,
         driveEmbedUrl: video.driveEmbedUrl, categoryId: video.categoryId,
         accessType: (video.accessType as "visitor" | "normal" | "vip") || "normal",
-        isVipOnly: video.isVipOnly, isVisible: video.isVisible
+        isVipOnly: video.isVipOnly, isVisible: video.isVisible,
+        playlistId: video.playlistId ?? null, partNumber: video.partNumber ?? null
       });
       setPreviewUrl(thumbUrl);
     } else {
@@ -236,6 +238,24 @@ export function AdminVideos() {
                   <option value={0} disabled>اختر تصنيف</option>
                   {categories?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>السلسلة (اختياري)</Label>
+                  <select className="flex h-10 w-full rounded-md border border-white/10 bg-background px-3 py-2 text-sm"
+                    value={formData.playlistId ?? ""}
+                    onChange={e => setFormData({ ...formData, playlistId: e.target.value ? parseInt(e.target.value) : null })}>
+                    <option value="">بدون سلسلة</option>
+                    {playlists?.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label>رقم الجزء</Label>
+                  <Input type="number" min="1" placeholder="1، 2، 3..."
+                    value={formData.partNumber ?? ""}
+                    disabled={!formData.playlistId}
+                    onChange={e => setFormData({ ...formData, partNumber: e.target.value ? parseInt(e.target.value) : null })} />
+                </div>
               </div>
               <div className="space-y-4 pt-2">
                 <div className="space-y-2">

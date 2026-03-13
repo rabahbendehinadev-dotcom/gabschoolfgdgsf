@@ -16,4 +16,6 @@ export interface UpdateVideoInput {
   isVipOnly?: boolean;
   accessType?: UpdateVideoInputAccessType;
   isVisible?: boolean;
+  playlistId?: number | null;
+  partNumber?: number | null;
 }
