@@ -1,10 +1,10 @@
 import { useState, useRef } from "react";
-import { useGetAdminVideos, useCreateVideo, useUpdateVideo, useDeleteVideo, useGetAdminCategories, useGetAdminPlaylists } from "@workspace/api-client-react/src/generated/api";
+import { useGetAdminVideos, useCreateVideo, useUpdateVideo, useDeleteVideo, useGetAdminCategories, useGetAdminPlaylists, useCreatePlaylist } from "@workspace/api-client-react/src/generated/api";
 import { AdminVideo, CreateVideoInput } from "@workspace/api-client-react/src/generated/api.schemas";
 import { useAuth } from "@/lib/auth";
 import { Card, Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label } from "@/components/ui";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Edit, Trash2, Upload, ImageIcon, X, Loader2 } from "lucide-react";
+import { Plus, Edit, Trash2, Upload, ImageIcon, X, Loader2, ListVideo } from "lucide-react";
 
 export function AdminVideos() {
   const { getAdminAuthHeaders } = useAuth();
@@ -13,17 +13,42 @@ export function AdminVideos() {
   const reqOpts = { request: getAdminAuthHeaders() };
   const { data: videos, refetch } = useGetAdminVideos(reqOpts);
   const { data: categories } = useGetAdminCategories(reqOpts);
-  const { data: playlists } = useGetAdminPlaylists(reqOpts);
+  const { data: playlists, refetch: refetchPlaylists } = useGetAdminPlaylists(reqOpts);
 
   const createMut = useCreateVideo({ request: getAdminAuthHeaders() });
   const updateMut = useUpdateVideo({ request: getAdminAuthHeaders() });
   const deleteMut = useDeleteVideo({ request: getAdminAuthHeaders() });
+  const createPlaylistMut = useCreatePlaylist({ request: getAdminAuthHeaders() });
 
   const [isOpen, setIsOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [uploading, setUploading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [quickPlaylist, setQuickPlaylist] = useState(false);
+  const [quickPlaylistTitle, setQuickPlaylistTitle] = useState("");
+  const [quickPlaylistCategoryId, setQuickPlaylistCategoryId] = useState<number>(0);
+  const [creatingPlaylist, setCreatingPlaylist] = useState(false);
+
+  const handleQuickCreatePlaylist = async () => {
+    if (!quickPlaylistTitle || !quickPlaylistCategoryId) return;
+    setCreatingPlaylist(true);
+    try {
+      const playlist = await createPlaylistMut.mutateAsync({
+        data: { title: quickPlaylistTitle, categoryId: quickPlaylistCategoryId, isVisible: true, sortOrder: 0 }
+      });
+      await refetchPlaylists();
+      setFormData(f => ({ ...f, playlistId: playlist.id }));
+      setQuickPlaylist(false);
+      setQuickPlaylistTitle("");
+      toast({ title: `تم إنشاء السلسلة "${playlist.title}"`, className: "bg-green-600 text-white border-none" });
+    } catch {
+      toast({ variant: "destructive", title: "فشل إنشاء السلسلة" });
+    } finally {
+      setCreatingPlaylist(false);
+    }
+  };
 
   const defaultForm: CreateVideoInput = { title: "", description: "", thumbnailUrl: "", driveEmbedUrl: "", categoryId: 0, accessType: "normal", isVipOnly: false, isVisible: true, playlistId: null, partNumber: null };
   const [formData, setFormData] = useState<CreateVideoInput>(defaultForm);
@@ -239,23 +264,59 @@ export function AdminVideos() {
                   {categories?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label>السلسلة (اختياري)</Label>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="flex items-center gap-1.5"><ListVideo className="w-3.5 h-3.5 text-primary" /> السلسلة (اختياري)</Label>
+                  <button
+                    type="button"
+                    onClick={() => { setQuickPlaylist(q => !q); setQuickPlaylistCategoryId(formData.categoryId || categories?.[0]?.id || 0); setQuickPlaylistTitle(""); }}
+                    className="text-xs text-primary hover:text-primary/80 flex items-center gap-1 font-medium transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> سلسلة جديدة
+                  </button>
+                </div>
+
+                {/* Quick create playlist */}
+                {quickPlaylist && (
+                  <div className="p-3 rounded-xl border border-primary/30 bg-primary/5 space-y-2">
+                    <p className="text-xs text-primary font-medium">إنشاء سلسلة جديدة سريعاً</p>
+                    <Input
+                      placeholder="اسم السلسلة مثلاً: Full Bypass 5S to X"
+                      value={quickPlaylistTitle}
+                      onChange={e => setQuickPlaylistTitle(e.target.value)}
+                      className="h-9 text-sm"
+                    />
+                    <select className="flex h-9 w-full rounded-md border border-white/10 bg-background px-3 py-2 text-sm"
+                      value={quickPlaylistCategoryId}
+                      onChange={e => setQuickPlaylistCategoryId(parseInt(e.target.value))}>
+                      <option value={0} disabled>اختر التصنيف</option>
+                      {categories?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                    <div className="flex gap-2">
+                      <Button size="sm" className="flex-1 h-8 text-xs" onClick={handleQuickCreatePlaylist}
+                        disabled={!quickPlaylistTitle || !quickPlaylistCategoryId || creatingPlaylist}>
+                        {creatingPlaylist ? <Loader2 className="w-3 h-3 animate-spin" /> : "إنشاء وتحديد"}
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setQuickPlaylist(false)}>إلغاء</Button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-3">
                   <select className="flex h-10 w-full rounded-md border border-white/10 bg-background px-3 py-2 text-sm"
                     value={formData.playlistId ?? ""}
                     onChange={e => setFormData({ ...formData, playlistId: e.target.value ? parseInt(e.target.value) : null })}>
                     <option value="">بدون سلسلة</option>
                     {playlists?.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
                   </select>
-                </div>
-                <div className="space-y-2">
-                  <Label>رقم الجزء</Label>
-                  <Input type="number" min="1" placeholder="1، 2، 3..."
+                  <Input type="number" min="1" placeholder="رقم الجزء: 1، 2، 3..."
                     value={formData.partNumber ?? ""}
                     disabled={!formData.playlistId}
                     onChange={e => setFormData({ ...formData, partNumber: e.target.value ? parseInt(e.target.value) : null })} />
                 </div>
+                {formData.playlistId && (
+                  <p className="text-xs text-muted-foreground">أدخل رقم الجزء: 1 للأول، 2 للثاني، وهكذا</p>
+                )}
               </div>
               <div className="space-y-4 pt-2">
                 <div className="space-y-2">
