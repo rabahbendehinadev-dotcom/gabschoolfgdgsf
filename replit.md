@@ -50,8 +50,9 @@ artifacts-monorepo/
 
 - User auth: JWT tokens, IP restriction (one IP per account)
 - Admin auth: Separate JWT with admin-specific middleware
-- Admin credentials: username=`admin`, password=`admin123`
+- Admin credentials: username=`rabah`, password=`Fz8hxNc2#Mtq8Bx!`
 - Admin login uses `email` field as username lookup
+- Admin panel hidden path: `/gab-ctrl-9x/*`
 
 ## API Routes (mounted at /api)
 
@@ -73,6 +74,10 @@ artifacts-monorepo/
 - `GET /playlists` - Public playlist list
 - `GET /playlists/:id` - Public playlist detail with videos
 - `GET/PUT /admin/subscription-plans` - Plan management
+- `POST /admin/users/:id/block` - Toggle block/unblock user
+- `DELETE /admin/users/:id/subscription` - Reset user subscription to demo
+- `GET /admin/subscriptions` - All subscriptions with expired/expiring-soon flags
+- `GET /admin/activity-logs` - Activity log entries (user_registered, user_login, user_blocked, etc.)
 
 ## Frontend Pages
 
@@ -82,13 +87,15 @@ artifacts-monorepo/
 - `/videos` - Video library with search, category filter, and Playlists tab
 - `/videos/:id` - Video detail with playlist sidebar and prev/next navigation
 - `/dashboard` - User profile and subscription info
-- `/admin/login` - Admin login
-- `/admin` - Admin dashboard with stats and charts
-- `/admin/users` - User management (edit, IP reset)
-- `/admin/videos` - Video CRUD (with playlist assignment + part number)
-- `/admin/categories` - Category CRUD
-- `/admin/playlists` - Playlist/Series management (CRUD, video grouping)
-- `/admin/plans` - Subscription plan management
+- `/gab-ctrl-9x/login` - Admin login (hidden path)
+- `/gab-ctrl-9x` - Admin dashboard with stats and charts
+- `/gab-ctrl-9x/users` - User management (edit, IP reset, quick block/unblock, delete)
+- `/gab-ctrl-9x/videos` - Video CRUD (with playlist assignment + part number)
+- `/gab-ctrl-9x/categories` - Category CRUD
+- `/gab-ctrl-9x/playlists` - Playlist/Series management (CRUD, video grouping)
+- `/gab-ctrl-9x/plans` - Subscription plan management
+- `/gab-ctrl-9x/subscriptions` - Subscriptions overview (expired, expiring-soon, delete sub)
+- `/gab-ctrl-9x/activity-log` - Activity log (registrations, logins, blocks, deletions)
 
 ## Design
 

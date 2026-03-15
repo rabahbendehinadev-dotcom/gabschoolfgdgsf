@@ -51,6 +51,17 @@ async function runMigrations() {
       ALTER TABLE videos
         ADD COLUMN IF NOT EXISTS part_number INTEGER
     `);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS activity_logs (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER,
+        username VARCHAR(100),
+        action VARCHAR(100) NOT NULL,
+        details TEXT,
+        ip_address VARCHAR(45),
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
     console.log("[migrations] Schema up to date.");
   } catch (err) {
     console.error("[migrations] Migration error:", err);

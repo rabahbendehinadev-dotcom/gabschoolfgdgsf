@@ -4,8 +4,10 @@ import { AdminUser, UpdateUserInput } from "@workspace/api-client-react/src/gene
 import { useAuth } from "@/lib/auth";
 import { Card, Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label } from "@/components/ui";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Edit, RefreshCw, ShieldOff, ShieldCheck } from "lucide-react";
+import { Search, Edit, RefreshCw, ShieldOff, ShieldCheck, Trash2 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
+
+const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 export function AdminUsers() {
   const { getAdminAuthHeaders } = useAuth();
@@ -17,8 +19,12 @@ export function AdminUsers() {
   const [search, setSearch] = useState("");
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [formData, setFormData] = useState<UpdateUserInput>({});
+  const [loadingId, setLoadingId] = useState<number | null>(null);
 
-  const filtered = users?.filter(u => u.username.includes(search) || u.email.includes(search));
+  const filtered = users?.filter(u =>
+    u.username.toLowerCase().includes(search.toLowerCase()) ||
+    u.email.toLowerCase().includes(search.toLowerCase())
+  );
 
   const handleEdit = (user: AdminUser) => {
     setEditingUser(user);
@@ -44,13 +50,52 @@ export function AdminUsers() {
   };
 
   const handleResetIp = (id: number) => {
-    if(!confirm("هل أنت متأكد من تصفير IP هذا المستخدم؟")) return;
+    if (!confirm("هل أنت متأكد من تصفير IP هذا المستخدم؟")) return;
     resetIpMut.mutate({ id }, {
       onSuccess: () => {
         toast({ title: "تم تصفير IP" });
         refetch();
       }
     });
+  };
+
+  const handleBlock = async (user: AdminUser) => {
+    const action = user.isActive ? "حظر" : "رفع الحظر عن";
+    if (!confirm(`هل أنت متأكد من ${action} ${user.username}؟`)) return;
+    setLoadingId(user.id);
+    try {
+      const headers = getAdminAuthHeaders()?.headers || {};
+      const res = await fetch(`${API_BASE}/api/admin/users/${user.id}/block`, {
+        method: "POST",
+        headers: headers as HeadersInit,
+      });
+      if (!res.ok) throw new Error("فشل الطلب");
+      toast({ title: user.isActive ? "تم حظر المستخدم" : "تم رفع الحظر" });
+      refetch();
+    } catch {
+      toast({ title: "حدث خطأ", variant: "destructive" });
+    } finally {
+      setLoadingId(null);
+    }
+  };
+
+  const handleDelete = async (user: AdminUser) => {
+    if (!confirm(`هل أنت متأكد من حذف حساب ${user.username} نهائيًا؟ لا يمكن التراجع عن هذا الإجراء.`)) return;
+    setLoadingId(user.id);
+    try {
+      const headers = getAdminAuthHeaders()?.headers || {};
+      const res = await fetch(`${API_BASE}/api/admin/users/${user.id}`, {
+        method: "DELETE",
+        headers: headers as HeadersInit,
+      });
+      if (!res.ok) throw new Error("فشل الطلب");
+      toast({ title: "تم حذف المستخدم" });
+      refetch();
+    } catch {
+      toast({ title: "حدث خطأ", variant: "destructive" });
+    } finally {
+      setLoadingId(null);
+    }
   };
 
   return (
@@ -68,28 +113,33 @@ export function AdminUsers() {
           <table className="w-full text-sm text-right">
             <thead className="text-xs text-muted-foreground bg-white/5 border-b border-white/10 uppercase">
               <tr>
-                <th className="px-6 py-4">المستخدم</th>
-                <th className="px-6 py-4">الحساب</th>
-                <th className="px-6 py-4">الاشتراك</th>
-                <th className="px-6 py-4">تاريخ التسجيل</th>
-                <th className="px-6 py-4">IP الحالي</th>
-                <th className="px-6 py-4">الحالة</th>
-                <th className="px-6 py-4">إجراءات</th>
+                <th className="px-4 py-4">المستخدم</th>
+                <th className="px-4 py-4">الحساب</th>
+                <th className="px-4 py-4">الاشتراك</th>
+                <th className="px-4 py-4">تاريخ التسجيل</th>
+                <th className="px-4 py-4">IP</th>
+                <th className="px-4 py-4">الحالة</th>
+                <th className="px-4 py-4">إجراءات</th>
               </tr>
             </thead>
             <tbody>
               {filtered?.map(user => (
-                <tr key={user.id} className="border-b border-white/5 hover:bg-white/[0.02]">
-                  <td className="px-6 py-4">
+                <tr key={user.id} className={`border-b border-white/5 hover:bg-white/[0.02] transition-colors ${!user.isActive ? "opacity-60" : ""}`}>
+                  <td className="px-4 py-4">
                     <div className="font-bold">{user.username}</div>
                     <div className="text-muted-foreground text-xs">{user.email}</div>
                   </td>
-                  <td className="px-6 py-4">
-                    <Badge variant={user.accountType === 'vip' ? 'vip' : 'secondary'}>{user.accountType}</Badge>
+                  <td className="px-4 py-4">
+                    <Badge variant={user.accountType === "vip" ? "vip" : "secondary"}>{user.accountType}</Badge>
                   </td>
-                  <td className="px-6 py-4">{user.subscriptionType}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">{formatDate(user.createdAt)}</td>
-                  <td className="px-6 py-4 text-left">
+                  <td className="px-4 py-4">
+                    <div>{user.subscriptionType}</div>
+                    {user.subscriptionExpiresAt && (
+                      <div className="text-xs text-muted-foreground">{formatDate(user.subscriptionExpiresAt)}</div>
+                    )}
+                  </td>
+                  <td className="px-4 py-4 whitespace-nowrap">{formatDate(user.createdAt)}</td>
+                  <td className="px-4 py-4 text-left">
                     {user.ipAddress ? (
                       <div className="space-y-1">
                         <div className="flex items-center gap-1.5">
@@ -104,19 +154,43 @@ export function AdminUsers() {
                         )}
                       </div>
                     ) : (
-                      <span className="text-muted-foreground text-xs">لم يسجل دخول</span>
+                      <span className="text-muted-foreground text-xs">—</span>
                     )}
                   </td>
-                  <td className="px-6 py-4">
-                    {user.isActive ? <Badge className="bg-green-500/20 text-green-500 hover:bg-green-500/20 border-0">نشط</Badge> : <Badge variant="destructive">موقوف</Badge>}
+                  <td className="px-4 py-4">
+                    {user.isActive
+                      ? <Badge className="bg-green-500/20 text-green-500 hover:bg-green-500/20 border-0">نشط</Badge>
+                      : <Badge variant="destructive">محظور</Badge>}
                   </td>
-                  <td className="px-6 py-4 flex gap-2">
-                    <Button variant="ghost" size="icon" onClick={() => handleEdit(user)}>
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" title="تصفير الأجهزة المسجلة" onClick={() => handleResetIp(user.id)} disabled={!user.ipAddress}>
-                      <RefreshCw className="w-4 h-4 text-blue-400" />
-                    </Button>
+                  <td className="px-4 py-4">
+                    <div className="flex gap-1.5">
+                      <Button variant="ghost" size="icon" title="تعديل" onClick={() => handleEdit(user)}>
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" title="تصفير IP" onClick={() => handleResetIp(user.id)} disabled={!user.ipAddress || loadingId === user.id}>
+                        <RefreshCw className="w-4 h-4 text-blue-400" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title={user.isActive ? "حظر المستخدم" : "رفع الحظر"}
+                        onClick={() => handleBlock(user)}
+                        disabled={loadingId === user.id}
+                      >
+                        {user.isActive
+                          ? <ShieldOff className="w-4 h-4 text-yellow-400" />
+                          : <ShieldCheck className="w-4 h-4 text-green-400" />}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title="حذف المستخدم"
+                        onClick={() => handleDelete(user)}
+                        disabled={loadingId === user.id}
+                      >
+                        <Trash2 className="w-4 h-4 text-red-400" />
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -128,15 +202,15 @@ export function AdminUsers() {
       <Dialog open={!!editingUser} onOpenChange={(o) => !o && setEditingUser(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>تعديل المستخدم {editingUser?.username}</DialogTitle>
+            <DialogTitle>تعديل المستخدم: {editingUser?.username}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>نوع الحساب</Label>
-              <select 
+              <select
                 className="flex h-10 w-full rounded-md border border-white/10 bg-background px-3 py-2 text-sm"
                 value={formData.accountType}
-                onChange={e => setFormData({...formData, accountType: e.target.value as "vip" | "normal"})}
+                onChange={e => setFormData({ ...formData, accountType: e.target.value as "vip" | "normal" })}
               >
                 <option value="normal">عادي</option>
                 <option value="vip">VIP</option>
@@ -144,10 +218,10 @@ export function AdminUsers() {
             </div>
             <div className="space-y-2">
               <Label>خطة الاشتراك</Label>
-              <select 
+              <select
                 className="flex h-10 w-full rounded-md border border-white/10 bg-background px-3 py-2 text-sm"
                 value={formData.subscriptionType}
-                onChange={e => setFormData({...formData, subscriptionType: e.target.value as "demo" | "annual" | "lifetime"})}
+                onChange={e => setFormData({ ...formData, subscriptionType: e.target.value as "demo" | "annual" | "lifetime" })}
               >
                 <option value="demo">تجريبي</option>
                 <option value="annual">سنوي</option>
@@ -156,10 +230,10 @@ export function AdminUsers() {
             </div>
             <div className="space-y-2">
               <Label>حالة الحساب</Label>
-              <select 
+              <select
                 className="flex h-10 w-full rounded-md border border-white/10 bg-background px-3 py-2 text-sm"
                 value={formData.isActive ? "true" : "false"}
-                onChange={e => setFormData({...formData, isActive: e.target.value === "true"})}
+                onChange={e => setFormData({ ...formData, isActive: e.target.value === "true" })}
               >
                 <option value="true">نشط</option>
                 <option value="false">موقوف</option>

@@ -1,14 +1,22 @@
 import { Router, type IRouter } from "express";
-import { db, usersTable, adminsTable, subscriptionPlansTable } from "@workspace/db";
+import { db, usersTable, adminsTable, subscriptionPlansTable, activityLogsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+
 import { hashPassword, comparePassword, generateToken, generateAdminToken } from "../lib/auth";
 import { userAuth } from "../middlewares/auth";
+
 import {
   RegisterBody,
   LoginBody,
   AdminLoginBody,
   ChangePasswordBody,
 } from "@workspace/api-zod";
+
+async function logActivity(userId: number | null, username: string | null, action: string, details?: string, ip?: string) {
+  try {
+    await db.insert(activityLogsTable).values({ userId, username, action, details: details || null, ipAddress: ip || null });
+  } catch (_) { }
+}
 
 const router: IRouter = Router();
 
@@ -51,6 +59,8 @@ router.post("/auth/register", async (req, res) => {
     }).returning();
 
     const token = generateToken({ userId: user.id });
+    const regIp = req.ip || req.headers["x-forwarded-for"]?.toString().split(",")[0]?.trim();
+    await logActivity(user.id, user.username, "user_registered", `New user registered: ${user.username} (${user.email})`, regIp);
 
     res.status(201).json({
       token,
@@ -114,6 +124,7 @@ router.post("/auth/login", async (req, res) => {
     }
 
     const token = generateToken({ userId: user.id });
+    await logActivity(user.id, user.username, "user_login", `Login from IP: ${clientIp}`, clientIp);
 
     res.json({
       token,
