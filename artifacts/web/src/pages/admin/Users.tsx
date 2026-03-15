@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useGetAdminUsers, useUpdateAdminUser, useResetUserIp } from "@workspace/api-client-react/src/generated/api";
+import { useGetAdminUsers, useUpdateAdminUser, useResetUserIp, useDeleteAdminUser } from "@workspace/api-client-react/src/generated/api";
 import { AdminUser, UpdateUserInput } from "@workspace/api-client-react/src/generated/api.schemas";
 import { useAuth } from "@/lib/auth";
 import { Card, Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label } from "@/components/ui";
@@ -7,7 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Search, Edit, RefreshCw, ShieldOff, ShieldCheck, Trash2 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 
-const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+const API_BASE = "";
 
 export function AdminUsers() {
   const { getAdminAuthHeaders } = useAuth();
@@ -15,6 +15,7 @@ export function AdminUsers() {
   const { data: users, refetch } = useGetAdminUsers({ request: getAdminAuthHeaders() });
   const updateMut = useUpdateAdminUser({ request: getAdminAuthHeaders() });
   const resetIpMut = useResetUserIp({ request: getAdminAuthHeaders() });
+  const deleteMut = useDeleteAdminUser({ request: getAdminAuthHeaders() });
 
   const [search, setSearch] = useState("");
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
@@ -79,23 +80,23 @@ export function AdminUsers() {
     }
   };
 
-  const handleDelete = async (user: AdminUser) => {
+  const handleDelete = (user: AdminUser) => {
     if (!confirm(`هل أنت متأكد من حذف حساب ${user.username} نهائيًا؟ لا يمكن التراجع عن هذا الإجراء.`)) return;
     setLoadingId(user.id);
-    try {
-      const headers = getAdminAuthHeaders()?.headers || {};
-      const res = await fetch(`${API_BASE}/api/admin/users/${user.id}`, {
-        method: "DELETE",
-        headers: headers as HeadersInit,
-      });
-      if (!res.ok) throw new Error("فشل الطلب");
-      toast({ title: "تم حذف المستخدم" });
-      refetch();
-    } catch {
-      toast({ title: "حدث خطأ", variant: "destructive" });
-    } finally {
-      setLoadingId(null);
-    }
+    deleteMut.mutate(
+      { id: user.id },
+      {
+        onSuccess: () => {
+          toast({ title: "تم حذف المستخدم" });
+          refetch();
+          setLoadingId(null);
+        },
+        onError: () => {
+          toast({ title: "حدث خطأ", variant: "destructive" });
+          setLoadingId(null);
+        },
+      }
+    );
   };
 
   return (
