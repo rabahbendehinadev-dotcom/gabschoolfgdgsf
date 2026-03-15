@@ -182,6 +182,7 @@ router.delete("/admin/users/:id", adminAuth, async (req, res) => {
   try {
     const id = Number(req.params.id);
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, id)).limit(1);
+    await db.delete(visitLogsTable).where(eq(visitLogsTable.userId, id));
     await db.delete(usersTable).where(eq(usersTable.id, id));
     if (user) await logActivity(null, "admin", "user_deleted", `Deleted user: ${user.username} (${user.email})`);
     res.json({ message: "User deleted successfully" });

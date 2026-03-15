@@ -4,7 +4,7 @@ import { Card, Badge, Input } from "@/components/ui";
 import { Search } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
-const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+const API_BASE = "";
 
 type ActivityLogEntry = {
   id: number;

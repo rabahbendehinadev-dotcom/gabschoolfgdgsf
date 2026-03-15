@@ -6,7 +6,7 @@ import { Search, Trash2, AlertTriangle, Clock, CheckCircle } from "lucide-react"
 import { formatDate } from "@/lib/utils";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
-const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+const API_BASE = "";
 
 type SubUser = {
   id: number;
