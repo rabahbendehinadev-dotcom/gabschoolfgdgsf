@@ -13,55 +13,138 @@ export function Home() {
 
   return (
     <div className="w-full">
-      {/* Hero Section */}
-      <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden">
-        {/* Abstract Background Elements */}
-        <div className="absolute inset-0 z-0">
-          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/20 rounded-full blur-[120px]" />
-          <div className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] bg-amber-500/10 rounded-full blur-[150px]" />
-          <div className="absolute inset-0 bg-[url('https://pixabay.com/get/g49e2cb578275d925a004e49b44d4f49cff63b43276cad1782a3b44e5b61ebfc0290ea794870a21bd19ada014a89da23f84e32236b6f9f0d9e22d0378cca52842_1280.jpg')] opacity-5 bg-cover bg-center mix-blend-overlay" />
-          <div className="absolute inset-0 bg-gradient-to-b from-background/40 via-background/80 to-background" />
+      {/* ═══════════════════════════════════════════════════════
+          HERO BANNER — Orange-dominant with SVG decode icon
+      ════════════════════════════════════════════════════════ */}
+      <section className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden">
+
+        {/* ── Orange gradient background ── */}
+        <div className="absolute inset-0 z-0 bg-gradient-to-br from-orange-500 via-orange-600 to-amber-800" />
+
+        {/* ── Circuit board overlay pattern ── */}
+        <div className="absolute inset-0 z-0 opacity-10">
+          <CircuitPattern />
         </div>
 
-        <div className="container relative z-10 mx-auto px-4 text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, ease: "easeOut" }}
-            className="max-w-4xl mx-auto"
-          >
-            <Badge variant="outline" className="mb-6 px-4 py-2 border-primary/30 bg-primary/10 text-primary">
-              <SparklesIcon className="w-4 h-4 ml-2 inline-block" /> المنصة الأولى عربياً
-            </Badge>
-            <h1 className="text-5xl md:text-7xl font-black mb-6 leading-tight">
-              احترف <span className="text-gradient">الفلاش والديكوداج</span> من الصفر للإحتراف
-            </h1>
-            <p className="text-lg md:text-2xl text-foreground/70 mb-10 max-w-2xl mx-auto leading-relaxed">
-              كورسات احترافية، شروحات حصرية، وحلول لأعقد مشاكل الهواتف الذكية. انضم لمجتمع المحترفين الآن.
-            </p>
-            
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Link href="/register">
-                <Button size="lg" className="w-full sm:w-auto rounded-full px-10 text-lg">
-                  ابدأ التعلم الآن
-                  <Play className="w-5 h-5 mr-2" />
-                </Button>
-              </Link>
-              <Link href="#pricing">
-                <Button size="lg" variant="outline" className="w-full sm:w-auto rounded-full px-10 text-lg bg-white/5 backdrop-blur-md border-white/20">
-                  عرض الاشتراكات
-                </Button>
-              </Link>
-            </div>
-          </motion.div>
+        {/* ── Radial glow top-center ── */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[400px] bg-amber-300/20 rounded-full blur-[120px] z-0" />
+        <div className="absolute bottom-0 right-1/4 w-[400px] h-[300px] bg-orange-900/40 rounded-full blur-[100px] z-0" />
+
+        <div className="container relative z-10 mx-auto px-4">
+          <div className="flex flex-col lg:flex-row items-center justify-between gap-12 lg:gap-8">
+
+            {/* ── Left side: Text content ── */}
+            <motion.div
+              initial={{ opacity: 0, x: 60 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.8, ease: "easeOut" }}
+              className="flex-1 text-center lg:text-right max-w-2xl"
+            >
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2, duration: 0.6 }}
+              >
+                <span className="inline-flex items-center gap-2 mb-6 px-5 py-2 rounded-full bg-black/20 border border-white/30 text-white text-sm font-semibold backdrop-blur-sm">
+                  <SparklesIcon className="w-4 h-4" /> المنصة الأولى عربياً في فك شفرات الهواتف
+                </span>
+              </motion.div>
+
+              <motion.h1
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3, duration: 0.7 }}
+                className="text-5xl md:text-6xl lg:text-7xl font-black mb-6 leading-tight text-white drop-shadow-lg"
+              >
+                احترف{" "}
+                <span className="text-black">الفلاش</span>
+                {" "}والديكوداج
+                <br />
+                <span className="text-black text-4xl md:text-5xl">من الصفر للإحتراف</span>
+              </motion.h1>
+
+              <motion.p
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.45, duration: 0.6 }}
+                className="text-lg md:text-xl text-white/85 mb-10 max-w-xl mx-auto lg:mx-0 leading-relaxed"
+              >
+                كورسات احترافية، شروحات حصرية، وحلول لأعقد مشاكل الهواتف الذكية.
+                انضم لمجتمع المحترفين الآن.
+              </motion.p>
+
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.6, duration: 0.6 }}
+                className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4"
+              >
+                <Link href="/register">
+                  <Button
+                    size="lg"
+                    className="w-full sm:w-auto rounded-full px-10 text-lg bg-black hover:bg-black/80 text-white border-0 shadow-2xl"
+                  >
+                    ابدأ التعلم الآن
+                    <Play className="w-5 h-5 mr-2" />
+                  </Button>
+                </Link>
+                <Link href="#pricing">
+                  <Button
+                    size="lg"
+                    className="w-full sm:w-auto rounded-full px-10 text-lg bg-white/20 hover:bg-white/30 text-white border border-white/40 backdrop-blur-sm"
+                  >
+                    عرض الاشتراكات
+                  </Button>
+                </Link>
+              </motion.div>
+
+              {/* Stats row */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.9, duration: 0.8 }}
+                className="flex items-center justify-center lg:justify-start gap-8 mt-12"
+              >
+                {[
+                  { value: "+500", label: "دورة تدريبية" },
+                  { value: "+10K", label: "طالب محترف" },
+                  { value: "100%", label: "حلول عملية" },
+                ].map((stat, i) => (
+                  <div key={i} className="text-center">
+                    <div className="text-2xl md:text-3xl font-black text-white">{stat.value}</div>
+                    <div className="text-xs text-white/70 mt-0.5">{stat.label}</div>
+                  </div>
+                ))}
+              </motion.div>
+            </motion.div>
+
+            {/* ── Right side: Animated SVG Icon ── */}
+            <motion.div
+              initial={{ opacity: 0, y: -120, scale: 0.7 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: 1, ease: [0.22, 1, 0.36, 1], delay: 0.15 }}
+              className="flex-shrink-0 flex items-center justify-center"
+            >
+              <PhoneDecodeIcon />
+            </motion.div>
+
+          </div>
+        </div>
+
+        {/* ── Wave divider at bottom ── */}
+        <div className="absolute bottom-0 left-0 right-0 z-10">
+          <svg viewBox="0 0 1440 80" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full" preserveAspectRatio="none">
+            <path d="M0,60 C360,0 1080,120 1440,40 L1440,80 L0,80 Z" fill="hsl(var(--background))" />
+          </svg>
         </div>
       </section>
 
-      {/* Videos Showcase Section - Marketing */}
-      <section id="courses" className="py-24 bg-black/30 relative">
+      {/* ══════════════════════════════════
+          COURSES SECTION
+      ══════════════════════════════════ */}
+      <section id="courses" className="py-24 bg-background relative">
         <div className="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent pointer-events-none" />
         <div className="container mx-auto px-4 relative z-10">
-          {/* Section header */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -75,7 +158,6 @@ export function Home() {
             <p className="text-foreground/60 max-w-xl mx-auto">اكتشف مئات الدروس الاحترافية — اشترك الآن للوصول إليها</p>
           </motion.div>
 
-          {/* Category filter tabs */}
           <div className="flex flex-wrap justify-center gap-2 mb-10">
             <button
               onClick={() => setActiveCategory(undefined)}
@@ -102,7 +184,6 @@ export function Home() {
             ))}
           </div>
 
-          {/* Videos grid — all locked */}
           {videos && videos.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
               {videos.map((video, i) => (
@@ -165,7 +246,6 @@ export function Home() {
             </div>
           )}
 
-          {/* CTA */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -183,7 +263,9 @@ export function Home() {
         </div>
       </section>
 
-      {/* Features Section */}
+      {/* ══════════════════════════════════
+          FEATURES SECTION
+      ══════════════════════════════════ */}
       <section className="py-24 bg-black/40 relative">
         <div className="container mx-auto px-4">
           <div className="text-center mb-16">
@@ -217,7 +299,9 @@ export function Home() {
         </div>
       </section>
 
-      {/* Categories / Brands */}
+      {/* ══════════════════════════════════
+          CATEGORIES / BRANDS
+      ══════════════════════════════════ */}
       <section className="py-24">
         <div className="container mx-auto px-4">
           <div className="flex justify-between items-end mb-12">
@@ -255,7 +339,9 @@ export function Home() {
         </div>
       </section>
 
-      {/* Pricing Section */}
+      {/* ══════════════════════════════════
+          PRICING
+      ══════════════════════════════════ */}
       <section id="pricing" className="py-24 bg-black/60 relative">
         <div className="absolute inset-0 bg-gradient-to-t from-primary/5 to-transparent pointer-events-none" />
         <div className="container mx-auto px-4 relative z-10">
@@ -284,13 +370,13 @@ export function Home() {
                     </div>
                   )}
                   <Card className={`h-full flex flex-col p-8 ${
-                    isPopular 
-                      ? 'border-primary/50 shadow-[0_0_30px_rgba(234,88,12,0.15)] bg-card/95' 
+                    isPopular
+                      ? 'border-primary/50 shadow-[0_0_30px_rgba(234,88,12,0.15)] bg-card/95'
                       : 'border-white/10 bg-black/40'
                   }`}>
                     <div className="mb-8 text-center">
                       <h3 className="text-xl font-bold text-foreground/80 mb-2 uppercase tracking-wider">{
-                        plan.type === 'demo' ? 'تجريبي' : 
+                        plan.type === 'demo' ? 'تجريبي' :
                         plan.type === 'annual' ? 'اشتراك سنوي' : 'مدى الحياة'
                       }</h3>
                       <div className="flex items-center justify-center gap-1">
@@ -309,8 +395,8 @@ export function Home() {
                     </div>
 
                     <Link href="/register">
-                      <Button 
-                        variant={isPopular ? 'default' : 'outline'} 
+                      <Button
+                        variant={isPopular ? 'default' : 'outline'}
                         className={`w-full ${isPopular ? 'glow-primary' : ''}`}
                       >
                         اشترك الآن
@@ -327,14 +413,155 @@ export function Home() {
   );
 }
 
+/* ─── Animated Phone + Decode SVG Icon ─── */
+function PhoneDecodeIcon() {
+  return (
+    <div className="relative w-64 h-64 md:w-80 md:h-80 lg:w-96 lg:h-96">
+      {/* Outer glow ring */}
+      <motion.div
+        animate={{ scale: [1, 1.08, 1], opacity: [0.3, 0.6, 0.3] }}
+        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+        className="absolute inset-0 rounded-full bg-black/30 blur-2xl"
+      />
+
+      <svg
+        viewBox="0 0 320 320"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        className="w-full h-full drop-shadow-2xl"
+      >
+        {/* ── Circuit lines radiating from phone ── */}
+        <g opacity="0.4" stroke="white" strokeWidth="1.5" strokeLinecap="round">
+          <line x1="60" y1="100" x2="20" y2="100" />
+          <line x1="20" y1="100" x2="20" y2="60" />
+          <circle cx="20" cy="60" r="4" fill="white" />
+
+          <line x1="60" y1="160" x2="10" y2="160" />
+          <circle cx="10" cy="160" r="4" fill="white" />
+
+          <line x1="60" y1="220" x2="20" y2="220" />
+          <line x1="20" y1="220" x2="20" y2="270" />
+          <circle cx="20" cy="270" r="4" fill="white" />
+
+          <line x1="260" y1="100" x2="300" y2="100" />
+          <line x1="300" y1="100" x2="300" y2="60" />
+          <circle cx="300" cy="60" r="4" fill="white" />
+
+          <line x1="260" y1="160" x2="310" y2="160" />
+          <circle cx="310" cy="160" r="4" fill="white" />
+
+          <line x1="260" y1="220" x2="300" y2="220" />
+          <line x1="300" y1="220" x2="300" y2="270" />
+          <circle cx="300" cy="270" r="4" fill="white" />
+        </g>
+
+        {/* ── Phone body ── */}
+        <rect x="80" y="30" width="160" height="260" rx="24" ry="24" fill="black" stroke="rgba(255,255,255,0.3)" strokeWidth="2" />
+
+        {/* ── Phone screen ── */}
+        <rect x="92" y="58" width="136" height="200" rx="12" ry="12" fill="#111" />
+
+        {/* ── Screen glow ── */}
+        <rect x="92" y="58" width="136" height="200" rx="12" ry="12" fill="url(#screenGlow)" opacity="0.6" />
+
+        {/* ── Status bar dots ── */}
+        <circle cx="160" cy="46" r="5" fill="#333" />
+        <rect x="140" y="44" width="20" height="4" rx="2" fill="#222" />
+
+        {/* ── Home indicator ── */}
+        <rect x="135" y="276" width="50" height="4" rx="2" fill="#333" />
+
+        {/* ── Binary code lines on screen ── */}
+        <g fontFamily="monospace" fontSize="9" fill="rgba(255,165,0,0.7)">
+          <text x="100" y="85">01101100 01101111</text>
+          <text x="100" y="100">11010010 00110101</text>
+          <text x="100" y="115">10110001 11001010</text>
+          <text x="100" y="130">01010101 10101100</text>
+        </g>
+
+        {/* ── Central lock icon ── */}
+        <g transform="translate(130, 148)">
+          {/* Lock body */}
+          <rect x="5" y="20" width="50" height="36" rx="7" fill="#ea580c" />
+          {/* Lock shackle */}
+          <path d="M15 20 V12 A15 15 0 0 1 45 12 V20" stroke="white" strokeWidth="4" strokeLinecap="round" fill="none" />
+          {/* Keyhole */}
+          <circle cx="30" cy="35" r="6" fill="white" opacity="0.9" />
+          <rect x="27" y="37" width="6" height="10" rx="2" fill="white" opacity="0.9" />
+        </g>
+
+        {/* ── "Decoding" progress bar ── */}
+        <rect x="100" y="210" width="120" height="6" rx="3" fill="#222" />
+        <motion.rect
+          x="100" y="210" width={10} height="6" rx="3" fill="#ea580c"
+          animate={{ width: [10, 120, 50, 120] }}
+          transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+        />
+
+        {/* ── Label ── */}
+        <text x="160" y="232" textAnchor="middle" fontFamily="sans-serif" fontSize="10" fill="rgba(255,255,255,0.5)">DECODING...</text>
+
+        {/* Gradient defs */}
+        <defs>
+          <radialGradient id="screenGlow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#ea580c" stopOpacity="0.3" />
+            <stop offset="100%" stopColor="#000" stopOpacity="0" />
+          </radialGradient>
+        </defs>
+      </svg>
+
+      {/* ── Floating binary particles ── */}
+      {["01", "10", "11", "00", "1010", "0101"].map((bit, i) => (
+        <motion.div
+          key={i}
+          className="absolute text-white/40 font-mono text-xs font-bold select-none pointer-events-none"
+          style={{
+            left: `${[5, 80, 90, -5, 70, 15][i]}%`,
+            top: `${[20, 5, 75, 60, 85, 40][i]}%`,
+          }}
+          animate={{
+            y: [0, -20, 0],
+            opacity: [0.3, 0.7, 0.3],
+          }}
+          transition={{
+            duration: 2.5 + i * 0.4,
+            repeat: Infinity,
+            delay: i * 0.5,
+            ease: "easeInOut",
+          }}
+        >
+          {bit}
+        </motion.div>
+      ))}
+    </div>
+  );
+}
+
+/* ─── Circuit board SVG pattern ─── */
+function CircuitPattern() {
+  return (
+    <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <pattern id="circuit" x="0" y="0" width="80" height="80" patternUnits="userSpaceOnUse">
+          <path d="M0 40 H30 M50 40 H80 M40 0 V30 M40 50 V80" stroke="white" strokeWidth="1" fill="none" />
+          <circle cx="40" cy="40" r="4" fill="none" stroke="white" strokeWidth="1" />
+          <circle cx="0" cy="40" r="2" fill="white" />
+          <circle cx="80" cy="40" r="2" fill="white" />
+          <circle cx="40" cy="0" r="2" fill="white" />
+          <circle cx="40" cy="80" r="2" fill="white" />
+          <rect x="20" y="20" width="10" height="10" fill="none" stroke="white" strokeWidth="0.8" />
+          <rect x="50" y="50" width="10" height="10" fill="none" stroke="white" strokeWidth="0.8" />
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#circuit)" />
+    </svg>
+  );
+}
+
 function SparklesIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
       <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
-      <path d="M5 3v4" />
-      <path d="M19 17v4" />
-      <path d="M3 5h4" />
-      <path d="M17 19h4" />
     </svg>
   );
 }

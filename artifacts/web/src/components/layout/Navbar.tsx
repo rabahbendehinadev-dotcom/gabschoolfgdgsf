@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui";
 import { useAuth } from "@/lib/auth";
-import { LogOut, User, Crown, PlayCircle, Menu, X, BookOpen, CreditCard } from "lucide-react";
+import { LogOut, User, Crown, Menu, X, BookOpen, CreditCard } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export function Navbar() {
@@ -19,18 +19,14 @@ export function Navbar() {
     <motion.nav
       initial={{ y: -20, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
-      className="sticky top-0 z-50 w-full border-b border-white/10 bg-background/60 backdrop-blur-xl"
+      className="sticky top-0 z-50 w-full border-b border-white/10 bg-background/70 backdrop-blur-xl"
     >
       <div className="container mx-auto px-4 sm:px-6">
-        <div className="flex h-16 md:h-20 items-center justify-between">
+        {/* 3-column grid: nav links | centered logo | actions */}
+        <div className="grid grid-cols-3 h-16 md:h-20 items-center">
 
-          {/* Logo */}
-          <Link href="/" className="flex items-center group" onClick={() => setMobileOpen(false)}>
-            <img src="/logo.png" alt="GAB Logo" className="h-14 w-auto rounded-xl bg-white px-3 py-1.5 shadow-md group-hover:shadow-primary/40 transition-all" />
-          </Link>
-
-          {/* Desktop nav links */}
-          <div className="hidden md:flex items-center gap-8">
+          {/* Right col: nav links (RTL — visually on right) */}
+          <div className="hidden md:flex items-center gap-8 justify-start">
             {navLinks.map(link => (
               <Link
                 key={link.href}
@@ -43,8 +39,19 @@ export function Navbar() {
             ))}
           </div>
 
-          {/* Desktop actions */}
-          <div className="hidden md:flex items-center gap-4">
+          {/* Center col: Logo */}
+          <div className="flex justify-center">
+            <Link href="/" onClick={() => setMobileOpen(false)}>
+              <img
+                src="/logo.png"
+                alt="GAB Logo"
+                className="h-12 md:h-14 w-auto rounded-xl bg-white px-3 py-1.5 shadow-lg hover:shadow-primary/40 transition-all duration-300"
+              />
+            </Link>
+          </div>
+
+          {/* Left col: Actions (RTL — visually on left) */}
+          <div className="hidden md:flex items-center gap-4 justify-end">
             {user ? (
               <div className="flex items-center gap-3">
                 {user.accountType === "vip" && (
@@ -73,8 +80,8 @@ export function Navbar() {
             )}
           </div>
 
-          {/* Mobile: action icons + hamburger */}
-          <div className="flex md:hidden items-center gap-2">
+          {/* Mobile: hamburger on left side, visible only on mobile */}
+          <div className="flex md:hidden items-center gap-2 justify-end col-start-3">
             {user ? (
               <>
                 {user.accountType === "vip" && (
@@ -93,7 +100,6 @@ export function Navbar() {
                 <Button size="sm" variant="ghost" className="text-sm px-3">دخول</Button>
               </Link>
             )}
-
             <button
               onClick={() => setMobileOpen(v => !v)}
               className="flex items-center justify-center w-9 h-9 rounded-xl bg-white/5 border border-white/10 text-foreground/80 hover:text-white hover:bg-white/10 transition-all"
