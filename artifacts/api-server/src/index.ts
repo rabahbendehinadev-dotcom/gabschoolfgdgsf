@@ -1,7 +1,7 @@
 import app from "./app";
 import { db, adminsTable, categoriesTable, subscriptionPlansTable } from "@workspace/db";
 import bcrypt from "bcryptjs";
-import { sql } from "drizzle-orm";
+import { sql, eq } from "drizzle-orm";
 
 const rawPort = process.env["PORT"];
 
@@ -60,6 +60,17 @@ async function runMigrations() {
 async function ensureSeed() {
   try {
     const admins = await db.select().from(adminsTable).limit(1);
+    // Migrate old default admin credentials to the new ones
+    const oldAdmin = admins.find(a => a.username === "admin");
+    if (oldAdmin) {
+      console.log("[seed] Found legacy admin account, migrating credentials...");
+      const newHash = await bcrypt.hash("Fz8hxNc2#Mtq8Bx!", 10);
+      await db.update(adminsTable)
+        .set({ username: "rabah", passwordHash: newHash })
+        .where(eq(adminsTable.id, oldAdmin.id));
+      console.log("[seed] Admin credentials migrated to new account (username: rabah)");
+    }
+
     if (admins.length === 0) {
       console.log("[seed] No admin found, seeding initial data...");
 
