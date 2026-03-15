@@ -6,3 +6,4 @@ export * from "./playlists";
 export * from "./videos";
 export * from "./subscriptionPlans";
 export * from "./visitLogs";
+export * from "./activityLogs";

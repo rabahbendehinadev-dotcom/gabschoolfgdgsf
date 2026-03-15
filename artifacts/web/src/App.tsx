@@ -20,6 +20,8 @@ import { AdminVideos } from "@/pages/admin/Videos";
 import { AdminCategories } from "@/pages/admin/Categories";
 import { AdminPlaylists } from "@/pages/admin/Playlists";
 import { AdminPlans } from "@/pages/admin/Plans";
+import { AdminSubscriptions } from "@/pages/admin/Subscriptions";
+import { AdminActivityLog } from "@/pages/admin/ActivityLog";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
@@ -78,6 +80,12 @@ function Router() {
       </Route>
       <Route path="/gab-ctrl-9x/plans">
         <AdminLayout><AdminPlans /></AdminLayout>
+      </Route>
+      <Route path="/gab-ctrl-9x/subscriptions">
+        <AdminLayout><AdminSubscriptions /></AdminLayout>
+      </Route>
+      <Route path="/gab-ctrl-9x/activity-log">
+        <AdminLayout><AdminActivityLog /></AdminLayout>
       </Route>
       <Route component={NotFound} />
     </Switch>

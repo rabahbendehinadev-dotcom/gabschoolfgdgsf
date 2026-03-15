@@ -2,8 +2,9 @@ import path from "path";
 import fs from "fs";
 import { Router, type IRouter } from "express";
 import multer from "multer";
-import { db, usersTable, videosTable, categoriesTable, playlistsTable, subscriptionPlansTable, visitLogsTable } from "@workspace/db";
-import { eq, sql, count, desc } from "drizzle-orm";
+import { db, usersTable, videosTable, categoriesTable, playlistsTable, subscriptionPlansTable, visitLogsTable, activityLogsTable } from "@workspace/db";
+import { eq, sql, count, desc, lt, and, gte, isNotNull } from "drizzle-orm";
+
 import { adminAuth } from "../middlewares/auth";
 import {
   UpdateAdminUserBody,
@@ -13,6 +14,12 @@ import {
   UpdateCategoryBody,
   UpdateSubscriptionPlanBody,
 } from "@workspace/api-zod";
+
+async function logActivity(userId: number | null, username: string | null, action: string, details?: string, ip?: string) {
+  try {
+    await db.insert(activityLogsTable).values({ userId, username, action, details: details || null, ipAddress: ip || null });
+  } catch (_) { }
+}
 
 const uploadsDir = path.join(process.cwd(), "uploads");
 fs.mkdirSync(uploadsDir, { recursive: true });
@@ -174,10 +181,80 @@ router.patch("/admin/users/:id", adminAuth, async (req, res) => {
 router.delete("/admin/users/:id", adminAuth, async (req, res) => {
   try {
     const id = Number(req.params.id);
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, id)).limit(1);
     await db.delete(usersTable).where(eq(usersTable.id, id));
+    if (user) await logActivity(null, "admin", "user_deleted", `Deleted user: ${user.username} (${user.email})`);
     res.json({ message: "User deleted successfully" });
   } catch (error: unknown) {
     res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" || "Failed to delete user" });
+  }
+});
+
+router.post("/admin/users/:id/block", adminAuth, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const [existing] = await db.select().from(usersTable).where(eq(usersTable.id, id)).limit(1);
+    if (!existing) { res.status(404).json({ message: "User not found" }); return; }
+    const newStatus = !existing.isActive;
+    const [user] = await db.update(usersTable).set({ isActive: newStatus }).where(eq(usersTable.id, id)).returning();
+    await logActivity(id, existing.username, newStatus ? "user_unblocked" : "user_blocked", `Admin ${newStatus ? "unblocked" : "blocked"} user: ${existing.username}`);
+    res.json({ id: user.id, isActive: user.isActive });
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Failed to block/unblock user" });
+  }
+});
+
+router.delete("/admin/users/:id/subscription", adminAuth, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const [user] = await db.update(usersTable)
+      .set({ subscriptionType: "demo", subscriptionExpiresAt: null, accountType: "normal" })
+      .where(eq(usersTable.id, id)).returning();
+    if (!user) { res.status(404).json({ message: "User not found" }); return; }
+    await logActivity(id, user.username, "subscription_deleted", `Subscription reset to demo for: ${user.username}`);
+    res.json({ message: "Subscription deleted" });
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Failed to delete subscription" });
+  }
+});
+
+router.get("/admin/subscriptions", adminAuth, async (_req, res) => {
+  try {
+    const now = new Date();
+    const soon = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const users = await db.select().from(usersTable).orderBy(desc(usersTable.subscriptionExpiresAt));
+    const result = users.map(u => ({
+      id: u.id,
+      username: u.username,
+      email: u.email,
+      accountType: u.accountType,
+      subscriptionType: u.subscriptionType,
+      subscriptionExpiresAt: u.subscriptionExpiresAt?.toISOString() || null,
+      isActive: u.isActive,
+      isExpired: u.subscriptionExpiresAt ? u.subscriptionExpiresAt < now : false,
+      isExpiringSoon: u.subscriptionExpiresAt ? (u.subscriptionExpiresAt >= now && u.subscriptionExpiresAt <= soon) : false,
+    }));
+    res.json(result);
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Failed to fetch subscriptions" });
+  }
+});
+
+router.get("/admin/activity-logs", adminAuth, async (req, res) => {
+  try {
+    const limit = Math.min(Number(req.query.limit) || 100, 500);
+    const logs = await db.select().from(activityLogsTable).orderBy(desc(activityLogsTable.createdAt)).limit(limit);
+    res.json(logs.map(l => ({
+      id: l.id,
+      userId: l.userId,
+      username: l.username,
+      action: l.action,
+      details: l.details,
+      ipAddress: l.ipAddress,
+      createdAt: l.createdAt.toISOString(),
+    })));
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Failed to fetch logs" });
   }
 });
 
