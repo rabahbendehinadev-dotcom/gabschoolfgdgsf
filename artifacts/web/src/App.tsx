@@ -58,25 +58,25 @@ function Router() {
       <Route path="/subscribe">
         <PublicLayout><Subscribe /></PublicLayout>
       </Route>
-      <Route path="/admin/login">
+      <Route path="/gab-ctrl-9x/login">
         <AdminLogin />
       </Route>
-      <Route path="/admin">
+      <Route path="/gab-ctrl-9x">
         <AdminLayout><AdminDashboard /></AdminLayout>
       </Route>
-      <Route path="/admin/users">
+      <Route path="/gab-ctrl-9x/users">
         <AdminLayout><AdminUsers /></AdminLayout>
       </Route>
-      <Route path="/admin/videos">
+      <Route path="/gab-ctrl-9x/videos">
         <AdminLayout><AdminVideos /></AdminLayout>
       </Route>
-      <Route path="/admin/categories">
+      <Route path="/gab-ctrl-9x/categories">
         <AdminLayout><AdminCategories /></AdminLayout>
       </Route>
-      <Route path="/admin/playlists">
+      <Route path="/gab-ctrl-9x/playlists">
         <AdminLayout><AdminPlaylists /></AdminLayout>
       </Route>
-      <Route path="/admin/plans">
+      <Route path="/gab-ctrl-9x/plans">
         <AdminLayout><AdminPlans /></AdminLayout>
       </Route>
       <Route component={NotFound} />

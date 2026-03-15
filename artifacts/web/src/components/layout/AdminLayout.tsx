@@ -14,7 +14,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
         <div className="text-center space-y-4">
           <ShieldAlert className="w-16 h-16 text-destructive mx-auto" />
           <h2 className="text-2xl font-bold">غير مصرح لك بالدخول</h2>
-          <Link href="/admin/login">
+          <Link href="/gab-ctrl-9x/login">
             <Button>تسجيل دخول الإدارة</Button>
           </Link>
         </div>
@@ -23,12 +23,12 @@ export function AdminLayout({ children }: { children: ReactNode }) {
   }
 
   const nav = [
-    { name: "الإحصائيات", path: "/admin", icon: LayoutDashboard },
-    { name: "المستخدمين", path: "/admin/users", icon: Users },
-    { name: "الفيديوهات", path: "/admin/videos", icon: Video },
-    { name: "التصنيفات", path: "/admin/categories", icon: FolderTree },
-    { name: "السلاسل", path: "/admin/playlists", icon: ListVideo },
-    { name: "الاشتراكات", path: "/admin/plans", icon: CreditCard },
+    { name: "الإحصائيات", path: "/gab-ctrl-9x", icon: LayoutDashboard },
+    { name: "المستخدمين", path: "/gab-ctrl-9x/users", icon: Users },
+    { name: "الفيديوهات", path: "/gab-ctrl-9x/videos", icon: Video },
+    { name: "التصنيفات", path: "/gab-ctrl-9x/categories", icon: FolderTree },
+    { name: "السلاسل", path: "/gab-ctrl-9x/playlists", icon: ListVideo },
+    { name: "الاشتراكات", path: "/gab-ctrl-9x/plans", icon: CreditCard },
   ];
 
   return (
