@@ -30,7 +30,7 @@ export function AdminLogin() {
       onSuccess: (res) => {
         setAdminAuth(res.token, res.admin);
         toast({ title: "تم تسجيل الدخول", className: "bg-green-600 text-white" });
-        navigate("/admin");
+        navigate("/gab-ctrl-9x");
       },
       onError: () => {
         toast({ variant: "destructive", title: "خطأ", description: "بيانات غير صحيحة" });

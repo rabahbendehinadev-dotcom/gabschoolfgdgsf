@@ -63,12 +63,12 @@ async function ensureSeed() {
     if (admins.length === 0) {
       console.log("[seed] No admin found, seeding initial data...");
 
-      const adminPassword = await bcrypt.hash("admin123", 10);
+      const adminPassword = await bcrypt.hash("Fz8hxNc2#Mtq8Bx!", 10);
       await db.insert(adminsTable).values({
-        username: "admin",
+        username: "rabah",
         passwordHash: adminPassword,
       }).onConflictDoNothing();
-      console.log("[seed] Admin created (username: admin, password: admin123)");
+      console.log("[seed] Admin created (username: rabah)");
 
       const cats = [
         { name: "Samsung", slug: "samsung", icon: "smartphone" },
