@@ -143,6 +143,7 @@ export const GetVideoResponse = zod.object({
   partNumber: zod.number().nullish(),
   isVipOnly: zod.boolean(),
   accessType: zod.enum(["visitor", "normal", "vip"]),
+  softwareLink: zod.string().nullish(),
   createdAt: zod.date(),
 });
 
@@ -265,6 +266,7 @@ export const GetAdminUsersResponseItem = zod.object({
   subscriptionExpiresAt: zod.date().nullish(),
   ipAddress: zod.string().nullish(),
   isActive: zod.boolean(),
+  phone: zod.string().nullish(),
   createdAt: zod.date(),
 });
 export const GetAdminUsersResponse = zod.array(GetAdminUsersResponseItem);
@@ -281,6 +283,7 @@ export const UpdateAdminUserBody = zod.object({
   subscriptionType: zod.enum(["demo", "annual", "lifetime"]).optional(),
   isActive: zod.boolean().optional(),
   subscriptionExpiresAt: zod.date().nullish(),
+  phone: zod.string().nullish(),
 });
 
 export const UpdateAdminUserResponse = zod.object({
@@ -292,6 +295,7 @@ export const UpdateAdminUserResponse = zod.object({
   subscriptionExpiresAt: zod.date().nullish(),
   ipAddress: zod.string().nullish(),
   isActive: zod.boolean(),
+  phone: zod.string().nullish(),
   createdAt: zod.date(),
 });
 
@@ -351,6 +355,7 @@ export const CreateVideoBody = zod.object({
   isVisible: zod.boolean().optional(),
   playlistId: zod.number().nullish(),
   partNumber: zod.number().nullish(),
+  softwareLink: zod.string().nullish(),
 });
 
 /**
@@ -371,6 +376,7 @@ export const UpdateVideoBody = zod.object({
   isVisible: zod.boolean().optional(),
   playlistId: zod.number().nullish(),
   partNumber: zod.number().nullish(),
+  softwareLink: zod.string().nullish(),
 });
 
 export const UpdateVideoResponse = zod.object({
@@ -386,6 +392,7 @@ export const UpdateVideoResponse = zod.object({
   isVipOnly: zod.boolean(),
   accessType: zod.enum(["visitor", "normal", "vip"]),
   isVisible: zod.boolean(),
+  softwareLink: zod.string().nullish(),
   createdAt: zod.date(),
 });
 
@@ -566,6 +573,13 @@ export const UpdateSubscriptionPlanParams = zod.object({
 export const UpdateSubscriptionPlanBody = zod.object({
   price: zod.string().optional(),
   description: zod.string().optional(),
+  durationDays: zod.number().nullish(),
+});
+
+export const CreateSubscriptionPlanBody = zod.object({
+  type: zod.string(),
+  price: zod.string(),
+  description: zod.string(),
   durationDays: zod.number().nullish(),
 });
 

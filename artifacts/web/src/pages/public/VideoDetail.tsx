@@ -2,7 +2,7 @@ import { useRoute, useLocation } from "wouter";
 import { useGetVideo } from "@workspace/api-client-react/src/generated/api";
 import { useAuth } from "@/lib/auth";
 import { Card, Badge, Button } from "@/components/ui";
-import { Crown, ArrowRight, PlaySquare, ExternalLink, Lock, CalendarDays, Tag, ListVideo, ChevronLeft, ChevronRight } from "lucide-react";
+import { Crown, ArrowRight, PlaySquare, ExternalLink, Lock, CalendarDays, Tag, ListVideo, ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { Link } from "wouter";
 import { formatDate } from "@/lib/utils";
 import { motion } from "framer-motion";
@@ -179,6 +179,31 @@ export function VideoDetail() {
                 )}
               </div>
             </div>
+
+            {/* VIP Software Download */}
+            {user?.accountType === "vip" && (video as typeof video & { softwareLink?: string | null })?.softwareLink && (
+              <div className="mb-8">
+                <a
+                  href={(video as typeof video & { softwareLink?: string | null }).softwareLink!}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3 w-full px-6 py-4 rounded-2xl border border-amber-500/30 bg-gradient-to-r from-amber-500/10 to-orange-500/10 hover:from-amber-500/20 hover:to-orange-500/20 transition-all group"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+                    <Download className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1 text-right">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <Crown className="w-3.5 h-3.5 text-amber-400" />
+                      <span className="text-xs font-semibold text-amber-400 uppercase">VIP</span>
+                    </div>
+                    <p className="font-bold text-foreground group-hover:text-amber-300 transition-colors">تحميل البرنامج</p>
+                    <p className="text-xs text-muted-foreground">حصري لأعضاء VIP</p>
+                  </div>
+                  <ExternalLink className="w-4 h-4 text-amber-400 opacity-70" />
+                </a>
+              </div>
+            )}
 
             {/* Prev / Next navigation */}
             {playlist && (prevVideo || nextVideo) && (

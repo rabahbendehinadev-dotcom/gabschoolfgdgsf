@@ -13,6 +13,7 @@ import {
   CreateCategoryBody,
   UpdateCategoryBody,
   UpdateSubscriptionPlanBody,
+  CreateSubscriptionPlanBody,
 } from "@workspace/api-zod";
 
 async function logActivity(userId: number | null, username: string | null, action: string, details?: string, ip?: string) {
@@ -120,6 +121,7 @@ router.get("/admin/users", adminAuth, async (_req, res) => {
       ipAddress: u.ipAddress,
       ipAddress2: u.ipAddress2,
       isActive: u.isActive,
+      phone: u.phone ?? null,
       createdAt: u.createdAt.toISOString(),
     })));
   } catch (error: unknown) {
@@ -152,6 +154,7 @@ router.patch("/admin/users/:id", adminAuth, async (req, res) => {
     if (body.subscriptionExpiresAt !== undefined) {
       updateData.subscriptionExpiresAt = body.subscriptionExpiresAt ? new Date(body.subscriptionExpiresAt) : null;
     }
+    if ("phone" in body) updateData.phone = body.phone ?? null;
 
     const [user] = await db.update(usersTable).set(updateData)
       .where(eq(usersTable.id, id)).returning();
@@ -171,6 +174,7 @@ router.patch("/admin/users/:id", adminAuth, async (req, res) => {
       ipAddress: user.ipAddress,
       ipAddress2: user.ipAddress2,
       isActive: user.isActive,
+      phone: user.phone ?? null,
       createdAt: user.createdAt.toISOString(),
     });
   } catch (error: unknown) {
@@ -316,6 +320,7 @@ router.post("/admin/videos", adminAuth, async (req, res) => {
       isVisible: body.isVisible ?? true,
       playlistId: body.playlistId ?? null,
       partNumber: body.partNumber ?? null,
+      softwareLink: body.softwareLink ?? null,
     }).returning();
 
     const [cat] = await db.select().from(categoriesTable).where(eq(categoriesTable.id, video.categoryId)).limit(1);
@@ -326,7 +331,8 @@ router.post("/admin/videos", adminAuth, async (req, res) => {
       categoryId: video.categoryId, categoryName: cat?.name || "",
       playlistId: video.playlistId, partNumber: video.partNumber,
       isVipOnly: video.isVipOnly, accessType: video.accessType,
-      isVisible: video.isVisible, createdAt: video.createdAt.toISOString(),
+      isVisible: video.isVisible, softwareLink: video.softwareLink ?? null,
+      createdAt: video.createdAt.toISOString(),
     });
   } catch (error: unknown) {
     res.status(400).json({ message: error instanceof Error ? error.message : "Unknown error" || "Failed to create video" });
@@ -353,6 +359,7 @@ router.patch("/admin/videos/:id", adminAuth, async (req, res) => {
     }
     if ("playlistId" in body) updateData.playlistId = body.playlistId ?? null;
     if ("partNumber" in body) updateData.partNumber = body.partNumber ?? null;
+    if ("softwareLink" in body) updateData.softwareLink = body.softwareLink ?? null;
 
     const [video] = await db.update(videosTable).set(updateData)
       .where(eq(videosTable.id, id)).returning();
@@ -370,7 +377,8 @@ router.patch("/admin/videos/:id", adminAuth, async (req, res) => {
       categoryId: video.categoryId, categoryName: cat?.name || "",
       playlistId: video.playlistId, partNumber: video.partNumber,
       isVipOnly: video.isVipOnly, accessType: video.accessType,
-      isVisible: video.isVisible, createdAt: video.createdAt.toISOString(),
+      isVisible: video.isVisible, softwareLink: video.softwareLink ?? null,
+      createdAt: video.createdAt.toISOString(),
     });
   } catch (error: unknown) {
     res.status(400).json({ message: error instanceof Error ? error.message : "Unknown error" || "Failed to update video" });
@@ -515,6 +523,31 @@ router.get("/admin/subscription-plans", adminAuth, async (_req, res) => {
     res.json(plans);
   } catch (error: unknown) {
     res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" || "Failed to fetch plans" });
+  }
+});
+
+router.post("/admin/subscription-plans", adminAuth, async (req, res) => {
+  try {
+    const body = CreateSubscriptionPlanBody.parse(req.body);
+    const [plan] = await db.insert(subscriptionPlansTable).values({
+      type: body.type,
+      price: body.price,
+      description: body.description,
+      durationDays: body.durationDays ?? null,
+    }).returning();
+    res.status(201).json(plan);
+  } catch (error: unknown) {
+    res.status(400).json({ message: error instanceof Error ? error.message : "Failed to create plan" });
+  }
+});
+
+router.delete("/admin/subscription-plans/:id", adminAuth, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    await db.delete(subscriptionPlansTable).where(eq(subscriptionPlansTable.id, id));
+    res.json({ message: "Plan deleted successfully" });
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Failed to delete plan" });
   }
 });
 

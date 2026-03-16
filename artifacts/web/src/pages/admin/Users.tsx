@@ -4,7 +4,7 @@ import { AdminUser, UpdateUserInput } from "@workspace/api-client-react/src/gene
 import { useAuth } from "@/lib/auth";
 import { Card, Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label } from "@/components/ui";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Edit, RefreshCw, ShieldOff, ShieldCheck, Trash2 } from "lucide-react";
+import { Search, Edit, RefreshCw, ShieldOff, ShieldCheck, Trash2, MessageCircle } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 
 const API_BASE = "";
@@ -33,6 +33,7 @@ export function AdminUsers() {
       accountType: user.accountType,
       subscriptionType: user.subscriptionType,
       isActive: user.isActive,
+      phone: (user as typeof user & { phone?: string }).phone ?? undefined,
     });
   };
 
@@ -182,6 +183,17 @@ export function AdminUsers() {
                           ? <ShieldOff className="w-4 h-4 text-yellow-400" />
                           : <ShieldCheck className="w-4 h-4 text-green-400" />}
                       </Button>
+                      {(user as typeof user & { phone?: string }).phone && (
+                        <a
+                          href={`https://wa.me/${(user as typeof user & { phone?: string }).phone?.replace(/\D/g, "")}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          <Button variant="ghost" size="icon" title="تواصل واتساب">
+                            <MessageCircle className="w-4 h-4 text-green-400" />
+                          </Button>
+                        </a>
+                      )}
                       <Button
                         variant="ghost"
                         size="icon"
@@ -226,7 +238,6 @@ export function AdminUsers() {
               >
                 <option value="demo">تجريبي</option>
                 <option value="annual">سنوي</option>
-                <option value="lifetime">مدى الحياة</option>
               </select>
             </div>
             <div className="space-y-2">
@@ -239,6 +250,16 @@ export function AdminUsers() {
                 <option value="true">نشط</option>
                 <option value="false">موقوف</option>
               </select>
+            </div>
+            <div className="space-y-2">
+              <Label>رقم الواتساب</Label>
+              <Input
+                dir="ltr"
+                className="text-left"
+                placeholder="+213XXXXXXXXX"
+                value={formData.phone ?? ""}
+                onChange={e => setFormData({ ...formData, phone: e.target.value || undefined })}
+              />
             </div>
             <Button className="w-full mt-4" onClick={handleSave} disabled={updateMut.isPending}>
               حفظ التغييرات
