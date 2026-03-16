@@ -75,6 +75,7 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
       isVipOnly: videosTable.isVipOnly,
       accessType: videosTable.accessType,
       isVisible: videosTable.isVisible,
+      softwareLink: videosTable.softwareLink,
       createdAt: videosTable.createdAt,
     })
     .from(videosTable)
@@ -136,6 +137,7 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
       partNumber: video.partNumber,
       isVipOnly: video.isVipOnly,
       accessType: video.accessType,
+      softwareLink: isVipUser ? (video.softwareLink ?? null) : null,
       createdAt: video.createdAt.toISOString(),
       playlist: playlistInfo,
     });

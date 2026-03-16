@@ -16,6 +16,7 @@ export const videosTable = pgTable("videos", {
   isVipOnly: boolean("is_vip_only").notNull().default(false),
   accessType: varchar("access_type", { length: 20 }).notNull().default("normal"),
   isVisible: boolean("is_visible").notNull().default(true),
+  softwareLink: text("software_link"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

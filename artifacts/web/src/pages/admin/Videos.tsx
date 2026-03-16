@@ -50,7 +50,7 @@ export function AdminVideos() {
     }
   };
 
-  const defaultForm: CreateVideoInput = { title: "", description: "", thumbnailUrl: "", driveEmbedUrl: "", categoryId: 0, accessType: "normal", isVipOnly: false, isVisible: true, playlistId: null, partNumber: null };
+  const defaultForm: CreateVideoInput = { title: "", description: "", thumbnailUrl: "", driveEmbedUrl: "", categoryId: 0, accessType: "normal", isVipOnly: false, isVisible: true, playlistId: null, partNumber: null, softwareLink: null };
   const [formData, setFormData] = useState<CreateVideoInput>(defaultForm);
 
   const normalizeThumbnailUrl = (url: string) => {
@@ -73,7 +73,8 @@ export function AdminVideos() {
         driveEmbedUrl: video.driveEmbedUrl, categoryId: video.categoryId,
         accessType: (video.accessType as "visitor" | "normal" | "vip") || "normal",
         isVipOnly: video.isVipOnly, isVisible: video.isVisible,
-        playlistId: video.playlistId ?? null, partNumber: video.partNumber ?? null
+        playlistId: video.playlistId ?? null, partNumber: video.partNumber ?? null,
+        softwareLink: video.softwareLink ?? null,
       });
       setPreviewUrl(thumbUrl);
     } else {
@@ -256,6 +257,13 @@ export function AdminVideos() {
               <div className="space-y-2 col-span-2">
                 <Label>رابط تضمين جوجل درايف (Embed URL)</Label>
                 <Input dir="ltr" className="text-left" value={formData.driveEmbedUrl} onChange={e => setFormData({ ...formData, driveEmbedUrl: e.target.value })} />
+              </div>
+              <div className="space-y-2 col-span-2">
+                <Label className="flex items-center gap-1.5">
+                  <span className="text-xs bg-orange-500/20 text-orange-400 px-1.5 py-0.5 rounded font-semibold">VIP</span>
+                  رابط تحميل البرنامج (للـ VIP فقط)
+                </Label>
+                <Input dir="ltr" className="text-left" placeholder="https://..." value={formData.softwareLink ?? ""} onChange={e => setFormData({ ...formData, softwareLink: e.target.value || null })} />
               </div>
               <div className="space-y-2">
                 <Label>التصنيف</Label>

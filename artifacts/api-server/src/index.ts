@@ -52,6 +52,14 @@ async function runMigrations() {
         ADD COLUMN IF NOT EXISTS part_number INTEGER
     `);
     await db.execute(sql`
+      ALTER TABLE videos
+        ADD COLUMN IF NOT EXISTS software_link TEXT
+    `);
+    await db.execute(sql`
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS phone VARCHAR(20)
+    `);
+    await db.execute(sql`
       CREATE TABLE IF NOT EXISTS activity_logs (
         id SERIAL PRIMARY KEY,
         user_id INTEGER,

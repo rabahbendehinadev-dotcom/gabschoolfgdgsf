@@ -13,6 +13,7 @@ export const usersTable = pgTable("users", {
   ipAddress: varchar("ip_address", { length: 45 }),
   ipAddress2: varchar("ip_address_2", { length: 45 }),
   isActive: boolean("is_active").notNull().default(true),
+  phone: varchar("phone", { length: 20 }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
