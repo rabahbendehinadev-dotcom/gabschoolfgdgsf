@@ -70,6 +70,20 @@ async function runMigrations() {
         created_at TIMESTAMP NOT NULL DEFAULT NOW()
       )
     `);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS payment_submissions (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER,
+        customer_name VARCHAR(150) NOT NULL,
+        plan_type VARCHAR(50) NOT NULL,
+        plan_price VARCHAR(100) NOT NULL,
+        payment_method VARCHAR(50) NOT NULL,
+        proof_object_path TEXT,
+        status VARCHAR(20) NOT NULL DEFAULT 'pending',
+        notes TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
     console.log("[migrations] Schema up to date.");
   } catch (err) {
     console.error("[migrations] Migration error:", err);

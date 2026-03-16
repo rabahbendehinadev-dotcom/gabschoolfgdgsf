@@ -7,3 +7,4 @@ export * from "./videos";
 export * from "./subscriptionPlans";
 export * from "./visitLogs";
 export * from "./activityLogs";
+export * from "./paymentSubmissions";
