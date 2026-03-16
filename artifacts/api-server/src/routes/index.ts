@@ -7,6 +7,7 @@ import playlistsRouter from "./playlists";
 import subscriptionPlansRouter from "./subscriptionPlans";
 import adminRouter from "./admin";
 import storageRouter from "./storage";
+import paymentsRouter from "./payments";
 
 const router: IRouter = Router();
 
@@ -18,5 +19,6 @@ router.use(playlistsRouter);
 router.use(subscriptionPlansRouter);
 router.use(adminRouter);
 router.use(storageRouter);
+router.use(paymentsRouter);
 
 export default router;
