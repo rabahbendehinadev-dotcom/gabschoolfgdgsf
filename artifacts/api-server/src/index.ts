@@ -97,6 +97,7 @@ async function runMigrations() {
 async function ensureSeed() {
   try {
     const admins = await db.select().from(adminsTable).limit(1);
+
     // Migrate old default admin credentials to the new ones
     const oldAdmin = admins.find(a => a.username === "admin");
     if (oldAdmin) {
@@ -108,40 +109,39 @@ async function ensureSeed() {
       console.log("[seed] Admin credentials migrated to new account (username: rabah)");
     }
 
+    // Always ensure admin exists
     if (admins.length === 0) {
-      console.log("[seed] No admin found, seeding initial data...");
-
       const adminPassword = await bcrypt.hash("Fz8hxNc2#Mtq8Bx!", 10);
       await db.insert(adminsTable).values({
         username: "rabah",
         passwordHash: adminPassword,
       }).onConflictDoNothing();
       console.log("[seed] Admin created (username: rabah)");
-
-      const cats = [
-        { name: "Samsung", slug: "samsung", icon: "smartphone" },
-        { name: "iPhone", slug: "iphone", icon: "smartphone" },
-        { name: "Huawei", slug: "huawei", icon: "smartphone" },
-        { name: "Xiaomi", slug: "xiaomi", icon: "smartphone" },
-        { name: "Oppo", slug: "oppo", icon: "smartphone" },
-        { name: "Realme", slug: "realme", icon: "smartphone" },
-        { name: "Vivo", slug: "vivo", icon: "smartphone" },
-        { name: "Nokia", slug: "nokia", icon: "smartphone" },
-      ];
-      for (const cat of cats) {
-        await db.insert(categoriesTable).values(cat).onConflictDoNothing();
-      }
-
-      await db.insert(subscriptionPlansTable).values([
-        { type: "demo", price: "0 DA", description: "تجربة مجانية مع وصول محدود لبعض الفيديوهات", durationDays: 7 },
-        { type: "annual", price: "5000 DA", description: "وصول كامل لمدة سنة لجميع الكورسات والمواد", durationDays: 365 },
-        { type: "lifetime", price: "15000 DA", description: "وصول مدى الحياة لجميع الكورسات الحالية والمستقبلية", durationDays: null },
-      ] as any[]).onConflictDoNothing();
-
-      console.log("[seed] Seed complete.");
-    } else {
-      console.log("[seed] Admin already exists, skipping seed.");
     }
+
+    // Always ensure categories exist (idempotent via onConflictDoNothing)
+    const cats = [
+      { name: "Samsung", slug: "samsung", icon: "smartphone" },
+      { name: "iPhone", slug: "iphone", icon: "smartphone" },
+      { name: "Huawei", slug: "huawei", icon: "smartphone" },
+      { name: "Xiaomi", slug: "xiaomi", icon: "smartphone" },
+      { name: "Oppo", slug: "oppo", icon: "smartphone" },
+      { name: "Realme", slug: "realme", icon: "smartphone" },
+      { name: "Vivo", slug: "vivo", icon: "smartphone" },
+      { name: "Nokia", slug: "nokia", icon: "smartphone" },
+    ];
+    for (const cat of cats) {
+      await db.insert(categoriesTable).values(cat).onConflictDoNothing();
+    }
+
+    // Always ensure subscription plans exist (idempotent via onConflictDoNothing)
+    await db.insert(subscriptionPlansTable).values([
+      { type: "demo", price: "0 DA", description: "تجربة مجانية مع وصول محدود لبعض الفيديوهات", durationDays: 7 },
+      { type: "annual", price: "5000 DA", description: "وصول كامل لمدة سنة لجميع الكورسات والمواد", durationDays: 365 },
+      { type: "lifetime", price: "15000 DA", description: "وصول مدى الحياة لجميع الكورسات الحالية والمستقبلية", durationDays: null },
+    ] as any[]).onConflictDoNothing();
+
+    console.log("[seed] Seed complete.");
   } catch (err) {
     console.error("[seed] Seed error:", err);
   }
