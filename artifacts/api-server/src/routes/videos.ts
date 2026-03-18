@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
-import { db, videosTable, categoriesTable, visitLogsTable, playlistsTable } from "@workspace/db";
+import { db, videosTable, categoriesTable, visitLogsTable, playlistsTable, activityLogsTable } from "@workspace/db";
 import { eq, and, asc } from "drizzle-orm";
-import { optionalUserAuth } from "../middlewares/auth";
+import { optionalUserAuth, userAuth } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
@@ -145,6 +145,27 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
     });
   } catch (error: unknown) {
     res.status(500).json({ message: error instanceof Error ? error.message : "Failed to fetch video" });
+  }
+});
+
+router.post("/videos/:id/violation", optionalUserAuth, async (req, res) => {
+  try {
+    const videoId = Number(req.params.id);
+    const { count } = req.body as { count?: number };
+    const user = req.user;
+    const clientIp = req.ip || req.headers["x-forwarded-for"]?.toString().split(",")[0]?.trim() || "unknown";
+
+    await db.insert(activityLogsTable).values({
+      userId: user?.id ?? null,
+      username: user?.username ?? null,
+      action: "screenshot_attempt",
+      details: `Video ID: ${videoId} | Attempt count: ${count ?? 1}`,
+      ipAddress: clientIp,
+    });
+
+    res.json({ ok: true });
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Failed to log violation" });
   }
 });
 
