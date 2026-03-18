@@ -144,6 +144,7 @@ export const GetVideoResponse = zod.object({
   isVipOnly: zod.boolean(),
   accessType: zod.enum(["visitor", "normal", "vip"]),
   softwareLink: zod.string().nullish(),
+  driveParts: zod.string().nullish(),
   createdAt: zod.date(),
 });
 
@@ -337,6 +338,8 @@ export const GetAdminVideosResponseItem = zod.object({
   isVipOnly: zod.boolean(),
   accessType: zod.enum(["visitor", "normal", "vip"]),
   isVisible: zod.boolean(),
+  softwareLink: zod.string().nullish(),
+  driveParts: zod.string().nullish(),
   createdAt: zod.date(),
 });
 export const GetAdminVideosResponse = zod.array(GetAdminVideosResponseItem);
@@ -356,6 +359,7 @@ export const CreateVideoBody = zod.object({
   playlistId: zod.number().nullish(),
   partNumber: zod.number().nullish(),
   softwareLink: zod.string().nullish(),
+  driveParts: zod.string().nullish(),
 });
 
 /**
@@ -377,6 +381,7 @@ export const UpdateVideoBody = zod.object({
   playlistId: zod.number().nullish(),
   partNumber: zod.number().nullish(),
   softwareLink: zod.string().nullish(),
+  driveParts: zod.string().nullish(),
 });
 
 export const UpdateVideoResponse = zod.object({
@@ -393,6 +398,7 @@ export const UpdateVideoResponse = zod.object({
   accessType: zod.enum(["visitor", "normal", "vip"]),
   isVisible: zod.boolean(),
   softwareLink: zod.string().nullish(),
+  driveParts: zod.string().nullish(),
   createdAt: zod.date(),
 });
 

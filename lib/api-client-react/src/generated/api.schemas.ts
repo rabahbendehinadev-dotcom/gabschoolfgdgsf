@@ -101,6 +101,7 @@ export interface Video {
   isVipOnly: boolean;
   accessType: VideoAccessType;
   softwareLink?: string | null;
+  driveParts?: string | null;
   createdAt: string;
 }
 
@@ -127,6 +128,7 @@ export interface AdminVideo {
   accessType: AdminVideoAccessType;
   isVisible: boolean;
   softwareLink?: string | null;
+  driveParts?: string | null;
   createdAt: string;
 }
 
@@ -151,6 +153,7 @@ export interface CreateVideoInput {
   playlistId?: number | null;
   partNumber?: number | null;
   softwareLink?: string | null;
+  driveParts?: string | null;
 }
 
 export type UpdateVideoInputAccessType =
@@ -174,6 +177,7 @@ export interface UpdateVideoInput {
   playlistId?: number | null;
   partNumber?: number | null;
   softwareLink?: string | null;
+  driveParts?: string | null;
 }
 
 export type PlaylistVideoAccessType =
