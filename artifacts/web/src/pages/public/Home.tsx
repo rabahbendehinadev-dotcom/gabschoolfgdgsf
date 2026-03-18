@@ -4,12 +4,19 @@ import { Button, Card, Badge } from "@/components/ui";
 import { Link } from "wouter";
 import { Play, CheckCircle2, Shield, Zap, Crown, Smartphone, Lock, Search } from "lucide-react";
 import { useGetCategories, useGetSubscriptionPlans, useGetVideos } from "@workspace/api-client-react/src/generated/api";
+import { useAuth } from "@/lib/auth";
 
 export function Home() {
+  const { user, getAuthHeaders } = useAuth();
   const { data: categories } = useGetCategories();
   const { data: plans } = useGetSubscriptionPlans();
   const [activeCategory, setActiveCategory] = useState<number | undefined>();
-  const { data: videos } = useGetVideos({ categoryId: activeCategory });
+  const { data: videos } = useGetVideos({ categoryId: activeCategory }, { request: getAuthHeaders() });
+
+  const isLoggedIn = !!user;
+  const isDemo = user?.subscriptionType === "demo";
+  const isVipUser = user?.accountType === "vip";
+  const isLocked = !isLoggedIn || isDemo;
 
   return (
     <div className="w-full">
@@ -186,58 +193,74 @@ export function Home() {
 
           {videos && videos.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-              {videos.map((video, i) => (
-                <motion.div
-                  key={video.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: (i % 8) * 0.07 }}
-                >
-                  <Link href="/subscribe">
-                    <div className="group relative rounded-2xl overflow-hidden bg-card border border-white/10 hover:border-primary/40 transition-all duration-300 hover:-translate-y-1 cursor-pointer">
-                      <div className="relative aspect-video bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center overflow-hidden">
-                        {video.thumbnailUrl ? (
-                          <img src={video.thumbnailUrl} alt={video.title} className="w-full h-full object-cover opacity-60 group-hover:opacity-40 transition-opacity" />
-                        ) : (
-                          <div className="w-full h-full bg-gradient-to-br from-primary/10 to-orange-900/20" />
-                        )}
-                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 group-hover:bg-black/60 transition-colors">
-                          <div className="w-12 h-12 rounded-full bg-primary/20 border-2 border-primary/40 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform group-hover:bg-primary/40">
-                            <Lock className="w-5 h-5 text-primary" />
+              {videos.map((video, i) => {
+                const at = video.accessType || "normal";
+                const isVipVideo = at === "vip";
+                const isVisitorVideo = at === "visitor";
+                const videoLocked = isVisitorVideo ? false : isVipVideo ? !isVipUser : isLocked;
+                const href = videoLocked
+                  ? (isLoggedIn ? "/subscribe" : "/login")
+                  : `/videos/${video.id}`;
+
+                return (
+                  <motion.div
+                    key={video.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: (i % 8) * 0.07 }}
+                  >
+                    <Link href={href}>
+                      <div className="group relative rounded-2xl overflow-hidden bg-card border border-white/10 hover:border-primary/40 transition-all duration-300 hover:-translate-y-1 cursor-pointer">
+                        <div className="relative aspect-video bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center overflow-hidden">
+                          {video.thumbnailUrl ? (
+                            <img src={video.thumbnailUrl} alt={video.title} className={`w-full h-full object-cover transition-opacity ${videoLocked ? "opacity-60 group-hover:opacity-40" : "opacity-80 group-hover:opacity-100"}`} />
+                          ) : (
+                            <div className="w-full h-full bg-gradient-to-br from-primary/10 to-orange-900/20" />
+                          )}
+                          <div className={`absolute inset-0 flex flex-col items-center justify-center transition-colors ${videoLocked ? "bg-black/50 group-hover:bg-black/60" : "bg-black/20 group-hover:bg-black/30"}`}>
+                            {videoLocked ? (
+                              <div className="w-12 h-12 rounded-full bg-primary/20 border-2 border-primary/40 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform group-hover:bg-primary/40">
+                                <Lock className="w-5 h-5 text-primary" />
+                              </div>
+                            ) : (
+                              <div className="w-12 h-12 rounded-full bg-primary/90 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity group-hover:scale-110">
+                                <Play className="w-5 h-5 ml-0.5" />
+                              </div>
+                            )}
+                          </div>
+                          {isVipVideo && (
+                            <div className="absolute top-2 right-2 flex items-center gap-1 bg-gradient-to-r from-amber-500 to-orange-500 text-black text-[10px] font-black px-2 py-0.5 rounded-full">
+                              <Crown className="w-2.5 h-2.5" /> VIP
+                            </div>
+                          )}
+                          {isVisitorVideo && (
+                            <div className="absolute top-2 right-2 flex items-center gap-1 bg-green-500/90 text-white text-[10px] font-black px-2 py-0.5 rounded-full">
+                              مجاني
+                            </div>
+                          )}
+                        </div>
+                        <div className="p-4">
+                          <h3 className={`font-bold text-sm leading-snug line-clamp-2 transition-colors ${videoLocked ? "text-foreground/70" : "text-foreground/90 group-hover:text-white"}`}>
+                            {video.title}
+                          </h3>
+                          {video.description && (
+                            <p className="text-xs text-foreground/50 mt-1 line-clamp-1">{video.description}</p>
+                          )}
+                          <div className="mt-3 flex items-center justify-between">
+                            <span className="text-[10px] text-primary/70 font-medium">
+                              {categories?.find(c => c.id === video.categoryId)?.name ?? "عام"}
+                            </span>
+                            <span className={`text-[10px] flex items-center gap-1 ${videoLocked ? "text-foreground/40" : "text-primary/70"}`}>
+                              {videoLocked ? <><Lock className="w-2.5 h-2.5" /> مقفل</> : <><Play className="w-2.5 h-2.5" /> شاهد</>}
+                            </span>
                           </div>
                         </div>
-                        {video.accessType === "vip" && (
-                          <div className="absolute top-2 right-2 flex items-center gap-1 bg-gradient-to-r from-amber-500 to-orange-500 text-black text-[10px] font-black px-2 py-0.5 rounded-full">
-                            <Crown className="w-2.5 h-2.5" /> VIP
-                          </div>
-                        )}
-                        {video.accessType === "visitor" && (
-                          <div className="absolute top-2 right-2 flex items-center gap-1 bg-green-500/90 text-white text-[10px] font-black px-2 py-0.5 rounded-full">
-                            مجاني
-                          </div>
-                        )}
                       </div>
-                      <div className="p-4">
-                        <h3 className="font-bold text-sm leading-snug text-foreground/90 group-hover:text-white line-clamp-2 transition-colors">
-                          {video.title}
-                        </h3>
-                        {video.description && (
-                          <p className="text-xs text-foreground/50 mt-1 line-clamp-1">{video.description}</p>
-                        )}
-                        <div className="mt-3 flex items-center justify-between">
-                          <span className="text-[10px] text-primary/70 font-medium">
-                            {categories?.find(c => c.id === video.categoryId)?.name ?? "عام"}
-                          </span>
-                          <span className="text-[10px] text-foreground/40 flex items-center gap-1">
-                            <Lock className="w-2.5 h-2.5" /> مقفل
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </Link>
-                </motion.div>
-              ))}
+                    </Link>
+                  </motion.div>
+                );
+              })}
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center py-20 text-foreground/40">
