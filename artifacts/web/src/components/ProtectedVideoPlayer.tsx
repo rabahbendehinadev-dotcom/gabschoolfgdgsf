@@ -226,7 +226,6 @@ export function ProtectedVideoPlayer({
             allowFullScreen
             frameBorder="0"
             referrerPolicy="no-referrer"
-            sandbox="allow-same-origin allow-scripts allow-forms allow-pointer-lock"
           />
         ) : (
           <div className="absolute inset-0 rounded-2xl bg-black/90 border border-red-500/30 flex flex-col items-center justify-center">
