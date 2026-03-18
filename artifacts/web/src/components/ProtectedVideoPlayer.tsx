@@ -57,6 +57,8 @@ export function ProtectedVideoPlayer({
   const [videoDisabled, setVideoDisabled] = useState(false);
   const violationsRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
+  const focusTrapRef = useRef<HTMLDivElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const watermarkLabel = username || email || "محمي";
   const wmPos = WATERMARK_POSITIONS[wmIndex % WATERMARK_POSITIONS.length];
@@ -121,8 +123,20 @@ export function ProtectedVideoPlayer({
       container.addEventListener("selectstart", handleSelectStart);
     }
 
+    // Steal focus back from iframe periodically so keydown events reach the document
+    const focusInterval = setInterval(() => {
+      if (
+        document.activeElement &&
+        document.activeElement.tagName === "IFRAME" &&
+        focusTrapRef.current
+      ) {
+        focusTrapRef.current.focus({ preventScroll: true });
+      }
+    }, 300);
+
     return () => {
       document.removeEventListener("keydown", handleKeydown);
+      clearInterval(focusInterval);
       if (container) {
         container.removeEventListener("contextmenu", handleContextMenu);
         container.removeEventListener("selectstart", handleSelectStart);
@@ -138,12 +152,21 @@ export function ProtectedVideoPlayer({
       className="relative w-full select-none"
       style={{ userSelect: "none", WebkitUserSelect: "none" }}
     >
+      {/* Hidden focusable element to trap keyboard focus away from iframe */}
+      <div
+        ref={focusTrapRef}
+        tabIndex={-1}
+        aria-hidden="true"
+        style={{ position: "absolute", opacity: 0, width: 0, height: 0, overflow: "hidden", pointerEvents: "none" }}
+      />
+
       {/* Aspect ratio wrapper */}
       <div className="relative w-full" style={{ paddingBottom: "56.25%" }}>
-        
+
         {/* Player */}
         {!videoDisabled ? (
           <iframe
+            ref={iframeRef}
             src={previewUrl}
             className="absolute inset-0 w-full h-full rounded-2xl border border-white/10"
             allow="autoplay; fullscreen"
