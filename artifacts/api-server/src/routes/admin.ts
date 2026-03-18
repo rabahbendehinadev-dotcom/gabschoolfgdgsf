@@ -321,6 +321,7 @@ router.post("/admin/videos", adminAuth, async (req, res) => {
       playlistId: body.playlistId ?? null,
       partNumber: body.partNumber ?? null,
       softwareLink: body.softwareLink ?? null,
+      driveParts: body.driveParts ?? null,
     }).returning();
 
     const [cat] = await db.select().from(categoriesTable).where(eq(categoriesTable.id, video.categoryId)).limit(1);
@@ -332,6 +333,7 @@ router.post("/admin/videos", adminAuth, async (req, res) => {
       playlistId: video.playlistId, partNumber: video.partNumber,
       isVipOnly: video.isVipOnly, accessType: video.accessType,
       isVisible: video.isVisible, softwareLink: video.softwareLink ?? null,
+      driveParts: video.driveParts ?? null,
       createdAt: video.createdAt.toISOString(),
     });
   } catch (error: unknown) {
@@ -360,6 +362,7 @@ router.patch("/admin/videos/:id", adminAuth, async (req, res) => {
     if ("playlistId" in body) updateData.playlistId = body.playlistId ?? null;
     if ("partNumber" in body) updateData.partNumber = body.partNumber ?? null;
     if ("softwareLink" in body) updateData.softwareLink = body.softwareLink ?? null;
+    if ("driveParts" in body) updateData.driveParts = body.driveParts ?? null;
 
     const [video] = await db.update(videosTable).set(updateData)
       .where(eq(videosTable.id, id)).returning();
@@ -378,6 +381,7 @@ router.patch("/admin/videos/:id", adminAuth, async (req, res) => {
       playlistId: video.playlistId, partNumber: video.partNumber,
       isVipOnly: video.isVipOnly, accessType: video.accessType,
       isVisible: video.isVisible, softwareLink: video.softwareLink ?? null,
+      driveParts: video.driveParts ?? null,
       createdAt: video.createdAt.toISOString(),
     });
   } catch (error: unknown) {

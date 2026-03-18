@@ -4,7 +4,9 @@ import { AdminVideo, CreateVideoInput } from "@workspace/api-client-react/src/ge
 import { useAuth } from "@/lib/auth";
 import { Card, Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label } from "@/components/ui";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Edit, Trash2, Upload, ImageIcon, X, Loader2, ListVideo } from "lucide-react";
+import { Plus, Edit, Trash2, Upload, ImageIcon, X, Loader2, ListVideo, Layers } from "lucide-react";
+
+interface DrivePart { label: string; url: string; }
 
 export function AdminVideos() {
   const { getAdminAuthHeaders } = useAuth();
@@ -26,6 +28,7 @@ export function AdminVideos() {
   const [previewUrl, setPreviewUrl] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [driveParts, setDriveParts] = useState<DrivePart[]>([]);
   const [quickPlaylist, setQuickPlaylist] = useState(false);
   const [quickPlaylistTitle, setQuickPlaylistTitle] = useState("");
   const [quickPlaylistCategoryId, setQuickPlaylistCategoryId] = useState<number>(0);
@@ -77,9 +80,14 @@ export function AdminVideos() {
         softwareLink: video.softwareLink ?? null,
       });
       setPreviewUrl(thumbUrl);
+      try {
+        const parsed = video.driveParts ? JSON.parse(video.driveParts) as DrivePart[] : [];
+        setDriveParts(Array.isArray(parsed) ? parsed : []);
+      } catch { setDriveParts([]); }
     } else {
       setEditingId(null);
       setFormData({ ...defaultForm, categoryId: categories?.[0]?.id || 0 });
+      setDriveParts([]);
       setPreviewUrl("");
     }
     setIsOpen(true);
@@ -130,9 +138,12 @@ export function AdminVideos() {
   };
 
   const handleSave = () => {
+    const drivePartsJson = driveParts.length > 0 ? JSON.stringify(driveParts) : null;
+    const firstPartUrl = driveParts.length > 0 ? driveParts[0].url : formData.driveEmbedUrl;
+    const finalForm = { ...formData, driveParts: drivePartsJson, driveEmbedUrl: firstPartUrl || formData.driveEmbedUrl };
     const action = editingId
-      ? updateMut.mutateAsync({ id: editingId, data: formData })
-      : createMut.mutateAsync({ data: formData });
+      ? updateMut.mutateAsync({ id: editingId, data: finalForm })
+      : createMut.mutateAsync({ data: finalForm });
 
     action.then(() => {
       toast({ title: "تم الحفظ بنجاح" });
@@ -255,8 +266,68 @@ export function AdminVideos() {
               </div>
 
               <div className="space-y-2 col-span-2">
-                <Label>رابط تضمين جوجل درايف (Embed URL)</Label>
-                <Input dir="ltr" className="text-left" value={formData.driveEmbedUrl} onChange={e => setFormData({ ...formData, driveEmbedUrl: e.target.value })} />
+                <div className="flex items-center justify-between">
+                  <Label className="flex items-center gap-1.5">
+                    <Layers className="w-3.5 h-3.5 text-primary" />
+                    {driveParts.length > 0 ? `روابط الأجزاء (${driveParts.length} جزء)` : "رابط تضمين جوجل درايف (Embed URL)"}
+                  </Label>
+                  {driveParts.length === 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => setDriveParts([{ label: "الجزء 1", url: formData.driveEmbedUrl }])}
+                      className="text-xs text-primary hover:text-primary/80 flex items-center gap-1 font-medium transition-colors"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> إضافة أجزاء متعددة
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => { setFormData(p => ({ ...p, driveEmbedUrl: driveParts[0]?.url || "" })); setDriveParts([]); }}
+                      className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+                    >
+                      <X className="w-3.5 h-3.5" /> رجوع لرابط واحد
+                    </button>
+                  )}
+                </div>
+
+                {driveParts.length === 0 ? (
+                  <Input dir="ltr" className="text-left" placeholder="https://drive.google.com/..." value={formData.driveEmbedUrl} onChange={e => setFormData({ ...formData, driveEmbedUrl: e.target.value })} />
+                ) : (
+                  <div className="space-y-2 p-3 rounded-xl border border-primary/20 bg-primary/5">
+                    {driveParts.map((part, i) => (
+                      <div key={i} className="flex gap-2 items-center">
+                        <Input
+                          dir="rtl"
+                          className="w-28 shrink-0 text-sm"
+                          placeholder={`الجزء ${i + 1}`}
+                          value={part.label}
+                          onChange={e => setDriveParts(ps => ps.map((p, j) => j === i ? { ...p, label: e.target.value } : p))}
+                        />
+                        <Input
+                          dir="ltr"
+                          className="flex-1 text-left text-sm"
+                          placeholder="https://drive.google.com/..."
+                          value={part.url}
+                          onChange={e => setDriveParts(ps => ps.map((p, j) => j === i ? { ...p, url: e.target.value } : p))}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setDriveParts(ps => ps.filter((_, j) => j !== i))}
+                          className="p-1.5 rounded-lg text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setDriveParts(ps => [...ps, { label: `الجزء ${ps.length + 1}`, url: "" }])}
+                      className="w-full text-sm text-primary hover:text-primary/80 flex items-center justify-center gap-1.5 py-1.5 rounded-lg border border-dashed border-primary/30 hover:border-primary/60 transition-colors mt-1"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> إضافة جزء جديد
+                    </button>
+                  </div>
+                )}
               </div>
               <div className="space-y-2 col-span-2">
                 <Label className="flex items-center gap-1.5">

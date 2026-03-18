@@ -162,22 +162,45 @@ export function VideoDetail() {
                 </div>
               )}
 
-              <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center gap-4 group-hover:bg-black/55 transition-all">
-                {video.driveEmbedUrl ? (
-                  <a
-                    href={video.driveEmbedUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-3 px-8 py-4 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-500 text-white font-bold text-xl shadow-2xl hover:scale-105 transition-transform duration-200"
-                  >
-                    <PlaySquare className="w-7 h-7" />
-                    شاهد الآن
-                    <ExternalLink className="w-5 h-5 opacity-70" />
-                  </a>
-                ) : (
-                  <p className="text-white/60 text-sm">رابط الفيديو غير متوفر</p>
-                )}
-              </div>
+              {(() => {
+                interface DPart { label: string; url: string; }
+                const rawDp = (video as typeof video & { driveParts?: string | null })?.driveParts;
+                const parts: DPart[] = (() => { try { return rawDp ? (JSON.parse(rawDp) as DPart[]) : []; } catch { return []; } })();
+                return (
+                  <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center gap-3 group-hover:bg-black/55 transition-all p-4">
+                    {parts.length > 0 ? (
+                      <div className={`flex flex-wrap gap-2.5 justify-center ${parts.length > 3 ? "max-w-lg" : ""}`}>
+                        {parts.map((part, i) => (
+                          <a
+                            key={i}
+                            href={part.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-white font-bold shadow-xl hover:scale-105 transition-transform duration-200 text-sm"
+                          >
+                            <PlaySquare className="w-4 h-4 shrink-0" />
+                            {part.label || `الجزء ${i + 1}`}
+                            <ExternalLink className="w-3.5 h-3.5 opacity-70" />
+                          </a>
+                        ))}
+                      </div>
+                    ) : video.driveEmbedUrl ? (
+                      <a
+                        href={video.driveEmbedUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-3 px-8 py-4 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-500 text-white font-bold text-xl shadow-2xl hover:scale-105 transition-transform duration-200"
+                      >
+                        <PlaySquare className="w-7 h-7" />
+                        شاهد الآن
+                        <ExternalLink className="w-5 h-5 opacity-70" />
+                      </a>
+                    ) : (
+                      <p className="text-white/60 text-sm">رابط الفيديو غير متوفر</p>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
 
             {/* VIP Software Download */}
@@ -243,17 +266,41 @@ export function VideoDetail() {
                   {video.description}
                 </div>
 
-                {video.driveEmbedUrl && (
-                  <a
-                    href={video.driveEmbedUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-6 inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-primary text-white font-bold hover:bg-primary/90 transition-colors"
-                  >
-                    <ExternalLink className="w-4 h-4" />
-                    فتح الدرس
-                  </a>
-                )}
+                {(() => {
+                  interface DPart { label: string; url: string; }
+                  const rawDp = (video as typeof video & { driveParts?: string | null })?.driveParts;
+                  const parts: DPart[] = (() => { try { return rawDp ? (JSON.parse(rawDp) as DPart[]) : []; } catch { return []; } })();
+                  if (parts.length > 0) {
+                    return (
+                      <div className="mt-6 flex flex-wrap gap-2">
+                        {parts.map((part, i) => (
+                          <a
+                            key={i}
+                            href={part.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white font-bold hover:bg-primary/90 transition-colors text-sm"
+                          >
+                            <PlaySquare className="w-4 h-4" />
+                            {part.label || `الجزء ${i + 1}`}
+                            <ExternalLink className="w-3.5 h-3.5 opacity-70" />
+                          </a>
+                        ))}
+                      </div>
+                    );
+                  }
+                  return video.driveEmbedUrl ? (
+                    <a
+                      href={video.driveEmbedUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-6 inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-primary text-white font-bold hover:bg-primary/90 transition-colors"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                      فتح الدرس
+                    </a>
+                  ) : null;
+                })()}
               </Card>
             )}
           </div>

@@ -56,6 +56,10 @@ async function runMigrations() {
         ADD COLUMN IF NOT EXISTS software_link TEXT
     `);
     await db.execute(sql`
+      ALTER TABLE videos
+        ADD COLUMN IF NOT EXISTS drive_parts TEXT
+    `);
+    await db.execute(sql`
       ALTER TABLE users
         ADD COLUMN IF NOT EXISTS phone VARCHAR(20)
     `);
