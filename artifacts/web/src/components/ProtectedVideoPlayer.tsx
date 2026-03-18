@@ -101,34 +101,19 @@ export function ProtectedVideoPlayer({
   }, [logViolation]);
 
   useEffect(() => {
-    const handleBlur = () => handleSuspiciousActivity();
-    const handleVisibility = () => {
-      if (document.hidden) handleSuspiciousActivity();
-    };
     const handleKeydown = (e: KeyboardEvent) => {
       if (
         e.key === "PrintScreen" ||
         e.keyCode === 44 ||
-        (e.ctrlKey && e.shiftKey && (e.key === "S" || e.key === "s")) ||
         (e.metaKey && e.shiftKey && (e.key === "3" || e.key === "4" || e.key === "5"))
       ) {
         handleSuspiciousActivity();
       }
     };
-    const handleResize = () => {
-      const threshold = 160;
-      const devToolsOpen =
-        window.outerWidth - window.innerWidth > threshold ||
-        window.outerHeight - window.innerHeight > threshold;
-      if (devToolsOpen) handleSuspiciousActivity();
-    };
     const handleContextMenu = (e: MouseEvent) => { e.preventDefault(); };
     const handleSelectStart = (e: Event) => { e.preventDefault(); };
 
-    window.addEventListener("blur", handleBlur);
-    document.addEventListener("visibilitychange", handleVisibility);
     document.addEventListener("keydown", handleKeydown);
-    window.addEventListener("resize", handleResize);
 
     const container = containerRef.current;
     if (container) {
@@ -137,10 +122,7 @@ export function ProtectedVideoPlayer({
     }
 
     return () => {
-      window.removeEventListener("blur", handleBlur);
-      document.removeEventListener("visibilitychange", handleVisibility);
       document.removeEventListener("keydown", handleKeydown);
-      window.removeEventListener("resize", handleResize);
       if (container) {
         container.removeEventListener("contextmenu", handleContextMenu);
         container.removeEventListener("selectstart", handleSelectStart);
