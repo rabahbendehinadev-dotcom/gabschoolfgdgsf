@@ -43,6 +43,12 @@ const WATERMARK_POSITIONS = [
 
 type Warning = "first" | "second" | "blocked" | null;
 
+// Minimum ms of focus-loss before counting as a screenshot attempt.
+// Iframe clicks cause blur → focus in <80ms, screenshot tools take longer.
+const MIN_BLUR_DURATION_MS = 200;
+// Max ms — if user was away longer than this, it's probably just alt-tab browsing.
+const MAX_BLUR_DURATION_MS = 45000;
+
 export function ProtectedVideoPlayer({
   driveUrl,
   username,
@@ -52,17 +58,18 @@ export function ProtectedVideoPlayer({
 }: ProtectedVideoPlayerProps) {
   const previewUrl = getDrivePreviewUrl(driveUrl);
   const [wmIndex, setWmIndex] = useState(0);
-  const [violations, setViolations] = useState(0);
   const [warning, setWarning] = useState<Warning>(null);
   const [videoDisabled, setVideoDisabled] = useState(false);
   const violationsRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const focusTrapRef = useRef<HTMLDivElement>(null);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const blurTimeRef = useRef<number | null>(null);
+  const hiddenTimeRef = useRef<number | null>(null);
 
   const watermarkLabel = username || email || "محمي";
   const wmPos = WATERMARK_POSITIONS[wmIndex % WATERMARK_POSITIONS.length];
 
+  // Rotate watermark position
   useEffect(() => {
     const interval = setInterval(() => {
       setWmIndex(i => (i + 1) % WATERMARK_POSITIONS.length);
@@ -80,42 +87,85 @@ export function ProtectedVideoPlayer({
           body: JSON.stringify({ count }),
         });
       }
-    } catch {}
+    } catch { /* silent */ }
     onViolation?.(count);
   }, [videoId, onViolation]);
 
   const handleSuspiciousActivity = useCallback(() => {
+    if (videoDisabled) return;
     violationsRef.current += 1;
     const count = violationsRef.current;
-    setViolations(count);
 
     if (count === 1) {
       setWarning("first");
     } else if (count === 2) {
       setWarning("second");
-    } else if (count >= 3) {
+      logViolation(count);
+    } else {
       setWarning("blocked");
       setVideoDisabled(true);
       logViolation(count);
-    } else {
-      logViolation(count);
     }
-  }, [logViolation]);
+  }, [logViolation, videoDisabled]);
 
   useEffect(() => {
+    // ── 1. Smart blur/focus detection ──────────────────────────────────────
+    // When the window loses focus, record the time.
+    // When it comes back, measure elapsed time:
+    //   < MIN_BLUR_DURATION_MS  →  iframe click or other safe event, ignore
+    //   between min and max     →  likely a screenshot tool opened, trigger
+    const handleBlur = () => {
+      blurTimeRef.current = Date.now();
+    };
+    const handleFocus = () => {
+      if (blurTimeRef.current !== null) {
+        const elapsed = Date.now() - blurTimeRef.current;
+        blurTimeRef.current = null;
+        if (elapsed >= MIN_BLUR_DURATION_MS && elapsed <= MAX_BLUR_DURATION_MS) {
+          handleSuspiciousActivity();
+        }
+      }
+    };
+
+    // ── 2. Visibility change (tab hidden/shown) ─────────────────────────────
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        hiddenTimeRef.current = Date.now();
+      } else if (hiddenTimeRef.current !== null) {
+        const elapsed = Date.now() - hiddenTimeRef.current;
+        hiddenTimeRef.current = null;
+        if (elapsed >= MIN_BLUR_DURATION_MS && elapsed <= MAX_BLUR_DURATION_MS) {
+          handleSuspiciousActivity();
+        }
+      }
+    };
+
+    // ── 3. Keyboard: PrintScreen / Mac shortcuts ────────────────────────────
     const handleKeydown = (e: KeyboardEvent) => {
       if (
         e.key === "PrintScreen" ||
         e.keyCode === 44 ||
-        (e.metaKey && e.shiftKey && (e.key === "3" || e.key === "4" || e.key === "5"))
+        (e.metaKey && e.shiftKey && ["3", "4", "5"].includes(e.key))
       ) {
         handleSuspiciousActivity();
       }
     };
+    // keyup as backup (some systems fire keyup but not keydown for PrtScn)
+    const handleKeyup = (e: KeyboardEvent) => {
+      if (e.key === "PrintScreen" || e.keyCode === 44) {
+        handleSuspiciousActivity();
+      }
+    };
+
+    // ── 4. Context menu & text selection ───────────────────────────────────
     const handleContextMenu = (e: MouseEvent) => { e.preventDefault(); };
     const handleSelectStart = (e: Event) => { e.preventDefault(); };
 
+    window.addEventListener("blur", handleBlur);
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
     document.addEventListener("keydown", handleKeydown);
+    document.addEventListener("keyup", handleKeyup);
 
     const container = containerRef.current;
     if (container) {
@@ -123,7 +173,7 @@ export function ProtectedVideoPlayer({
       container.addEventListener("selectstart", handleSelectStart);
     }
 
-    // Steal focus back from iframe periodically so keydown events reach the document
+    // ── 5. Focus-steal: keep keyboard focus on the page (not the iframe) ────
     const focusInterval = setInterval(() => {
       if (
         document.activeElement &&
@@ -132,10 +182,14 @@ export function ProtectedVideoPlayer({
       ) {
         focusTrapRef.current.focus({ preventScroll: true });
       }
-    }, 300);
+    }, 250);
 
     return () => {
+      window.removeEventListener("blur", handleBlur);
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       document.removeEventListener("keydown", handleKeydown);
+      document.removeEventListener("keyup", handleKeyup);
       clearInterval(focusInterval);
       if (container) {
         container.removeEventListener("contextmenu", handleContextMenu);
@@ -152,7 +206,7 @@ export function ProtectedVideoPlayer({
       className="relative w-full select-none"
       style={{ userSelect: "none", WebkitUserSelect: "none" }}
     >
-      {/* Hidden focusable element to trap keyboard focus away from iframe */}
+      {/* Hidden focus trap — steals keyboard focus from iframe */}
       <div
         ref={focusTrapRef}
         tabIndex={-1}
@@ -160,13 +214,12 @@ export function ProtectedVideoPlayer({
         style={{ position: "absolute", opacity: 0, width: 0, height: 0, overflow: "hidden", pointerEvents: "none" }}
       />
 
-      {/* Aspect ratio wrapper */}
+      {/* Aspect ratio 16:9 wrapper */}
       <div className="relative w-full" style={{ paddingBottom: "56.25%" }}>
 
-        {/* Player */}
+        {/* Video player */}
         {!videoDisabled ? (
           <iframe
-            ref={iframeRef}
             src={previewUrl}
             className="absolute inset-0 w-full h-full rounded-2xl border border-white/10"
             allow="autoplay; fullscreen"
@@ -174,8 +227,6 @@ export function ProtectedVideoPlayer({
             frameBorder="0"
             referrerPolicy="no-referrer"
             sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-pointer-lock allow-top-navigation"
-            onContextMenu={(e) => e.preventDefault()}
-            style={{ pointerEvents: videoDisabled ? "none" : "auto" }}
           />
         ) : (
           <div className="absolute inset-0 rounded-2xl bg-black/90 border border-red-500/30 flex flex-col items-center justify-center">
@@ -187,82 +238,72 @@ export function ProtectedVideoPlayer({
           </div>
         )}
 
-        {/* Invisible protection overlay to prevent right-click on iframe */}
-        <div
-          className="absolute inset-0 z-10"
-          style={{ pointerEvents: "none" }}
-          onContextMenu={(e) => e.preventDefault()}
-        />
-
-        {/* Moving watermark */}
+        {/* Moving watermark — primary */}
         <div
           className="absolute z-20 transition-all duration-1000 pointer-events-none"
           style={{ top: wmPos.top, left: wmPos.left }}
         >
           <div
-            className="text-white/20 font-bold text-xs md:text-sm whitespace-nowrap rotate-[-15deg]"
-            style={{ textShadow: "0 0 8px rgba(0,0,0,0.8)" }}
+            className="text-white/25 font-bold text-xs md:text-sm whitespace-nowrap"
+            style={{ transform: "rotate(-15deg)", textShadow: "0 0 8px rgba(0,0,0,0.9)" }}
           >
             {watermarkLabel}
           </div>
           <div
-            className="text-white/15 font-bold text-[9px] md:text-xs whitespace-nowrap mt-0.5"
-            style={{ textShadow: "0 0 8px rgba(0,0,0,0.8)" }}
+            className="text-white/20 font-bold text-[9px] md:text-xs whitespace-nowrap mt-0.5"
+            style={{ transform: "rotate(-15deg)", textShadow: "0 0 8px rgba(0,0,0,0.9)" }}
           >
             محمي بالمنصة
           </div>
         </div>
 
-        {/* Second watermark (mirrored position) */}
+        {/* Moving watermark — secondary (opposite corner) */}
         <div
           className="absolute z-20 transition-all duration-1000 pointer-events-none"
-          style={{
-            bottom: wmPos.top,
-            right: wmPos.left,
-          }}
+          style={{ bottom: wmPos.top, right: wmPos.left }}
         >
           <div
-            className="text-white/15 font-bold text-xs whitespace-nowrap rotate-[10deg]"
-            style={{ textShadow: "0 0 8px rgba(0,0,0,0.8)" }}
+            className="text-white/18 font-bold text-xs whitespace-nowrap"
+            style={{ transform: "rotate(10deg)", textShadow: "0 0 8px rgba(0,0,0,0.9)" }}
           >
             {watermarkLabel}
           </div>
         </div>
       </div>
 
-      {/* Error message below player */}
+      {/* Helper message */}
       <p className="text-xs text-muted-foreground text-center mt-3">
         إذا لم يعمل الفيديو، يرجى التأكد من تسجيل الدخول إلى حسابك المرتبط بالمنصة
       </p>
 
-      {/* Warning Modal - First attempt */}
+      {/* Warning: first attempt */}
       {warning === "first" && (
-        <WarningOverlay
+        <WarningModal
           icon={<AlertTriangle className="w-10 h-10 text-amber-400" />}
-          title="تحذير: تم رصد نشاط مشبوه"
-          message="⚠️ تم رصد محاولة تصوير الشاشة. هذا المحتوى محمي وأي انتهاك يُسجَّل تلقائياً."
+          title="⚠️ تحذير: تم رصد محاولة تصوير الشاشة"
+          message="هذا المحتوى محمي. أي انتهاك يُسجَّل تلقائياً على حسابك."
           color="amber"
           onClose={dismissWarning}
         />
       )}
 
-      {/* Warning Modal - Second attempt */}
+      {/* Warning: second attempt */}
       {warning === "second" && (
-        <WarningOverlay
+        <WarningModal
           icon={<ShieldAlert className="w-10 h-10 text-red-400" />}
-          title="تحذير شديد"
-          message="🚫 تم تسجيل نشاط غير مسموح. في حال التكرار سيتم حظر حسابك وإبلاغ الإدارة فوراً."
+          title="🚫 تحذير شديد"
+          message="تم تسجيل نشاط غير مسموح. في حال التكرار سيتم حظر حسابك وإبلاغ الإدارة فوراً."
           color="red"
           onClose={dismissWarning}
         />
       )}
 
-      {/* Warning Modal - Blocked */}
+      {/* Blocked */}
       {warning === "blocked" && (
-        <WarningOverlay
+        <WarningModal
           icon={<ShieldAlert className="w-10 h-10 text-red-500" />}
-          title="تم تسجيل المخالفة"
-          message="🚫 تم تسجيل مخالفة على حسابك. تم تعطيل الفيديو مؤقتاً. تواصل مع الإدارة."
+          title="🚫 تم تسجيل المخالفة وحظر الوصول"
+          message="تم تعطيل الفيديو مؤقتاً بسبب نشاط مشبوه متكرر. تواصل مع الإدارة."
           color="red"
           onClose={dismissWarning}
         />
@@ -271,12 +312,8 @@ export function ProtectedVideoPlayer({
   );
 }
 
-function WarningOverlay({
-  icon,
-  title,
-  message,
-  color,
-  onClose,
+function WarningModal({
+  icon, title, message, color, onClose,
 }: {
   icon: React.ReactNode;
   title: string;
@@ -284,21 +321,19 @@ function WarningOverlay({
   color: "amber" | "red";
   onClose: () => void;
 }) {
-  const borderClass = color === "amber" ? "border-amber-500/40" : "border-red-500/40";
-  const bgClass = color === "amber" ? "bg-amber-500/10" : "bg-red-500/10";
-  const titleClass = color === "amber" ? "text-amber-400" : "text-red-400";
-
   return (
-    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm rounded-2xl">
-      <div className={`mx-4 w-full max-w-sm rounded-2xl border ${borderClass} ${bgClass} p-6 text-center shadow-2xl`}>
+    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm rounded-2xl">
+      <div className={`mx-4 w-full max-w-sm rounded-2xl border p-6 text-center shadow-2xl ${
+        color === "amber"
+          ? "border-amber-500/40 bg-amber-500/10"
+          : "border-red-500/40 bg-red-950/60"
+      }`}>
         <div className="flex justify-center mb-4">{icon}</div>
-        <h3 className={`text-lg font-bold mb-3 ${titleClass}`}>{title}</h3>
+        <h3 className={`text-lg font-bold mb-3 ${color === "amber" ? "text-amber-300" : "text-red-400"}`}>
+          {title}
+        </h3>
         <p className="text-sm text-foreground/80 mb-6 leading-relaxed">{message}</p>
-        <Button
-          onClick={onClose}
-          className="w-full"
-          variant={color === "amber" ? "default" : "destructive"}
-        >
+        <Button onClick={onClose} className="w-full" variant={color === "amber" ? "default" : "destructive"}>
           <X className="w-4 h-4 ml-2" />
           فهمت
         </Button>
