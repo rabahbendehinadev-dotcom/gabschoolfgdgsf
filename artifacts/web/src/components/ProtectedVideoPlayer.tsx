@@ -226,7 +226,7 @@ export function ProtectedVideoPlayer({
             allowFullScreen
             frameBorder="0"
             referrerPolicy="no-referrer"
-            sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-pointer-lock allow-top-navigation"
+            sandbox="allow-same-origin allow-scripts allow-forms allow-pointer-lock"
           />
         ) : (
           <div className="absolute inset-0 rounded-2xl bg-black/90 border border-red-500/30 flex flex-col items-center justify-center">
@@ -237,6 +237,21 @@ export function ProtectedVideoPlayer({
             </p>
           </div>
         )}
+
+        {/* Block the "open in external window" button in top-right of Drive iframe */}
+        <div
+          className="absolute top-0 right-0 z-30"
+          style={{
+            width: "110px",
+            height: "52px",
+            background: "black",
+            borderTopRightRadius: "1rem",
+            cursor: "default",
+            pointerEvents: "all",
+          }}
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+        />
 
         {/* Moving watermark — primary */}
         <div
