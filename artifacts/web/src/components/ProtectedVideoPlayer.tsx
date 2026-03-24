@@ -43,11 +43,6 @@ const WATERMARK_POSITIONS = [
 
 type Warning = "first" | "second" | "blocked" | null;
 
-// Minimum ms of focus-loss before counting as a screenshot attempt.
-// Iframe clicks cause blur → focus in <80ms, screenshot tools take longer.
-const MIN_BLUR_DURATION_MS = 200;
-// Max ms — if user was away longer than this, it's probably just alt-tab browsing.
-const MAX_BLUR_DURATION_MS = 45000;
 
 export function ProtectedVideoPlayer({
   driveUrl,
@@ -63,8 +58,6 @@ export function ProtectedVideoPlayer({
   const violationsRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const focusTrapRef = useRef<HTMLDivElement>(null);
-  const blurTimeRef = useRef<number | null>(null);
-  const hiddenTimeRef = useRef<number | null>(null);
 
   const watermarkLabel = username || email || "محمي";
   const wmPos = WATERMARK_POSITIONS[wmIndex % WATERMARK_POSITIONS.length];
@@ -109,38 +102,7 @@ export function ProtectedVideoPlayer({
   }, [logViolation, videoDisabled]);
 
   useEffect(() => {
-    // ── 1. Smart blur/focus detection ──────────────────────────────────────
-    // When the window loses focus, record the time.
-    // When it comes back, measure elapsed time:
-    //   < MIN_BLUR_DURATION_MS  →  iframe click or other safe event, ignore
-    //   between min and max     →  likely a screenshot tool opened, trigger
-    const handleBlur = () => {
-      blurTimeRef.current = Date.now();
-    };
-    const handleFocus = () => {
-      if (blurTimeRef.current !== null) {
-        const elapsed = Date.now() - blurTimeRef.current;
-        blurTimeRef.current = null;
-        if (elapsed >= MIN_BLUR_DURATION_MS && elapsed <= MAX_BLUR_DURATION_MS) {
-          handleSuspiciousActivity();
-        }
-      }
-    };
-
-    // ── 2. Visibility change (tab hidden/shown) ─────────────────────────────
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        hiddenTimeRef.current = Date.now();
-      } else if (hiddenTimeRef.current !== null) {
-        const elapsed = Date.now() - hiddenTimeRef.current;
-        hiddenTimeRef.current = null;
-        if (elapsed >= MIN_BLUR_DURATION_MS && elapsed <= MAX_BLUR_DURATION_MS) {
-          handleSuspiciousActivity();
-        }
-      }
-    };
-
-    // ── 3. Keyboard: PrintScreen / Mac shortcuts ────────────────────────────
+    // ── 1. Keyboard: PrintScreen (Windows) / Cmd+Shift+3/4/5 (Mac) ─────────
     const handleKeydown = (e: KeyboardEvent) => {
       if (
         e.key === "PrintScreen" ||
@@ -150,20 +112,17 @@ export function ProtectedVideoPlayer({
         handleSuspiciousActivity();
       }
     };
-    // keyup as backup (some systems fire keyup but not keydown for PrtScn)
+    // keyup as backup — some systems fire keyup but not keydown for PrtScn
     const handleKeyup = (e: KeyboardEvent) => {
       if (e.key === "PrintScreen" || e.keyCode === 44) {
         handleSuspiciousActivity();
       }
     };
 
-    // ── 4. Context menu & text selection ───────────────────────────────────
+    // ── 2. Context menu & text selection prevention ─────────────────────────
     const handleContextMenu = (e: MouseEvent) => { e.preventDefault(); };
     const handleSelectStart = (e: Event) => { e.preventDefault(); };
 
-    window.addEventListener("blur", handleBlur);
-    window.addEventListener("focus", handleFocus);
-    document.addEventListener("visibilitychange", handleVisibilityChange);
     document.addEventListener("keydown", handleKeydown);
     document.addEventListener("keyup", handleKeyup);
 
@@ -173,7 +132,8 @@ export function ProtectedVideoPlayer({
       container.addEventListener("selectstart", handleSelectStart);
     }
 
-    // ── 5. Focus-steal: keep keyboard focus on the page (not the iframe) ────
+    // ── 3. Focus-steal: keep keyboard focus on the page (not the iframe) ────
+    // This ensures keydown/keyup events reach our document listener
     const focusInterval = setInterval(() => {
       if (
         document.activeElement &&
@@ -185,9 +145,6 @@ export function ProtectedVideoPlayer({
     }, 250);
 
     return () => {
-      window.removeEventListener("blur", handleBlur);
-      window.removeEventListener("focus", handleFocus);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
       document.removeEventListener("keydown", handleKeydown);
       document.removeEventListener("keyup", handleKeyup);
       clearInterval(focusInterval);
