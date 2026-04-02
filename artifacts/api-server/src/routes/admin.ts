@@ -6,6 +6,7 @@ import { db, usersTable, videosTable, categoriesTable, playlistsTable, subscript
 import { eq, sql, count, desc, lt, and, gte, isNotNull } from "drizzle-orm";
 
 import { adminAuth } from "../middlewares/auth";
+import * as zod from "zod";
 import {
   UpdateAdminUserBody,
   CreateVideoBody,
@@ -13,8 +14,14 @@ import {
   CreateCategoryBody,
   UpdateCategoryBody,
   UpdateSubscriptionPlanBody,
-  CreateSubscriptionPlanBody,
 } from "@workspace/api-zod";
+
+const CreateSubscriptionPlanBody = zod.object({
+  type: zod.string(),
+  price: zod.number(),
+  description: zod.string().optional(),
+  durationDays: zod.number().optional(),
+});
 
 async function logActivity(userId: number | null, username: string | null, action: string, details?: string, ip?: string) {
   try {

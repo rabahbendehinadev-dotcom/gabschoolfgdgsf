@@ -23,6 +23,8 @@ export interface RegisterInput {
   email: string;
   /** @minLength 6 */
   password: string;
+  /** @minLength 9 */
+  phone: string;
 }
 
 export interface LoginInput {
@@ -100,8 +102,6 @@ export interface Video {
   partNumber?: number | null;
   isVipOnly: boolean;
   accessType: VideoAccessType;
-  softwareLink?: string | null;
-  driveParts?: string | null;
   createdAt: string;
 }
 
@@ -127,8 +127,6 @@ export interface AdminVideo {
   isVipOnly: boolean;
   accessType: AdminVideoAccessType;
   isVisible: boolean;
-  softwareLink?: string | null;
-  driveParts?: string | null;
   createdAt: string;
 }
 
@@ -152,8 +150,6 @@ export interface CreateVideoInput {
   isVisible?: boolean;
   playlistId?: number | null;
   partNumber?: number | null;
-  softwareLink?: string | null;
-  driveParts?: string | null;
 }
 
 export type UpdateVideoInputAccessType =
@@ -176,8 +172,6 @@ export interface UpdateVideoInput {
   isVisible?: boolean;
   playlistId?: number | null;
   partNumber?: number | null;
-  softwareLink?: string | null;
-  driveParts?: string | null;
 }
 
 export type PlaylistVideoAccessType =
@@ -292,7 +286,6 @@ export interface UpdateUserInput {
   subscriptionType?: UpdateUserInputSubscriptionType;
   isActive?: boolean;
   subscriptionExpiresAt?: string | null;
-  phone?: string | null;
 }
 
 export type AdminUserAccountType =
@@ -321,7 +314,6 @@ export interface AdminUser {
   subscriptionExpiresAt?: string | null;
   ipAddress?: string | null;
   isActive: boolean;
-  phone?: string | null;
   createdAt: string;
 }
 

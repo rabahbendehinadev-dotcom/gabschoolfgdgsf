@@ -9,6 +9,13 @@ import { formatDate } from "@/lib/utils";
 
 const API_BASE = "";
 
+function normalizeWhatsApp(phone: string): string {
+  const digits = phone.replace(/\D/g, "");
+  if (digits.startsWith("0")) return "213" + digits.slice(1);
+  if (!digits.startsWith("213") && digits.length <= 10) return "213" + digits;
+  return digits;
+}
+
 export function AdminUsers() {
   const { getAdminAuthHeaders } = useAuth();
   const { toast } = useToast();
@@ -116,6 +123,7 @@ export function AdminUsers() {
             <thead className="text-xs text-muted-foreground bg-white/5 border-b border-white/10 uppercase">
               <tr>
                 <th className="px-4 py-4">المستخدم</th>
+                <th className="px-4 py-4">الهاتف</th>
                 <th className="px-4 py-4">الحساب</th>
                 <th className="px-4 py-4">الاشتراك</th>
                 <th className="px-4 py-4">تاريخ التسجيل</th>
@@ -125,88 +133,99 @@ export function AdminUsers() {
               </tr>
             </thead>
             <tbody>
-              {filtered?.map(user => (
-                <tr key={user.id} className={`border-b border-white/5 hover:bg-white/[0.02] transition-colors ${!user.isActive ? "opacity-60" : ""}`}>
-                  <td className="px-4 py-4">
-                    <div className="font-bold">{user.username}</div>
-                    <div className="text-muted-foreground text-xs">{user.email}</div>
-                  </td>
-                  <td className="px-4 py-4">
-                    <Badge variant={user.accountType === "vip" ? "vip" : "secondary"}>{user.accountType}</Badge>
-                  </td>
-                  <td className="px-4 py-4">
-                    <div>{user.subscriptionType}</div>
-                    {user.subscriptionExpiresAt && (
-                      <div className="text-xs text-muted-foreground">{formatDate(user.subscriptionExpiresAt)}</div>
-                    )}
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap">{formatDate(user.createdAt)}</td>
-                  <td className="px-4 py-4 text-left">
-                    {user.ipAddress ? (
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[10px] text-muted-foreground shrink-0">١</span>
-                          <span className="text-xs font-mono">{user.ipAddress}</span>
+              {filtered?.map(user => {
+                const phone = (user as typeof user & { phone?: string }).phone;
+                return (
+                  <tr key={user.id} className={`border-b border-white/5 hover:bg-white/[0.02] transition-colors ${!user.isActive ? "opacity-60" : ""}`}>
+                    <td className="px-4 py-4">
+                      <div className="font-bold">{user.username}</div>
+                      <div className="text-muted-foreground text-xs">{user.email}</div>
+                    </td>
+                    <td className="px-4 py-4">
+                      {phone ? (
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-mono text-foreground/80" dir="ltr">{phone}</span>
+                          <a
+                            href={`https://wa.me/${normalizeWhatsApp(phone)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="فتح واتساب"
+                          >
+                            <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-green-500/15 hover:bg-green-500/30 text-green-400 hover:text-green-300 transition-all border border-green-500/20">
+                              <MessageCircle className="w-3.5 h-3.5" />
+                            </span>
+                          </a>
                         </div>
-                        {(user as typeof user & { ipAddress2?: string }).ipAddress2 && (
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-[10px] text-muted-foreground shrink-0">٢</span>
-                            <span className="text-xs font-mono">{(user as typeof user & { ipAddress2?: string }).ipAddress2}</span>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <span className="text-muted-foreground text-xs">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-4">
-                    {user.isActive
-                      ? <Badge className="bg-green-500/20 text-green-500 hover:bg-green-500/20 border-0">نشط</Badge>
-                      : <Badge variant="destructive">محظور</Badge>}
-                  </td>
-                  <td className="px-4 py-4">
-                    <div className="flex gap-1.5">
-                      <Button variant="ghost" size="icon" title="تعديل" onClick={() => handleEdit(user)}>
-                        <Edit className="w-4 h-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" title="تصفير IP" onClick={() => handleResetIp(user.id)} disabled={!user.ipAddress || loadingId === user.id}>
-                        <RefreshCw className="w-4 h-4 text-blue-400" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        title={user.isActive ? "حظر المستخدم" : "رفع الحظر"}
-                        onClick={() => handleBlock(user)}
-                        disabled={loadingId === user.id}
-                      >
-                        {user.isActive
-                          ? <ShieldOff className="w-4 h-4 text-yellow-400" />
-                          : <ShieldCheck className="w-4 h-4 text-green-400" />}
-                      </Button>
-                      {(user as typeof user & { phone?: string }).phone && (
-                        <a
-                          href={`https://wa.me/${(user as typeof user & { phone?: string }).phone?.replace(/\D/g, "")}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          <Button variant="ghost" size="icon" title="تواصل واتساب">
-                            <MessageCircle className="w-4 h-4 text-green-400" />
-                          </Button>
-                        </a>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">—</span>
                       )}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        title="حذف المستخدم"
-                        onClick={() => handleDelete(user)}
-                        disabled={loadingId === user.id}
-                      >
-                        <Trash2 className="w-4 h-4 text-red-400" />
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="px-4 py-4">
+                      <Badge variant={user.accountType === "vip" ? "vip" : "secondary"}>{user.accountType}</Badge>
+                    </td>
+                    <td className="px-4 py-4">
+                      <div>{user.subscriptionType}</div>
+                      {user.subscriptionExpiresAt && (
+                        <div className="text-xs text-muted-foreground">{formatDate(user.subscriptionExpiresAt)}</div>
+                      )}
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap">{formatDate(user.createdAt)}</td>
+                    <td className="px-4 py-4 text-left">
+                      {user.ipAddress ? (
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] text-muted-foreground shrink-0">١</span>
+                            <span className="text-xs font-mono">{user.ipAddress}</span>
+                          </div>
+                          {(user as typeof user & { ipAddress2?: string }).ipAddress2 && (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] text-muted-foreground shrink-0">٢</span>
+                              <span className="text-xs font-mono">{(user as typeof user & { ipAddress2?: string }).ipAddress2}</span>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-4">
+                      {user.isActive
+                        ? <Badge className="bg-green-500/20 text-green-500 hover:bg-green-500/20 border-0">نشط</Badge>
+                        : <Badge variant="destructive">محظور</Badge>}
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="flex gap-1.5">
+                        <Button variant="ghost" size="icon" title="تعديل" onClick={() => handleEdit(user)}>
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" title="تصفير IP" onClick={() => handleResetIp(user.id)} disabled={!user.ipAddress || loadingId === user.id}>
+                          <RefreshCw className="w-4 h-4 text-blue-400" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title={user.isActive ? "حظر المستخدم" : "رفع الحظر"}
+                          onClick={() => handleBlock(user)}
+                          disabled={loadingId === user.id}
+                        >
+                          {user.isActive
+                            ? <ShieldOff className="w-4 h-4 text-yellow-400" />
+                            : <ShieldCheck className="w-4 h-4 text-green-400" />}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="حذف المستخدم"
+                          onClick={() => handleDelete(user)}
+                          disabled={loadingId === user.id}
+                        >
+                          <Trash2 className="w-4 h-4 text-red-400" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -238,6 +257,7 @@ export function AdminUsers() {
               >
                 <option value="demo">تجريبي</option>
                 <option value="annual">سنوي</option>
+                <option value="lifetime">مدى الحياة</option>
               </select>
             </div>
             <div className="space-y-2">
@@ -252,14 +272,15 @@ export function AdminUsers() {
               </select>
             </div>
             <div className="space-y-2">
-              <Label>رقم الواتساب</Label>
+              <Label>رقم الهاتف / واتساب</Label>
               <Input
                 dir="ltr"
                 className="text-left"
-                placeholder="+213XXXXXXXXX"
+                placeholder="0551234567"
                 value={formData.phone ?? ""}
                 onChange={e => setFormData({ ...formData, phone: e.target.value || undefined })}
               />
+              <p className="text-xs text-muted-foreground">مثال: 0551234567 أو 213551234567</p>
             </div>
             <Button className="w-full mt-4" onClick={handleSave} disabled={updateMut.isPending}>
               حفظ التغييرات

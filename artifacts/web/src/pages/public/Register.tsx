@@ -13,6 +13,7 @@ const registerSchema = z.object({
   username: z.string().min(3, "الاسم يجب أن يكون 3 أحرف على الأقل"),
   email: z.string().email("البريد الإلكتروني غير صحيح"),
   password: z.string().min(6, "كلمة المرور يجب أن تكون 6 أحرف على الأقل"),
+  phone: z.string().min(9, "رقم الهاتف مطلوب (9 أرقام على الأقل)"),
 });
 
 type RegisterForm = z.infer<typeof registerSchema>;
@@ -81,6 +82,21 @@ export function Register() {
               <Label>كلمة المرور</Label>
               <Input type="password" {...register("password")} dir="ltr" className="text-left" />
               {errors.password && <p className="text-sm text-destructive">{errors.password.message}</p>}
+            </div>
+
+            <div className="space-y-2">
+              <Label>
+                رقم الهاتف <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                {...register("phone")}
+                placeholder="0551234567"
+                dir="ltr"
+                className="text-left"
+                type="tel"
+              />
+              <p className="text-xs text-muted-foreground">مثال: 0551234567 أو 213551234567</p>
+              {errors.phone && <p className="text-sm text-destructive">{errors.phone.message}</p>}
             </div>
 
             <Button type="submit" className="w-full h-12 text-lg mt-2" disabled={regMut.isPending}>
