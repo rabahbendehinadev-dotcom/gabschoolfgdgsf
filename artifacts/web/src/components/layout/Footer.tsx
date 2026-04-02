@@ -1,12 +1,10 @@
-import { PlayCircle } from "lucide-react";
-
 export function Footer() {
   return (
-    <footer className="border-t border-white/10 bg-black/40 py-12 mt-24">
+    <footer className="border-t border-border bg-muted/60 py-12 mt-24">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="GAB Logo" className="h-10 w-auto rounded-xl bg-white px-2 py-1" />
+            <img src="/logo.png" alt="GAB Logo" className="h-10 w-auto rounded-xl bg-white px-2 py-1 shadow-sm" />
           </div>
           
           <div className="text-sm text-foreground/60">

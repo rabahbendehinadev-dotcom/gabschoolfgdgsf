@@ -88,7 +88,7 @@ export function Register() {
             </Button>
           </form>
 
-          <div className="mt-6 text-center text-sm text-foreground/60 border-t border-white/10 pt-6">
+          <div className="mt-6 text-center text-sm text-foreground/60 border-t border-border pt-6">
             لديك حساب بالفعل؟{" "}
             <Link href="/login" className="text-primary hover:underline font-bold">
               تسجيل الدخول

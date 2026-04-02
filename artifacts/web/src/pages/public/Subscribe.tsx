@@ -85,7 +85,7 @@ function CopyButton({ value }: { value: string }) {
     setTimeout(() => setCopied(false), 2000);
   };
   return (
-    <button onClick={copy} className="shrink-0 p-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors">
+    <button onClick={copy} className="shrink-0 p-1.5 rounded-lg bg-muted hover:bg-muted/70 transition-colors border border-border">
       {copied ? <CheckCheck className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5 text-muted-foreground" />}
     </button>
   );
@@ -208,13 +208,13 @@ function PaymentModal({ plan, onClose }: PaymentModalProps) {
       <div className="flex gap-2">
         <button
           onClick={() => setStep("methods")}
-          className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-all ${step === "methods" ? "bg-primary text-white" : "bg-white/5 text-muted-foreground hover:bg-white/10"}`}
+          className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-all ${step === "methods" ? "bg-primary text-white" : "bg-muted text-muted-foreground hover:bg-muted/70 border border-border"}`}
         >
           ١. طرق الدفع
         </button>
         <button
           onClick={() => setStep("proof")}
-          className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-all ${step === "proof" ? "bg-primary text-white" : "bg-white/5 text-muted-foreground hover:bg-white/10"}`}
+          className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-all ${step === "proof" ? "bg-primary text-white" : "bg-muted text-muted-foreground hover:bg-muted/70 border border-border"}`}
         >
           ٢. إرسال الإيصال
         </button>
@@ -240,7 +240,7 @@ function PaymentModal({ plan, onClose }: PaymentModalProps) {
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  <code className="flex-1 text-xs bg-black/20 px-2 py-1.5 rounded-lg font-mono break-all" dir="ltr">{method.value}</code>
+                  <code className="flex-1 text-xs bg-muted/60 px-2 py-1.5 rounded-lg font-mono break-all border border-border" dir="ltr">{method.value}</code>
                   <CopyButton value={method.value} />
                 </div>
                 {method.extra && (
@@ -283,7 +283,7 @@ function PaymentModal({ plan, onClose }: PaymentModalProps) {
                   </Label>
 
                   {proofPreview ? (
-                    <div className="relative rounded-xl overflow-hidden border border-white/10 aspect-video bg-black/40">
+                    <div className="relative rounded-xl overflow-hidden border border-border aspect-video bg-muted/30">
                       <img src={proofPreview} alt="إيصال الدفع" className="w-full h-full object-contain" />
                       <button
                         onClick={() => { setProofFile(null); setProofPreview(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
@@ -296,7 +296,7 @@ function PaymentModal({ plan, onClose }: PaymentModalProps) {
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      className="w-full flex flex-col items-center justify-center gap-2 border-2 border-dashed border-white/15 rounded-xl p-6 text-muted-foreground hover:border-primary/50 hover:text-primary hover:bg-primary/5 transition-all"
+                      className="w-full flex flex-col items-center justify-center gap-2 border-2 border-dashed border-border rounded-xl p-6 text-muted-foreground hover:border-primary/50 hover:text-primary hover:bg-primary/5 transition-all"
                     >
                       <Upload className="w-8 h-8" />
                       <span className="text-sm">انقر لرفع صورة الإيصال</span>
@@ -388,7 +388,7 @@ export function Subscribe() {
         {/* Plans */}
         {isLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {[1,2,3].map(i => <Card key={i} className="h-80 animate-pulse bg-white/5 border-white/10" />)}
+            {[1,2,3].map(i => <Card key={i} className="h-80 animate-pulse bg-muted/50 border-border" />)}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
@@ -402,7 +402,7 @@ export function Subscribe() {
                   transition={{ delay: i * 0.1 }}
                   className={isHighlighted ? "-mt-4" : ""}
                 >
-                  <Card className={`relative p-6 bg-gradient-to-b ${planColors[plan.type] ?? "from-white/5 to-white/10 border-white/10"} border flex flex-col gap-5`}>
+                  <Card className={`relative p-6 bg-gradient-to-b ${planColors[plan.type] ?? "from-muted/30 to-muted/50 border-border"} border flex flex-col gap-5`}>
                     {isHighlighted && (
                       <div className="absolute -top-4 right-0 left-0 flex justify-center">
                         <Badge className="bg-primary text-white border-0 shadow-lg shadow-primary/30 px-4 py-1 text-sm">الأكثر طلباً</Badge>
@@ -410,7 +410,7 @@ export function Subscribe() {
                     )}
 
                     <div className="flex items-center gap-3">
-                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${isHighlighted ? "bg-primary/20 text-primary" : "bg-white/10 text-foreground/70"}`}>
+                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${isHighlighted ? "bg-primary/20 text-primary" : "bg-muted text-foreground/70"}`}>
                         {planIcons[plan.type] ?? <Crown className="w-7 h-7" />}
                       </div>
                       <div>
@@ -441,11 +441,11 @@ export function Subscribe() {
 
                     {/* Payment methods preview */}
                     {plan.type !== "demo" && (
-                      <div className="pt-3 border-t border-white/10">
+                      <div className="pt-3 border-t border-border">
                         <p className="text-xs text-muted-foreground mb-2">طرق الدفع المتاحة:</p>
                         <div className="flex flex-wrap gap-1.5">
                           {PAYMENT_METHODS.map(m => (
-                            <span key={m.id} className="text-xs px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-foreground/60">
+                            <span key={m.id} className="text-xs px-2 py-0.5 rounded-full bg-muted/60 border border-border text-foreground/60">
                               {m.icon} {m.name}
                             </span>
                           ))}
@@ -456,7 +456,7 @@ export function Subscribe() {
                     <div className="flex flex-col gap-2">
                       <Button
                         onClick={() => handleSubscribe(plan)}
-                        className={`w-full h-11 font-bold ${isHighlighted ? "bg-primary hover:bg-primary/90 shadow-lg shadow-primary/30" : "bg-white/10 hover:bg-white/20 border border-white/10"}`}
+                        className={`w-full h-11 font-bold ${isHighlighted ? "bg-primary hover:bg-primary/90 shadow-lg shadow-primary/30" : "bg-muted hover:bg-muted/70 border border-border"}`}
                         variant={isHighlighted ? "default" : "ghost"}
                       >
                         {plan.type === "demo" ? "ابدأ مجاناً" : "اشترك الآن"}

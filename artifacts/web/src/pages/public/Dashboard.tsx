@@ -37,10 +37,10 @@ export function Dashboard() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Profile Card */}
           <Card className="md:col-span-2 p-8 glass-card relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-r from-primary/20 to-transparent" />
+            <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-r from-primary/10 to-transparent" />
             
             <div className="relative flex flex-col sm:flex-row items-center sm:items-start gap-6">
-              <div className="w-24 h-24 rounded-full bg-black border-4 border-card flex items-center justify-center shadow-xl z-10 shrink-0">
+              <div className="w-24 h-24 rounded-full bg-muted border-4 border-border flex items-center justify-center shadow-md z-10 shrink-0">
                 <User className="w-12 h-12 text-primary" />
               </div>
               
@@ -56,13 +56,13 @@ export function Dashboard() {
                 <p className="text-muted-foreground mb-6">{user.email}</p>
                 
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-white/5 p-4 rounded-xl border border-white/10">
+                  <div className="bg-muted/60 p-4 rounded-xl border border-border">
                     <div className="text-sm text-muted-foreground mb-1 flex items-center justify-center sm:justify-start gap-2">
                       <Crown className="w-4 h-4 text-primary" /> نوع الاشتراك
                     </div>
                     <div className="font-bold text-lg">{planName}</div>
                   </div>
-                  <div className="bg-white/5 p-4 rounded-xl border border-white/10">
+                  <div className="bg-muted/60 p-4 rounded-xl border border-border">
                     <div className="text-sm text-muted-foreground mb-1 flex items-center justify-center sm:justify-start gap-2">
                       <Calendar className="w-4 h-4 text-primary" /> تاريخ الانتهاء
                     </div>
@@ -82,10 +82,10 @@ export function Dashboard() {
             {!isVIP && (
               <Card className="p-6 bg-gradient-to-br from-amber-500/10 to-orange-600/10 border-orange-500/30 text-center">
                 <Crown className="w-12 h-12 text-orange-400 mx-auto mb-4" />
-                <h3 className="font-bold text-lg mb-2 text-orange-400">قم بترقية حسابك</h3>
+                <h3 className="font-bold text-lg mb-2 text-orange-500">قم بترقية حسابك</h3>
                 <p className="text-sm text-muted-foreground mb-4">احصل على وصول كامل لجميع دروس الفلاش والديكوداج الحصرية.</p>
                 <Link href="/#pricing">
-                  <Button className="w-full bg-gradient-to-r from-amber-500 to-orange-600 text-black font-bold">عرض الباقات</Button>
+                  <Button className="w-full bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold">عرض الباقات</Button>
                 </Link>
               </Card>
             )}
@@ -95,7 +95,7 @@ export function Dashboard() {
                 <ShieldAlert className="w-5 h-5 text-primary" /> إعدادات الأمان
               </h3>
               <div className="space-y-3">
-                <div className="text-xs text-muted-foreground p-3 bg-white/5 rounded-lg mb-4">
+                <div className="text-xs text-muted-foreground p-3 bg-muted/40 rounded-lg mb-4 border border-border">
                   ملاحظة: الحساب مرتبط بعنوان IP واحد فقط. في حال تغير الجهاز يرجى التواصل مع الإدارة.
                 </div>
                 <Button variant="outline" className="w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/10" onClick={logout}>
