@@ -49,10 +49,17 @@ router.post("/auth/register", async (req, res) => {
       subscriptionExpiresAt.setDate(subscriptionExpiresAt.getDate() + demoPlan.durationDays);
     }
 
+    const rawPhone = body.phone || "";
+    const digitsOnly = rawPhone.replace(/\D/g, "");
+    const normalizedPhone = digitsOnly.startsWith("0")
+      ? "213" + digitsOnly.slice(1)
+      : digitsOnly;
+
     const [user] = await db.insert(usersTable).values({
       username: body.username,
       email: body.email,
       passwordHash,
+      phone: normalizedPhone || null,
       accountType: "normal",
       subscriptionType: "demo",
       subscriptionExpiresAt,
