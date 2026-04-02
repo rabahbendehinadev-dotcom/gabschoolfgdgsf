@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { AlertTriangle, ShieldAlert, X } from "lucide-react";
+import { AlertTriangle, ShieldAlert, X, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui";
 
 interface ProtectedVideoPlayerProps {
@@ -30,6 +30,25 @@ function getDrivePreviewUrl(url: string): string {
   return url;
 }
 
+function getDriveViewUrl(url: string): string {
+  if (!url) return "";
+  const fileId = extractDriveFileId(url);
+  if (fileId) return `https://drive.google.com/file/d/${fileId}/view`;
+  return url.replace("/preview", "/view");
+}
+
+function useIsMobile(): boolean {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const check = () => setIsMobile(window.matchMedia("(max-width: 768px)").matches || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent));
+    check();
+    const mq = window.matchMedia("(max-width: 768px)");
+    mq.addEventListener("change", check);
+    return () => mq.removeEventListener("change", check);
+  }, []);
+  return isMobile;
+}
+
 const WATERMARK_POSITIONS = [
   { top: "10%", left: "10%" },
   { top: "10%", left: "60%" },
@@ -52,6 +71,8 @@ export function ProtectedVideoPlayer({
   onViolation,
 }: ProtectedVideoPlayerProps) {
   const previewUrl = getDrivePreviewUrl(driveUrl);
+  const viewUrl = getDriveViewUrl(driveUrl);
+  const isMobile = useIsMobile();
   const [wmIndex, setWmIndex] = useState(0);
   const [warning, setWarning] = useState<Warning>(null);
   const [videoDisabled, setVideoDisabled] = useState(false);
@@ -242,8 +263,25 @@ export function ProtectedVideoPlayer({
         </div>
       </div>
 
+      {/* Direct open button — always visible, more prominent on mobile */}
+      {viewUrl && (
+        <a
+          href={viewUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`mt-4 flex items-center justify-center gap-2.5 w-full rounded-xl font-bold transition-all ${
+            isMobile
+              ? "bg-primary text-white py-4 text-base shadow-lg shadow-primary/30 hover:bg-primary/90"
+              : "bg-primary/10 text-primary border border-primary/30 py-3 text-sm hover:bg-primary/20"
+          }`}
+        >
+          <ExternalLink className={isMobile ? "w-5 h-5" : "w-4 h-4"} />
+          {isMobile ? "افتح الفيديو مباشرة 📱" : "فتح الفيديو في نافذة جديدة"}
+        </a>
+      )}
+
       {/* Google account required notice */}
-      <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+      <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
         <div className="flex items-start gap-3 text-right" dir="rtl">
           <div className="mt-0.5 shrink-0">
             <svg className="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -251,9 +289,11 @@ export function ProtectedVideoPlayer({
             </svg>
           </div>
           <div className="flex-1">
-            <p className="text-sm font-semibold text-amber-300 mb-1">الفيديو لا يعمل؟</p>
+            <p className="text-sm font-semibold text-amber-300 mb-1">الفيديو لا يعمل داخل الصفحة؟</p>
             <p className="text-xs text-muted-foreground leading-relaxed mb-3">
-              يجب أن تكون مسجلاً في حساب Google المرتبط بحسابك على المنصة لكي تتمكن من مشاهدة الفيديوهات.
+              {isMobile
+                ? "متصفحات الهاتف قد تمنع تشغيل الفيديو مباشرة — اضغط الزر أعلاه لفتحه في تطبيق Drive أو متصفح جديد."
+                : "يجب أن تكون مسجلاً في حساب Google المرتبط بحسابك على المنصة لكي تتمكن من مشاهدة الفيديوهات."}
             </p>
             <div className="flex flex-col sm:flex-row gap-2">
               <a
