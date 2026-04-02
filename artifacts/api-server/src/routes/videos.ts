@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, videosTable, categoriesTable, visitLogsTable, playlistsTable, activityLogsTable } from "@workspace/db";
-import { eq, and, asc } from "drizzle-orm";
+import { eq, and, asc, sql } from "drizzle-orm";
 import { optionalUserAuth, userAuth } from "../middlewares/auth";
 
 const router: IRouter = Router();
@@ -27,12 +27,13 @@ router.get("/videos", optionalUserAuth, async (req, res) => {
       partNumber: videosTable.partNumber,
       isVipOnly: videosTable.isVipOnly,
       accessType: videosTable.accessType,
+      sortOrder: videosTable.sortOrder,
       createdAt: videosTable.createdAt,
     })
     .from(videosTable)
     .leftJoin(categoriesTable, eq(videosTable.categoryId, categoriesTable.id))
     .where(and(...conditions))
-    .orderBy(videosTable.createdAt);
+    .orderBy(asc(videosTable.sortOrder), asc(videosTable.createdAt));
 
     let filtered = results;
     if (search) {

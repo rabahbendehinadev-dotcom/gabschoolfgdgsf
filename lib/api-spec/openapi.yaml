@@ -476,6 +476,27 @@ paths:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
 
+  /admin/videos/reorder:
+    post:
+      operationId: reorderVideos
+      tags: [admin]
+      summary: Reorder videos
+      security:
+        - adminAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReorderVideosInput"
+      responses:
+        "200":
+          description: Videos reordered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
   /admin/categories:
     get:
       operationId: getAdminCategories
@@ -855,6 +876,8 @@ components:
         accessType:
           type: string
           enum: [visitor, normal, vip]
+        sortOrder:
+          type: integer
         createdAt:
           type: string
           format: date-time
@@ -867,6 +890,7 @@ components:
         - categoryId
         - isVipOnly
         - accessType
+        - sortOrder
         - createdAt
 
     AdminVideo:
@@ -899,6 +923,14 @@ components:
           enum: [visitor, normal, vip]
         isVisible:
           type: boolean
+        sortOrder:
+          type: integer
+        driveParts:
+          type: string
+          nullable: true
+        softwareLink:
+          type: string
+          nullable: true
         createdAt:
           type: string
           format: date-time
@@ -912,6 +944,7 @@ components:
         - isVipOnly
         - accessType
         - isVisible
+        - sortOrder
         - createdAt
 
     CreateVideoInput:
@@ -973,6 +1006,24 @@ components:
         partNumber:
           type: integer
           nullable: true
+
+    ReorderVideosInput:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              sortOrder:
+                type: integer
+            required:
+              - id
+              - sortOrder
+      required:
+        - items
 
     PlaylistVideo:
       type: object

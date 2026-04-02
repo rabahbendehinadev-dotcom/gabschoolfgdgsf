@@ -3,7 +3,7 @@ import fs from "fs";
 import { Router, type IRouter } from "express";
 import multer from "multer";
 import { db, usersTable, videosTable, categoriesTable, playlistsTable, subscriptionPlansTable, visitLogsTable, activityLogsTable } from "@workspace/db";
-import { eq, sql, count, desc, lt, and, gte, isNotNull } from "drizzle-orm";
+import { eq, sql, count, desc, asc, lt, and, gte, isNotNull, inArray } from "drizzle-orm";
 
 import { adminAuth } from "../middlewares/auth";
 import * as zod from "zod";
@@ -296,19 +296,42 @@ router.get("/admin/videos", adminAuth, async (_req, res) => {
       isVipOnly: videosTable.isVipOnly,
       accessType: videosTable.accessType,
       isVisible: videosTable.isVisible,
+      sortOrder: videosTable.sortOrder,
+      driveParts: videosTable.driveParts,
+      softwareLink: videosTable.softwareLink,
       createdAt: videosTable.createdAt,
     })
     .from(videosTable)
     .leftJoin(categoriesTable, eq(videosTable.categoryId, categoriesTable.id))
-    .orderBy(desc(videosTable.createdAt));
+    .orderBy(asc(videosTable.sortOrder), asc(videosTable.createdAt));
 
     res.json(videos.map(v => ({
       ...v,
       categoryName: v.categoryName || "",
+      driveParts: v.driveParts ?? null,
+      softwareLink: v.softwareLink ?? null,
       createdAt: v.createdAt.toISOString(),
     })));
   } catch (error: unknown) {
     res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" || "Failed to fetch videos" });
+  }
+});
+
+router.post("/admin/videos/reorder", adminAuth, async (req, res) => {
+  try {
+    const { items } = req.body as { items: { id: number; sortOrder: number }[] };
+    if (!Array.isArray(items) || items.length === 0) {
+      res.status(400).json({ message: "items required" });
+      return;
+    }
+    await Promise.all(
+      items.map(({ id, sortOrder }) =>
+        db.update(videosTable).set({ sortOrder }).where(eq(videosTable.id, id))
+      )
+    );
+    res.json({ message: "Reordered successfully" });
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Failed to reorder" });
   }
 });
 
