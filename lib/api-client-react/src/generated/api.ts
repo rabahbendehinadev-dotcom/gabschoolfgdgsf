@@ -35,6 +35,7 @@ import type {
   MessageResponse,
   Playlist,
   RegisterInput,
+  ReorderVideosInput,
   SubscriptionPlan,
   UpdateCategoryInput,
   UpdatePlanInput,
@@ -1862,6 +1863,92 @@ export const useDeleteVideo = <
   TContext
 > => {
   return useMutation(getDeleteVideoMutationOptions(options));
+};
+
+/**
+ * @summary Reorder videos
+ */
+export const getReorderVideosUrl = () => {
+  return `/api/admin/videos/reorder`;
+};
+
+export const reorderVideos = async (
+  reorderVideosInput: ReorderVideosInput,
+  options?: RequestInit,
+): Promise<MessageResponse> => {
+  return customFetch<MessageResponse>(getReorderVideosUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(reorderVideosInput),
+  });
+};
+
+export const getReorderVideosMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reorderVideos>>,
+    TError,
+    { data: BodyType<ReorderVideosInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof reorderVideos>>,
+  TError,
+  { data: BodyType<ReorderVideosInput> },
+  TContext
+> => {
+  const mutationKey = ["reorderVideos"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof reorderVideos>>,
+    { data: BodyType<ReorderVideosInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return reorderVideos(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ReorderVideosMutationResult = NonNullable<
+  Awaited<ReturnType<typeof reorderVideos>>
+>;
+export type ReorderVideosMutationBody = BodyType<ReorderVideosInput>;
+export type ReorderVideosMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Reorder videos
+ */
+export const useReorderVideos = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reorderVideos>>,
+    TError,
+    { data: BodyType<ReorderVideosInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof reorderVideos>>,
+  TError,
+  { data: BodyType<ReorderVideosInput> },
+  TContext
+> => {
+  return useMutation(getReorderVideosMutationOptions(options));
 };
 
 /**

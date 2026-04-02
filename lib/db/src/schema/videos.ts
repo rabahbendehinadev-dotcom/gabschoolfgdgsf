@@ -18,6 +18,7 @@ export const videosTable = pgTable("videos", {
   isVisible: boolean("is_visible").notNull().default(true),
   softwareLink: text("software_link"),
   driveParts: text("drive_parts"),
+  sortOrder: integer("sort_order").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

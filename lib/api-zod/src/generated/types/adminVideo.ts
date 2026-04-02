@@ -20,5 +20,8 @@ export interface AdminVideo {
   isVipOnly: boolean;
   accessType: AdminVideoAccessType;
   isVisible: boolean;
+  sortOrder: number;
+  driveParts?: string | null;
+  softwareLink?: string | null;
   createdAt: Date;
 }

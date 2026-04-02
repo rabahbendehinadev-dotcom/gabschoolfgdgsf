@@ -19,5 +19,6 @@ export interface Video {
   partNumber?: number | null;
   isVipOnly: boolean;
   accessType: VideoAccessType;
+  sortOrder: number;
   createdAt: Date;
 }

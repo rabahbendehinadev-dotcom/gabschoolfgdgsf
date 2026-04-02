@@ -102,6 +102,7 @@ export interface Video {
   partNumber?: number | null;
   isVipOnly: boolean;
   accessType: VideoAccessType;
+  sortOrder: number;
   createdAt: string;
 }
 
@@ -127,6 +128,9 @@ export interface AdminVideo {
   isVipOnly: boolean;
   accessType: AdminVideoAccessType;
   isVisible: boolean;
+  sortOrder: number;
+  driveParts?: string | null;
+  softwareLink?: string | null;
   createdAt: string;
 }
 
@@ -172,6 +176,15 @@ export interface UpdateVideoInput {
   isVisible?: boolean;
   playlistId?: number | null;
   partNumber?: number | null;
+}
+
+export type ReorderVideosInputItemsItem = {
+  id: number;
+  sortOrder: number;
+};
+
+export interface ReorderVideosInput {
+  items: ReorderVideosInputItemsItem[];
 }
 
 export type PlaylistVideoAccessType =

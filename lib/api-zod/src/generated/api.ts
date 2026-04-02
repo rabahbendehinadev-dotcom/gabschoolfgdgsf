@@ -123,6 +123,7 @@ export const GetVideosResponseItem = zod.object({
   partNumber: zod.number().nullish(),
   isVipOnly: zod.boolean(),
   accessType: zod.enum(["visitor", "normal", "vip"]),
+  sortOrder: zod.number(),
   createdAt: zod.date(),
 });
 export const GetVideosResponse = zod.array(GetVideosResponseItem);
@@ -146,6 +147,7 @@ export const GetVideoResponse = zod.object({
   partNumber: zod.number().nullish(),
   isVipOnly: zod.boolean(),
   accessType: zod.enum(["visitor", "normal", "vip"]),
+  sortOrder: zod.number(),
   createdAt: zod.date(),
 });
 
@@ -336,6 +338,9 @@ export const GetAdminVideosResponseItem = zod.object({
   isVipOnly: zod.boolean(),
   accessType: zod.enum(["visitor", "normal", "vip"]),
   isVisible: zod.boolean(),
+  sortOrder: zod.number(),
+  driveParts: zod.string().nullish(),
+  softwareLink: zod.string().nullish(),
   createdAt: zod.date(),
 });
 export const GetAdminVideosResponse = zod.array(GetAdminVideosResponseItem);
@@ -389,6 +394,9 @@ export const UpdateVideoResponse = zod.object({
   isVipOnly: zod.boolean(),
   accessType: zod.enum(["visitor", "normal", "vip"]),
   isVisible: zod.boolean(),
+  sortOrder: zod.number(),
+  driveParts: zod.string().nullish(),
+  softwareLink: zod.string().nullish(),
   createdAt: zod.date(),
 });
 
@@ -400,6 +408,22 @@ export const DeleteVideoParams = zod.object({
 });
 
 export const DeleteVideoResponse = zod.object({
+  message: zod.string(),
+});
+
+/**
+ * @summary Reorder videos
+ */
+export const ReorderVideosBody = zod.object({
+  items: zod.array(
+    zod.object({
+      id: zod.number(),
+      sortOrder: zod.number(),
+    }),
+  ),
+});
+
+export const ReorderVideosResponse = zod.object({
   message: zod.string(),
 });
 
