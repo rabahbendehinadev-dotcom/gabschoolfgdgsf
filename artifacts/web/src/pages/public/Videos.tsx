@@ -2,14 +2,15 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { useGetVideos, useGetCategories } from "@workspace/api-client-react/src/generated/api";
 import { useAuth } from "@/lib/auth";
-import { Card, Badge, Button, Input } from "@/components/ui";
-import { Search, Crown, PlayCircle, Filter, Lock } from "lucide-react";
-import { motion } from "framer-motion";
+import { Card, Badge, Button, Input, Dialog, DialogContent } from "@/components/ui";
+import { Search, Crown, PlayCircle, Filter, Lock, X, Rocket } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 export function Videos() {
   const { user, getAuthHeaders } = useAuth();
   const [search, setSearch] = useState("");
   const [categoryId, setCategoryId] = useState<number | undefined>();
+  const [videoModalOpen, setVideoModalOpen] = useState(false);
 
   const { data: videos, isLoading } = useGetVideos(
     { search: search || undefined, categoryId },
@@ -23,12 +24,129 @@ export function Videos() {
   const isVipUser = user?.accountType === "vip";
   const isLocked = !isLoggedIn || isDemo;
 
+  const freeVideo = videos?.find(v => v.accessType === "visitor");
+
   return (
-    <div className="min-h-screen py-12">
-      <div className="container mx-auto px-4">
+    <div className="min-h-screen">
+
+      {/* ─── Free Video Hero Section ──────────────────────────────────── */}
+      <AnimatePresence>
+        {!isLoading && freeVideo && (
+          <motion.section
+            initial={{ opacity: 0, y: -16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="border-b border-border bg-gradient-to-br from-primary/5 via-background to-orange-50/60"
+          >
+            <div className="container mx-auto px-4 py-14 md:py-16">
+              <div className="flex flex-col-reverse md:flex-row items-center gap-10 md:gap-14">
+
+                {/* ── Left: Text + CTAs ── */}
+                <div className="flex-1 text-center md:text-right space-y-5">
+                  <Badge className="bg-primary/15 text-primary border-primary/30 text-sm px-4 py-1 rounded-full">
+                    محتوى مجاني 🎁
+                  </Badge>
+
+                  <h2 className="text-3xl md:text-4xl font-extrabold leading-tight">
+                    شاهد قبل الاشتراك 👇
+                  </h2>
+
+                  <p className="text-foreground/65 text-lg leading-relaxed max-w-md mx-auto md:mx-0">
+                    هذا مقتطف حقيقي من داخل الدورة لتشوف مستوى الشرح قبل ما تقرر
+                  </p>
+
+                  <div className="flex flex-col sm:flex-row gap-3 justify-center md:justify-start">
+                    <Button
+                      size="lg"
+                      className="gap-2 text-base shadow-md shadow-primary/20"
+                      onClick={() => setVideoModalOpen(true)}
+                    >
+                      <PlayCircle className="w-5 h-5" />
+                      شاهد الفيديو الآن
+                    </Button>
+                    <Link href="/subscribe">
+                      <Button size="lg" variant="outline" className="gap-2 text-base w-full sm:w-auto">
+                        <Rocket className="w-5 h-5" />
+                        اشترك وشاهد جميع الدروس
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+
+                {/* ── Right: Video Thumbnail ── */}
+                <div className="w-full md:w-[44%] shrink-0">
+                  <button
+                    onClick={() => setVideoModalOpen(true)}
+                    className="relative w-full aspect-video rounded-2xl overflow-hidden group shadow-xl shadow-black/10 border border-border/60 focus:outline-none"
+                  >
+                    <img
+                      src={freeVideo.thumbnailUrl || `https://images.unsplash.com/photo-1580927752452-89d86da3fa0a?w=800&q=80`}
+                      alt={freeVideo.title}
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
+
+                    {/* Play button */}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="w-20 h-20 rounded-full bg-primary/90 text-white flex items-center justify-center shadow-2xl shadow-primary/40 glow-primary transition-transform duration-300 group-hover:scale-110">
+                        <PlayCircle className="w-12 h-12 ml-1" />
+                      </div>
+                    </div>
+
+                    {/* Free label */}
+                    <div className="absolute top-3 right-3">
+                      <Badge className="bg-green-500 text-white border-0 shadow-md text-xs px-3 py-1">
+                        ✓ مجاني
+                      </Badge>
+                    </div>
+
+                    {/* Video title */}
+                    <div className="absolute bottom-4 right-4 left-4">
+                      <p className="text-white font-bold text-sm line-clamp-2 drop-shadow-md text-right">
+                        {freeVideo.title}
+                      </p>
+                    </div>
+                  </button>
+                </div>
+
+              </div>
+            </div>
+          </motion.section>
+        )}
+      </AnimatePresence>
+
+      {/* ─── Video Modal ────────────────────────────────────────────────── */}
+      <Dialog open={videoModalOpen} onOpenChange={setVideoModalOpen}>
+        <DialogContent className="max-w-3xl p-0 overflow-hidden bg-black border-white/10">
+          <div className="flex items-center justify-between px-4 py-3 bg-black/80 border-b border-white/10">
+            <p className="text-white font-bold text-sm line-clamp-1 text-right flex-1">
+              {freeVideo?.title}
+            </p>
+            <button
+              onClick={() => setVideoModalOpen(false)}
+              className="text-white/60 hover:text-white transition-colors mr-3 shrink-0"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="aspect-video w-full">
+            {videoModalOpen && freeVideo?.driveEmbedUrl && (
+              <iframe
+                src={freeVideo.driveEmbedUrl}
+                className="w-full h-full"
+                allow="autoplay"
+                allowFullScreen
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── Main Content ────────────────────────────────────────────── */}
+      <div className="container mx-auto px-4 py-12">
 
         {/* Header & Filters */}
-        <div className="mb-12 space-y-6">
+        <div className="mb-10 space-y-6">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
               <h1 className="text-3xl md:text-4xl font-bold mb-2">مكتبة الدروس</h1>
@@ -39,7 +157,7 @@ export function Videos() {
               <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
               <Input
                 placeholder="ابحث عن درس أو هاتف..."
-                className="pl-4 pr-10 bg-white/5 border-white/10"
+                className="pl-4 pr-10 bg-white/5 border-border"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
