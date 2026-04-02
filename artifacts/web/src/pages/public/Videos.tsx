@@ -58,7 +58,7 @@ export function Videos() {
               <Badge
                 key={cat.id}
                 variant={categoryId === cat.id ? "default" : "outline"}
-                className="cursor-pointer whitespace-nowrap text-sm py-1.5 px-4 bg-white/5"
+                className="cursor-pointer whitespace-nowrap text-sm py-1.5 px-4 bg-muted/50"
                 onClick={() => setCategoryId(cat.id)}
               >
                 {cat.name}
@@ -94,11 +94,11 @@ export function Videos() {
         {isLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[1,2,3,4,5,6].map(i => (
-              <Card key={i} className="h-72 animate-pulse bg-white/5 border-white/10" />
+              <Card key={i} className="h-72 animate-pulse bg-muted/50 border-border" />
             ))}
           </div>
         ) : (videos ?? []).length === 0 ? (
-          <div className="text-center py-24 bg-white/5 rounded-2xl border border-white/10">
+          <div className="text-center py-24 bg-muted/50 rounded-2xl border border-border">
             <Filter className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-50" />
             <h3 className="text-xl font-bold mb-2">لم يتم العثور على دروس</h3>
             <p className="text-muted-foreground">جرب تغيير كلمات البحث أو التصنيف</p>
@@ -175,7 +175,7 @@ export function Videos() {
                       {video.description}
                     </p>
                     {videoLocked && (
-                      <div className="mt-3 pt-3 border-t border-white/10">
+                      <div className="mt-3 pt-3 border-t border-border">
                         <p className="text-xs text-primary font-medium flex items-center gap-1">
                           <Lock className="w-3 h-3" />
                           {lockMessage}

@@ -171,7 +171,7 @@ export function Home() {
               className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
                 activeCategory === undefined
                   ? "bg-primary text-white shadow-[0_0_12px_rgba(234,88,12,0.4)]"
-                  : "bg-white/5 border border-white/10 text-foreground/70 hover:bg-white/10"
+                  : "bg-muted/60 border border-border text-foreground/70 hover:bg-muted"
               }`}
             >
               الكل
@@ -183,7 +183,7 @@ export function Home() {
                 className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
                   activeCategory === cat.id
                     ? "bg-primary text-white shadow-[0_0_12px_rgba(234,88,12,0.4)]"
-                    : "bg-white/5 border border-white/10 text-foreground/70 hover:bg-white/10"
+                    : "bg-muted/60 border border-border text-foreground/70 hover:bg-muted"
                 }`}
               >
                 {cat.name}
@@ -211,8 +211,8 @@ export function Home() {
                     transition={{ delay: (i % 8) * 0.07 }}
                   >
                     <Link href={href}>
-                      <div className="group relative rounded-2xl overflow-hidden bg-card border border-white/10 hover:border-primary/40 transition-all duration-300 hover:-translate-y-1 cursor-pointer">
-                        <div className="relative aspect-video bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center overflow-hidden">
+                      <div className="group relative rounded-2xl overflow-hidden bg-card border border-border hover:border-primary/40 transition-all duration-300 hover:-translate-y-1 cursor-pointer">
+                        <div className="relative aspect-video bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center overflow-hidden">
                           {video.thumbnailUrl ? (
                             <img src={video.thumbnailUrl} alt={video.title} className={`w-full h-full object-cover transition-opacity ${videoLocked ? "opacity-60 group-hover:opacity-40" : "opacity-80 group-hover:opacity-100"}`} />
                           ) : (
@@ -241,7 +241,7 @@ export function Home() {
                           )}
                         </div>
                         <div className="p-4">
-                          <h3 className={`font-bold text-sm leading-snug line-clamp-2 transition-colors ${videoLocked ? "text-foreground/70" : "text-foreground/90 group-hover:text-white"}`}>
+                          <h3 className={`font-bold text-sm leading-snug line-clamp-2 transition-colors ${videoLocked ? "text-foreground/70" : "text-foreground/90 group-hover:text-primary"}`}>
                             {video.title}
                           </h3>
                           {video.description && (
@@ -289,7 +289,7 @@ export function Home() {
       {/* ══════════════════════════════════
           FEATURES SECTION
       ══════════════════════════════════ */}
-      <section className="py-24 bg-black/40 relative">
+      <section className="py-24 bg-muted/60 relative">
         <div className="container mx-auto px-4">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold mb-4">لماذا تختار منصتنا؟</h2>
@@ -349,8 +349,8 @@ export function Home() {
                 transition={{ delay: i * 0.1 }}
               >
                 <Link href={`/videos?categoryId=${cat.id}`}>
-                  <Card className="p-6 text-center glass-card hover:bg-white/10 hover:border-primary/50 cursor-pointer transition-all group">
-                    <div className="w-12 h-12 mx-auto bg-white/5 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                  <Card className="p-6 text-center glass-card hover:bg-muted/50 hover:border-primary/50 cursor-pointer transition-all group">
+                    <div className="w-12 h-12 mx-auto bg-muted/50 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                       <Smartphone className="w-6 h-6 text-foreground/80 group-hover:text-primary" />
                     </div>
                     <h3 className="font-bold">{cat.name}</h3>
@@ -365,7 +365,7 @@ export function Home() {
       {/* ══════════════════════════════════
           PRICING
       ══════════════════════════════════ */}
-      <section id="pricing" className="py-24 bg-black/60 relative">
+      <section id="pricing" className="py-24 bg-muted/40 relative">
         <div className="absolute inset-0 bg-gradient-to-t from-primary/5 to-transparent pointer-events-none" />
         <div className="container mx-auto px-4 relative z-10">
           <div className="text-center mb-16">
@@ -395,7 +395,7 @@ export function Home() {
                   <Card className={`h-full flex flex-col p-8 ${
                     isPopular
                       ? 'border-primary/50 shadow-[0_0_30px_rgba(234,88,12,0.15)] bg-card/95'
-                      : 'border-white/10 bg-black/40'
+                      : 'border-border bg-muted/30'
                   }`}>
                     <div className="mb-8 text-center">
                       <h3 className="text-xl font-bold text-foreground/80 mb-2 uppercase tracking-wider">{

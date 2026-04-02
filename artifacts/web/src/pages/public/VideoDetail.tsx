@@ -145,7 +145,7 @@ export function VideoDetail() {
               <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
                 <Tag className="w-3.5 h-3.5" />{video.categoryName}
               </span>
-              <span className="text-white/20">•</span>
+              <span className="text-foreground/20">•</span>
               <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
                 <CalendarDays className="w-3.5 h-3.5" />{formatDate(video.createdAt)}
               </span>
@@ -167,7 +167,7 @@ export function VideoDetail() {
                     className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
                       selectedPartIndex === i
                         ? "bg-primary text-white shadow-lg shadow-primary/30"
-                        : "bg-white/5 text-foreground/60 border border-white/10 hover:bg-white/10 hover:text-foreground"
+                        : "bg-muted/60 text-foreground/60 border border-border hover:bg-muted hover:text-foreground"
                     }`}
                   >
                     <PlaySquare className="w-3.5 h-3.5" />
@@ -188,7 +188,7 @@ export function VideoDetail() {
                 />
               </div>
             ) : (
-              <div className="relative w-full mb-8 bg-black/60 rounded-2xl border border-white/10 flex items-center justify-center" style={{ paddingBottom: "56.25%" }}>
+              <div className="relative w-full mb-8 bg-muted/60 rounded-2xl border border-border flex items-center justify-center" style={{ paddingBottom: "56.25%" }}>
                 <div className="absolute inset-0 flex items-center justify-center">
                   <p className="text-foreground/40 text-sm flex items-center gap-2">
                     <PlaySquare className="w-5 h-5" />
@@ -227,7 +227,7 @@ export function VideoDetail() {
               <div className="flex gap-3 mb-8">
                 {prevVideo && (
                   <Link href={`/videos/${prevVideo.id}`} className="flex-1">
-                    <div className="flex items-center gap-3 p-4 rounded-xl border border-white/10 bg-white/5 hover:bg-white/8 hover:border-primary/30 transition-all group">
+                    <div className="flex items-center gap-3 p-4 rounded-xl border border-border bg-background hover:bg-muted/50 hover:border-primary/30 transition-all group">
                       <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary shrink-0" />
                       <div className="text-right min-w-0">
                         <p className="text-xs text-muted-foreground mb-0.5">الجزء السابق</p>
@@ -238,7 +238,7 @@ export function VideoDetail() {
                 )}
                 {nextVideo && (
                   <Link href={`/videos/${nextVideo.id}`} className="flex-1">
-                    <div className="flex items-center gap-3 p-4 rounded-xl border border-white/10 bg-white/5 hover:bg-white/8 hover:border-primary/30 transition-all group justify-end">
+                    <div className="flex items-center gap-3 p-4 rounded-xl border border-border bg-background hover:bg-muted/50 hover:border-primary/30 transition-all group justify-end">
                       <div className="text-left min-w-0">
                         <p className="text-xs text-muted-foreground mb-0.5">الجزء التالي</p>
                         <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">{nextVideo.partNumber ? `الجزء ${nextVideo.partNumber}` : nextVideo.title}</p>
@@ -253,7 +253,7 @@ export function VideoDetail() {
             {/* Description */}
             {video.description && (
               <Card className="p-6 glass-card">
-                <h3 className="text-lg font-bold mb-4 text-primary border-b border-white/10 pb-3">
+                <h3 className="text-lg font-bold mb-4 text-primary border-b border-border pb-3">
                   وصف الدرس
                 </h3>
                 <div className="text-foreground/80 leading-loose whitespace-pre-wrap text-[15px]">
@@ -271,7 +271,7 @@ export function VideoDetail() {
               className="w-full lg:w-80 shrink-0"
             >
               <Card className="glass-card sticky top-8">
-                <div className="p-5 border-b border-white/10">
+                <div className="p-5 border-b border-border">
                   <div className="flex items-center gap-2 mb-1">
                     <ListVideo className="w-5 h-5 text-primary" />
                     <h3 className="font-bold text-lg">{playlist.title}</h3>
@@ -286,8 +286,8 @@ export function VideoDetail() {
                     const isCurrent = v.id === id;
                     return (
                       <Link key={v.id} href={`/videos/${v.id}`}>
-                        <div className={`flex items-center gap-3 p-3 rounded-xl transition-all cursor-pointer group ${isCurrent ? "bg-primary/15 border border-primary/30" : "hover:bg-white/5 border border-transparent"}`}>
-                          <span className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${isCurrent ? "bg-primary text-white" : "bg-white/10 text-muted-foreground"}`}>
+                        <div className={`flex items-center gap-3 p-3 rounded-xl transition-all cursor-pointer group ${isCurrent ? "bg-primary/15 border border-primary/30" : "hover:bg-muted/60 border border-transparent"}`}>
+                          <span className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${isCurrent ? "bg-primary text-white" : "bg-muted text-muted-foreground"}`}>
                             {v.partNumber ?? idx + 1}
                           </span>
                           <span className={`text-sm font-medium truncate ${isCurrent ? "text-primary" : "text-foreground/80 group-hover:text-foreground"}`}>
