@@ -134,12 +134,16 @@ async function ensureSeed() {
       await db.insert(categoriesTable).values(cat).onConflictDoNothing();
     }
 
-    // Always ensure subscription plans exist (idempotent via onConflictDoNothing)
-    await db.insert(subscriptionPlansTable).values([
-      { type: "demo", price: "0 DA", description: "تجربة مجانية مع وصول محدود لبعض الفيديوهات", durationDays: 7 },
-      { type: "annual", price: "5000 DA", description: "وصول كامل لمدة سنة لجميع الكورسات والمواد", durationDays: 365 },
-      { type: "lifetime", price: "15000 DA", description: "وصول مدى الحياة لجميع الكورسات الحالية والمستقبلية", durationDays: null },
-    ] as any[]).onConflictDoNothing();
+    // Only seed plans if the table is completely empty (admin controls plans after first run)
+    const existingPlans = await db.select().from(subscriptionPlansTable).limit(1);
+    if (existingPlans.length === 0) {
+      await db.insert(subscriptionPlansTable).values([
+        { type: "demo", price: "0 DA", description: "تجربة مجانية مع وصول محدود لبعض الفيديوهات", durationDays: 7 },
+        { type: "annual", price: "5000 DA", description: "وصول كامل لمدة سنة لجميع الكورسات والمواد", durationDays: 365 },
+        { type: "lifetime", price: "15000 DA", description: "وصول مدى الحياة لجميع الكورسات الحالية والمستقبلية", durationDays: null },
+      ] as any[]);
+      console.log("[seed] Default subscription plans created.");
+    }
 
     console.log("[seed] Seed complete.");
   } catch (err) {
