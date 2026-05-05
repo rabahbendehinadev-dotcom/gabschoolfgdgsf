@@ -4,7 +4,7 @@ import { SubscriptionPlan } from "@workspace/api-client-react/src/generated/api.
 import { useAuth } from "@/lib/auth";
 import { Card, Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label } from "@/components/ui";
 import { useToast } from "@/hooks/use-toast";
-import { Edit, CreditCard, Plus, Trash2, Loader2 } from "lucide-react";
+import { Edit, CreditCard, Plus, Trash2, Loader2, EyeOff, Eye } from "lucide-react";
 
 const API_BASE = "";
 
@@ -20,32 +20,33 @@ export function AdminPlans() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
-  const [formData, setFormData] = useState<{ type: string; price: string; description: string; durationDays: number | null }>({
-    type: "", price: "", description: "", durationDays: null,
-  });
+  const [togglingId, setTogglingId] = useState<number | null>(null);
+  const [formData, setFormData] = useState<{
+    type: string; price: string; description: string;
+    durationDays: number | null; isHidden: boolean;
+  }>({ type: "", price: "", description: "", durationDays: null, isHidden: false });
 
   const handleOpen = (plan: SubscriptionPlan) => {
     setEditingId(plan.id);
-    setFormData({ type: plan.type, price: plan.price, description: plan.description, durationDays: plan.durationDays ?? null });
+    setFormData({
+      type: plan.type, price: plan.price, description: plan.description,
+      durationDays: plan.durationDays ?? null, isHidden: plan.isHidden ?? false,
+    });
     setIsOpen(true);
   };
 
   const handleCreate = () => {
     setEditingId(null);
-    setFormData({ type: "", price: "", description: "", durationDays: null });
+    setFormData({ type: "", price: "", description: "", durationDays: null, isHidden: false });
     setIsOpen(true);
   };
 
   const handleSave = async () => {
     if (editingId !== null) {
       updateMut.mutate(
-        { id: editingId, data: { price: formData.price, description: formData.description, durationDays: formData.durationDays } },
+        { id: editingId, data: { price: formData.price, description: formData.description, durationDays: formData.durationDays, isHidden: formData.isHidden } },
         {
-          onSuccess: () => {
-            toast({ title: "تم التحديث" });
-            setIsOpen(false);
-            refetch();
-          },
+          onSuccess: () => { toast({ title: "تم التحديث" }); setIsOpen(false); refetch(); },
           onError: () => toast({ variant: "destructive", title: "حدث خطأ" }),
         }
       );
@@ -89,16 +90,39 @@ export function AdminPlans() {
     }
   };
 
+  const handleToggleHidden = async (plan: SubscriptionPlan) => {
+    setTogglingId(plan.id);
+    try {
+      const headers = getAdminAuthHeaders()?.headers || {};
+      const res = await fetch(`${API_BASE}/api/admin/subscription-plans/${plan.id}`, {
+        method: "PATCH",
+        headers: { ...(headers as HeadersInit), "Content-Type": "application/json" },
+        body: JSON.stringify({ isHidden: !plan.isHidden }),
+      });
+      if (!res.ok) throw new Error();
+      toast({
+        title: plan.isHidden ? "✅ الخطة أصبحت مرئية للزبائن" : "🔒 الخطة أُخفيت عن الزبائن",
+        className: plan.isHidden ? "bg-green-600 text-white border-none" : "bg-gray-700 text-white border-none",
+      });
+      refetch();
+    } catch {
+      toast({ variant: "destructive", title: "حدث خطأ" });
+    } finally {
+      setTogglingId(null);
+    }
+  };
+
   const planLabels: Record<string, string> = {
-    demo: "تجريبي",
-    annual: "سنوي",
-    lifetime: "مدى الحياة",
+    demo: "تجريبي", annual: "سنوي", lifetime: "مدى الحياة", monthly: "شهري",
   };
 
   return (
     <div className="space-y-6 max-w-4xl">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">إدارة خطط الاشتراك</h1>
+        <div>
+          <h1 className="text-3xl font-bold">إدارة خطط الاشتراك</h1>
+          <p className="text-sm text-muted-foreground mt-1">الخطط المخفية تظهر فقط هنا ولا تظهر للزبائن</p>
+        </div>
         <Button onClick={handleCreate} className="flex items-center gap-2">
           <Plus className="w-4 h-4" /> خطة جديدة
         </Button>
@@ -106,10 +130,26 @@ export function AdminPlans() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {plans?.map((plan) => (
-          <Card key={plan.id} className="p-6 border-white/5 bg-card relative overflow-hidden group">
-            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary to-amber-500" />
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+          <Card
+            key={plan.id}
+            className={`p-6 border-white/5 bg-card relative overflow-hidden group transition-all ${
+              plan.isHidden ? "opacity-70 border-dashed border-white/10" : ""
+            }`}
+          >
+            <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${plan.isHidden ? "from-gray-500 to-gray-600" : "from-primary to-amber-500"}`} />
+
+            {/* Hidden badge */}
+            {plan.isHidden && (
+              <div className="absolute top-3 left-3">
+                <span className="inline-flex items-center gap-1 text-xs bg-gray-600/80 text-gray-300 px-2 py-0.5 rounded-full border border-gray-500/40">
+                  <EyeOff className="w-3 h-3" />
+                  مخفية عن الزبائن
+                </span>
+              </div>
+            )}
+
+            <div className="flex items-center gap-3 mb-4 mt-2">
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${plan.isHidden ? "bg-gray-500/10 text-gray-400" : "bg-primary/10 text-primary"}`}>
                 <CreditCard className="w-6 h-6" />
               </div>
               <div>
@@ -124,18 +164,38 @@ export function AdminPlans() {
             </p>
             <p className="text-sm text-foreground/70 mb-4 line-clamp-3">{plan.description}</p>
 
-            <div className="flex gap-2">
-              <Button variant="secondary" className="flex-1" onClick={() => handleOpen(plan)}>
-                <Edit className="w-4 h-4 ml-2" /> تعديل
-              </Button>
-              <Button
-                variant="destructive"
-                size="icon"
-                onClick={() => handleDelete(plan.id)}
-                disabled={deletingId === plan.id}
+            <div className="flex flex-col gap-2">
+              <div className="flex gap-2">
+                <Button variant="secondary" className="flex-1" onClick={() => handleOpen(plan)}>
+                  <Edit className="w-4 h-4 ml-2" /> تعديل
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="icon"
+                  onClick={() => handleDelete(plan.id)}
+                  disabled={deletingId === plan.id}
+                >
+                  {deletingId === plan.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                </Button>
+              </div>
+
+              {/* Toggle visibility button */}
+              <button
+                onClick={() => handleToggleHidden(plan)}
+                disabled={togglingId === plan.id}
+                className={`w-full flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-medium transition-all border ${
+                  plan.isHidden
+                    ? "border-green-500/30 text-green-400 hover:bg-green-500/10"
+                    : "border-gray-500/30 text-gray-400 hover:bg-gray-500/10"
+                }`}
               >
-                {deletingId === plan.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-              </Button>
+                {togglingId === plan.id
+                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  : plan.isHidden
+                    ? <><Eye className="w-3.5 h-3.5" /> إظهار للزبائن</>
+                    : <><EyeOff className="w-3.5 h-3.5" /> إخفاء عن الزبائن</>
+                }
+              </button>
             </div>
           </Card>
         ))}
@@ -151,9 +211,8 @@ export function AdminPlans() {
               <div className="space-y-2">
                 <Label>نوع الخطة (type)</Label>
                 <Input
-                  dir="ltr"
-                  className="text-left"
-                  placeholder="مثال: annual أو demo"
+                  dir="ltr" className="text-left"
+                  placeholder="مثال: monthly أو annual"
                   value={formData.type}
                   onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                 />
@@ -164,7 +223,7 @@ export function AdminPlans() {
               <Input
                 value={formData.price}
                 onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                placeholder="مثال: 5000 DA"
+                placeholder="مثال: 700 DA"
               />
             </div>
             <div className="space-y-2">
@@ -181,9 +240,27 @@ export function AdminPlans() {
                 type="number"
                 value={formData.durationDays ?? ""}
                 onChange={(e) => setFormData({ ...formData, durationDays: e.target.value ? parseInt(e.target.value) : null })}
-                placeholder="اترك فارغاً لمدى الحياة"
+                placeholder="مثال: 30 لشهر واحد"
               />
             </div>
+
+            {/* Hidden toggle */}
+            <div className={`flex items-center gap-3 p-4 rounded-xl border transition-all cursor-pointer ${formData.isHidden ? "border-gray-500/40 bg-gray-500/10" : "border-border bg-muted/30"}`}
+              onClick={() => setFormData(f => ({ ...f, isHidden: !f.isHidden }))}>
+              <div className={`w-10 h-6 rounded-full transition-all relative ${formData.isHidden ? "bg-gray-500" : "bg-primary"}`}>
+                <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${formData.isHidden ? "right-1" : "left-1"}`} />
+              </div>
+              <div>
+                <p className="text-sm font-medium flex items-center gap-2">
+                  {formData.isHidden ? <EyeOff className="w-4 h-4 text-gray-400" /> : <Eye className="w-4 h-4 text-primary" />}
+                  {formData.isHidden ? "مخفية عن الزبائن (أدمن فقط)" : "مرئية للزبائن في صفحة الاشتراك"}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {formData.isHidden ? "لن تظهر في صفحة الاشتراك العامة" : "ستظهر للجميع في صفحة الاشتراك"}
+                </p>
+              </div>
+            </div>
+
             <Button className="w-full mt-4" onClick={handleSave} disabled={updateMut.isPending || isCreating}>
               {(updateMut.isPending || isCreating) ? <Loader2 className="w-4 h-4 animate-spin" /> : (editingId !== null ? "حفظ التغييرات" : "إنشاء الخطة")}
             </Button>

@@ -18,9 +18,10 @@ import {
 
 const CreateSubscriptionPlanBody = zod.object({
   type: zod.string(),
-  price: zod.number(),
+  price: zod.string(),
   description: zod.string().optional(),
-  durationDays: zod.number().optional(),
+  durationDays: zod.number().optional().nullable(),
+  isHidden: zod.boolean().optional().default(false),
 });
 
 async function logActivity(userId: number | null, username: string | null, action: string, details?: string, ip?: string) {
@@ -566,8 +567,9 @@ router.post("/admin/subscription-plans", adminAuth, async (req, res) => {
     const [plan] = await db.insert(subscriptionPlansTable).values({
       type: body.type,
       price: body.price,
-      description: body.description,
+      description: body.description ?? "",
       durationDays: body.durationDays ?? null,
+      isHidden: body.isHidden ?? false,
     }).returning();
     res.status(201).json(plan);
   } catch (error: unknown) {
@@ -594,6 +596,7 @@ router.patch("/admin/subscription-plans/:id", adminAuth, async (req, res) => {
     if (body.price !== undefined) updateData.price = body.price;
     if (body.description !== undefined) updateData.description = body.description;
     if (body.durationDays !== undefined) updateData.durationDays = body.durationDays;
+    if (body.isHidden !== undefined) updateData.isHidden = body.isHidden;
 
     const [plan] = await db.update(subscriptionPlansTable).set(updateData)
       .where(eq(subscriptionPlansTable.id, id)).returning();

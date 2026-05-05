@@ -254,27 +254,20 @@ export interface UpdateCategoryInput {
   icon?: string;
 }
 
-export type SubscriptionPlanType =
-  (typeof SubscriptionPlanType)[keyof typeof SubscriptionPlanType];
-
-export const SubscriptionPlanType = {
-  demo: "demo",
-  annual: "annual",
-  lifetime: "lifetime",
-} as const;
-
 export interface SubscriptionPlan {
   id: number;
-  type: SubscriptionPlanType;
+  type: string;
   price: string;
   description: string;
   durationDays?: number | null;
+  isHidden: boolean;
 }
 
 export interface UpdatePlanInput {
   price?: string;
   description?: string;
   durationDays?: number | null;
+  isHidden?: boolean;
 }
 
 export type UpdateUserInputAccountType =
