@@ -2,7 +2,7 @@ import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui";
-import { LayoutDashboard, Users, Video, FolderTree, CreditCard, LogOut, ShieldAlert, ListVideo, Activity, BadgeCheck, Banknote } from "lucide-react";
+import { LayoutDashboard, Users, Video, FolderTree, CreditCard, LogOut, ShieldAlert, ListVideo, Activity, BadgeCheck, Banknote, KeyRound } from "lucide-react";
 
 export function AdminLayout({ children }: { children: ReactNode }) {
   const { admin, adminLogout } = useAuth();
@@ -32,6 +32,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     { name: "الاشتراكات", path: "/gab-ctrl-9x/subscriptions", icon: BadgeCheck },
     { name: "سجل النشاطات", path: "/gab-ctrl-9x/activity-log", icon: Activity },
     { name: "طلبات الدفع", path: "/gab-ctrl-9x/payments", icon: Banknote },
+    { name: "تغيير كلمة المرور", path: "/gab-ctrl-9x/change-password", icon: KeyRound },
   ];
 
   return (

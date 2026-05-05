@@ -23,6 +23,7 @@ import { AdminPlans } from "@/pages/admin/Plans";
 import { AdminSubscriptions } from "@/pages/admin/Subscriptions";
 import { AdminActivityLog } from "@/pages/admin/ActivityLog";
 import { AdminPayments } from "@/pages/admin/Payments";
+import { AdminChangePassword } from "@/pages/admin/ChangePassword";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
@@ -90,6 +91,9 @@ function Router() {
       </Route>
       <Route path="/gab-ctrl-9x/payments">
         <AdminLayout><AdminPayments /></AdminLayout>
+      </Route>
+      <Route path="/gab-ctrl-9x/change-password">
+        <AdminLayout><AdminChangePassword /></AdminLayout>
       </Route>
       <Route component={NotFound} />
     </Switch>
