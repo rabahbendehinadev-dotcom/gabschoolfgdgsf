@@ -5,12 +5,12 @@
  * Cours Online API
  * OpenAPI spec version: 0.1.0
  */
-import type { SubscriptionPlanType } from "./subscriptionPlanType";
 
 export interface SubscriptionPlan {
   id: number;
-  type: SubscriptionPlanType;
+  type: string;
   price: string;
   description: string;
   durationDays?: number | null;
+  isHidden: boolean;
 }

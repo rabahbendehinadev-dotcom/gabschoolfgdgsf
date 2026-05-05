@@ -1165,7 +1165,6 @@ components:
           type: integer
         type:
           type: string
-          enum: [demo, annual, lifetime]
         price:
           type: string
         description:
@@ -1173,11 +1172,14 @@ components:
         durationDays:
           type: integer
           nullable: true
+        isHidden:
+          type: boolean
       required:
         - id
         - type
         - price
         - description
+        - isHidden
 
     UpdatePlanInput:
       type: object
@@ -1189,6 +1191,8 @@ components:
         durationDays:
           type: integer
           nullable: true
+        isHidden:
+          type: boolean
 
     UpdateUserInput:
       type: object

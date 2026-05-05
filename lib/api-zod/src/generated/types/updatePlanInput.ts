@@ -10,4 +10,5 @@ export interface UpdatePlanInput {
   price?: string;
   description?: string;
   durationDays?: number | null;
+  isHidden?: boolean;
 }

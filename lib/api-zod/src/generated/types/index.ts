@@ -35,7 +35,6 @@ export * from "./registerInput";
 export * from "./reorderVideosInput";
 export * from "./reorderVideosInputItemsItem";
 export * from "./subscriptionPlan";
-export * from "./subscriptionPlanType";
 export * from "./updateCategoryInput";
 export * from "./updatePlanInput";
 export * from "./updatePlaylistInput";

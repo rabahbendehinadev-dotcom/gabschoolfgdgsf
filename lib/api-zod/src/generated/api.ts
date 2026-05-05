@@ -228,10 +228,11 @@ export const GetPlaylistResponse = zod.object({
  */
 export const GetSubscriptionPlansResponseItem = zod.object({
   id: zod.number(),
-  type: zod.enum(["demo", "annual", "lifetime"]),
+  type: zod.string(),
   price: zod.string(),
   description: zod.string(),
   durationDays: zod.number().nullish(),
+  isHidden: zod.boolean(),
 });
 export const GetSubscriptionPlansResponse = zod.array(
   GetSubscriptionPlansResponseItem,
@@ -574,10 +575,11 @@ export const DeletePlaylistResponse = zod.object({
  */
 export const GetAdminSubscriptionPlansResponseItem = zod.object({
   id: zod.number(),
-  type: zod.enum(["demo", "annual", "lifetime"]),
+  type: zod.string(),
   price: zod.string(),
   description: zod.string(),
   durationDays: zod.number().nullish(),
+  isHidden: zod.boolean(),
 });
 export const GetAdminSubscriptionPlansResponse = zod.array(
   GetAdminSubscriptionPlansResponseItem,
@@ -594,12 +596,14 @@ export const UpdateSubscriptionPlanBody = zod.object({
   price: zod.string().optional(),
   description: zod.string().optional(),
   durationDays: zod.number().nullish(),
+  isHidden: zod.boolean().optional(),
 });
 
 export const UpdateSubscriptionPlanResponse = zod.object({
   id: zod.number(),
-  type: zod.enum(["demo", "annual", "lifetime"]),
+  type: zod.string(),
   price: zod.string(),
   description: zod.string(),
   durationDays: zod.number().nullish(),
+  isHidden: zod.boolean(),
 });

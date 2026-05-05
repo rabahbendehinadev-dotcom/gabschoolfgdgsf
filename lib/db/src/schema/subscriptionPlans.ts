@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, text, integer } from "drizzle-orm/pg-core";
+import { pgTable, serial, varchar, text, integer, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -8,6 +8,7 @@ export const subscriptionPlansTable = pgTable("subscription_plans", {
   price: varchar("price", { length: 50 }).notNull(),
   description: text("description").notNull(),
   durationDays: integer("duration_days"),
+  isHidden: boolean("is_hidden").notNull().default(false),
 });
 
 export const insertSubscriptionPlanSchema = createInsertSchema(subscriptionPlansTable).omit({ id: true });
