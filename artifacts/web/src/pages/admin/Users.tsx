@@ -253,9 +253,10 @@ export function AdminUsers() {
               <select
                 className="flex h-10 w-full rounded-md border border-white/10 bg-background px-3 py-2 text-sm"
                 value={formData.subscriptionType}
-                onChange={e => setFormData({ ...formData, subscriptionType: e.target.value as "demo" | "annual" | "lifetime" })}
+                onChange={e => setFormData({ ...formData, subscriptionType: e.target.value as "demo" | "monthly" | "annual" | "lifetime" })}
               >
                 <option value="demo">تجريبي</option>
+                <option value="monthly">شهري</option>
                 <option value="annual">سنوي</option>
                 <option value="lifetime">مدى الحياة</option>
               </select>

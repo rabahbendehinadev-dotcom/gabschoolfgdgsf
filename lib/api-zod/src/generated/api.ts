@@ -45,7 +45,7 @@ export const LoginResponse = zod.object({
     username: zod.string(),
     email: zod.string(),
     accountType: zod.enum(["vip", "normal"]),
-    subscriptionType: zod.enum(["demo", "annual", "lifetime"]),
+    subscriptionType: zod.enum(["demo", "monthly", "annual", "lifetime"]),
     subscriptionExpiresAt: zod.date().nullish(),
     isActive: zod.boolean(),
     createdAt: zod.date(),
@@ -76,7 +76,7 @@ export const GetMeResponse = zod.object({
   username: zod.string(),
   email: zod.string(),
   accountType: zod.enum(["vip", "normal"]),
-  subscriptionType: zod.enum(["demo", "annual", "lifetime"]),
+  subscriptionType: zod.enum(["demo", "monthly", "annual", "lifetime"]),
   subscriptionExpiresAt: zod.date().nullish(),
   isActive: zod.boolean(),
   createdAt: zod.date(),
@@ -267,7 +267,7 @@ export const GetAdminUsersResponseItem = zod.object({
   username: zod.string(),
   email: zod.string(),
   accountType: zod.enum(["vip", "normal"]),
-  subscriptionType: zod.enum(["demo", "annual", "lifetime"]),
+  subscriptionType: zod.enum(["demo", "monthly", "annual", "lifetime"]),
   subscriptionExpiresAt: zod.date().nullish(),
   ipAddress: zod.string().nullish(),
   isActive: zod.boolean(),
@@ -284,7 +284,9 @@ export const UpdateAdminUserParams = zod.object({
 
 export const UpdateAdminUserBody = zod.object({
   accountType: zod.enum(["vip", "normal"]).optional(),
-  subscriptionType: zod.enum(["demo", "annual", "lifetime"]).optional(),
+  subscriptionType: zod
+    .enum(["demo", "monthly", "annual", "lifetime"])
+    .optional(),
   isActive: zod.boolean().optional(),
   subscriptionExpiresAt: zod.date().nullish(),
 });
@@ -294,7 +296,7 @@ export const UpdateAdminUserResponse = zod.object({
   username: zod.string(),
   email: zod.string(),
   accountType: zod.enum(["vip", "normal"]),
-  subscriptionType: zod.enum(["demo", "annual", "lifetime"]),
+  subscriptionType: zod.enum(["demo", "monthly", "annual", "lifetime"]),
   subscriptionExpiresAt: zod.date().nullish(),
   ipAddress: zod.string().nullish(),
   isActive: zod.boolean(),
