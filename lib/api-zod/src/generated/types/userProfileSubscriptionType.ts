@@ -11,6 +11,7 @@ export type UserProfileSubscriptionType =
 
 export const UserProfileSubscriptionType = {
   demo: "demo",
+  monthly: "monthly",
   annual: "annual",
   lifetime: "lifetime",
 } as const;

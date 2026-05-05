@@ -11,6 +11,7 @@ export type UpdateUserInputSubscriptionType =
 
 export const UpdateUserInputSubscriptionType = {
   demo: "demo",
+  monthly: "monthly",
   annual: "annual",
   lifetime: "lifetime",
 } as const;

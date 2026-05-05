@@ -45,6 +45,7 @@ export type UserProfileSubscriptionType =
 
 export const UserProfileSubscriptionType = {
   demo: "demo",
+  monthly: "monthly",
   annual: "annual",
   lifetime: "lifetime",
 } as const;
@@ -283,6 +284,7 @@ export type UpdateUserInputSubscriptionType =
 
 export const UpdateUserInputSubscriptionType = {
   demo: "demo",
+  monthly: "monthly",
   annual: "annual",
   lifetime: "lifetime",
 } as const;
@@ -307,6 +309,7 @@ export type AdminUserSubscriptionType =
 
 export const AdminUserSubscriptionType = {
   demo: "demo",
+  monthly: "monthly",
   annual: "annual",
   lifetime: "lifetime",
 } as const;
