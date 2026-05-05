@@ -6,6 +6,8 @@ import { db, usersTable, videosTable, categoriesTable, playlistsTable, subscript
 import { eq, sql, count, desc, asc, lt, and, gte, isNotNull, inArray } from "drizzle-orm";
 
 import { adminAuth } from "../middlewares/auth";
+import { hashPassword, comparePassword } from "../lib/auth";
+import { adminsTable } from "@workspace/db";
 import * as zod from "zod";
 import {
   UpdateAdminUserBody,
@@ -609,6 +611,33 @@ router.patch("/admin/subscription-plans/:id", adminAuth, async (req, res) => {
     res.json(plan);
   } catch (error: unknown) {
     res.status(400).json({ message: error instanceof Error ? error.message : "Unknown error" || "Failed to update plan" });
+  }
+});
+
+const AdminChangePasswordBody = zod.object({
+  currentPassword: zod.string(),
+  newPassword: zod.string().min(6),
+});
+
+router.post("/admin/change-password", adminAuth, async (req, res) => {
+  try {
+    const body = AdminChangePasswordBody.parse(req.body);
+    const [admin] = await db.select().from(adminsTable)
+      .where(eq(adminsTable.id, req.admin!.id)).limit(1);
+
+    const valid = await comparePassword(body.currentPassword, admin.passwordHash);
+    if (!valid) {
+      res.status(400).json({ message: "كلمة المرور الحالية غير صحيحة" });
+      return;
+    }
+
+    const newHash = await hashPassword(body.newPassword);
+    await db.update(adminsTable).set({ passwordHash: newHash })
+      .where(eq(adminsTable.id, req.admin!.id));
+
+    res.json({ message: "تم تغيير كلمة المرور بنجاح" });
+  } catch (error: unknown) {
+    res.status(400).json({ message: error instanceof Error ? error.message : "فشل تغيير كلمة المرور" });
   }
 });
 
