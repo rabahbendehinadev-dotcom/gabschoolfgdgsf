@@ -4,7 +4,7 @@ import { AdminUser, UpdateUserInput } from "@workspace/api-client-react/src/gene
 import { useAuth } from "@/lib/auth";
 import { Card, Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label } from "@/components/ui";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Edit, RefreshCw, ShieldOff, ShieldCheck, Trash2, MessageCircle } from "lucide-react";
+import { Search, Edit, RefreshCw, ShieldOff, ShieldCheck, Trash2, MessageCircle, KeyRound, Eye, EyeOff } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 
 const API_BASE = "";
@@ -28,6 +28,13 @@ export function AdminUsers() {
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [formData, setFormData] = useState<UpdateUserInput>({});
   const [loadingId, setLoadingId] = useState<number | null>(null);
+  const [resetPwUser, setResetPwUser] = useState<AdminUser | null>(null);
+  const [resetPwForm, setResetPwForm] = useState({ newPassword: "", confirmPassword: "" });
+  const [resetPwLoading, setResetPwLoading] = useState(false);
+  const [resetPwError, setResetPwError] = useState("");
+  const [resetPwSuccess, setResetPwSuccess] = useState("");
+  const [showResetPw, setShowResetPw] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   const filtered = users?.filter(u =>
     u.username.toLowerCase().includes(search.toLowerCase()) ||
@@ -85,6 +92,36 @@ export function AdminUsers() {
       toast({ title: "حدث خطأ", variant: "destructive" });
     } finally {
       setLoadingId(null);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    setResetPwError("");
+    setResetPwSuccess("");
+    if (resetPwForm.newPassword !== resetPwForm.confirmPassword) {
+      setResetPwError("كلمتا المرور غير متطابقتين");
+      return;
+    }
+    if (resetPwForm.newPassword.length < 6) {
+      setResetPwError("كلمة المرور يجب أن تكون 6 أحرف على الأقل");
+      return;
+    }
+    setResetPwLoading(true);
+    try {
+      const token = localStorage.getItem("adminToken");
+      const res = await fetch(`${API_BASE}/api/admin/users/${resetPwUser!.id}/reset-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ newPassword: resetPwForm.newPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "حدث خطأ");
+      setResetPwSuccess("تم تغيير كلمة المرور بنجاح");
+      setResetPwForm({ newPassword: "", confirmPassword: "" });
+    } catch (err: unknown) {
+      setResetPwError(err instanceof Error ? err.message : "حدث خطأ غير متوقع");
+    } finally {
+      setResetPwLoading(false);
     }
   };
 
@@ -198,6 +235,9 @@ export function AdminUsers() {
                         <Button variant="ghost" size="icon" title="تعديل" onClick={() => handleEdit(user)}>
                           <Edit className="w-4 h-4" />
                         </Button>
+                        <Button variant="ghost" size="icon" title="تغيير كلمة المرور" onClick={() => { setResetPwUser(user); setResetPwForm({ newPassword: "", confirmPassword: "" }); setResetPwError(""); setResetPwSuccess(""); setShowResetPw(false); setShowResetConfirm(false); }}>
+                          <KeyRound className="w-4 h-4 text-purple-400" />
+                        </Button>
                         <Button variant="ghost" size="icon" title="تصفير IP" onClick={() => handleResetIp(user.id)} disabled={!user.ipAddress || loadingId === user.id}>
                           <RefreshCw className="w-4 h-4 text-blue-400" />
                         </Button>
@@ -230,6 +270,55 @@ export function AdminUsers() {
           </table>
         </div>
       </Card>
+
+      <Dialog open={!!resetPwUser} onOpenChange={(o) => { if (!o) { setResetPwUser(null); setResetPwError(""); setResetPwSuccess(""); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>تغيير كلمة المرور: {resetPwUser?.username}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>كلمة المرور الجديدة</Label>
+              <div className="relative">
+                <Input
+                  type={showResetPw ? "text" : "password"}
+                  placeholder="كلمة المرور الجديدة (6 أحرف على الأقل)"
+                  value={resetPwForm.newPassword}
+                  onChange={e => setResetPwForm({ ...resetPwForm, newPassword: e.target.value })}
+                  className="pl-10"
+                />
+                <button type="button" className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowResetPw(v => !v)}>
+                  {showResetPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>تأكيد كلمة المرور</Label>
+              <div className="relative">
+                <Input
+                  type={showResetConfirm ? "text" : "password"}
+                  placeholder="أعد إدخال كلمة المرور"
+                  value={resetPwForm.confirmPassword}
+                  onChange={e => setResetPwForm({ ...resetPwForm, confirmPassword: e.target.value })}
+                  className="pl-10"
+                />
+                <button type="button" className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowResetConfirm(v => !v)}>
+                  {showResetConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+            {resetPwError && (
+              <p className="text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">{resetPwError}</p>
+            )}
+            {resetPwSuccess && (
+              <p className="text-sm text-green-400 bg-green-400/10 border border-green-400/20 rounded-lg px-3 py-2">{resetPwSuccess}</p>
+            )}
+            <Button className="w-full" onClick={handleResetPassword} disabled={resetPwLoading}>
+              {resetPwLoading ? "جاري الحفظ..." : "تغيير كلمة المرور"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!editingUser} onOpenChange={(o) => !o && setEditingUser(null)}>
         <DialogContent>
