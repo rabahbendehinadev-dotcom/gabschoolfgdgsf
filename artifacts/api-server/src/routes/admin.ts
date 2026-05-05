@@ -273,6 +273,23 @@ router.get("/admin/activity-logs", adminAuth, async (req, res) => {
   }
 });
 
+const AdminResetPasswordBody = zod.object({
+  newPassword: zod.string().min(6),
+});
+
+router.post("/admin/users/:id/reset-password", adminAuth, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const body = AdminResetPasswordBody.parse(req.body);
+    const newHash = await hashPassword(body.newPassword);
+    await db.update(usersTable).set({ passwordHash: newHash }).where(eq(usersTable.id, id));
+    await logActivity(null, req.admin!.username, "admin_reset_password", `تم إعادة تعيين كلمة مرور المستخدم #${id}`);
+    res.json({ message: "تم تغيير كلمة المرور بنجاح" });
+  } catch (error: unknown) {
+    res.status(400).json({ message: error instanceof Error ? error.message : "فشل تغيير كلمة المرور" });
+  }
+});
+
 router.post("/admin/users/:id/reset-ip", adminAuth, async (req, res) => {
   try {
     const id = Number(req.params.id);
