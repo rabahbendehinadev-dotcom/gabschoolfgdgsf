@@ -88,6 +88,28 @@ async function runMigrations() {
         created_at TIMESTAMP NOT NULL DEFAULT NOW()
       )
     `);
+
+    // Category management columns (safe, additive, preserves existing data)
+    await db.execute(sql`ALTER TABLE categories ADD COLUMN IF NOT EXISTS name_en VARCHAR(100)`);
+    await db.execute(sql`ALTER TABLE categories ADD COLUMN IF NOT EXISTS description TEXT`);
+    await db.execute(sql`ALTER TABLE categories ADD COLUMN IF NOT EXISTS image_url TEXT`);
+    await db.execute(sql`ALTER TABLE categories ADD COLUMN IF NOT EXISTS accent_color VARCHAR(30)`);
+    await db.execute(sql`ALTER TABLE categories ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0`);
+    await db.execute(sql`ALTER TABLE categories ADD COLUMN IF NOT EXISTS is_visible BOOLEAN NOT NULL DEFAULT true`);
+    await db.execute(sql`ALTER TABLE categories ADD COLUMN IF NOT EXISTS is_featured BOOLEAN NOT NULL DEFAULT false`);
+    await db.execute(sql`ALTER TABLE categories ADD COLUMN IF NOT EXISTS show_on_homepage BOOLEAN NOT NULL DEFAULT true`);
+    await db.execute(sql`ALTER TABLE categories ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW()`);
+    await db.execute(sql`ALTER TABLE categories ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW()`);
+
+    // One-time backfill of sort_order for legacy rows (only when no category has been ordered yet)
+    await db.execute(sql`
+      UPDATE categories c
+      SET sort_order = sub.rn
+      FROM (SELECT id, row_number() OVER (ORDER BY id) AS rn FROM categories) sub
+      WHERE c.id = sub.id
+        AND NOT EXISTS (SELECT 1 FROM categories WHERE sort_order <> 0)
+    `);
+
     console.log("[migrations] Schema up to date.");
   } catch (err) {
     console.error("[migrations] Migration error:", err);
@@ -130,8 +152,8 @@ async function ensureSeed() {
       { name: "Vivo", slug: "vivo", icon: "smartphone" },
       { name: "Nokia", slug: "nokia", icon: "smartphone" },
     ];
-    for (const cat of cats) {
-      await db.insert(categoriesTable).values(cat).onConflictDoNothing();
+    for (let i = 0; i < cats.length; i++) {
+      await db.insert(categoriesTable).values({ ...cats[i], sortOrder: i + 1 }).onConflictDoNothing();
     }
 
     // Only seed plans if the table is completely empty (admin controls plans after first run)

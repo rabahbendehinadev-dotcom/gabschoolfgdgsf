@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, videosTable, categoriesTable, visitLogsTable, playlistsTable, activityLogsTable } from "@workspace/db";
-import { eq, and, asc, sql } from "drizzle-orm";
+import { eq, and, or, asc, sql, isNull } from "drizzle-orm";
 import { optionalUserAuth, userAuth } from "../middlewares/auth";
 
 const router: IRouter = Router();
@@ -10,7 +10,10 @@ router.get("/videos", optionalUserAuth, async (req, res) => {
     const categoryId = req.query.categoryId ? Number(req.query.categoryId) : undefined;
     const search = req.query.search as string | undefined;
 
-    let conditions = [eq(videosTable.isVisible, true)];
+    let conditions = [
+      eq(videosTable.isVisible, true),
+      or(eq(categoriesTable.isVisible, true), isNull(videosTable.categoryId)),
+    ];
     if (categoryId) {
       conditions.push(eq(videosTable.categoryId, categoryId));
     }

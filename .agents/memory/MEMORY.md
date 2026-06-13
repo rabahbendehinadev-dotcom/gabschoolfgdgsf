@@ -1,0 +1,3 @@
+- [Monorepo TS project refs](monorepo-typecheck.md) — after codegen or lib/* source edits, run `pnpm run typecheck:libs` (tsc --build) or web typecheck sees stale dist .d.ts ("property does not exist").
+- [Shared upload endpoint](shared-upload-endpoint.md) — the storage presigned-upload route is intentionally unauthenticated (regular users upload subscription payment proofs); do NOT add adminAuth.
+- [Pre-existing typecheck noise](preexisting-typecheck.md) — api-server/web typecheck is not green at baseline; known unrelated errors exist. Don't chase them when reviewing category/other work.

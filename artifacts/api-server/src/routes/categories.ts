@@ -1,11 +1,16 @@
 import { Router, type IRouter } from "express";
 import { db, categoriesTable } from "@workspace/db";
+import { asc, eq } from "drizzle-orm";
 
 const router: IRouter = Router();
 
 router.get("/categories", async (_req, res) => {
   try {
-    const categories = await db.select().from(categoriesTable);
+    const categories = await db
+      .select()
+      .from(categoriesTable)
+      .where(eq(categoriesTable.isVisible, true))
+      .orderBy(asc(categoriesTable.sortOrder), asc(categoriesTable.id));
     res.json(categories);
   } catch (error: unknown) {
     res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" || "Failed to fetch categories" });

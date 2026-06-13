@@ -533,6 +533,27 @@ paths:
               schema:
                 $ref: "#/components/schemas/Category"
 
+  /admin/categories/reorder:
+    post:
+      operationId: reorderCategories
+      tags: [admin]
+      summary: Reorder categories
+      security:
+        - adminAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReorderCategoriesInput"
+      responses:
+        "200":
+          description: Categories reordered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
   /admin/categories/{id}:
     patch:
       operationId: updateCategory
@@ -1025,6 +1046,24 @@ components:
       required:
         - items
 
+    ReorderCategoriesInput:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              sortOrder:
+                type: integer
+            required:
+              - id
+              - sortOrder
+      required:
+        - items
+
     PlaylistVideo:
       type: object
       properties:
@@ -1126,24 +1165,78 @@ components:
           type: integer
         name:
           type: string
+        nameEn:
+          type: string
+          nullable: true
         slug:
           type: string
         icon:
           type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        imageUrl:
+          type: string
+          nullable: true
+        accentColor:
+          type: string
+          nullable: true
+        sortOrder:
+          type: integer
+        isVisible:
+          type: boolean
+        isFeatured:
+          type: boolean
+        showOnHomepage:
+          type: boolean
+        lessonCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
       required:
         - id
         - name
         - slug
+        - sortOrder
+        - isVisible
+        - isFeatured
+        - showOnHomepage
 
     CreateCategoryInput:
       type: object
       properties:
         name:
           type: string
+        nameEn:
+          type: string
+          nullable: true
         slug:
           type: string
         icon:
           type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        imageUrl:
+          type: string
+          nullable: true
+        accentColor:
+          type: string
+          nullable: true
+        sortOrder:
+          type: integer
+        isVisible:
+          type: boolean
+        isFeatured:
+          type: boolean
+        showOnHomepage:
+          type: boolean
       required:
         - name
         - slug
@@ -1153,10 +1246,31 @@ components:
       properties:
         name:
           type: string
+        nameEn:
+          type: string
+          nullable: true
         slug:
           type: string
         icon:
           type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        imageUrl:
+          type: string
+          nullable: true
+        accentColor:
+          type: string
+          nullable: true
+        sortOrder:
+          type: integer
+        isVisible:
+          type: boolean
+        isFeatured:
+          type: boolean
+        showOnHomepage:
+          type: boolean
 
     SubscriptionPlan:
       type: object

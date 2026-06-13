@@ -9,6 +9,17 @@
 export interface Category {
   id: number;
   name: string;
+  nameEn?: string | null;
   slug: string;
-  icon?: string;
+  icon?: string | null;
+  description?: string | null;
+  imageUrl?: string | null;
+  accentColor?: string | null;
+  sortOrder: number;
+  isVisible: boolean;
+  isFeatured: boolean;
+  showOnHomepage: boolean;
+  lessonCount?: number;
+  createdAt?: Date;
+  updatedAt?: Date;
 }

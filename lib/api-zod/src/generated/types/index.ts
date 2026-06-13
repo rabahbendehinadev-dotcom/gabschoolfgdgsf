@@ -32,6 +32,8 @@ export * from "./playlist";
 export * from "./playlistVideo";
 export * from "./playlistVideoAccessType";
 export * from "./registerInput";
+export * from "./reorderCategoriesInput";
+export * from "./reorderCategoriesInputItemsItem";
 export * from "./reorderVideosInput";
 export * from "./reorderVideosInputItemsItem";
 export * from "./subscriptionPlan";

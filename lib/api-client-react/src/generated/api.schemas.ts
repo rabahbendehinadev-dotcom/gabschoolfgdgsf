@@ -188,6 +188,15 @@ export interface ReorderVideosInput {
   items: ReorderVideosInputItemsItem[];
 }
 
+export type ReorderCategoriesInputItemsItem = {
+  id: number;
+  sortOrder: number;
+};
+
+export interface ReorderCategoriesInput {
+  items: ReorderCategoriesInputItemsItem[];
+}
+
 export type PlaylistVideoAccessType =
   (typeof PlaylistVideoAccessType)[keyof typeof PlaylistVideoAccessType];
 
@@ -239,20 +248,47 @@ export interface UpdatePlaylistInput {
 export interface Category {
   id: number;
   name: string;
+  nameEn?: string | null;
   slug: string;
-  icon?: string;
+  icon?: string | null;
+  description?: string | null;
+  imageUrl?: string | null;
+  accentColor?: string | null;
+  sortOrder: number;
+  isVisible: boolean;
+  isFeatured: boolean;
+  showOnHomepage: boolean;
+  lessonCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface CreateCategoryInput {
   name: string;
+  nameEn?: string | null;
   slug: string;
-  icon?: string;
+  icon?: string | null;
+  description?: string | null;
+  imageUrl?: string | null;
+  accentColor?: string | null;
+  sortOrder?: number;
+  isVisible?: boolean;
+  isFeatured?: boolean;
+  showOnHomepage?: boolean;
 }
 
 export interface UpdateCategoryInput {
   name?: string;
+  nameEn?: string | null;
   slug?: string;
-  icon?: string;
+  icon?: string | null;
+  description?: string | null;
+  imageUrl?: string | null;
+  accentColor?: string | null;
+  sortOrder?: number;
+  isVisible?: boolean;
+  isFeatured?: boolean;
+  showOnHomepage?: boolean;
 }
 
 export interface SubscriptionPlan {

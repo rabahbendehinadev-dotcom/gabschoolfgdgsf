@@ -104,13 +104,17 @@ export function AdminVideos() {
   /* ── DnD state ── */
   const [orderedVideos, setOrderedVideos] = useState<AdminVideo[]>([]);
   const [hasOrderChanges, setHasOrderChanges] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState<number | "all">("all");
 
   useEffect(() => {
     if (videos) {
-      setOrderedVideos(videos);
+      const scoped = categoryFilter === "all"
+        ? videos
+        : videos.filter(v => v.categoryId === categoryFilter);
+      setOrderedVideos(scoped);
       setHasOrderChanges(false);
     }
-  }, [videos]);
+  }, [videos, categoryFilter]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -144,7 +148,12 @@ export function AdminVideos() {
   };
 
   const handleCancelOrder = () => {
-    if (videos) setOrderedVideos(videos);
+    if (videos) {
+      const scoped = categoryFilter === "all"
+        ? videos
+        : videos.filter(v => v.categoryId === categoryFilter);
+      setOrderedVideos(scoped);
+    }
     setHasOrderChanges(false);
   };
 
@@ -288,6 +297,24 @@ export function AdminVideos() {
         <Button onClick={() => handleOpen()}>
           <Plus className="w-4 h-4 ml-2" /> إضافة فيديو
         </Button>
+      </div>
+
+      {/* فلتر القسم لإعادة ترتيب الدروس داخل كل قسم */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <span className="text-sm font-medium text-foreground/70">تصفية حسب القسم:</span>
+        <select
+          value={categoryFilter}
+          onChange={(e) => setCategoryFilter(e.target.value === "all" ? "all" : Number(e.target.value))}
+          className="h-9 rounded-md border border-white/10 bg-white/5 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+        >
+          <option value="all">كل الأقسام</option>
+          {categories?.map(c => (
+            <option key={c.id} value={c.id}>{c.name}{c.isVisible ? "" : " (مخفي)"}</option>
+          ))}
+        </select>
+        {categoryFilter !== "all" && (
+          <span className="text-xs text-muted-foreground">اسحب لترتيب دروس هذا القسم — {orderedVideos.length} درس</span>
+        )}
       </div>
 
       {/* Save order bar */}

@@ -451,23 +451,75 @@ router.delete("/admin/videos/:id", adminAuth, async (req, res) => {
 
 router.get("/admin/categories", adminAuth, async (_req, res) => {
   try {
-    const categories = await db.select().from(categoriesTable);
-    res.json(categories);
+    const categories = await db.select().from(categoriesTable)
+      .orderBy(asc(categoriesTable.sortOrder), asc(categoriesTable.id));
+    const counts = await db
+      .select({ categoryId: videosTable.categoryId, c: count() })
+      .from(videosTable)
+      .groupBy(videosTable.categoryId);
+    const countMap = new Map(counts.map(r => [r.categoryId, Number(r.c)]));
+    res.json(categories.map(cat => ({ ...cat, lessonCount: countMap.get(cat.id) ?? 0 })));
   } catch (error: unknown) {
     res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" || "Failed to fetch categories" });
+  }
+});
+
+router.post("/admin/categories/reorder", adminAuth, async (req, res) => {
+  try {
+    const { items } = req.body as { items: { id: number; sortOrder: number }[] };
+    if (!Array.isArray(items) || items.length === 0) {
+      res.status(400).json({ message: "items required" });
+      return;
+    }
+    const seen = new Set<number>();
+    for (const it of items) {
+      if (
+        !it ||
+        !Number.isInteger(it.id) || it.id <= 0 ||
+        !Number.isInteger(it.sortOrder) || it.sortOrder < 0
+      ) {
+        res.status(400).json({ message: "invalid items: id and sortOrder must be valid integers" });
+        return;
+      }
+      if (seen.has(it.id)) {
+        res.status(400).json({ message: "duplicate category id in items" });
+        return;
+      }
+      seen.add(it.id);
+    }
+    await db.transaction(async (tx) => {
+      const now = new Date();
+      for (const { id, sortOrder } of items) {
+        await tx.update(categoriesTable).set({ sortOrder, updatedAt: now }).where(eq(categoriesTable.id, id));
+      }
+    });
+    res.json({ message: "Reordered successfully" });
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Failed to reorder" });
   }
 });
 
 router.post("/admin/categories", adminAuth, async (req, res) => {
   try {
     const body = CreateCategoryBody.parse(req.body);
+    const [{ maxOrder }] = await db
+      .select({ maxOrder: sql<number>`COALESCE(MAX(${categoriesTable.sortOrder}), -1)` })
+      .from(categoriesTable);
     const [category] = await db.insert(categoriesTable).values({
       name: body.name,
+      nameEn: body.nameEn ?? null,
       slug: body.slug,
       icon: body.icon ?? null,
+      description: body.description ?? null,
+      imageUrl: body.imageUrl ?? null,
+      accentColor: body.accentColor ?? null,
+      sortOrder: body.sortOrder ?? Number(maxOrder) + 1,
+      isVisible: body.isVisible ?? true,
+      isFeatured: body.isFeatured ?? false,
+      showOnHomepage: body.showOnHomepage ?? true,
     }).returning();
 
-    res.status(201).json(category);
+    res.status(201).json({ ...category, lessonCount: 0 });
   } catch (error: unknown) {
     res.status(400).json({ message: error instanceof Error ? error.message : "Unknown error" || "Failed to create category" });
   }
@@ -478,10 +530,18 @@ router.patch("/admin/categories/:id", adminAuth, async (req, res) => {
     const id = Number(req.params.id);
     const body = UpdateCategoryBody.parse(req.body);
 
-    const updateData: Partial<Record<string, unknown>> = {};
+    const updateData: Partial<Record<string, unknown>> = { updatedAt: new Date() };
     if (body.name !== undefined) updateData.name = body.name;
+    if ("nameEn" in body) updateData.nameEn = body.nameEn ?? null;
     if (body.slug !== undefined) updateData.slug = body.slug;
-    if (body.icon !== undefined) updateData.icon = body.icon;
+    if ("icon" in body) updateData.icon = body.icon ?? null;
+    if ("description" in body) updateData.description = body.description ?? null;
+    if ("imageUrl" in body) updateData.imageUrl = body.imageUrl ?? null;
+    if ("accentColor" in body) updateData.accentColor = body.accentColor ?? null;
+    if (body.sortOrder !== undefined) updateData.sortOrder = body.sortOrder;
+    if (body.isVisible !== undefined) updateData.isVisible = body.isVisible;
+    if (body.isFeatured !== undefined) updateData.isFeatured = body.isFeatured;
+    if (body.showOnHomepage !== undefined) updateData.showOnHomepage = body.showOnHomepage;
 
     const [category] = await db.update(categoriesTable).set(updateData)
       .where(eq(categoriesTable.id, id)).returning();
@@ -500,6 +560,11 @@ router.patch("/admin/categories/:id", adminAuth, async (req, res) => {
 router.delete("/admin/categories/:id", adminAuth, async (req, res) => {
   try {
     const id = Number(req.params.id);
+    const [{ c }] = await db.select({ c: count() }).from(videosTable).where(eq(videosTable.categoryId, id));
+    if (Number(c) > 0) {
+      res.status(409).json({ message: `لا يمكن حذف هذا القسم لأنه يحتوي على ${Number(c)} درس. انقل الدروس إلى قسم آخر أو احذفها أولاً.` });
+      return;
+    }
     await db.delete(categoriesTable).where(eq(categoriesTable.id, id));
     res.json({ message: "Category deleted successfully" });
   } catch (error: unknown) {

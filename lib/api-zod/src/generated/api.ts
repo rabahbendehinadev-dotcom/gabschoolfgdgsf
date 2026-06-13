@@ -157,8 +157,19 @@ export const GetVideoResponse = zod.object({
 export const GetCategoriesResponseItem = zod.object({
   id: zod.number(),
   name: zod.string(),
+  nameEn: zod.string().nullish(),
   slug: zod.string(),
-  icon: zod.string().optional(),
+  icon: zod.string().nullish(),
+  description: zod.string().nullish(),
+  imageUrl: zod.string().nullish(),
+  accentColor: zod.string().nullish(),
+  sortOrder: zod.number(),
+  isVisible: zod.boolean(),
+  isFeatured: zod.boolean(),
+  showOnHomepage: zod.boolean(),
+  lessonCount: zod.number().optional(),
+  createdAt: zod.date().optional(),
+  updatedAt: zod.date().optional(),
 });
 export const GetCategoriesResponse = zod.array(GetCategoriesResponseItem);
 
@@ -436,8 +447,19 @@ export const ReorderVideosResponse = zod.object({
 export const GetAdminCategoriesResponseItem = zod.object({
   id: zod.number(),
   name: zod.string(),
+  nameEn: zod.string().nullish(),
   slug: zod.string(),
-  icon: zod.string().optional(),
+  icon: zod.string().nullish(),
+  description: zod.string().nullish(),
+  imageUrl: zod.string().nullish(),
+  accentColor: zod.string().nullish(),
+  sortOrder: zod.number(),
+  isVisible: zod.boolean(),
+  isFeatured: zod.boolean(),
+  showOnHomepage: zod.boolean(),
+  lessonCount: zod.number().optional(),
+  createdAt: zod.date().optional(),
+  updatedAt: zod.date().optional(),
 });
 export const GetAdminCategoriesResponse = zod.array(
   GetAdminCategoriesResponseItem,
@@ -448,8 +470,32 @@ export const GetAdminCategoriesResponse = zod.array(
  */
 export const CreateCategoryBody = zod.object({
   name: zod.string(),
+  nameEn: zod.string().nullish(),
   slug: zod.string(),
-  icon: zod.string().optional(),
+  icon: zod.string().nullish(),
+  description: zod.string().nullish(),
+  imageUrl: zod.string().nullish(),
+  accentColor: zod.string().nullish(),
+  sortOrder: zod.number().optional(),
+  isVisible: zod.boolean().optional(),
+  isFeatured: zod.boolean().optional(),
+  showOnHomepage: zod.boolean().optional(),
+});
+
+/**
+ * @summary Reorder categories
+ */
+export const ReorderCategoriesBody = zod.object({
+  items: zod.array(
+    zod.object({
+      id: zod.number(),
+      sortOrder: zod.number(),
+    }),
+  ),
+});
+
+export const ReorderCategoriesResponse = zod.object({
+  message: zod.string(),
 });
 
 /**
@@ -461,15 +507,34 @@ export const UpdateCategoryParams = zod.object({
 
 export const UpdateCategoryBody = zod.object({
   name: zod.string().optional(),
+  nameEn: zod.string().nullish(),
   slug: zod.string().optional(),
-  icon: zod.string().optional(),
+  icon: zod.string().nullish(),
+  description: zod.string().nullish(),
+  imageUrl: zod.string().nullish(),
+  accentColor: zod.string().nullish(),
+  sortOrder: zod.number().optional(),
+  isVisible: zod.boolean().optional(),
+  isFeatured: zod.boolean().optional(),
+  showOnHomepage: zod.boolean().optional(),
 });
 
 export const UpdateCategoryResponse = zod.object({
   id: zod.number(),
   name: zod.string(),
+  nameEn: zod.string().nullish(),
   slug: zod.string(),
-  icon: zod.string().optional(),
+  icon: zod.string().nullish(),
+  description: zod.string().nullish(),
+  imageUrl: zod.string().nullish(),
+  accentColor: zod.string().nullish(),
+  sortOrder: zod.number(),
+  isVisible: zod.boolean(),
+  isFeatured: zod.boolean(),
+  showOnHomepage: zod.boolean(),
+  lessonCount: zod.number().optional(),
+  createdAt: zod.date().optional(),
+  updatedAt: zod.date().optional(),
 });
 
 /**
