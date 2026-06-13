@@ -13,6 +13,7 @@ export interface CategoryMeta {
   Icon: LucideIcon;
   gradient: string;
   text: string;
+  color: string;
 }
 
 const DEFAULT_META: CategoryMeta = {
@@ -20,6 +21,7 @@ const DEFAULT_META: CategoryMeta = {
   Icon: Smartphone,
   gradient: "from-primary/15 to-orange-600/5",
   text: "text-primary",
+  color: "#F97316",
 };
 
 const ENTRIES: { keywords: string[]; meta: CategoryMeta }[] = [
@@ -30,6 +32,7 @@ const ENTRIES: { keywords: string[]; meta: CategoryMeta }[] = [
       Icon: Smartphone,
       gradient: "from-blue-500/15 to-blue-600/5",
       text: "text-blue-600",
+      color: "#2563EB",
     },
   },
   {
@@ -39,6 +42,7 @@ const ENTRIES: { keywords: string[]; meta: CategoryMeta }[] = [
       Icon: Smartphone,
       gradient: "from-slate-500/15 to-slate-700/5",
       text: "text-slate-700",
+      color: "#334155",
     },
   },
   {
@@ -48,6 +52,7 @@ const ENTRIES: { keywords: string[]; meta: CategoryMeta }[] = [
       Icon: Tablet,
       gradient: "from-zinc-500/15 to-zinc-600/5",
       text: "text-zinc-600",
+      color: "#52525B",
     },
   },
   {
@@ -57,6 +62,7 @@ const ENTRIES: { keywords: string[]; meta: CategoryMeta }[] = [
       Icon: Laptop,
       gradient: "from-gray-500/15 to-gray-700/5",
       text: "text-gray-700",
+      color: "#374151",
     },
   },
   {
@@ -66,6 +72,7 @@ const ENTRIES: { keywords: string[]; meta: CategoryMeta }[] = [
       Icon: Smartphone,
       gradient: "from-orange-500/15 to-orange-600/5",
       text: "text-orange-600",
+      color: "#EA580C",
     },
   },
   {
@@ -75,6 +82,7 @@ const ENTRIES: { keywords: string[]; meta: CategoryMeta }[] = [
       Icon: Smartphone,
       gradient: "from-green-500/15 to-green-600/5",
       text: "text-green-600",
+      color: "#16A34A",
     },
   },
   {
@@ -84,6 +92,7 @@ const ENTRIES: { keywords: string[]; meta: CategoryMeta }[] = [
       Icon: Smartphone,
       gradient: "from-yellow-500/15 to-yellow-600/5",
       text: "text-yellow-600",
+      color: "#CA8A04",
     },
   },
   {
@@ -93,6 +102,7 @@ const ENTRIES: { keywords: string[]; meta: CategoryMeta }[] = [
       Icon: Smartphone,
       gradient: "from-red-500/15 to-red-600/5",
       text: "text-red-600",
+      color: "#DC2626",
     },
   },
   {
@@ -102,6 +112,7 @@ const ENTRIES: { keywords: string[]; meta: CategoryMeta }[] = [
       Icon: Smartphone,
       gradient: "from-rose-500/15 to-rose-600/5",
       text: "text-rose-600",
+      color: "#E11D48",
     },
   },
   {
@@ -111,6 +122,7 @@ const ENTRIES: { keywords: string[]; meta: CategoryMeta }[] = [
       Icon: Server,
       gradient: "from-cyan-500/15 to-cyan-600/5",
       text: "text-cyan-600",
+      color: "#0891B2",
     },
   },
   {
@@ -120,6 +132,7 @@ const ENTRIES: { keywords: string[]; meta: CategoryMeta }[] = [
       Icon: KeyRound,
       gradient: "from-purple-500/15 to-violet-600/5",
       text: "text-purple-600",
+      color: "#9333EA",
     },
   },
   {
@@ -129,6 +142,7 @@ const ENTRIES: { keywords: string[]; meta: CategoryMeta }[] = [
       Icon: Gift,
       gradient: "from-emerald-500/15 to-emerald-600/5",
       text: "text-emerald-600",
+      color: "#059669",
     },
   },
 ];
