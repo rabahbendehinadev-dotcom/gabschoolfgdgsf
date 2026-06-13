@@ -79,3 +79,52 @@
     @apply bg-clip-text text-transparent bg-gradient-to-r from-orange-500 to-amber-500;
   }
 }
+
+@layer components {
+  /* بطاقة القسم — تفاعلات اللون المعتمد على متغيّر --accent */
+  .cat-card {
+    transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+  }
+  .cat-card:hover {
+    transform: translateY(-6px);
+    border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+    box-shadow: 0 24px 48px -18px color-mix(in srgb, var(--accent) 40%, transparent);
+  }
+  .cat-card-link:focus-visible .cat-card {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent),
+      0 18px 36px -18px color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+  .cat-card:active {
+    transform: translateY(-2px) scale(0.99);
+  }
+
+  .cat-card .cat-logo {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+  }
+  .cat-card:hover .cat-logo {
+    transform: translateY(-4px) scale(1.04);
+    box-shadow: 0 18px 38px -8px color-mix(in srgb, var(--accent) 40%, rgba(15, 23, 42, 0.25));
+  }
+
+  .cat-card:hover .cat-name {
+    color: var(--accent);
+  }
+
+  .cat-card .cat-arrow-btn {
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, transform 0.3s ease;
+    border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+    color: var(--accent);
+  }
+  .cat-card .cat-arrow-btn svg {
+    transition: transform 0.3s ease;
+  }
+  .cat-card:hover .cat-arrow-btn {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+  .cat-card:hover .cat-arrow-btn svg {
+    transform: translateX(-3px);
+  }
+}
