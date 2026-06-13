@@ -1,9 +1,9 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Link, useSearch, useLocation } from "wouter";
 import { useGetVideos, useGetCategories } from "@workspace/api-client-react/src/generated/api";
 import { useAuth } from "@/lib/auth";
 import { Card, Badge, Button, Input, Dialog, DialogContent } from "@/components/ui";
-import { Search, Crown, PlayCircle, Lock, X, Rocket, ChevronLeft, LayoutGrid, Play, Sparkles } from "lucide-react";
+import { Search, Crown, PlayCircle, Lock, X, Rocket, LayoutGrid, Play, Sparkles } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { CategoryCard } from "@/components/public/CategoryCard";
 import { LessonCard } from "@/components/public/LessonCard";
@@ -20,9 +20,17 @@ export function Videos() {
   const categoryIdParam = new URLSearchParams(searchString).get("categoryId");
   const categoryId = categoryIdParam ? Number(categoryIdParam) : undefined;
 
+  const lessonsRef = useRef<HTMLDivElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
+
   const selectCategory = (id?: number) => {
     setSearch("");
     navigate(id ? `/videos?categoryId=${id}` : "/videos");
+    if (!id) {
+      requestAnimationFrame(() =>
+        gridRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+      );
+    }
   };
 
   /* ── طلب مستقل لجلب كل الفيديوهات (للفيديو المجاني + عدّ الدروس لكل قسم) ── */
@@ -73,6 +81,14 @@ export function Videos() {
   /* القسم المحدّد: الدروس مرتبة تسلسلياً (الـAPI يرتّبها حسب sortOrder) */
   const lessons = videos ?? [];
 
+  /* عند اختيار قسم: انزل تلقائياً إلى قسم الدروس بالأسفل
+     (نعتمد أيضاً على activeCategory لتعمل عند الدخول المباشر برابط ?categoryId=) */
+  useEffect(() => {
+    if (categoryId && activeCategory && lessonsRef.current) {
+      lessonsRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [categoryId, activeCategory]);
+
   return (
     <div className="min-h-screen">
 
@@ -106,27 +122,12 @@ export function Videos() {
       </Dialog>
 
       {/* ════════════════════════════════════════════════════
-           الوضع B — قسم محدّد: مسار تعليمي مرتب
+           صفحة موحّدة: كروت الأقسام أعلى + دروس القسم المختار أسفل
       ════════════════════════════════════════════════════ */}
-      {activeCategory ? (
-        <CategoryDetail
-          category={activeCategory}
-          lessons={lessons}
-          isLoading={isLoading}
-          accessInfo={accessInfo}
-          hrefFor={hrefFor}
-          onBack={() => selectCategory(undefined)}
-          isLocked={isLocked}
-          isDemo={isDemo}
-        />
-      ) : (
-        /* ════════════════════════════════════════════════════
-             الوضع A — الصفحة الرئيسية للدورات
-        ════════════════════════════════════════════════════ */
-        <>
-          {/* Hero — الفيديو المجاني */}
+      <>
+          {/* Hero — الفيديو المجاني (يظهر في العرض الأولي فقط) */}
           <AnimatePresence>
-            {freeVideo && (
+            {!activeCategory && !isSearching && freeVideo && (
               <motion.section
                 key="free-hero"
                 initial={{ opacity: 0, y: -20 }}
@@ -201,10 +202,10 @@ export function Videos() {
           {/* ── الأقسام / البحث ── */}
           <div className="container mx-auto px-4 py-12">
             {/* ترويسة + بحث */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10">
+            <div ref={gridRef} className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10 scroll-mt-24">
               <div>
                 <h1 className="text-3xl md:text-4xl font-bold mb-2">اختر القسم الذي تريد تعلّمه</h1>
-                <p className="text-foreground/60">كل قسم يحتوي على دروسه الخاصة مرتبة كمسار تعليمي متكامل</p>
+                <p className="text-foreground/60">اختر قسماً من الكروت بالأعلى لتظهر دروسه بالأسفل، مرتّبة كمسار تعليمي متكامل</p>
               </div>
               <div className="w-full md:w-96 relative">
                 <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
@@ -227,12 +228,12 @@ export function Videos() {
                 onClear={() => setSearch("")}
               />
             ) : (
-              /* شبكة بطاقات الأقسام */
+              /* شبكة بطاقات الأقسام (أعلى) ثم دروس القسم المختار (أسفل) */
               <>
                 {!categories ? (
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {[1,2,3,4,5,6,7,8].map(i => (
-                      <Card key={i} className="h-44 animate-pulse bg-muted/50 border-border" />
+                      <Card key={i} className="h-80 animate-pulse bg-muted/50 border-border rounded-3xl" />
                     ))}
                   </div>
                 ) : categories.length === 0 ? (
@@ -242,22 +243,38 @@ export function Videos() {
                     <p className="text-muted-foreground">سيتم إضافة الأقسام قريباً</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {categories.map((cat, i) => (
                       <CategoryCard
                         key={cat.id}
                         category={cat}
                         lessonCount={countByCategory.get(cat.id) ?? 0}
                         index={i}
+                        active={cat.id === categoryId}
                       />
                     ))}
                   </div>
+                )}
+
+                {/* ── قسم الدروس: يظهر فقط بعد اختيار قسم ── */}
+                {activeCategory && (
+                  <section ref={lessonsRef} className="mt-14 scroll-mt-24 border-t border-border pt-10">
+                    <CategoryDetail
+                      category={activeCategory}
+                      lessons={lessons}
+                      isLoading={isLoading}
+                      accessInfo={accessInfo}
+                      hrefFor={hrefFor}
+                      onBack={() => selectCategory(undefined)}
+                      isLocked={isLocked}
+                      isDemo={isDemo}
+                    />
+                  </section>
                 )}
               </>
             )}
           </div>
         </>
-      )}
     </div>
   );
 }
@@ -321,6 +338,15 @@ function SearchResults({
   );
 }
 
+/* يتحقّق من صحّة لون الـaccent القادم من لوحة التحكم قبل حقنه في CSS */
+function safeAccent(input?: string | null): string {
+  const c = (input || "").trim();
+  if (!c) return "";
+  if (/^#([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(c)) return c;
+  if (/^(rgb|hsl)a?\([0-9.,%\s/]+\)$/i.test(c)) return c;
+  return "";
+}
+
 /* ═══════════════════════════════════════════════════════════
      تفاصيل القسم — مسار تعليمي مرتب (الحلقة 1، 2، 3...)
 ═══════════════════════════════════════════════════════════ */
@@ -346,7 +372,7 @@ function CategoryDetail({
   const meta = getCategoryMeta(category.name, category.slug);
   const Icon = meta.Icon;
   const isEmojiIcon = !!category.icon && /\p{Extended_Pictographic}/u.test(category.icon);
-  const accent = category.accentColor || "";
+  const accent = safeAccent(category.accentColor);
   const description = category.description || meta.description;
   const imageUrl = (() => {
     const u = category.imageUrl || "";
@@ -359,16 +385,7 @@ function CategoryDetail({
   })();
 
   return (
-    <div className="container mx-auto px-4 py-8 md:py-10">
-      {/* Breadcrumb */}
-      <nav className="flex items-center gap-2 text-sm text-foreground/55 mb-6 flex-wrap">
-        <Link href="/" className="hover:text-primary transition-colors">الرئيسية</Link>
-        <ChevronLeft className="w-4 h-4" />
-        <Link href="/videos" className="hover:text-primary transition-colors">الدورات</Link>
-        <ChevronLeft className="w-4 h-4" />
-        <span className="text-primary font-semibold">{category.name}</span>
-      </nav>
-
+    <div>
       {/* Header / Banner للقسم */}
       <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-primary/5 via-card to-background p-6 md:p-8 mb-8">
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5">

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "wouter";
 import { motion } from "framer-motion";
-import { ArrowLeft, PlayCircle, Star } from "lucide-react";
+import { ArrowLeft, PlayCircle, Star, Check } from "lucide-react";
 import { Category } from "@workspace/api-client-react/src/generated/api.schemas";
 import { getCategoryMeta } from "@/lib/categoryMeta";
 
@@ -9,6 +9,7 @@ interface CategoryCardProps {
   category: Category;
   lessonCount: number;
   index?: number;
+  active?: boolean;
 }
 
 /* يطبّع روابط localhost المخزّنة إلى مسار نسبي يعمل خلف البروكسي */
@@ -41,7 +42,7 @@ function lessonsLabel(n: number) {
   return `${n} درساً`;
 }
 
-export function CategoryCard({ category, lessonCount, index = 0 }: CategoryCardProps) {
+export function CategoryCard({ category, lessonCount, index = 0, active = false }: CategoryCardProps) {
   const meta = getCategoryMeta(category.name, category.slug);
   const Icon = meta.Icon;
   const [imgError, setImgError] = useState(false);
@@ -60,17 +61,22 @@ export function CategoryCard({ category, lessonCount, index = 0 }: CategoryCardP
       transition={{ delay: (index % 8) * 0.06, duration: 0.4 }}
       className="h-full"
     >
-      <Link href={`/videos?categoryId=${category.id}`} className="cat-card-link block h-full outline-none">
+      <Link
+        href={`/videos?categoryId=${category.id}`}
+        className="cat-card-link block h-full outline-none"
+      >
         <article
           style={{ ["--accent" as string]: accent } as React.CSSProperties}
+          data-active={active ? "true" : undefined}
           aria-label={category.name}
-          className="cat-card group relative flex h-full cursor-pointer flex-col overflow-hidden rounded-3xl border border-border bg-card shadow-[0_2px_14px_rgba(15,23,42,0.05)]"
+          aria-current={active ? "true" : undefined}
+          className="cat-card group relative flex h-full cursor-pointer flex-col overflow-hidden rounded-3xl border border-border bg-card shadow-[0_2px_16px_rgba(15,23,42,0.05)]"
         >
-          {/* شريط الغلاف الملوّن */}
+          {/* ── منطقة الصورة الكبيرة ── */}
           <div
-            className="relative h-24 w-full overflow-hidden"
+            className="relative aspect-[16/10] w-full overflow-hidden"
             style={{
-              backgroundImage: `linear-gradient(135deg, color-mix(in srgb, ${accent} 20%, transparent), color-mix(in srgb, ${accent} 4%, transparent))`,
+              backgroundImage: `linear-gradient(140deg, color-mix(in srgb, ${accent} 18%, transparent), color-mix(in srgb, ${accent} 5%, transparent))`,
             }}
           >
             {/* نقش دوائر دقيق يعكس هوية فكّ الشفرات */}
@@ -80,61 +86,64 @@ export function CategoryCard({ category, lessonCount, index = 0 }: CategoryCardP
                 color: accent,
                 opacity: 0.1,
                 backgroundImage: "radial-gradient(currentColor 1.5px, transparent 1.5px)",
-                backgroundSize: "14px 14px",
+                backgroundSize: "16px 16px",
               }}
             />
             {/* توهّج ناعم */}
             <div
-              className="absolute -top-10 -left-6 h-28 w-28 rounded-full blur-2xl"
-              style={{ background: `color-mix(in srgb, ${accent} 28%, transparent)` }}
+              className="absolute -top-12 -left-10 h-40 w-40 rounded-full blur-3xl"
+              style={{ background: `color-mix(in srgb, ${accent} 26%, transparent)` }}
             />
 
+            {/* الصورة / الأيقونة */}
+            <div className="cat-media absolute inset-0 flex items-center justify-center p-6">
+              {hasImage ? (
+                <img
+                  src={imageUrl}
+                  alt={category.name}
+                  loading="lazy"
+                  className="h-full w-full object-contain drop-shadow-sm"
+                  onError={() => setImgError(true)}
+                />
+              ) : isEmojiIcon ? (
+                <span className="text-6xl leading-none drop-shadow-sm">{category.icon}</span>
+              ) : (
+                <Icon className="h-20 w-20" style={{ color: accent }} strokeWidth={1.5} />
+              )}
+            </div>
+
             {/* شارة عدد الدروس */}
-            <span className="absolute left-4 top-4 z-10 inline-flex items-center gap-1.5 rounded-full bg-white/85 px-2.5 py-1 text-[11px] font-bold text-foreground/70 shadow-sm backdrop-blur-sm">
+            <span className="absolute right-4 top-4 z-10 inline-flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1 text-xs font-bold text-foreground/75 shadow-sm backdrop-blur-sm">
               <PlayCircle className="h-3.5 w-3.5" style={{ color: accent }} />
               {lessonsLabel(lessonCount)}
             </span>
 
-            {/* شارة قسم مميّز */}
-            {category.isFeatured && (
+            {/* شارة الحالة: محدّد / مميّز */}
+            {active ? (
               <span
-                className="absolute right-4 top-4 z-10 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-extrabold text-white shadow-sm"
+                className="absolute left-4 top-4 z-10 inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-extrabold text-white shadow-sm"
+                style={{ background: accent }}
+              >
+                <Check className="h-3.5 w-3.5" />
+                محدّد
+              </span>
+            ) : category.isFeatured ? (
+              <span
+                className="absolute left-4 top-4 z-10 inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-extrabold text-white shadow-sm"
                 style={{ background: accent }}
               >
                 <Star className="h-3 w-3 fill-current" />
                 مميّز
               </span>
-            )}
+            ) : null}
           </div>
 
-          {/* بلاطة الشعار العائمة */}
-          <div className="cat-logo absolute right-5 top-[60px] z-20 flex h-[68px] w-[68px] items-center justify-center overflow-hidden rounded-2xl bg-white shadow-[0_10px_30px_-8px_rgba(15,23,42,0.22)] ring-1 ring-black/5">
-            {hasImage ? (
-              <img
-                src={imageUrl}
-                alt={category.name}
-                className="h-full w-full object-contain p-2"
-                loading="lazy"
-                onError={() => setImgError(true)}
-              />
-            ) : isEmojiIcon ? (
-              <span className="text-3xl leading-none">{category.icon}</span>
-            ) : (
-              <span
-                className="flex h-full w-full items-center justify-center"
-                style={{ background: `color-mix(in srgb, ${accent} 12%, transparent)` }}
-              >
-                <Icon className="h-8 w-8" style={{ color: accent }} />
-              </span>
-            )}
-          </div>
-
-          {/* المحتوى */}
-          <div className="flex flex-1 flex-col px-5 pb-5 pt-11">
-            <h3 className="cat-name mb-1.5 font-display text-lg font-extrabold leading-tight text-foreground transition-colors">
+          {/* ── المحتوى ── */}
+          <div className="flex flex-1 flex-col p-5">
+            <h3 className="cat-name font-display text-xl font-extrabold leading-tight text-foreground transition-colors">
               {category.name}
             </h3>
-            <p className="mb-5 line-clamp-2 flex-1 text-sm leading-relaxed text-muted-foreground">
+            <p className="mb-5 mt-1.5 line-clamp-2 flex-1 text-sm leading-relaxed text-muted-foreground">
               {description}
             </p>
 
