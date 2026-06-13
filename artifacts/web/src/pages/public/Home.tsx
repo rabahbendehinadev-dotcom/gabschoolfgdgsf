@@ -289,20 +289,13 @@ export function Home() {
       ══════════════════════════════════ */}
       <section className="py-24">
         <div className="container mx-auto px-4">
-          <div className="flex justify-between items-end mb-12">
-            <div>
-              <h2 className="text-3xl md:text-4xl font-bold mb-4">ماركات الهواتف المدعومة</h2>
-              <p className="text-foreground/60">اختر الماركة لتصفح الدروس الخاصة بها</p>
-            </div>
-            <Link href="/videos">
-              <Button variant="ghost" className="hidden sm:flex text-primary hover:text-primary/80">
-                عرض الكل <span className="mr-2">←</span>
-              </Button>
-            </Link>
+          <div className="mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">ماركات الهواتف المدعومة</h2>
+            <p className="text-foreground/60">اختر الماركة لتصفح الدروس الخاصة بها</p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5 sm:gap-6">
-            {categories?.filter(cat => cat.showOnHomepage).slice(0, 8).map((cat, i) => (
+            {categories?.filter(cat => cat.showOnHomepage).map((cat, i) => (
               <CategoryCard
                 key={cat.id}
                 category={cat}
@@ -468,7 +461,8 @@ function PhoneDecodeIcon() {
         {/* ── "Decoding" progress bar ── */}
         <rect x="100" y="210" width="120" height="6" rx="3" fill="#222" />
         <motion.rect
-          x="100" y="210" width={10} height="6" rx="3" fill="#ea580c"
+          x="100" y="210" height="6" rx="3" fill="#ea580c"
+          initial={{ width: 10 }}
           animate={{ width: [10, 120, 50, 120] }}
           transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
         />
