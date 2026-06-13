@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui";
 import { useAuth } from "@/lib/auth";
-import { LogOut, User, Crown, Menu, X, BookOpen, CreditCard } from "lucide-react";
+import { LogOut, User, Crown, Menu, X, BookOpen, CreditCard, Home } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export function Navbar() {
@@ -11,6 +11,7 @@ export function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const navLinks = [
+    { href: "/",          label: "الرئيسية",     icon: <Home className="w-4 h-4" /> },
     { href: "/videos",    label: "الدورات",      icon: <BookOpen className="w-4 h-4" /> },
     { href: "/subscribe", label: "الاشتراكات",   icon: <CreditCard className="w-4 h-4" /> },
   ];
@@ -69,12 +70,15 @@ export function Navbar() {
                 </Button>
               </div>
             ) : (
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2.5">
                 <Link href="/login">
                   <Button variant="ghost" className="text-foreground/70 hover:text-foreground">دخول</Button>
                 </Link>
                 <Link href="/register">
-                  <Button className="rounded-full px-6">حساب جديد</Button>
+                  <Button variant="outline" className="rounded-full px-5 border-border hover:border-primary/50">حساب جديد</Button>
+                </Link>
+                <Link href="/subscribe">
+                  <Button className="rounded-full px-6 shadow-md shadow-primary/25">اشترك الآن</Button>
                 </Link>
               </div>
             )}
@@ -136,9 +140,12 @@ export function Navbar() {
               ))}
 
               {!user && (
-                <div className="mt-2 pt-3 border-t border-border">
+                <div className="mt-2 pt-3 border-t border-border flex flex-col gap-2">
+                  <Link href="/subscribe" onClick={() => setMobileOpen(false)}>
+                    <Button className="w-full rounded-xl shadow-md shadow-primary/25">اشترك الآن</Button>
+                  </Link>
                   <Link href="/register" onClick={() => setMobileOpen(false)}>
-                    <Button className="w-full rounded-xl">إنشاء حساب جديد</Button>
+                    <Button variant="outline" className="w-full rounded-xl border-border">إنشاء حساب جديد</Button>
                   </Link>
                 </div>
               )}
