@@ -35,6 +35,7 @@ import type {
   MessageResponse,
   Playlist,
   RegisterInput,
+  ReorderCategoriesInput,
   ReorderVideosInput,
   SubscriptionPlan,
   UpdateCategoryInput,
@@ -2110,6 +2111,92 @@ export const useCreateCategory = <
   TContext
 > => {
   return useMutation(getCreateCategoryMutationOptions(options));
+};
+
+/**
+ * @summary Reorder categories
+ */
+export const getReorderCategoriesUrl = () => {
+  return `/api/admin/categories/reorder`;
+};
+
+export const reorderCategories = async (
+  reorderCategoriesInput: ReorderCategoriesInput,
+  options?: RequestInit,
+): Promise<MessageResponse> => {
+  return customFetch<MessageResponse>(getReorderCategoriesUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(reorderCategoriesInput),
+  });
+};
+
+export const getReorderCategoriesMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reorderCategories>>,
+    TError,
+    { data: BodyType<ReorderCategoriesInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof reorderCategories>>,
+  TError,
+  { data: BodyType<ReorderCategoriesInput> },
+  TContext
+> => {
+  const mutationKey = ["reorderCategories"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof reorderCategories>>,
+    { data: BodyType<ReorderCategoriesInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return reorderCategories(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ReorderCategoriesMutationResult = NonNullable<
+  Awaited<ReturnType<typeof reorderCategories>>
+>;
+export type ReorderCategoriesMutationBody = BodyType<ReorderCategoriesInput>;
+export type ReorderCategoriesMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Reorder categories
+ */
+export const useReorderCategories = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reorderCategories>>,
+    TError,
+    { data: BodyType<ReorderCategoriesInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof reorderCategories>>,
+  TError,
+  { data: BodyType<ReorderCategoriesInput> },
+  TContext
+> => {
+  return useMutation(getReorderCategoriesMutationOptions(options));
 };
 
 /**

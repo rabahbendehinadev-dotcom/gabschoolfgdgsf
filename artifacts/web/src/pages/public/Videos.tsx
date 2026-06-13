@@ -334,7 +334,7 @@ function CategoryDetail({
   isLocked,
   isDemo,
 }: {
-  category: { id: number; name: string; slug: string; icon?: string };
+  category: { id: number; name: string; slug: string; icon?: string | null; description?: string | null; imageUrl?: string | null; accentColor?: string | null };
   lessons: any[];
   isLoading: boolean;
   accessInfo: (v: { accessType?: string }) => { isVipVideo: boolean; isVisitorVideo: boolean; videoLocked: boolean; lockMessage: string };
@@ -346,6 +346,17 @@ function CategoryDetail({
   const meta = getCategoryMeta(category.name, category.slug);
   const Icon = meta.Icon;
   const isEmojiIcon = !!category.icon && /\p{Extended_Pictographic}/u.test(category.icon);
+  const accent = category.accentColor || "";
+  const description = category.description || meta.description;
+  const imageUrl = (() => {
+    const u = category.imageUrl || "";
+    if (!u) return "";
+    try {
+      const parsed = new URL(u);
+      if (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1") return parsed.pathname + parsed.search;
+    } catch { /* نسبي */ }
+    return u;
+  })();
 
   return (
     <div className="container mx-auto px-4 py-8 md:py-10">
@@ -361,16 +372,21 @@ function CategoryDetail({
       {/* Header / Banner للقسم */}
       <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-primary/5 via-card to-background p-6 md:p-8 mb-8">
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5">
-          <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${meta.gradient} flex items-center justify-center shrink-0`}>
-            {isEmojiIcon ? (
+          <div
+            className={`w-16 h-16 rounded-2xl flex items-center justify-center shrink-0 overflow-hidden ${imageUrl || accent ? "" : `bg-gradient-to-br ${meta.gradient}`}`}
+            style={accent && !imageUrl ? { background: `${accent}26` } : accent && imageUrl ? { background: `${accent}14` } : undefined}
+          >
+            {imageUrl ? (
+              <img src={imageUrl} alt={category.name} className="w-full h-full object-contain p-1.5" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+            ) : isEmojiIcon ? (
               <span className="text-3xl leading-none">{category.icon}</span>
             ) : (
-              <Icon className={`w-8 h-8 ${meta.text}`} />
+              <Icon className={`w-8 h-8 ${meta.text}`} style={accent ? { color: accent } : undefined} />
             )}
           </div>
           <div className="flex-1">
             <h1 className="text-2xl md:text-3xl font-bold mb-1.5">{category.name}</h1>
-            <p className="text-foreground/60 text-sm md:text-base leading-relaxed max-w-2xl">{meta.description}</p>
+            <p className="text-foreground/60 text-sm md:text-base leading-relaxed max-w-2xl">{description}</p>
             <div className="flex items-center gap-2 mt-3">
               <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30">
                 <PlayCircle className="w-3.5 h-3.5 ml-1" />

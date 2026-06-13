@@ -302,7 +302,7 @@ export function Home() {
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5">
-            {categories?.slice(0, 8).map((cat, i) => (
+            {categories?.filter(cat => cat.showOnHomepage).slice(0, 8).map((cat, i) => (
               <CategoryCard
                 key={cat.id}
                 category={cat}

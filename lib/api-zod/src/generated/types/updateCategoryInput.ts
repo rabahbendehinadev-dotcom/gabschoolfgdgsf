@@ -8,6 +8,14 @@
 
 export interface UpdateCategoryInput {
   name?: string;
+  nameEn?: string | null;
   slug?: string;
-  icon?: string;
+  icon?: string | null;
+  description?: string | null;
+  imageUrl?: string | null;
+  accentColor?: string | null;
+  sortOrder?: number;
+  isVisible?: boolean;
+  isFeatured?: boolean;
+  showOnHomepage?: boolean;
 }

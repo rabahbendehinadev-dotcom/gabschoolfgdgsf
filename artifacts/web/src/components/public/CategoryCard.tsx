@@ -10,10 +10,26 @@ interface CategoryCardProps {
   index?: number;
 }
 
+/* يطبّع روابط localhost المخزّنة إلى مسار نسبي يعمل خلف البروكسي */
+function normalizeUrl(url: string) {
+  if (!url) return "";
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1") {
+      return parsed.pathname + parsed.search;
+    }
+  } catch { /* مسار نسبي بالفعل */ }
+  return url;
+}
+
 export function CategoryCard({ category, lessonCount, index = 0 }: CategoryCardProps) {
   const meta = getCategoryMeta(category.name, category.slug);
   const Icon = meta.Icon;
+
+  const imageUrl = normalizeUrl(category.imageUrl || "");
   const isEmojiIcon = !!category.icon && /\p{Extended_Pictographic}/u.test(category.icon);
+  const accent = category.accentColor || "";
+  const description = category.description || meta.description;
 
   return (
     <motion.div
@@ -25,11 +41,21 @@ export function CategoryCard({ category, lessonCount, index = 0 }: CategoryCardP
     >
       <Link href={`/videos?categoryId=${category.id}`}>
         <div className="group relative h-full flex flex-col rounded-2xl border border-border bg-card p-5 cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/10">
-          <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${meta.gradient} flex items-center justify-center mb-4 transition-transform duration-300 group-hover:scale-110`}>
-            {isEmojiIcon ? (
+          <div
+            className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-4 overflow-hidden transition-transform duration-300 group-hover:scale-110 ${imageUrl || accent ? "" : `bg-gradient-to-br ${meta.gradient}`}`}
+            style={accent && !imageUrl ? { background: `${accent}26` } : accent && imageUrl ? { background: `${accent}14` } : undefined}
+          >
+            {imageUrl ? (
+              <img
+                src={imageUrl}
+                alt={category.name}
+                className="w-full h-full object-contain p-1.5"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+              />
+            ) : isEmojiIcon ? (
               <span className="text-2xl leading-none">{category.icon}</span>
             ) : (
-              <Icon className={`w-7 h-7 ${meta.text}`} />
+              <Icon className={`w-7 h-7 ${meta.text}`} style={accent ? { color: accent } : undefined} />
             )}
           </div>
 
@@ -37,7 +63,7 @@ export function CategoryCard({ category, lessonCount, index = 0 }: CategoryCardP
             {category.name}
           </h3>
           <p className="text-sm text-foreground/55 leading-relaxed line-clamp-2 mb-4 flex-1">
-            {meta.description}
+            {description}
           </p>
 
           <div className="flex items-center justify-between pt-3 border-t border-border">
@@ -45,7 +71,10 @@ export function CategoryCard({ category, lessonCount, index = 0 }: CategoryCardP
               <PlayCircle className="w-3.5 h-3.5" />
               {lessonCount} درس
             </span>
-            <span className="text-xs font-bold text-primary flex items-center gap-1 transition-all group-hover:gap-2">
+            <span
+              className="text-xs font-bold text-primary flex items-center gap-1 transition-all group-hover:gap-2"
+              style={accent ? { color: accent } : undefined}
+            >
               استعراض الدروس
               <ArrowLeft className="w-3.5 h-3.5" />
             </span>
