@@ -10,6 +10,8 @@ interface CategoryCardProps {
   lessonCount: number;
   index?: number;
   active?: boolean;
+  /** عند تمريرها: الضغط يختار القسم محلياً (يعرض دروسه أسفل الكروت) بدل الانتقال لصفحة الدورات */
+  onSelect?: () => void;
 }
 
 /* يطبّع روابط localhost المخزّنة إلى مسار نسبي يعمل خلف البروكسي */
@@ -42,7 +44,7 @@ function lessonsLabel(n: number) {
   return `${n} درساً`;
 }
 
-export function CategoryCard({ category, lessonCount, index = 0, active = false }: CategoryCardProps) {
+export function CategoryCard({ category, lessonCount, index = 0, active = false, onSelect }: CategoryCardProps) {
   const meta = getCategoryMeta(category.name, category.slug);
   const Icon = meta.Icon;
   const [imgError, setImgError] = useState(false);
@@ -63,6 +65,7 @@ export function CategoryCard({ category, lessonCount, index = 0, active = false 
     >
       <Link
         href={`/videos?categoryId=${category.id}`}
+        onClick={onSelect ? (e) => { e.preventDefault(); onSelect(); } : undefined}
         className="cat-card-link block h-full outline-none"
       >
         <article
