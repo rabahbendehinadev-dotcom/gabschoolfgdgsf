@@ -4,7 +4,7 @@ import { useGetVideos, useGetCategories } from "@workspace/api-client-react/src/
 import { useAuth } from "@/lib/auth";
 import { Card, Badge, Button, Input, Dialog, DialogContent } from "@/components/ui";
 import { Search, Crown, PlayCircle, Lock, X, Rocket, LayoutGrid, Play, Sparkles } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { CategoryCard } from "@/components/public/CategoryCard";
 import { LessonCard } from "@/components/public/LessonCard";
 import { getCategoryMeta } from "@/lib/categoryMeta";
@@ -125,81 +125,7 @@ export function Videos() {
            صفحة موحّدة: كروت الأقسام أعلى + دروس القسم المختار أسفل
       ════════════════════════════════════════════════════ */}
       <>
-          {/* Hero — الفيديو المجاني (يظهر في العرض الأولي فقط) */}
-          <AnimatePresence>
-            {!activeCategory && !isSearching && freeVideo && (
-              <motion.section
-                key="free-hero"
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                className="border-b border-border/60 bg-gradient-to-br from-primary/5 via-background to-orange-50/50"
-              >
-                <div className="container mx-auto px-4 py-12 md:py-16">
-                  <div className="flex flex-col md:flex-row-reverse items-center gap-8 md:gap-14">
-                    <div className="w-full md:w-[46%] shrink-0">
-                      <button
-                        onClick={() => setVideoModalOpen(true)}
-                        className="relative w-full aspect-video rounded-2xl overflow-hidden group shadow-2xl shadow-black/10 border border-border/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                      >
-                        <img
-                          src={freeVideo.thumbnailUrl || "https://images.unsplash.com/photo-1580927752452-89d86da3fa0a?w=800&q=80"}
-                          alt={freeVideo.title}
-                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent" />
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <div className="w-20 h-20 rounded-full bg-primary text-white flex items-center justify-center shadow-2xl shadow-primary/50 transition-transform duration-300 group-hover:scale-110 group-hover:shadow-primary/70">
-                            <PlayCircle className="w-11 h-11 ml-1" />
-                          </div>
-                        </div>
-                        <div className="absolute top-3 right-3">
-                          <span className="inline-flex items-center gap-1 bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-md">
-                            ✓ مجاني
-                          </span>
-                        </div>
-                        <div className="absolute bottom-4 right-4 left-4 text-right">
-                          <p className="text-white font-semibold text-sm line-clamp-2 drop-shadow">
-                            {freeVideo.title}
-                          </p>
-                        </div>
-                      </button>
-                    </div>
-
-                    <div className="flex-1 text-center md:text-right space-y-5">
-                      <span className="inline-block bg-primary/10 text-primary border border-primary/25 text-sm font-semibold px-4 py-1.5 rounded-full">
-                        محتوى مجاني 🎁
-                      </span>
-                      <h2 className="text-3xl md:text-4xl font-extrabold leading-snug">
-                        شاهد قبل الاشتراك 👇
-                      </h2>
-                      <p className="text-foreground/60 text-base md:text-lg leading-relaxed max-w-md mx-auto md:mx-0">
-                        هذا فيديو حقيقي من داخل الدورة باش تشوف المستوى قبل ما تشترك
-                      </p>
-                      <div className="flex flex-col sm:flex-row gap-3 justify-center md:justify-start pt-1">
-                        <Button
-                          size="lg"
-                          className="gap-2 text-base shadow-lg shadow-primary/25 h-12 px-6"
-                          onClick={() => setVideoModalOpen(true)}
-                        >
-                          <PlayCircle className="w-5 h-5" />
-                          شاهد الفيديو الآن
-                        </Button>
-                        <Link href="/subscribe">
-                          <Button size="lg" variant="outline" className="gap-2 text-base h-12 px-6 w-full sm:w-auto border-border hover:border-primary/50">
-                            <Rocket className="w-5 h-5" />
-                            اشترك وشاهد جميع الدروس
-                          </Button>
-                        </Link>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </motion.section>
-            )}
-          </AnimatePresence>
-
-          {/* ── الأقسام / البحث ── */}
+          {/* ── الأقسام (دائماً أعلى الصفحة) ثم دروس القسم المختار أسفلها ── */}
           <div className="container mx-auto px-4 py-12">
             {/* ترويسة + بحث */}
             <div ref={gridRef} className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10 scroll-mt-24">
@@ -256,8 +182,8 @@ export function Videos() {
                   </div>
                 )}
 
-                {/* ── قسم الدروس: يظهر فقط بعد اختيار قسم ── */}
-                {activeCategory && (
+                {/* ── أسفل الكروت: دروس القسم المختار، أو رسالة + فيديو مجاني في العرض الأولي ── */}
+                {activeCategory ? (
                   <section ref={lessonsRef} className="mt-14 scroll-mt-24 border-t border-border pt-10">
                     <CategoryDetail
                       category={activeCategory}
@@ -270,6 +196,86 @@ export function Videos() {
                       isDemo={isDemo}
                     />
                   </section>
+                ) : (
+                  <>
+                    {/* رسالة: اختر قسماً لعرض دروسه */}
+                    <div className="mt-12 text-center bg-muted/40 rounded-2xl border border-border py-12 px-6">
+                      <LayoutGrid className="w-10 h-10 text-primary/70 mx-auto mb-3" />
+                      <h3 className="text-lg md:text-xl font-bold mb-1.5">اختر أحد الأقسام لعرض الدروس</h3>
+                      <p className="text-muted-foreground text-sm max-w-md mx-auto">
+                        اضغط على أي كارت بالأعلى لتظهر دروسه هنا، مرتّبة كمسار تعليمي متكامل.
+                      </p>
+                    </div>
+
+                    {/* الفيديو المجاني — أسفل الكروت فقط (شاهد قبل الاشتراك) */}
+                    {freeVideo && (
+                      <motion.section
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.4 }}
+                        className="mt-10 rounded-2xl border border-border bg-gradient-to-br from-primary/5 via-background to-orange-50/50 p-6 md:p-8"
+                      >
+                        <div className="flex flex-col md:flex-row-reverse items-center gap-8 md:gap-14">
+                          <div className="w-full md:w-[46%] shrink-0">
+                            <button
+                              onClick={() => setVideoModalOpen(true)}
+                              className="relative w-full aspect-video rounded-2xl overflow-hidden group shadow-2xl shadow-black/10 border border-border/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                            >
+                              <img
+                                src={freeVideo.thumbnailUrl || "https://images.unsplash.com/photo-1580927752452-89d86da3fa0a?w=800&q=80"}
+                                alt={freeVideo.title}
+                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                              />
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent" />
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <div className="w-20 h-20 rounded-full bg-primary text-white flex items-center justify-center shadow-2xl shadow-primary/50 transition-transform duration-300 group-hover:scale-110 group-hover:shadow-primary/70">
+                                  <PlayCircle className="w-11 h-11 ml-1" />
+                                </div>
+                              </div>
+                              <div className="absolute top-3 right-3">
+                                <span className="inline-flex items-center gap-1 bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-md">
+                                  ✓ مجاني
+                                </span>
+                              </div>
+                              <div className="absolute bottom-4 right-4 left-4 text-right">
+                                <p className="text-white font-semibold text-sm line-clamp-2 drop-shadow">
+                                  {freeVideo.title}
+                                </p>
+                              </div>
+                            </button>
+                          </div>
+
+                          <div className="flex-1 text-center md:text-right space-y-5">
+                            <span className="inline-block bg-primary/10 text-primary border border-primary/25 text-sm font-semibold px-4 py-1.5 rounded-full">
+                              محتوى مجاني 🎁
+                            </span>
+                            <h2 className="text-3xl md:text-4xl font-extrabold leading-snug">
+                              شاهد قبل الاشتراك 👇
+                            </h2>
+                            <p className="text-foreground/60 text-base md:text-lg leading-relaxed max-w-md mx-auto md:mx-0">
+                              هذا فيديو حقيقي من داخل الدورة باش تشوف المستوى قبل ما تشترك
+                            </p>
+                            <div className="flex flex-col sm:flex-row gap-3 justify-center md:justify-start pt-1">
+                              <Button
+                                size="lg"
+                                className="gap-2 text-base shadow-lg shadow-primary/25 h-12 px-6"
+                                onClick={() => setVideoModalOpen(true)}
+                              >
+                                <PlayCircle className="w-5 h-5" />
+                                شاهد الفيديو الآن
+                              </Button>
+                              <Link href="/subscribe">
+                                <Button size="lg" variant="outline" className="gap-2 text-base h-12 px-6 w-full sm:w-auto border-border hover:border-primary/50">
+                                  <Rocket className="w-5 h-5" />
+                                  اشترك وشاهد جميع الدروس
+                                </Button>
+                              </Link>
+                            </div>
+                          </div>
+                        </div>
+                      </motion.section>
+                    )}
+                  </>
                 )}
               </>
             )}
