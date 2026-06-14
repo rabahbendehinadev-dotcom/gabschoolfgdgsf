@@ -4,3 +4,4 @@
 - [Shared presigned-upload endpoint](shared-upload-endpoint.md) — upload-URL route is intentionally unauthenticated; regular users upload subscription payment proofs through it, so don't lock it behind admin auth.
 - [Pre-existing typecheck errors](preexisting-typecheck.md) — api-server + web have baseline typecheck failures unrelated to most work; confirm your own edited lines are clean instead of expecting green.
 - [Wouter Link onClick interception](wouter-link-onclick.md) — Link wrapper guards modifier/middle clicks & defaultPrevented before navigating; user onClick runs only on plain left-click, so preventDefault() makes a Link select inline while modifier-click still opens href.
+- [framer-motion vs Tailwind transform](framer-tailwind-transform-conflict.md) — framer's inline transform clobbers Tailwind rotate/-translate/scale on the same element; split positioning (plain wrapper) from animation (inner motion.*), or pass transforms as framer props.

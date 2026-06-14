@@ -2,11 +2,15 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { Button, Card, Badge } from "@/components/ui";
 import { Link } from "wouter";
-import { Play, CheckCircle2, Shield, Zap, Crown, Lock, Search, LayoutGrid } from "lucide-react";
+import { Play, CheckCircle2, Shield, Zap, Crown, Lock, Search, LayoutGrid, Cloud, Terminal, Unlock, Cpu, type LucideIcon } from "lucide-react";
 import { useGetCategories, useGetSubscriptionPlans, useGetVideos } from "@workspace/api-client-react/src/generated/api";
 import { useAuth } from "@/lib/auth";
 import { CategoryCard } from "@/components/public/CategoryCard";
 import { LessonCard } from "@/components/public/LessonCard";
+import iphoneLocked from "@assets/generated_images/hero_iphone_locked.png";
+import iphoneHome from "@assets/generated_images/hero_iphone_home.png";
+import androidUnlock from "@assets/generated_images/hero_android_unlock.png";
+import tabletJailbreak from "@assets/generated_images/hero_tablet_jailbreak.png";
 
 export function Home() {
   const { user, getAuthHeaders } = useAuth();
@@ -40,124 +44,81 @@ export function Home() {
   return (
     <div className="w-full">
       {/* ═══════════════════════════════════════════════════════
-          HERO BANNER — Orange-dominant with SVG decode icon
+          HERO — Visual-only device showcase (no marketing copy)
       ════════════════════════════════════════════════════════ */}
-      <section className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden">
+      <section className="relative min-h-[86vh] lg:min-h-screen flex items-center justify-center overflow-hidden bg-neutral-950">
 
-        {/* ── Orange gradient background ── */}
-        <div className="absolute inset-0 z-0 bg-gradient-to-br from-orange-500 via-orange-600 to-amber-800" />
+        {/* ── Premium dark backdrop ── */}
+        <div className="absolute inset-0 z-0 bg-gradient-to-b from-neutral-950 via-neutral-900 to-neutral-950" />
 
-        {/* ── Circuit board overlay pattern ── */}
-        <div className="absolute inset-0 z-0 opacity-10">
+        {/* ── Orange brand glows ── */}
+        <div className="absolute -top-[12%] left-1/2 -translate-x-1/2 w-[820px] h-[520px] bg-orange-600/25 rounded-full blur-[150px] z-0" />
+        <div className="absolute bottom-[2%] left-[6%] w-[420px] h-[420px] bg-amber-500/15 rounded-full blur-[130px] z-0" />
+        <div className="absolute top-[18%] right-[4%] w-[380px] h-[380px] bg-orange-700/15 rounded-full blur-[130px] z-0" />
+
+        {/* ── Circuit overlay ── */}
+        <div className="absolute inset-0 z-0 opacity-[0.06] text-white">
           <CircuitPattern />
         </div>
 
-        {/* ── Radial glow top-center ── */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[400px] bg-amber-300/20 rounded-full blur-[120px] z-0" />
-        <div className="absolute bottom-0 right-1/4 w-[400px] h-[300px] bg-orange-900/40 rounded-full blur-[100px] z-0" />
-
+        {/* ── Device composition ── */}
         <div className="container relative z-10 mx-auto px-4">
-          <div className="flex flex-col lg:flex-row items-center justify-between gap-12 lg:gap-8">
+          <div className="relative mx-auto w-full max-w-5xl h-[440px] sm:h-[560px] lg:h-[640px]">
 
-            {/* ── Left side: Text content ── */}
-            <motion.div
-              initial={{ opacity: 0, x: 60 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.8, ease: "easeOut" }}
-              className="flex-1 text-center lg:text-right max-w-2xl"
-            >
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2, duration: 0.6 }}
-              >
-                <span className="inline-flex items-center gap-2 mb-6 px-5 py-2 rounded-full bg-black/20 border border-white/30 text-white text-sm font-semibold backdrop-blur-sm">
-                  <SparklesIcon className="w-4 h-4" /> المنصة الأولى عربياً في فك شفرات الهواتف
-                </span>
-              </motion.div>
+            {/* Tablet — jailbreak terminal (back layer) */}
+            <FloatDevice
+              src={tabletJailbreak}
+              alt="iPad jailbreak terminal"
+              wrapperClassName="absolute left-1/2 -translate-x-1/2 top-[4%] w-[62%] sm:w-[54%] max-w-[600px] z-10"
+              rotate={-5}
+              duration={7}
+              amplitude={14}
+              delay={0.15}
+            />
 
-              <motion.h1
-                initial={{ opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3, duration: 0.7 }}
-                className="text-5xl md:text-6xl lg:text-7xl font-black mb-6 leading-tight text-white drop-shadow-lg"
-              >
-                احترف{" "}
-                <span className="text-black">الفلاش</span>
-                {" "}والديكوداج
-                <br />
-                <span className="text-black text-4xl md:text-5xl">من الصفر للإحتراف</span>
-              </motion.h1>
+            {/* Left phone — iPhone unlocked home screen */}
+            <FloatDevice
+              src={iphoneHome}
+              alt="iPhone unlocked home screen"
+              wrapperClassName="hidden md:block absolute left-[3%] lg:left-[7%] bottom-[6%] w-[23%] max-w-[200px] z-20"
+              rotate={-9}
+              duration={6.5}
+              amplitude={18}
+              delay={0.45}
+            />
 
-              <motion.p
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.45, duration: 0.6 }}
-                className="text-lg md:text-xl text-white/85 mb-10 max-w-xl mx-auto lg:mx-0 leading-relaxed"
-              >
-                كورسات احترافية، شروحات حصرية، وحلول لأعقد مشاكل الهواتف الذكية.
-                انضم لمجتمع المحترفين الآن.
-              </motion.p>
+            {/* Right phone — Android unlock pattern */}
+            <FloatDevice
+              src={androidUnlock}
+              alt="Android unlock pattern"
+              wrapperClassName="absolute right-[1%] sm:right-[5%] lg:right-[8%] bottom-[3%] w-[33%] sm:w-[24%] max-w-[200px] z-20"
+              rotate={8}
+              duration={6}
+              amplitude={16}
+              delay={0.35}
+            />
 
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.6, duration: 0.6 }}
-                className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4"
-              >
-                <Link href="/register">
-                  <Button
-                    size="lg"
-                    className="w-full sm:w-auto rounded-full px-10 text-lg bg-black hover:bg-black/80 text-white border-0 shadow-2xl"
-                  >
-                    ابدأ التعلم الآن
-                    <Play className="w-5 h-5 mr-2" />
-                  </Button>
-                </Link>
-                <Link href="#pricing">
-                  <Button
-                    size="lg"
-                    className="w-full sm:w-auto rounded-full px-10 text-lg bg-white/20 hover:bg-white/30 text-white border border-white/40 backdrop-blur-sm"
-                  >
-                    عرض الاشتراكات
-                  </Button>
-                </Link>
-              </motion.div>
+            {/* Center phone — iPhone locked (hero device) */}
+            <FloatDevice
+              src={iphoneLocked}
+              alt="iPhone locked screen"
+              wrapperClassName="absolute left-1/2 -translate-x-1/2 bottom-0 w-[48%] sm:w-[34%] max-w-[290px] z-30"
+              rotate={0}
+              duration={5.5}
+              amplitude={20}
+              delay={0.1}
+            />
 
-              {/* Stats row */}
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.9, duration: 0.8 }}
-                className="flex items-center justify-center lg:justify-start gap-8 mt-12"
-              >
-                {[
-                  { value: "+500", label: "دورة تدريبية" },
-                  { value: "+10K", label: "طالب محترف" },
-                  { value: "100%", label: "حلول عملية" },
-                ].map((stat, i) => (
-                  <div key={i} className="text-center">
-                    <div className="text-2xl md:text-3xl font-black text-white">{stat.value}</div>
-                    <div className="text-xs text-white/70 mt-0.5">{stat.label}</div>
-                  </div>
-                ))}
-              </motion.div>
-            </motion.div>
-
-            {/* ── Right side: Animated SVG Icon ── */}
-            <motion.div
-              initial={{ opacity: 0, y: -120, scale: 0.7 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              transition={{ duration: 1, ease: [0.22, 1, 0.36, 1], delay: 0.15 }}
-              className="flex-shrink-0 flex items-center justify-center"
-            >
-              <PhoneDecodeIcon />
-            </motion.div>
+            {/* ── Floating capability badges (crisp HTML overlay) ── */}
+            <HeroBadge icon={Cloud} label="iCloud Bypass" className="top-[6%] left-0 sm:left-[8%]" delay={0.7} />
+            <HeroBadge icon={Terminal} label="Jailbreak" className="top-0 right-[2%] sm:right-[12%]" delay={0.85} />
+            <HeroBadge icon={Unlock} label="FRP Unlock" className="hidden sm:block top-[42%] right-0 lg:right-[2%]" delay={1} />
+            <HeroBadge icon={Cpu} label="Decoding" className="hidden md:block bottom-[12%] left-0 lg:left-[3%]" delay={1.15} />
 
           </div>
         </div>
 
-        {/* ── Wave divider at bottom ── */}
+        {/* ── Wave divider to light body ── */}
         <div className="absolute bottom-0 left-0 right-0 z-10">
           <svg viewBox="0 0 1440 80" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full" preserveAspectRatio="none">
             <path d="M0,60 C360,0 1080,120 1440,40 L1440,80 L0,80 Z" fill="hsl(var(--background))" />
@@ -380,127 +341,72 @@ export function Home() {
   );
 }
 
-/* ─── Animated Phone + Decode SVG Icon ─── */
-function PhoneDecodeIcon() {
+/* ─── Floating device render (entrance + gentle infinite float) ─── */
+function FloatDevice({
+  src,
+  alt,
+  wrapperClassName = "",
+  rotate = 0,
+  duration = 6,
+  amplitude = 16,
+  delay = 0,
+}: {
+  src: string;
+  alt: string;
+  wrapperClassName?: string;
+  rotate?: number;
+  duration?: number;
+  amplitude?: number;
+  delay?: number;
+}) {
   return (
-    <div className="relative w-64 h-64 md:w-80 md:h-80 lg:w-96 lg:h-96">
-      {/* Outer glow ring */}
+    <div className={wrapperClassName}>
       <motion.div
-        animate={{ scale: [1, 1.08, 1], opacity: [0.3, 0.6, 0.3] }}
-        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-        className="absolute inset-0 rounded-full bg-black/30 blur-2xl"
-      />
-
-      <svg
-        viewBox="0 0 320 320"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-        className="w-full h-full drop-shadow-2xl"
+        initial={{ opacity: 0, scale: 0.9, y: 36, rotate }}
+        animate={{ opacity: 1, scale: 1, y: 0, rotate }}
+        transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1], delay }}
       >
-        {/* ── Circuit lines radiating from phone ── */}
-        <g opacity="0.4" stroke="white" strokeWidth="1.5" strokeLinecap="round">
-          <line x1="60" y1="100" x2="20" y2="100" />
-          <line x1="20" y1="100" x2="20" y2="60" />
-          <circle cx="20" cy="60" r="4" fill="white" />
-
-          <line x1="60" y1="160" x2="10" y2="160" />
-          <circle cx="10" cy="160" r="4" fill="white" />
-
-          <line x1="60" y1="220" x2="20" y2="220" />
-          <line x1="20" y1="220" x2="20" y2="270" />
-          <circle cx="20" cy="270" r="4" fill="white" />
-
-          <line x1="260" y1="100" x2="300" y2="100" />
-          <line x1="300" y1="100" x2="300" y2="60" />
-          <circle cx="300" cy="60" r="4" fill="white" />
-
-          <line x1="260" y1="160" x2="310" y2="160" />
-          <circle cx="310" cy="160" r="4" fill="white" />
-
-          <line x1="260" y1="220" x2="300" y2="220" />
-          <line x1="300" y1="220" x2="300" y2="270" />
-          <circle cx="300" cy="270" r="4" fill="white" />
-        </g>
-
-        {/* ── Phone body ── */}
-        <rect x="80" y="30" width="160" height="260" rx="24" ry="24" fill="black" stroke="rgba(255,255,255,0.3)" strokeWidth="2" />
-
-        {/* ── Phone screen ── */}
-        <rect x="92" y="58" width="136" height="200" rx="12" ry="12" fill="#111" />
-
-        {/* ── Screen glow ── */}
-        <rect x="92" y="58" width="136" height="200" rx="12" ry="12" fill="url(#screenGlow)" opacity="0.6" />
-
-        {/* ── Status bar dots ── */}
-        <circle cx="160" cy="46" r="5" fill="#333" />
-        <rect x="140" y="44" width="20" height="4" rx="2" fill="#222" />
-
-        {/* ── Home indicator ── */}
-        <rect x="135" y="276" width="50" height="4" rx="2" fill="#333" />
-
-        {/* ── Binary code lines on screen ── */}
-        <g fontFamily="monospace" fontSize="9" fill="rgba(255,165,0,0.7)">
-          <text x="100" y="85">01101100 01101111</text>
-          <text x="100" y="100">11010010 00110101</text>
-          <text x="100" y="115">10110001 11001010</text>
-          <text x="100" y="130">01010101 10101100</text>
-        </g>
-
-        {/* ── Central lock icon ── */}
-        <g transform="translate(130, 148)">
-          {/* Lock body */}
-          <rect x="5" y="20" width="50" height="36" rx="7" fill="#ea580c" />
-          {/* Lock shackle */}
-          <path d="M15 20 V12 A15 15 0 0 1 45 12 V20" stroke="white" strokeWidth="4" strokeLinecap="round" fill="none" />
-          {/* Keyhole */}
-          <circle cx="30" cy="35" r="6" fill="white" opacity="0.9" />
-          <rect x="27" y="37" width="6" height="10" rx="2" fill="white" opacity="0.9" />
-        </g>
-
-        {/* ── "Decoding" progress bar ── */}
-        <rect x="100" y="210" width="120" height="6" rx="3" fill="#222" />
-        <motion.rect
-          x="100" y="210" height="6" rx="3" fill="#ea580c"
-          initial={{ width: 10 }}
-          animate={{ width: [10, 120, 50, 120] }}
-          transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+        <motion.img
+          src={src}
+          alt={alt}
+          draggable={false}
+          className="w-full h-auto select-none drop-shadow-2xl"
+          animate={{ y: [0, -amplitude, 0] }}
+          transition={{ duration, repeat: Infinity, ease: "easeInOut", delay: delay + 0.6 }}
         />
+      </motion.div>
+    </div>
+  );
+}
 
-        {/* ── Label ── */}
-        <text x="160" y="232" textAnchor="middle" fontFamily="sans-serif" fontSize="10" fill="rgba(255,255,255,0.5)">DECODING...</text>
-
-        {/* Gradient defs */}
-        <defs>
-          <radialGradient id="screenGlow" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#ea580c" stopOpacity="0.3" />
-            <stop offset="100%" stopColor="#000" stopOpacity="0" />
-          </radialGradient>
-        </defs>
-      </svg>
-
-      {/* ── Floating binary particles ── */}
-      {["01", "10", "11", "00", "1010", "0101"].map((bit, i) => (
+/* ─── Floating capability badge (glassmorphism) ─── */
+function HeroBadge({
+  icon: Icon,
+  label,
+  className = "",
+  delay = 0,
+}: {
+  icon: LucideIcon;
+  label: string;
+  className?: string;
+  delay?: number;
+}) {
+  return (
+    <div className={`absolute z-40 ${className}`}>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.8, y: 10 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ duration: 0.6, delay }}
+      >
         <motion.div
-          key={i}
-          className="absolute text-white/40 font-mono text-xs font-bold select-none pointer-events-none"
-          style={{
-            left: `${[5, 80, 90, -5, 70, 15][i]}%`,
-            top: `${[20, 5, 75, 60, 85, 40][i]}%`,
-          }}
-          animate={{
-            y: [0, -20, 0],
-            opacity: [0.3, 0.7, 0.3],
-          }}
-          transition={{
-            duration: 2.5 + i * 0.4,
-            repeat: Infinity,
-            delay: i * 0.5,
-            ease: "easeInOut",
-          }}
+          animate={{ y: [0, -7, 0] }}
+          transition={{ duration: 4, repeat: Infinity, ease: "easeInOut", delay: delay + 0.5 }}
+          className="flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm font-bold text-white shadow-xl backdrop-blur-md whitespace-nowrap"
         >
-          {bit}
+          <Icon className="w-4 h-4 text-orange-400" />
+          {label}
         </motion.div>
-      ))}
+      </motion.div>
     </div>
   );
 }
@@ -522,14 +428,6 @@ function CircuitPattern() {
         </pattern>
       </defs>
       <rect width="100%" height="100%" fill="url(#circuit)" />
-    </svg>
-  );
-}
-
-function SparklesIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
     </svg>
   );
 }

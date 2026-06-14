@@ -1,0 +1,26 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "Hz29l1IHoV0j4mVFChfuG"
+uri = "file://attached_assets/generated_images/hero_iphone_locked.png"
+type = "image"
+title = "iphone locked screen"
+
+[[generated]]
+id = "P9jqt83L51H5iVT7o4Bry"
+uri = "file://attached_assets/generated_images/hero_iphone_home.png"
+type = "image"
+title = "iphone home screen"
+
+[[generated]]
+id = "u7tO_CMjEpD_csrk_5Ymj"
+uri = "file://attached_assets/generated_images/hero_android_unlock.png"
+type = "image"
+title = "android unlock pattern"
+
+[[generated]]
+id = "k1cQziUwn-jZt198RU7in"
+uri = "file://attached_assets/generated_images/hero_tablet_jailbreak.png"
+type = "image"
+title = "tablet jailbreak terminal"
