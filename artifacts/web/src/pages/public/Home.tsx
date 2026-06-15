@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Button, Card, Badge } from "@/components/ui";
 import { Link } from "wouter";
-import { Play, CheckCircle2, Shield, Zap, Crown, Lock, Search, LayoutGrid, Cloud, Terminal, Unlock, Cpu, Wifi, SignalHigh, BatteryFull, type LucideIcon } from "lucide-react";
+import { Play, CheckCircle2, Shield, Zap, Crown, Lock, Search, LayoutGrid, Cloud, Terminal, Unlock, Cpu, type LucideIcon } from "lucide-react";
 import { useGetCategories, useGetSubscriptionPlans, useGetVideos } from "@workspace/api-client-react/src/generated/api";
 import { useAuth } from "@/lib/auth";
 import { CategoryCard } from "@/components/public/CategoryCard";
@@ -10,7 +10,7 @@ import { LessonCard } from "@/components/public/LessonCard";
 import iphoneLocked from "@assets/generated_images/hero_iphone_locked.png";
 import iphoneHome from "@assets/generated_images/hero_iphone_home.png";
 import androidUnlock from "@assets/generated_images/hero_android_unlock.png";
-import tabletJailbreak from "@assets/generated_images/hero_tablet_jailbreak.png";
+import tabletClean from "@assets/generated_images/hero_tablet_clean.png";
 
 export function Home() {
   const { user, getAuthHeaders } = useAuth();
@@ -84,16 +84,15 @@ export function Home() {
         <div className="container relative z-10 mx-auto px-4">
           <div className="relative mx-auto w-full max-w-5xl h-[440px] sm:h-[560px] lg:h-[640px]">
 
-            {/* Tablet — jailbreak terminal (back layer) */}
+            {/* Tablet — clean device (back layer) */}
             <FloatDevice
-              src={tabletJailbreak}
-              alt="iPad jailbreak terminal"
+              src={tabletClean}
+              alt="iPad device"
               wrapperClassName="absolute left-1/2 -translate-x-1/2 top-[4%] w-[62%] sm:w-[54%] max-w-[600px] z-10"
               rotate={-5}
               duration={7}
               amplitude={14}
               delay={0.15}
-              overlay={(size) => <IPadTerminal size={size} />}
             />
 
             {/* Left phone — iPhone unlocked home screen */}
@@ -118,7 +117,7 @@ export function Home() {
               delay={0.35}
             />
 
-            {/* Center phone — iPhone: Apple logo → lock opens → "iCloud / UNLOCKED" */}
+            {/* Center phone — iPhone: clean locked screen */}
             <FloatDevice
               src={iphoneLocked}
               alt="iPhone locked screen"
@@ -127,7 +126,6 @@ export function Home() {
               duration={5.5}
               amplitude={20}
               delay={0.1}
-              overlay={(size) => <IPhoneUnlock size={size} />}
             />
 
             {/* ── Floating capability badges (crisp HTML overlay) ── */}
@@ -362,7 +360,7 @@ export function Home() {
   );
 }
 
-/* ─── Floating device render (entrance + gentle infinite float + optional screen overlay) ─── */
+/* ─── Floating device render (entrance + gentle infinite float; clean device, no screen overlay) ─── */
 function FloatDevice({
   src,
   alt,
@@ -426,243 +424,6 @@ function FloatDevice({
     </div>
   );
 }
-
-/* ─── Screen glass corners (fractions of the image box) — order TL, TR, BL, BR ─── */
-const IPHONE_SCREEN_CORNERS: [number, number][] = [
-  [0.105, 0.140],
-  [0.608, 0.138],
-  [0.335, 0.890],
-  [0.705, 0.868],
-];
-const TABLET_SCREEN_CORNERS: [number, number][] = [
-  [0.380, 0.285],
-  [0.835, 0.420],
-  [0.165, 0.475],
-  [0.670, 0.650],
-];
-
-/* ─── Apple logo (inline SVG; lucide has no Apple mark) ─── */
-function AppleLogo({ style, className }: { style?: React.CSSProperties; className?: string }) {
-  return (
-    <svg viewBox="0 0 384 512" fill="currentColor" style={style} className={className} aria-hidden>
-      <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z" />
-    </svg>
-  );
-}
-
-/* ─── iPhone (center): full-screen iCloud activation-lock bypass (projected ON the glass) ─── */
-function IPhoneUnlock({ size }: { size: { w: number; h: number } }) {
-  const { w, h } = size;
-  const dest = IPHONE_SCREEN_CORNERS.map(([fx, fy]) => [fx * w, fy * h]) as number[][];
-  const matrix = projectionMatrix(w, h, dest);
-  const radius = Math.max(10, h * 0.05);
-  const reduce = useReducedMotion();
-
-  const LOOP = 7;
-  const icon = Math.max(20, h * 0.12);
-  const apple = Math.max(16, h * 0.085);
-  const clockSize = Math.max(18, h * 0.075);
-  const labelSize = Math.max(8, h * 0.027);
-  const tiny = Math.max(7, h * 0.02);
-
-  return (
-    <div
-      className="absolute left-0 top-0 pointer-events-none overflow-hidden"
-      style={{ width: w, height: h, transform: matrix, transformOrigin: "0 0", borderRadius: radius }}
-    >
-      {/* opaque wallpaper — fills the whole glass, hides the baked lockscreen */}
-      <div className="absolute inset-0" style={{ background: "radial-gradient(125% 80% at 50% 80%, #15110a 0%, #0a0a10 46%, #050507 100%)" }} />
-      <div className="absolute inset-0" style={{ background: "radial-gradient(65% 38% at 50% 60%, rgba(249,115,22,0.16), transparent 72%)" }} />
-
-      {/* status bar */}
-      <div
-        className="absolute inset-x-0 flex items-center justify-between font-semibold text-white/85"
-        style={{ top: h * 0.035, paddingInline: w * 0.13, fontSize: tiny }}
-      >
-        <span>15:53</span>
-        <span className="flex items-center" style={{ gap: w * 0.015 }}>
-          <SignalHigh style={{ width: tiny, height: tiny }} />
-          <Wifi style={{ width: tiny, height: tiny }} />
-          <BatteryFull style={{ width: tiny * 1.5, height: tiny }} />
-        </span>
-      </div>
-
-      {/* clock + date */}
-      <div className="absolute inset-x-0 text-center text-white" style={{ top: h * 0.095 }}>
-        <div className="font-semibold tracking-tight" style={{ fontSize: clockSize, lineHeight: 1 }}>15:53</div>
-        <div className="font-medium text-white/55" style={{ fontSize: tiny, marginTop: h * 0.014 }}>الإثنين، 15 يونيو</div>
-      </div>
-
-      {/* center: Apple boot → padlock locked → unlocked */}
-      <div className="absolute" style={{ left: w * 0.5 - icon, top: h * 0.40, width: icon * 2, height: icon * 2 }}>
-        <motion.div
-          className="absolute inset-0 rounded-full blur-2xl"
-          style={{ background: "rgba(249,115,22,0.40)" }}
-          animate={reduce ? {} : { background: ["rgba(249,115,22,0.40)", "rgba(249,115,22,0.40)", "rgba(16,185,129,0.45)", "rgba(16,185,129,0.20)"], scale: [0.85, 1.08, 1.12, 0.9] }}
-          transition={{ duration: LOOP, times: [0, 0.58, 0.7, 1], repeat: Infinity, ease: "easeInOut" }}
-        />
-        <motion.div
-          className="absolute inset-0 flex items-center justify-center text-white"
-          animate={reduce ? { opacity: 0 } : { opacity: [1, 1, 0, 0, 0, 1] }}
-          transition={{ duration: LOOP, times: [0, 0.08, 0.14, 0.9, 0.97, 1], repeat: Infinity }}
-        >
-          <AppleLogo style={{ width: apple, height: apple }} />
-        </motion.div>
-        <motion.div
-          className="absolute inset-0 flex items-center justify-center text-orange-400"
-          animate={reduce ? { opacity: 0 } : { opacity: [0, 0, 1, 1, 0, 0] }}
-          transition={{ duration: LOOP, times: [0, 0.16, 0.2, 0.58, 0.64, 1], repeat: Infinity }}
-        >
-          <Lock style={{ width: icon, height: icon }} strokeWidth={2.1} />
-        </motion.div>
-        <motion.div
-          className="absolute inset-0 flex items-center justify-center text-emerald-400"
-          animate={reduce ? { opacity: 1 } : { opacity: [0, 0, 1, 1, 0], scale: [0.6, 0.6, 1, 1, 0.9] }}
-          transition={{ duration: LOOP, times: [0, 0.62, 0.7, 0.92, 0.98], repeat: Infinity, ease: "backOut" }}
-        >
-          <Unlock style={{ width: icon, height: icon }} strokeWidth={2.1} />
-        </motion.div>
-      </div>
-
-      {/* iCloud label + status line */}
-      <div className="absolute inset-x-0 text-center" style={{ top: h * 0.63 }}>
-        <div className="flex items-center justify-center font-semibold text-white/90" style={{ gap: w * 0.025, fontSize: labelSize }}>
-          <Cloud style={{ width: labelSize * 1.15, height: labelSize * 1.15 }} /> iCloud
-        </div>
-        <div className="relative" style={{ height: tiny * 1.8, marginTop: h * 0.014 }}>
-          <motion.div
-            className="absolute inset-0 font-mono text-orange-300/90"
-            style={{ fontSize: tiny }}
-            animate={reduce ? { opacity: 0 } : { opacity: [0, 1, 1, 0, 0] }}
-            transition={{ duration: LOOP, times: [0, 0.22, 0.55, 0.64, 1], repeat: Infinity }}
-          >
-            Bypassing Activation Lock…
-          </motion.div>
-          <motion.div
-            className="absolute inset-0 font-mono font-bold tracking-[0.18em] text-emerald-400"
-            style={{ fontSize: tiny }}
-            animate={reduce ? { opacity: 1 } : { opacity: [0, 0, 1, 1, 0] }}
-            transition={{ duration: LOOP, times: [0, 0.64, 0.7, 0.92, 0.98], repeat: Infinity }}
-          >
-            UNLOCKED ✓
-          </motion.div>
-        </div>
-      </div>
-
-      {/* progress bar */}
-      <div
-        className="absolute overflow-hidden rounded-full bg-white/10"
-        style={{ left: w * 0.24, right: w * 0.24, top: h * 0.76, height: Math.max(2, h * 0.008) }}
-      >
-        <motion.div
-          className="h-full rounded-full"
-          style={{ background: "linear-gradient(90deg,#f97316,#fbbf24)" }}
-          animate={reduce ? { width: "100%" } : { width: ["0%", "0%", "100%", "100%", "0%"] }}
-          transition={{ duration: LOOP, times: [0, 0.18, 0.6, 0.95, 1], repeat: Infinity, ease: "easeInOut" }}
-        />
-      </div>
-
-      {/* home indicator */}
-      <div
-        className="absolute left-1/2 -translate-x-1/2 rounded-full bg-white/55"
-        style={{ bottom: h * 0.028, width: w * 0.30, height: Math.max(2, h * 0.006) }}
-      />
-
-      {/* glass reflection */}
-      <div className="absolute inset-0" style={{ background: "linear-gradient(150deg, rgba(255,255,255,0.12), transparent 40%)" }} />
-    </div>
-  );
-}
-
-/* ─── one scrolling terminal column ─── */
-function TermColumn({ fontSize, lineGap, duration, delay = 0 }: { fontSize: number; lineGap: number; duration: number; delay?: number }) {
-  return (
-    <div className="flex-1 overflow-hidden">
-      <motion.div
-        className="font-mono leading-tight"
-        style={{ fontSize }}
-        animate={{ y: ["0%", "-50%"] }}
-        transition={{ duration, delay, ease: "linear", repeat: Infinity }}
-      >
-        {[...TERM_LINES, ...TERM_LINES].map((ln, i) => (
-          <div key={i} className="whitespace-nowrap" style={{ marginBottom: lineGap }}>
-            {ln.prompt && <span className="text-orange-400">{ln.prompt}:~$ </span>}
-            {ln.cmd && <span className="text-sky-300">{ln.cmd}</span>}
-            {ln.out && (
-              <span className={ln.ok ? "text-emerald-400" : ln.warn ? "text-amber-300" : "text-emerald-300/80"}>
-                {ln.out}
-              </span>
-            )}
-          </div>
-        ))}
-      </motion.div>
-    </div>
-  );
-}
-
-/* ─── iPad (back): live jailbreak terminal projected on the glass ─── */
-function IPadTerminal({ size }: { size: { w: number; h: number } }) {
-  const { w, h } = size;
-  const dest = TABLET_SCREEN_CORNERS.map(([fx, fy]) => [fx * w, fy * h]) as number[][];
-  const matrix = projectionMatrix(w, h, dest);
-  const radius = Math.max(6, h * 0.02);
-  const fontSize = Math.max(8, h * 0.04);
-  const lineGap = h * 0.014;
-
-  return (
-    <motion.div
-      className="absolute left-0 top-0 pointer-events-none overflow-hidden"
-      style={{ width: w, height: h, transform: matrix, transformOrigin: "0 0", borderRadius: radius, background: "#04070a" }}
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.8, delay: 0.3 }}
-    >
-      {/* header bar */}
-      <div className="flex items-center gap-1.5" style={{ padding: `${h * 0.022}px ${w * 0.03}px`, fontSize: fontSize * 0.65 }}>
-        <span className="rounded-full bg-red-500/80" style={{ width: fontSize * 0.45, height: fontSize * 0.45 }} />
-        <span className="rounded-full bg-amber-400/80" style={{ width: fontSize * 0.45, height: fontSize * 0.45 }} />
-        <span className="rounded-full bg-green-500/80" style={{ width: fontSize * 0.45, height: fontSize * 0.45 }} />
-        <span className="ms-auto font-mono font-bold tracking-wider text-orange-400">root@device — jailbreak</span>
-      </div>
-
-      {/* two scrolling columns fill the wide screen */}
-      <div className="absolute inset-x-0 flex" style={{ top: h * 0.075, bottom: h * 0.02, gap: w * 0.03, paddingInline: w * 0.03 }}>
-        <TermColumn fontSize={fontSize} lineGap={lineGap} duration={19} />
-        <TermColumn fontSize={fontSize} lineGap={lineGap} duration={24} delay={-6} />
-      </div>
-
-      {/* soft scanlines */}
-      <div
-        className="absolute inset-0 opacity-[0.10]"
-        style={{ backgroundImage: "repeating-linear-gradient(180deg, rgba(255,255,255,0.6) 0px, rgba(255,255,255,0.6) 1px, transparent 1px, transparent 3px)" }}
-      />
-      {/* moving highlight sweep */}
-      <motion.div
-        className="absolute inset-x-0 h-1/3"
-        style={{ background: "linear-gradient(180deg, transparent, rgba(94,234,212,0.10), transparent)" }}
-        animate={{ y: ["-40%", "140%"] }}
-        transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}
-      />
-      {/* glass reflection */}
-      <div className="absolute inset-0" style={{ background: "linear-gradient(150deg, rgba(255,255,255,0.16), transparent 45%)" }} />
-    </motion.div>
-  );
-}
-
-const TERM_LINES: { prompt?: string; cmd?: string; out?: string; ok?: boolean; warn?: boolean }[] = [
-  { prompt: "root@iPhone", cmd: "checkra1n -jb" },
-  { out: "[*] booting pongoOS ..." },
-  { out: "[+] exploit CVE-2024-23225", ok: true },
-  { out: "[*] uploading bootstrap.dmg" },
-  { prompt: "root@iPhone", cmd: "icloud --bypass" },
-  { out: "[+] activation lock: REMOVED", ok: true },
-  { out: "[+] FRP lock: CLEARED", ok: true },
-  { prompt: "root@iPhone", cmd: "unlock --frp --imei" },
-  { out: "[*] patching nvram ..." },
-  { out: "[+] device: UNLOCKED", ok: true },
-  { out: "[✓] jailbreak complete", ok: true },
-  { prompt: "root@iPhone", cmd: "_" },
-];
 
 /* ─── Matrix-style falling code columns (subtle, behind devices) ─── */
 function MatrixRain() {
@@ -797,44 +558,3 @@ function CircuitPattern() {
   );
 }
 
-/* ─── 2D projective transform (rectangle → quad) helpers → CSS matrix3d ─── */
-function adj(m: number[]) {
-  return [
-    m[4] * m[8] - m[5] * m[7], m[2] * m[7] - m[1] * m[8], m[1] * m[5] - m[2] * m[4],
-    m[5] * m[6] - m[3] * m[8], m[0] * m[8] - m[2] * m[6], m[2] * m[3] - m[0] * m[5],
-    m[3] * m[7] - m[4] * m[6], m[1] * m[6] - m[0] * m[7], m[0] * m[4] - m[1] * m[3],
-  ];
-}
-function multmm(a: number[], b: number[]) {
-  const r = new Array(9).fill(0);
-  for (let i = 0; i < 3; i++)
-    for (let j = 0; j < 3; j++)
-      for (let k = 0; k < 3; k++) r[3 * i + j] += a[3 * i + k] * b[3 * k + j];
-  return r;
-}
-function multmv(m: number[], v: number[]) {
-  return [
-    m[0] * v[0] + m[1] * v[1] + m[2] * v[2],
-    m[3] * v[0] + m[4] * v[1] + m[5] * v[2],
-    m[6] * v[0] + m[7] * v[1] + m[8] * v[2],
-  ];
-}
-function basisToPoints(p: number[][]) {
-  const m = [p[0][0], p[1][0], p[2][0], p[0][1], p[1][1], p[2][1], 1, 1, 1];
-  const v = multmv(adj(m), [p[3][0], p[3][1], 1]);
-  return multmm(m, [v[0], 0, 0, 0, v[1], 0, 0, 0, v[2]]);
-}
-function projectionMatrix(w: number, h: number, dest: number[][]) {
-  const src: number[][] = [[0, 0], [w, 0], [0, h], [w, h]];
-  const s = basisToPoints(src);
-  const d = basisToPoints(dest);
-  const t = multmm(d, adj(s));
-  for (let i = 0; i < 9; i++) t[i] = t[i] / t[8];
-  const m = [
-    t[0], t[3], 0, t[6],
-    t[1], t[4], 0, t[7],
-    0, 0, 1, 0,
-    t[2], t[5], 0, t[8],
-  ];
-  return `matrix3d(${m.join(",")})`;
-}

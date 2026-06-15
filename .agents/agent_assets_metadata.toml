@@ -24,3 +24,9 @@ id = "k1cQziUwn-jZt198RU7in"
 uri = "file://attached_assets/generated_images/hero_tablet_jailbreak.png"
 type = "image"
 title = "tablet jailbreak terminal"
+
+[[generated]]
+id = "ar4z1-PQaYKrCrxiw_Rah"
+uri = "file://attached_assets/generated_images/hero_tablet_clean.png"
+type = "image"
+title = "clean dark tablet"

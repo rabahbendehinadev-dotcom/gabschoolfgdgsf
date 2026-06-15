@@ -5,6 +5,15 @@ description: How to overlay an animated DOM layer (e.g. a terminal) onto the gla
 
 # Projecting live DOM onto an angled device-photo screen
 
+> **Outcome in the Cours Online hero: this technique was ultimately REMOVED.**
+> After several iterations the user firmly decided the hero devices must stay
+> CLEAN — no DOM/animation layer projected onto any device screen. The iPhone
+> shows its baked lock screen; the iPad uses a generated clean tablet image
+> (`hero_tablet_clean.png`, no baked text). Codes (`MatrixRain`) and locks
+> (`FallingLocks`) live ONLY in the background. Do NOT re-add screen overlays to
+> the hero device screens. The recipe below is kept only as a general technique
+> for other contexts.
+
 When a hero uses a photorealistic device render (PNG shown at a 3D angle) and
 you need *live, animated* content "inside" the screen (scrolling terminal, video,
 UI), you cannot just absolutely-position a flat overlay — the screen is a
