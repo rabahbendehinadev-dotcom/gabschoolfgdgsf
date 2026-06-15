@@ -27,6 +27,13 @@ screen-glass corners.
   of the screen and the baked reflection (and any faint baked content) shows beside
   it. For an opaque overlay that must hide baked content, size the quad to the full
   glass; only inset conservatively when the overlay is translucent.
+- **A quad that covers only PART of the screen reads as a floating panel, not the
+  device's display.** Symptom: user says the overlay "floats above / outside" the
+  phone. Cause: the bottom corners stop partway down (e.g. mid-screen) so an opaque
+  overlay fills only the top, and the baked lower glass shows below it. Fix: extend
+  the quad to the FULL glass (top-left corner → just below the home indicator) AND
+  build the overlay as a full-bleed screen UI (wallpaper + status bar + clock +
+  content + home indicator) that fills edge-to-edge, so it reads as the screen.
 - **Clipping does not save a wrong quad.** `overflow:hidden` only clips to the
   quad you defined; if the quad exceeds the glass, content still spills. Fix the
   corners first, then rely on clipping. Put `overflow:hidden` + matching

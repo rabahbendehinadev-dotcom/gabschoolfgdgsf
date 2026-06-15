@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Button, Card, Badge } from "@/components/ui";
 import { Link } from "wouter";
-import { Play, CheckCircle2, Shield, Zap, Crown, Lock, Search, LayoutGrid, Cloud, Terminal, Unlock, Cpu, type LucideIcon } from "lucide-react";
+import { Play, CheckCircle2, Shield, Zap, Crown, Lock, Search, LayoutGrid, Cloud, Terminal, Unlock, Cpu, Wifi, SignalHigh, BatteryFull, type LucideIcon } from "lucide-react";
 import { useGetCategories, useGetSubscriptionPlans, useGetVideos } from "@workspace/api-client-react/src/generated/api";
 import { useAuth } from "@/lib/auth";
 import { CategoryCard } from "@/components/public/CategoryCard";
@@ -429,10 +429,10 @@ function FloatDevice({
 
 /* ─── Screen glass corners (fractions of the image box) — order TL, TR, BL, BR ─── */
 const IPHONE_SCREEN_CORNERS: [number, number][] = [
-  [0.135, 0.150],
-  [0.455, 0.098],
-  [0.300, 0.730],
-  [0.660, 0.620],
+  [0.105, 0.140],
+  [0.608, 0.138],
+  [0.335, 0.890],
+  [0.705, 0.868],
 ];
 const TABLET_SCREEN_CORNERS: [number, number][] = [
   [0.380, 0.285],
@@ -450,81 +450,126 @@ function AppleLogo({ style, className }: { style?: React.CSSProperties; classNam
   );
 }
 
-/* ─── iPhone (center): Apple → lock opens → "iCloud UNLOCKED" (projected on glass) ─── */
+/* ─── iPhone (center): full-screen iCloud activation-lock bypass (projected ON the glass) ─── */
 function IPhoneUnlock({ size }: { size: { w: number; h: number } }) {
   const { w, h } = size;
   const dest = IPHONE_SCREEN_CORNERS.map(([fx, fy]) => [fx * w, fy * h]) as number[][];
   const matrix = projectionMatrix(w, h, dest);
-  const radius = Math.max(10, h * 0.055);
-  const icon = Math.max(18, h * 0.11);
-  const apple = Math.max(14, h * 0.085);
+  const radius = Math.max(10, h * 0.05);
+  const reduce = useReducedMotion();
+
+  const LOOP = 7;
+  const icon = Math.max(20, h * 0.12);
+  const apple = Math.max(16, h * 0.085);
+  const clockSize = Math.max(18, h * 0.075);
+  const labelSize = Math.max(8, h * 0.027);
+  const tiny = Math.max(7, h * 0.02);
 
   return (
     <div
       className="absolute left-0 top-0 pointer-events-none overflow-hidden"
       style={{ width: w, height: h, transform: matrix, transformOrigin: "0 0", borderRadius: radius }}
     >
-      {/* opaque screen so only the unlock animation shows (hides baked lockscreen) */}
-      <div className="absolute inset-0" style={{ background: "radial-gradient(120% 90% at 50% 35%, #0b1220 0%, #04070a 70%)" }} />
+      {/* opaque wallpaper — fills the whole glass, hides the baked lockscreen */}
+      <div className="absolute inset-0" style={{ background: "radial-gradient(125% 80% at 50% 80%, #15110a 0%, #0a0a10 46%, #050507 100%)" }} />
+      <div className="absolute inset-0" style={{ background: "radial-gradient(65% 38% at 50% 60%, rgba(249,115,22,0.16), transparent 72%)" }} />
 
-      {/* Apple logo */}
-      <motion.div
-        className="absolute inset-x-0 flex justify-center text-white/90"
-        style={{ top: h * 0.13 }}
-        initial={{ opacity: 0, scale: 0.5 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 1, ease: "easeOut" }}
+      {/* status bar */}
+      <div
+        className="absolute inset-x-0 flex items-center justify-between font-semibold text-white/85"
+        style={{ top: h * 0.035, paddingInline: w * 0.13, fontSize: tiny }}
       >
-        <AppleLogo style={{ width: apple, height: apple }} />
-      </motion.div>
+        <span>15:53</span>
+        <span className="flex items-center" style={{ gap: w * 0.015 }}>
+          <SignalHigh style={{ width: tiny, height: tiny }} />
+          <Wifi style={{ width: tiny, height: tiny }} />
+          <BatteryFull style={{ width: tiny * 1.5, height: tiny }} />
+        </span>
+      </div>
 
-      {/* padlock: locked → unlocked */}
+      {/* clock + date */}
+      <div className="absolute inset-x-0 text-center text-white" style={{ top: h * 0.095 }}>
+        <div className="font-semibold tracking-tight" style={{ fontSize: clockSize, lineHeight: 1 }}>15:53</div>
+        <div className="font-medium text-white/55" style={{ fontSize: tiny, marginTop: h * 0.014 }}>الإثنين، 15 يونيو</div>
+      </div>
+
+      {/* center: Apple boot → padlock locked → unlocked */}
       <div className="absolute" style={{ left: w * 0.5 - icon, top: h * 0.40, width: icon * 2, height: icon * 2 }}>
         <motion.div
-          className="absolute inset-0 rounded-full bg-orange-500/45 blur-2xl"
-          animate={{ opacity: [0.45, 0.85, 0.45], scale: [0.85, 1.12, 0.85] }}
-          transition={{ duration: 1.7, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute inset-0 rounded-full blur-2xl"
+          style={{ background: "rgba(249,115,22,0.40)" }}
+          animate={reduce ? {} : { background: ["rgba(249,115,22,0.40)", "rgba(249,115,22,0.40)", "rgba(16,185,129,0.45)", "rgba(16,185,129,0.20)"], scale: [0.85, 1.08, 1.12, 0.9] }}
+          transition={{ duration: LOOP, times: [0, 0.58, 0.7, 1], repeat: Infinity, ease: "easeInOut" }}
         />
         <motion.div
-          className="absolute inset-0 flex items-center justify-center text-orange-400"
-          initial={{ opacity: 1 }}
-          animate={{ opacity: 0 }}
-          transition={{ duration: 0.4, delay: 1.7 }}
+          className="absolute inset-0 flex items-center justify-center text-white"
+          animate={reduce ? { opacity: 0 } : { opacity: [1, 1, 0, 0, 0, 1] }}
+          transition={{ duration: LOOP, times: [0, 0.08, 0.14, 0.9, 0.97, 1], repeat: Infinity }}
         >
-          <Lock style={{ width: icon, height: icon }} strokeWidth={2.2} />
+          <AppleLogo style={{ width: apple, height: apple }} />
+        </motion.div>
+        <motion.div
+          className="absolute inset-0 flex items-center justify-center text-orange-400"
+          animate={reduce ? { opacity: 0 } : { opacity: [0, 0, 1, 1, 0, 0] }}
+          transition={{ duration: LOOP, times: [0, 0.16, 0.2, 0.58, 0.64, 1], repeat: Infinity }}
+        >
+          <Lock style={{ width: icon, height: icon }} strokeWidth={2.1} />
         </motion.div>
         <motion.div
           className="absolute inset-0 flex items-center justify-center text-emerald-400"
-          initial={{ opacity: 0, scale: 0.5, rotate: -12 }}
-          animate={{ opacity: 1, scale: 1, rotate: 0 }}
-          transition={{ duration: 0.5, delay: 1.8, ease: "backOut" }}
+          animate={reduce ? { opacity: 1 } : { opacity: [0, 0, 1, 1, 0], scale: [0.6, 0.6, 1, 1, 0.9] }}
+          transition={{ duration: LOOP, times: [0, 0.62, 0.7, 0.92, 0.98], repeat: Infinity, ease: "backOut" }}
         >
-          <Unlock style={{ width: icon, height: icon }} strokeWidth={2.2} />
+          <Unlock style={{ width: icon, height: icon }} strokeWidth={2.1} />
         </motion.div>
       </div>
 
-      {/* status text */}
-      <motion.div
-        className="absolute inset-x-0 text-center font-mono font-bold tracking-[0.25em] text-white"
-        style={{ top: h * 0.60, fontSize: Math.max(8, h * 0.034) }}
-        initial={{ opacity: 0, y: 6 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, delay: 2.05 }}
+      {/* iCloud label + status line */}
+      <div className="absolute inset-x-0 text-center" style={{ top: h * 0.63 }}>
+        <div className="flex items-center justify-center font-semibold text-white/90" style={{ gap: w * 0.025, fontSize: labelSize }}>
+          <Cloud style={{ width: labelSize * 1.15, height: labelSize * 1.15 }} /> iCloud
+        </div>
+        <div className="relative" style={{ height: tiny * 1.8, marginTop: h * 0.014 }}>
+          <motion.div
+            className="absolute inset-0 font-mono text-orange-300/90"
+            style={{ fontSize: tiny }}
+            animate={reduce ? { opacity: 0 } : { opacity: [0, 1, 1, 0, 0] }}
+            transition={{ duration: LOOP, times: [0, 0.22, 0.55, 0.64, 1], repeat: Infinity }}
+          >
+            Bypassing Activation Lock…
+          </motion.div>
+          <motion.div
+            className="absolute inset-0 font-mono font-bold tracking-[0.18em] text-emerald-400"
+            style={{ fontSize: tiny }}
+            animate={reduce ? { opacity: 1 } : { opacity: [0, 0, 1, 1, 0] }}
+            transition={{ duration: LOOP, times: [0, 0.64, 0.7, 0.92, 0.98], repeat: Infinity }}
+          >
+            UNLOCKED ✓
+          </motion.div>
+        </div>
+      </div>
+
+      {/* progress bar */}
+      <div
+        className="absolute overflow-hidden rounded-full bg-white/10"
+        style={{ left: w * 0.24, right: w * 0.24, top: h * 0.76, height: Math.max(2, h * 0.008) }}
       >
-        iCloud
-      </motion.div>
-      <motion.div
-        className="absolute inset-x-0 text-center font-mono font-bold tracking-[0.2em] text-emerald-400"
-        style={{ top: h * 0.665, fontSize: Math.max(7, h * 0.028) }}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.6, delay: 2.3 }}
-      >
-        UNLOCKED ✓
-      </motion.div>
+        <motion.div
+          className="h-full rounded-full"
+          style={{ background: "linear-gradient(90deg,#f97316,#fbbf24)" }}
+          animate={reduce ? { width: "100%" } : { width: ["0%", "0%", "100%", "100%", "0%"] }}
+          transition={{ duration: LOOP, times: [0, 0.18, 0.6, 0.95, 1], repeat: Infinity, ease: "easeInOut" }}
+        />
+      </div>
+
+      {/* home indicator */}
+      <div
+        className="absolute left-1/2 -translate-x-1/2 rounded-full bg-white/55"
+        style={{ bottom: h * 0.028, width: w * 0.30, height: Math.max(2, h * 0.006) }}
+      />
 
       {/* glass reflection */}
-      <div className="absolute inset-0" style={{ background: "linear-gradient(150deg, rgba(255,255,255,0.14), transparent 42%)" }} />
+      <div className="absolute inset-0" style={{ background: "linear-gradient(150deg, rgba(255,255,255,0.12), transparent 40%)" }} />
     </div>
   );
 }
