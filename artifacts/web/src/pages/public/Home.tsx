@@ -93,6 +93,7 @@ export function Home() {
               duration={7}
               amplitude={14}
               delay={0.15}
+              overlay={(size) => <IPadTerminal size={size} />}
             />
 
             {/* Left phone — iPhone unlocked home screen */}
@@ -117,7 +118,7 @@ export function Home() {
               delay={0.35}
             />
 
-            {/* Center phone — iPhone: locked → unlock → live jailbreak terminal */}
+            {/* Center phone — iPhone: Apple logo → lock opens → "iCloud / UNLOCKED" */}
             <FloatDevice
               src={iphoneLocked}
               alt="iPhone locked screen"
@@ -126,7 +127,7 @@ export function Home() {
               duration={5.5}
               amplitude={20}
               delay={0.1}
-              overlay={(size) => <PhoneScreen size={size} />}
+              overlay={(size) => <IPhoneUnlock size={size} />}
             />
 
             {/* ── Floating capability badges (crisp HTML overlay) ── */}
@@ -426,99 +427,180 @@ function FloatDevice({
   );
 }
 
-/* ─── Screen glass corners of hero_iphone_locked.png (fractions of the image box) ───
-   order: TL, TR, BL, BR — matches the projection source rect corners.            */
-const SCREEN_CORNERS: [number, number][] = [
+/* ─── Screen glass corners (fractions of the image box) — order TL, TR, BL, BR ─── */
+const IPHONE_SCREEN_CORNERS: [number, number][] = [
   [0.135, 0.150],
   [0.455, 0.098],
   [0.300, 0.730],
   [0.660, 0.620],
 ];
+const TABLET_SCREEN_CORNERS: [number, number][] = [
+  [0.380, 0.285],
+  [0.835, 0.420],
+  [0.165, 0.475],
+  [0.670, 0.650],
+];
 
-/* ─── Animated jailbreak terminal projected onto the iPhone glass ─── */
-function PhoneScreen({ size }: { size: { w: number; h: number } }) {
+/* ─── Apple logo (inline SVG; lucide has no Apple mark) ─── */
+function AppleLogo({ style, className }: { style?: React.CSSProperties; className?: string }) {
+  return (
+    <svg viewBox="0 0 384 512" fill="currentColor" style={style} className={className} aria-hidden>
+      <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z" />
+    </svg>
+  );
+}
+
+/* ─── iPhone (center): Apple → lock opens → "iCloud UNLOCKED" (projected on glass) ─── */
+function IPhoneUnlock({ size }: { size: { w: number; h: number } }) {
   const { w, h } = size;
-  const dest = SCREEN_CORNERS.map(([fx, fy]) => [fx * w, fy * h]) as number[][];
+  const dest = IPHONE_SCREEN_CORNERS.map(([fx, fy]) => [fx * w, fy * h]) as number[][];
   const matrix = projectionMatrix(w, h, dest);
   const radius = Math.max(10, h * 0.055);
-  const fontSize = Math.max(6, h * 0.021);
+  const icon = Math.max(18, h * 0.11);
+  const apple = Math.max(14, h * 0.085);
 
   return (
     <div
       className="absolute left-0 top-0 pointer-events-none overflow-hidden"
       style={{ width: w, height: h, transform: matrix, transformOrigin: "0 0", borderRadius: radius }}
     >
-      {/* pulsing unlock glow over the padlock (shows while still "locked") */}
-      <motion.div
-        className="absolute rounded-full bg-orange-500/40 blur-2xl"
-        style={{ width: w * 0.5, height: w * 0.5, left: w * 0.3, top: h * 0.38 }}
-        initial={{ opacity: 0.7, scale: 0.85 }}
-        animate={{ opacity: [0.7, 0.25, 0.7], scale: [0.85, 1.05, 0.85] }}
-        transition={{ duration: 1.4, repeat: 1, ease: "easeInOut" }}
-      />
+      {/* opaque screen so only the unlock animation shows (hides baked lockscreen) */}
+      <div className="absolute inset-0" style={{ background: "radial-gradient(120% 90% at 50% 35%, #0b1220 0%, #04070a 70%)" }} />
 
-      {/* the live terminal — fades/zooms in as the phone "unlocks" */}
+      {/* Apple logo */}
       <motion.div
-        className="absolute inset-0 overflow-hidden"
-        style={{ borderRadius: radius, background: "#04070a" }}
-        initial={{ opacity: 0, scale: 0.97 }}
+        className="absolute inset-x-0 flex justify-center text-white/90"
+        style={{ top: h * 0.13 }}
+        initial={{ opacity: 0, scale: 0.5 }}
         animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.7, delay: 1.55, ease: "easeOut" }}
+        transition={{ duration: 1, ease: "easeOut" }}
       >
-        {/* header bar */}
-        <div
-          className="flex items-center gap-1.5"
-          style={{ padding: `${h * 0.02}px ${w * 0.06}px`, fontSize: fontSize * 0.85 }}
-        >
-          <span className="rounded-full bg-red-500/80" style={{ width: fontSize * 0.5, height: fontSize * 0.5 }} />
-          <span className="rounded-full bg-amber-400/80" style={{ width: fontSize * 0.5, height: fontSize * 0.5 }} />
-          <span className="rounded-full bg-green-500/80" style={{ width: fontSize * 0.5, height: fontSize * 0.5 }} />
-          <span className="ms-auto font-mono font-bold tracking-wider text-orange-400">jailbreak</span>
-        </div>
+        <AppleLogo style={{ width: apple, height: apple }} />
+      </motion.div>
 
-        {/* scrolling code */}
-        <div className="absolute inset-x-0 overflow-hidden" style={{ top: h * 0.085, bottom: 0 }}>
-          <motion.div
-            className="font-mono leading-tight"
-            style={{ fontSize, paddingInline: w * 0.06 }}
-            animate={{ y: ["0%", "-50%"] }}
-            transition={{ duration: 17, ease: "linear", repeat: Infinity }}
-          >
-            {[...TERM_LINES, ...TERM_LINES].map((ln, i) => (
-              <div key={i} className="whitespace-nowrap" style={{ marginBottom: h * 0.012 }}>
-                {ln.prompt && <span className="text-orange-400">{ln.prompt}:~$ </span>}
-                {ln.cmd && <span className="text-sky-300">{ln.cmd}</span>}
-                {ln.out && (
-                  <span className={ln.ok ? "text-emerald-400" : ln.warn ? "text-amber-300" : "text-emerald-300/80"}>
-                    {ln.out}
-                  </span>
-                )}
-              </div>
-            ))}
-          </motion.div>
-        </div>
-
-        {/* soft scanlines */}
-        <div
-          className="absolute inset-0 opacity-[0.10]"
-          style={{
-            backgroundImage: "repeating-linear-gradient(180deg, rgba(255,255,255,0.6) 0px, rgba(255,255,255,0.6) 1px, transparent 1px, transparent 3px)",
-          }}
-        />
-        {/* moving highlight sweep */}
+      {/* padlock: locked → unlocked */}
+      <div className="absolute" style={{ left: w * 0.5 - icon, top: h * 0.40, width: icon * 2, height: icon * 2 }}>
         <motion.div
-          className="absolute inset-x-0 h-1/3"
-          style={{ background: "linear-gradient(180deg, transparent, rgba(94,234,212,0.10), transparent)" }}
-          animate={{ y: ["-40%", "140%"] }}
-          transition={{ duration: 6.5, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute inset-0 rounded-full bg-orange-500/45 blur-2xl"
+          animate={{ opacity: [0.45, 0.85, 0.45], scale: [0.85, 1.12, 0.85] }}
+          transition={{ duration: 1.7, repeat: Infinity, ease: "easeInOut" }}
         />
-        {/* glass reflection */}
-        <div
-          className="absolute inset-0"
-          style={{ background: "linear-gradient(150deg, rgba(255,255,255,0.16), transparent 42%)" }}
-        />
+        <motion.div
+          className="absolute inset-0 flex items-center justify-center text-orange-400"
+          initial={{ opacity: 1 }}
+          animate={{ opacity: 0 }}
+          transition={{ duration: 0.4, delay: 1.7 }}
+        >
+          <Lock style={{ width: icon, height: icon }} strokeWidth={2.2} />
+        </motion.div>
+        <motion.div
+          className="absolute inset-0 flex items-center justify-center text-emerald-400"
+          initial={{ opacity: 0, scale: 0.5, rotate: -12 }}
+          animate={{ opacity: 1, scale: 1, rotate: 0 }}
+          transition={{ duration: 0.5, delay: 1.8, ease: "backOut" }}
+        >
+          <Unlock style={{ width: icon, height: icon }} strokeWidth={2.2} />
+        </motion.div>
+      </div>
+
+      {/* status text */}
+      <motion.div
+        className="absolute inset-x-0 text-center font-mono font-bold tracking-[0.25em] text-white"
+        style={{ top: h * 0.60, fontSize: Math.max(8, h * 0.034) }}
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, delay: 2.05 }}
+      >
+        iCloud
+      </motion.div>
+      <motion.div
+        className="absolute inset-x-0 text-center font-mono font-bold tracking-[0.2em] text-emerald-400"
+        style={{ top: h * 0.665, fontSize: Math.max(7, h * 0.028) }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.6, delay: 2.3 }}
+      >
+        UNLOCKED ✓
+      </motion.div>
+
+      {/* glass reflection */}
+      <div className="absolute inset-0" style={{ background: "linear-gradient(150deg, rgba(255,255,255,0.14), transparent 42%)" }} />
+    </div>
+  );
+}
+
+/* ─── one scrolling terminal column ─── */
+function TermColumn({ fontSize, lineGap, duration, delay = 0 }: { fontSize: number; lineGap: number; duration: number; delay?: number }) {
+  return (
+    <div className="flex-1 overflow-hidden">
+      <motion.div
+        className="font-mono leading-tight"
+        style={{ fontSize }}
+        animate={{ y: ["0%", "-50%"] }}
+        transition={{ duration, delay, ease: "linear", repeat: Infinity }}
+      >
+        {[...TERM_LINES, ...TERM_LINES].map((ln, i) => (
+          <div key={i} className="whitespace-nowrap" style={{ marginBottom: lineGap }}>
+            {ln.prompt && <span className="text-orange-400">{ln.prompt}:~$ </span>}
+            {ln.cmd && <span className="text-sky-300">{ln.cmd}</span>}
+            {ln.out && (
+              <span className={ln.ok ? "text-emerald-400" : ln.warn ? "text-amber-300" : "text-emerald-300/80"}>
+                {ln.out}
+              </span>
+            )}
+          </div>
+        ))}
       </motion.div>
     </div>
+  );
+}
+
+/* ─── iPad (back): live jailbreak terminal projected on the glass ─── */
+function IPadTerminal({ size }: { size: { w: number; h: number } }) {
+  const { w, h } = size;
+  const dest = TABLET_SCREEN_CORNERS.map(([fx, fy]) => [fx * w, fy * h]) as number[][];
+  const matrix = projectionMatrix(w, h, dest);
+  const radius = Math.max(6, h * 0.02);
+  const fontSize = Math.max(8, h * 0.04);
+  const lineGap = h * 0.014;
+
+  return (
+    <motion.div
+      className="absolute left-0 top-0 pointer-events-none overflow-hidden"
+      style={{ width: w, height: h, transform: matrix, transformOrigin: "0 0", borderRadius: radius, background: "#04070a" }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.8, delay: 0.3 }}
+    >
+      {/* header bar */}
+      <div className="flex items-center gap-1.5" style={{ padding: `${h * 0.022}px ${w * 0.03}px`, fontSize: fontSize * 0.65 }}>
+        <span className="rounded-full bg-red-500/80" style={{ width: fontSize * 0.45, height: fontSize * 0.45 }} />
+        <span className="rounded-full bg-amber-400/80" style={{ width: fontSize * 0.45, height: fontSize * 0.45 }} />
+        <span className="rounded-full bg-green-500/80" style={{ width: fontSize * 0.45, height: fontSize * 0.45 }} />
+        <span className="ms-auto font-mono font-bold tracking-wider text-orange-400">root@device — jailbreak</span>
+      </div>
+
+      {/* two scrolling columns fill the wide screen */}
+      <div className="absolute inset-x-0 flex" style={{ top: h * 0.075, bottom: h * 0.02, gap: w * 0.03, paddingInline: w * 0.03 }}>
+        <TermColumn fontSize={fontSize} lineGap={lineGap} duration={19} />
+        <TermColumn fontSize={fontSize} lineGap={lineGap} duration={24} delay={-6} />
+      </div>
+
+      {/* soft scanlines */}
+      <div
+        className="absolute inset-0 opacity-[0.10]"
+        style={{ backgroundImage: "repeating-linear-gradient(180deg, rgba(255,255,255,0.6) 0px, rgba(255,255,255,0.6) 1px, transparent 1px, transparent 3px)" }}
+      />
+      {/* moving highlight sweep */}
+      <motion.div
+        className="absolute inset-x-0 h-1/3"
+        style={{ background: "linear-gradient(180deg, transparent, rgba(94,234,212,0.10), transparent)" }}
+        animate={{ y: ["-40%", "140%"] }}
+        transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}
+      />
+      {/* glass reflection */}
+      <div className="absolute inset-0" style={{ background: "linear-gradient(150deg, rgba(255,255,255,0.16), transparent 45%)" }} />
+    </motion.div>
   );
 }
 
@@ -542,13 +624,13 @@ function MatrixRain() {
   const reduce = useReducedMotion();
   const columns = useMemo(() => {
     const chars = "01ABCDEF#$<>{}/\\*+=01x10";
-    const cols = 18;
+    const cols = 30;
     return Array.from({ length: cols }, (_, i) => ({
-      left: (i / cols) * 100 + Math.random() * 2,
-      text: Array.from({ length: 26 }, () => chars[Math.floor(Math.random() * chars.length)]),
+      left: (i / cols) * 100 + Math.random() * 1.5,
+      text: Array.from({ length: 30 }, () => chars[Math.floor(Math.random() * chars.length)]),
       duration: 7 + Math.random() * 9,
       delay: -Math.random() * 12,
-      opacity: 0.10 + Math.random() * 0.10,
+      opacity: 0.24 + Math.random() * 0.20,
     }));
   }, []);
 
@@ -557,13 +639,13 @@ function MatrixRain() {
   return (
     <div
       className="absolute inset-0 z-0 overflow-hidden pointer-events-none select-none"
-      style={{ maskImage: "radial-gradient(120% 90% at 50% 40%, transparent 18%, black 78%)", WebkitMaskImage: "radial-gradient(120% 90% at 50% 40%, transparent 18%, black 78%)" }}
+      style={{ maskImage: "radial-gradient(140% 105% at 50% 42%, transparent 6%, black 58%)", WebkitMaskImage: "radial-gradient(140% 105% at 50% 42%, transparent 6%, black 58%)" }}
       aria-hidden
     >
       {columns.map((c, i) => (
         <div key={i} className="absolute top-0 h-full" style={{ left: `${c.left}%` }}>
           <motion.div
-            className="flex flex-col font-mono text-[11px] leading-[1.15] text-emerald-400"
+            className="flex flex-col font-mono text-[13px] leading-[1.2] text-emerald-400"
             style={{ opacity: c.opacity }}
             animate={{ y: ["-50%", "0%"] }}
             transition={{ duration: c.duration, delay: c.delay, repeat: Infinity, ease: "linear" }}
@@ -583,13 +665,13 @@ function FallingLocks() {
   const reduce = useReducedMotion();
   const locks = useMemo(
     () =>
-      Array.from({ length: 8 }, (_, i) => ({
-        left: 6 + Math.random() * 88,
-        size: 16 + Math.random() * 18,
-        duration: 16 + Math.random() * 14,
-        delay: -Math.random() * 24,
-        rotate: -20 + Math.random() * 40,
-        orange: i % 3 === 0,
+      Array.from({ length: 18 }, (_, i) => ({
+        left: 3 + Math.random() * 94,
+        size: 18 + Math.random() * 24,
+        duration: 18 + Math.random() * 16,
+        delay: -Math.random() * 30,
+        rotate: -18 + Math.random() * 36,
+        light: i % 2 === 0,
       })),
     []
   );
@@ -601,11 +683,15 @@ function FallingLocks() {
       {locks.map((l, i) => (
         <div key={i} className="absolute top-0" style={{ left: `${l.left}%` }}>
           <motion.div
-            initial={{ y: "-12vh", opacity: 0 }}
-            animate={{ y: ["-12vh", "110vh"], opacity: [0, 0.16, 0.16, 0], rotate: [0, l.rotate] }}
+            initial={{ y: "-14vh", opacity: 0 }}
+            animate={{ y: ["-14vh", "112vh"], opacity: [0, 0.5, 0.5, 0], rotate: [0, l.rotate] }}
             transition={{ duration: l.duration, delay: l.delay, repeat: Infinity, ease: "linear" }}
           >
-            <Lock style={{ width: l.size, height: l.size }} className={l.orange ? "text-orange-400/70" : "text-white/40"} />
+            <Lock
+              style={{ width: l.size, height: l.size, filter: "drop-shadow(0 0 6px rgba(251,146,60,0.45))" }}
+              strokeWidth={2.2}
+              className={l.light ? "text-orange-300" : "text-orange-400"}
+            />
           </motion.div>
         </div>
       ))}
