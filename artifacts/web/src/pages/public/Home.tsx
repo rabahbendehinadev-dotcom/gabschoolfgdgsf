@@ -429,10 +429,10 @@ function FloatDevice({
 /* ─── Screen glass corners of hero_iphone_locked.png (fractions of the image box) ───
    order: TL, TR, BL, BR — matches the projection source rect corners.            */
 const SCREEN_CORNERS: [number, number][] = [
-  [0.090, 0.180],
-  [0.560, 0.118],
-  [0.300, 0.860],
-  [0.795, 0.760],
+  [0.135, 0.150],
+  [0.455, 0.098],
+  [0.300, 0.730],
+  [0.660, 0.620],
 ];
 
 /* ─── Animated jailbreak terminal projected onto the iPhone glass ─── */
@@ -440,13 +440,13 @@ function PhoneScreen({ size }: { size: { w: number; h: number } }) {
   const { w, h } = size;
   const dest = SCREEN_CORNERS.map(([fx, fy]) => [fx * w, fy * h]) as number[][];
   const matrix = projectionMatrix(w, h, dest);
-  const radius = Math.max(8, h * 0.05);
-  const fontSize = Math.max(7, h * 0.0235);
+  const radius = Math.max(10, h * 0.055);
+  const fontSize = Math.max(6, h * 0.021);
 
   return (
     <div
-      className="absolute left-0 top-0 pointer-events-none"
-      style={{ width: w, height: h, transform: matrix, transformOrigin: "0 0" }}
+      className="absolute left-0 top-0 pointer-events-none overflow-hidden"
+      style={{ width: w, height: h, transform: matrix, transformOrigin: "0 0", borderRadius: radius }}
     >
       {/* pulsing unlock glow over the padlock (shows while still "locked") */}
       <motion.div
@@ -482,7 +482,7 @@ function PhoneScreen({ size }: { size: { w: number; h: number } }) {
             className="font-mono leading-tight"
             style={{ fontSize, paddingInline: w * 0.06 }}
             animate={{ y: ["0%", "-50%"] }}
-            transition={{ duration: 11, ease: "linear", repeat: Infinity }}
+            transition={{ duration: 17, ease: "linear", repeat: Infinity }}
           >
             {[...TERM_LINES, ...TERM_LINES].map((ln, i) => (
               <div key={i} className="whitespace-nowrap" style={{ marginBottom: h * 0.012 }}>
@@ -510,7 +510,7 @@ function PhoneScreen({ size }: { size: { w: number; h: number } }) {
           className="absolute inset-x-0 h-1/3"
           style={{ background: "linear-gradient(180deg, transparent, rgba(94,234,212,0.10), transparent)" }}
           animate={{ y: ["-40%", "140%"] }}
-          transition={{ duration: 4.5, repeat: Infinity, ease: "easeInOut" }}
+          transition={{ duration: 6.5, repeat: Infinity, ease: "easeInOut" }}
         />
         {/* glass reflection */}
         <div

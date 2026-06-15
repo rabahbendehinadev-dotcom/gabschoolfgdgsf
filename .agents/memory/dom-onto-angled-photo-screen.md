@@ -14,8 +14,17 @@ screen-glass corners.
 
 **Recipe (see `artifacts/web/src/pages/public/Home.tsx`):**
 - Store the glass corners as **fractions of the image box** (`SCREEN_CORNERS`,
-  order TL, TR, BL, BR). Tune them by screenshot iteration; getting them slightly
-  wrong makes the overlay spill onto the metal bezel and look broken.
+  order TL, TR, BL, BR). Getting them slightly wrong makes the overlay spill onto
+  the metal bezel or off the device. **Do NOT eyeball them** — measure
+  empirically: draw candidate corner dots + the quad outline onto the actual PNG
+  with PIL/ImageDraw, save to /tmp, and view it; iterate until the quad hugs the
+  glass and sits *just inside* it. Prefer a slightly conservative (inset) quad.
+- **Clipping does not save a wrong quad.** `overflow:hidden` only clips to the
+  quad you defined; if the quad exceeds the glass, content still spills. Fix the
+  corners first, then rely on clipping. Put `overflow:hidden` + matching
+  `borderRadius` on the **outer matrix3d wrapper** (clips reliably even under the
+  3D transform) so siblings like a glow/blur are contained too, not just the
+  terminal's own children.
 - Measure the rendered image box with a `ResizeObserver` (offsetWidth/Height) so
   the projection is **fully responsive**; convert fractions → px each resize.
 - Compute the homography rect→quad (adjugate / basisToPoints / general 2D
