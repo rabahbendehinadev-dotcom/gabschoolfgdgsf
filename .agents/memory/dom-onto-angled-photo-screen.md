@@ -13,12 +13,20 @@ perspective quad, not an axis-aligned rect. Use a **2D projective transform
 screen-glass corners.
 
 **Recipe (see `artifacts/web/src/pages/public/Home.tsx`):**
-- Store the glass corners as **fractions of the image box** (`SCREEN_CORNERS`,
-  order TL, TR, BL, BR). Getting them slightly wrong makes the overlay spill onto
-  the metal bezel or off the device. **Do NOT eyeball them** — measure
-  empirically: draw candidate corner dots + the quad outline onto the actual PNG
-  with PIL/ImageDraw, save to /tmp, and view it; iterate until the quad hugs the
-  glass and sits *just inside* it. Prefer a slightly conservative (inset) quad.
+- Store the glass corners as **fractions of the image box** (e.g.
+  `IPHONE_SCREEN_CORNERS` / `TABLET_SCREEN_CORNERS`, order TL, TR, BL, BR). Getting
+  them slightly wrong makes the overlay spill onto the metal bezel or off the
+  device. **Do NOT eyeball them** — measure empirically: overlay a percent grid +
+  candidate quad onto the actual PNG with PIL/ImageDraw, save to /tmp, and view it;
+  iterate until the quad hugs the glass.
+- **Glare/reflection extends the glass — measure the FULL screen rectangle, not
+  where the visible content stops.** A baked screenshot often has a bright diagonal
+  reflection over one part of the glass with little/no readable content there. The
+  true screen edge runs *under* that reflection out to the aluminium bezel. If you
+  stop the quad where the legible code ends, an **opaque** overlay covers only part
+  of the screen and the baked reflection (and any faint baked content) shows beside
+  it. For an opaque overlay that must hide baked content, size the quad to the full
+  glass; only inset conservatively when the overlay is translucent.
 - **Clipping does not save a wrong quad.** `overflow:hidden` only clips to the
   quad you defined; if the quad exceeds the glass, content still spills. Fix the
   corners first, then rely on clipping. Put `overflow:hidden` + matching
