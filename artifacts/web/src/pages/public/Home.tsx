@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { Button, Card, Badge } from "@/components/ui";
 import { Link } from "wouter";
 import { Play, CheckCircle2, Shield, Zap, Crown, Lock, Search, LayoutGrid, Cloud, Terminal, Unlock, Cpu, type LucideIcon } from "lucide-react";
@@ -44,17 +44,36 @@ export function Home() {
   return (
     <div className="w-full">
       {/* ═══════════════════════════════════════════════════════
-          HERO — Visual-only device showcase (no marketing copy)
+          HERO — Visual-only animated device showcase (no marketing copy)
       ════════════════════════════════════════════════════════ */}
       <section className="relative min-h-[86vh] lg:min-h-screen flex items-center justify-center overflow-hidden bg-neutral-950">
 
         {/* ── Premium dark backdrop ── */}
         <div className="absolute inset-0 z-0 bg-gradient-to-b from-neutral-950 via-neutral-900 to-neutral-950" />
 
-        {/* ── Orange brand glows ── */}
-        <div className="absolute -top-[12%] left-1/2 -translate-x-1/2 w-[820px] h-[520px] bg-orange-600/25 rounded-full blur-[150px] z-0" />
-        <div className="absolute bottom-[2%] left-[6%] w-[420px] h-[420px] bg-amber-500/15 rounded-full blur-[130px] z-0" />
-        <div className="absolute top-[18%] right-[4%] w-[380px] h-[380px] bg-orange-700/15 rounded-full blur-[130px] z-0" />
+        {/* ── Animated orange brand glows ── */}
+        <motion.div
+          className="absolute -top-[12%] left-1/2 w-[820px] h-[520px] bg-orange-600/25 rounded-full blur-[150px] z-0"
+          style={{ x: "-50%" }}
+          animate={{ opacity: [0.6, 1, 0.6], scale: [1, 1.07, 1] }}
+          transition={{ duration: 9, repeat: Infinity, ease: "easeInOut" }}
+        />
+        <motion.div
+          className="absolute bottom-[2%] left-[6%] w-[420px] h-[420px] bg-amber-500/15 rounded-full blur-[130px] z-0"
+          animate={{ opacity: [0.5, 0.9, 0.5] }}
+          transition={{ duration: 11, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+        />
+        <motion.div
+          className="absolute top-[18%] right-[4%] w-[380px] h-[380px] bg-orange-700/15 rounded-full blur-[130px] z-0"
+          animate={{ opacity: [0.4, 0.85, 0.4] }}
+          transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 2 }}
+        />
+
+        {/* ── Matrix-style falling code (subtle) ── */}
+        <MatrixRain />
+
+        {/* ── Slowly falling padlocks ── */}
+        <FallingLocks />
 
         {/* ── Circuit overlay ── */}
         <div className="absolute inset-0 z-0 opacity-[0.06] text-white">
@@ -98,7 +117,7 @@ export function Home() {
               delay={0.35}
             />
 
-            {/* Center phone — iPhone locked (hero device) */}
+            {/* Center phone — iPhone: locked → unlock → live jailbreak terminal */}
             <FloatDevice
               src={iphoneLocked}
               alt="iPhone locked screen"
@@ -107,6 +126,7 @@ export function Home() {
               duration={5.5}
               amplitude={20}
               delay={0.1}
+              overlay={(size) => <PhoneScreen size={size} />}
             />
 
             {/* ── Floating capability badges (crisp HTML overlay) ── */}
@@ -119,7 +139,7 @@ export function Home() {
         </div>
 
         {/* ── Wave divider to light body ── */}
-        <div className="absolute bottom-0 left-0 right-0 z-10">
+        <div className="absolute bottom-0 left-0 right-0 z-20">
           <svg viewBox="0 0 1440 80" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full" preserveAspectRatio="none">
             <path d="M0,60 C360,0 1080,120 1440,40 L1440,80 L0,80 Z" fill="hsl(var(--background))" />
           </svg>
@@ -341,7 +361,7 @@ export function Home() {
   );
 }
 
-/* ─── Floating device render (entrance + gentle infinite float) ─── */
+/* ─── Floating device render (entrance + gentle infinite float + optional screen overlay) ─── */
 function FloatDevice({
   src,
   alt,
@@ -350,6 +370,7 @@ function FloatDevice({
   duration = 6,
   amplitude = 16,
   delay = 0,
+  overlay,
 }: {
   src: string;
   alt: string;
@@ -358,7 +379,26 @@ function FloatDevice({
   duration?: number;
   amplitude?: number;
   delay?: number;
+  overlay?: (size: { w: number; h: number }) => React.ReactNode;
 }) {
+  const boxRef = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState({ w: 0, h: 0 });
+
+  useEffect(() => {
+    if (!overlay) return;
+    const el = boxRef.current;
+    if (!el) return;
+    const update = () => {
+      const w = el.offsetWidth;
+      const h = el.offsetHeight;
+      setSize((prev) => (prev.w === w && prev.h === h ? prev : { w, h }));
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [overlay]);
+
   return (
     <div className={wrapperClassName}>
       <motion.div
@@ -366,15 +406,209 @@ function FloatDevice({
         animate={{ opacity: 1, scale: 1, y: 0, rotate }}
         transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1], delay }}
       >
-        <motion.img
-          src={src}
-          alt={alt}
-          draggable={false}
-          className="w-full h-auto select-none drop-shadow-2xl"
+        {/* float container holds image + projected screen so they move together */}
+        <motion.div
           animate={{ y: [0, -amplitude, 0] }}
           transition={{ duration, repeat: Infinity, ease: "easeInOut", delay: delay + 0.6 }}
+        >
+          <div ref={boxRef} className="relative">
+            <img
+              src={src}
+              alt={alt}
+              draggable={false}
+              className="w-full h-auto select-none drop-shadow-2xl"
+            />
+            {overlay && size.w > 0 && size.h > 0 && overlay(size)}
+          </div>
+        </motion.div>
+      </motion.div>
+    </div>
+  );
+}
+
+/* ─── Screen glass corners of hero_iphone_locked.png (fractions of the image box) ───
+   order: TL, TR, BL, BR — matches the projection source rect corners.            */
+const SCREEN_CORNERS: [number, number][] = [
+  [0.090, 0.180],
+  [0.560, 0.118],
+  [0.300, 0.860],
+  [0.795, 0.760],
+];
+
+/* ─── Animated jailbreak terminal projected onto the iPhone glass ─── */
+function PhoneScreen({ size }: { size: { w: number; h: number } }) {
+  const { w, h } = size;
+  const dest = SCREEN_CORNERS.map(([fx, fy]) => [fx * w, fy * h]) as number[][];
+  const matrix = projectionMatrix(w, h, dest);
+  const radius = Math.max(8, h * 0.05);
+  const fontSize = Math.max(7, h * 0.0235);
+
+  return (
+    <div
+      className="absolute left-0 top-0 pointer-events-none"
+      style={{ width: w, height: h, transform: matrix, transformOrigin: "0 0" }}
+    >
+      {/* pulsing unlock glow over the padlock (shows while still "locked") */}
+      <motion.div
+        className="absolute rounded-full bg-orange-500/40 blur-2xl"
+        style={{ width: w * 0.5, height: w * 0.5, left: w * 0.3, top: h * 0.38 }}
+        initial={{ opacity: 0.7, scale: 0.85 }}
+        animate={{ opacity: [0.7, 0.25, 0.7], scale: [0.85, 1.05, 0.85] }}
+        transition={{ duration: 1.4, repeat: 1, ease: "easeInOut" }}
+      />
+
+      {/* the live terminal — fades/zooms in as the phone "unlocks" */}
+      <motion.div
+        className="absolute inset-0 overflow-hidden"
+        style={{ borderRadius: radius, background: "#04070a" }}
+        initial={{ opacity: 0, scale: 0.97 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.7, delay: 1.55, ease: "easeOut" }}
+      >
+        {/* header bar */}
+        <div
+          className="flex items-center gap-1.5"
+          style={{ padding: `${h * 0.02}px ${w * 0.06}px`, fontSize: fontSize * 0.85 }}
+        >
+          <span className="rounded-full bg-red-500/80" style={{ width: fontSize * 0.5, height: fontSize * 0.5 }} />
+          <span className="rounded-full bg-amber-400/80" style={{ width: fontSize * 0.5, height: fontSize * 0.5 }} />
+          <span className="rounded-full bg-green-500/80" style={{ width: fontSize * 0.5, height: fontSize * 0.5 }} />
+          <span className="ms-auto font-mono font-bold tracking-wider text-orange-400">jailbreak</span>
+        </div>
+
+        {/* scrolling code */}
+        <div className="absolute inset-x-0 overflow-hidden" style={{ top: h * 0.085, bottom: 0 }}>
+          <motion.div
+            className="font-mono leading-tight"
+            style={{ fontSize, paddingInline: w * 0.06 }}
+            animate={{ y: ["0%", "-50%"] }}
+            transition={{ duration: 11, ease: "linear", repeat: Infinity }}
+          >
+            {[...TERM_LINES, ...TERM_LINES].map((ln, i) => (
+              <div key={i} className="whitespace-nowrap" style={{ marginBottom: h * 0.012 }}>
+                {ln.prompt && <span className="text-orange-400">{ln.prompt}:~$ </span>}
+                {ln.cmd && <span className="text-sky-300">{ln.cmd}</span>}
+                {ln.out && (
+                  <span className={ln.ok ? "text-emerald-400" : ln.warn ? "text-amber-300" : "text-emerald-300/80"}>
+                    {ln.out}
+                  </span>
+                )}
+              </div>
+            ))}
+          </motion.div>
+        </div>
+
+        {/* soft scanlines */}
+        <div
+          className="absolute inset-0 opacity-[0.10]"
+          style={{
+            backgroundImage: "repeating-linear-gradient(180deg, rgba(255,255,255,0.6) 0px, rgba(255,255,255,0.6) 1px, transparent 1px, transparent 3px)",
+          }}
+        />
+        {/* moving highlight sweep */}
+        <motion.div
+          className="absolute inset-x-0 h-1/3"
+          style={{ background: "linear-gradient(180deg, transparent, rgba(94,234,212,0.10), transparent)" }}
+          animate={{ y: ["-40%", "140%"] }}
+          transition={{ duration: 4.5, repeat: Infinity, ease: "easeInOut" }}
+        />
+        {/* glass reflection */}
+        <div
+          className="absolute inset-0"
+          style={{ background: "linear-gradient(150deg, rgba(255,255,255,0.16), transparent 42%)" }}
         />
       </motion.div>
+    </div>
+  );
+}
+
+const TERM_LINES: { prompt?: string; cmd?: string; out?: string; ok?: boolean; warn?: boolean }[] = [
+  { prompt: "root@iPhone", cmd: "checkra1n -jb" },
+  { out: "[*] booting pongoOS ..." },
+  { out: "[+] exploit CVE-2024-23225", ok: true },
+  { out: "[*] uploading bootstrap.dmg" },
+  { prompt: "root@iPhone", cmd: "icloud --bypass" },
+  { out: "[+] activation lock: REMOVED", ok: true },
+  { out: "[+] FRP lock: CLEARED", ok: true },
+  { prompt: "root@iPhone", cmd: "unlock --frp --imei" },
+  { out: "[*] patching nvram ..." },
+  { out: "[+] device: UNLOCKED", ok: true },
+  { out: "[✓] jailbreak complete", ok: true },
+  { prompt: "root@iPhone", cmd: "_" },
+];
+
+/* ─── Matrix-style falling code columns (subtle, behind devices) ─── */
+function MatrixRain() {
+  const reduce = useReducedMotion();
+  const columns = useMemo(() => {
+    const chars = "01ABCDEF#$<>{}/\\*+=01x10";
+    const cols = 18;
+    return Array.from({ length: cols }, (_, i) => ({
+      left: (i / cols) * 100 + Math.random() * 2,
+      text: Array.from({ length: 26 }, () => chars[Math.floor(Math.random() * chars.length)]),
+      duration: 7 + Math.random() * 9,
+      delay: -Math.random() * 12,
+      opacity: 0.10 + Math.random() * 0.10,
+    }));
+  }, []);
+
+  if (reduce) return null;
+
+  return (
+    <div
+      className="absolute inset-0 z-0 overflow-hidden pointer-events-none select-none"
+      style={{ maskImage: "radial-gradient(120% 90% at 50% 40%, transparent 18%, black 78%)", WebkitMaskImage: "radial-gradient(120% 90% at 50% 40%, transparent 18%, black 78%)" }}
+      aria-hidden
+    >
+      {columns.map((c, i) => (
+        <div key={i} className="absolute top-0 h-full" style={{ left: `${c.left}%` }}>
+          <motion.div
+            className="flex flex-col font-mono text-[11px] leading-[1.15] text-emerald-400"
+            style={{ opacity: c.opacity }}
+            animate={{ y: ["-50%", "0%"] }}
+            transition={{ duration: c.duration, delay: c.delay, repeat: Infinity, ease: "linear" }}
+          >
+            {[...c.text, ...c.text].map((ch, j) => (
+              <span key={j} className={j % c.text.length === 0 ? "text-orange-400" : undefined}>{ch}</span>
+            ))}
+          </motion.div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ─── Slowly falling padlocks (very subtle) ─── */
+function FallingLocks() {
+  const reduce = useReducedMotion();
+  const locks = useMemo(
+    () =>
+      Array.from({ length: 8 }, (_, i) => ({
+        left: 6 + Math.random() * 88,
+        size: 16 + Math.random() * 18,
+        duration: 16 + Math.random() * 14,
+        delay: -Math.random() * 24,
+        rotate: -20 + Math.random() * 40,
+        orange: i % 3 === 0,
+      })),
+    []
+  );
+
+  if (reduce) return null;
+
+  return (
+    <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none" aria-hidden>
+      {locks.map((l, i) => (
+        <div key={i} className="absolute top-0" style={{ left: `${l.left}%` }}>
+          <motion.div
+            initial={{ y: "-12vh", opacity: 0 }}
+            animate={{ y: ["-12vh", "110vh"], opacity: [0, 0.16, 0.16, 0], rotate: [0, l.rotate] }}
+            transition={{ duration: l.duration, delay: l.delay, repeat: Infinity, ease: "linear" }}
+          >
+            <Lock style={{ width: l.size, height: l.size }} className={l.orange ? "text-orange-400/70" : "text-white/40"} />
+          </motion.div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -430,4 +664,46 @@ function CircuitPattern() {
       <rect width="100%" height="100%" fill="url(#circuit)" />
     </svg>
   );
+}
+
+/* ─── 2D projective transform (rectangle → quad) helpers → CSS matrix3d ─── */
+function adj(m: number[]) {
+  return [
+    m[4] * m[8] - m[5] * m[7], m[2] * m[7] - m[1] * m[8], m[1] * m[5] - m[2] * m[4],
+    m[5] * m[6] - m[3] * m[8], m[0] * m[8] - m[2] * m[6], m[2] * m[3] - m[0] * m[5],
+    m[3] * m[7] - m[4] * m[6], m[1] * m[6] - m[0] * m[7], m[0] * m[4] - m[1] * m[3],
+  ];
+}
+function multmm(a: number[], b: number[]) {
+  const r = new Array(9).fill(0);
+  for (let i = 0; i < 3; i++)
+    for (let j = 0; j < 3; j++)
+      for (let k = 0; k < 3; k++) r[3 * i + j] += a[3 * i + k] * b[3 * k + j];
+  return r;
+}
+function multmv(m: number[], v: number[]) {
+  return [
+    m[0] * v[0] + m[1] * v[1] + m[2] * v[2],
+    m[3] * v[0] + m[4] * v[1] + m[5] * v[2],
+    m[6] * v[0] + m[7] * v[1] + m[8] * v[2],
+  ];
+}
+function basisToPoints(p: number[][]) {
+  const m = [p[0][0], p[1][0], p[2][0], p[0][1], p[1][1], p[2][1], 1, 1, 1];
+  const v = multmv(adj(m), [p[3][0], p[3][1], 1]);
+  return multmm(m, [v[0], 0, 0, 0, v[1], 0, 0, 0, v[2]]);
+}
+function projectionMatrix(w: number, h: number, dest: number[][]) {
+  const src: number[][] = [[0, 0], [w, 0], [0, h], [w, h]];
+  const s = basisToPoints(src);
+  const d = basisToPoints(dest);
+  const t = multmm(d, adj(s));
+  for (let i = 0; i < 9; i++) t[i] = t[i] / t[8];
+  const m = [
+    t[0], t[3], 0, t[6],
+    t[1], t[4], 0, t[7],
+    0, 0, 1, 0,
+    t[2], t[5], 0, t[8],
+  ];
+  return `matrix3d(${m.join(",")})`;
 }
