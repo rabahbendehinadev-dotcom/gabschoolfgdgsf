@@ -92,6 +92,13 @@ export async function applyVipIpPolicy(
       firstSeen = null;
     }
 
+    // Defensive self-heal for legacy rows: a VIP may have IP slots filled but no
+    // window start (set before this system existed, or via direct DB edit).
+    // Without a window start the row would never auto-reset, so start it now.
+    if (!firstSeen && (ip1 || ip2)) {
+      firstSeen = now;
+    }
+
     let allowed: boolean;
     if (clientIp === ip1 || clientIp === ip2) {
       allowed = true;

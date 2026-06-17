@@ -44,6 +44,18 @@ async function runMigrations() {
         WHERE account_type <> 'vip'
           AND (ip_address IS NOT NULL OR ip_address_2 IS NOT NULL OR ip_first_seen_at IS NOT NULL)
     `);
+    // Legacy VIP rows that already had IP slots filled before the windowed
+    // system existed have a NULL window start, which would leave them stuck at
+    // 2/2 forever (never auto-resetting). Start their 24h window now so the
+    // background scheduler / lazy expiry can reset them. Idempotent: only rows
+    // with a NULL window start are touched, so reruns are no-ops.
+    await db.execute(sql`
+      UPDATE users
+        SET ip_first_seen_at = NOW()
+        WHERE account_type = 'vip'
+          AND ip_first_seen_at IS NULL
+          AND (ip_address IS NOT NULL OR ip_address_2 IS NOT NULL)
+    `);
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS playlists (
         id SERIAL PRIMARY KEY,
