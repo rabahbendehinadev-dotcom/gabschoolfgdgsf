@@ -1346,6 +1346,15 @@ components:
         ipAddress:
           type: string
           nullable: true
+        ipAddress2:
+          type: string
+          nullable: true
+        ipFirstSeenAt:
+          type: string
+          format: date-time
+          nullable: true
+        ipCount:
+          type: integer
         isActive:
           type: boolean
         createdAt:
@@ -1357,6 +1366,7 @@ components:
         - email
         - accountType
         - subscriptionType
+        - ipCount
         - isActive
         - createdAt
 

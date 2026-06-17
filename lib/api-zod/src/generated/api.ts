@@ -281,6 +281,9 @@ export const GetAdminUsersResponseItem = zod.object({
   subscriptionType: zod.enum(["demo", "monthly", "annual", "lifetime"]),
   subscriptionExpiresAt: zod.date().nullish(),
   ipAddress: zod.string().nullish(),
+  ipAddress2: zod.string().nullish(),
+  ipFirstSeenAt: zod.date().nullish(),
+  ipCount: zod.number(),
   isActive: zod.boolean(),
   createdAt: zod.date(),
 });
@@ -310,6 +313,9 @@ export const UpdateAdminUserResponse = zod.object({
   subscriptionType: zod.enum(["demo", "monthly", "annual", "lifetime"]),
   subscriptionExpiresAt: zod.date().nullish(),
   ipAddress: zod.string().nullish(),
+  ipAddress2: zod.string().nullish(),
+  ipFirstSeenAt: zod.date().nullish(),
+  ipCount: zod.number(),
   isActive: zod.boolean(),
   createdAt: zod.date(),
 });

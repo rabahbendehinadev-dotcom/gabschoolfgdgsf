@@ -358,6 +358,9 @@ export interface AdminUser {
   subscriptionType: AdminUserSubscriptionType;
   subscriptionExpiresAt?: string | null;
   ipAddress?: string | null;
+  ipAddress2?: string | null;
+  ipFirstSeenAt?: string | null;
+  ipCount: number;
   isActive: boolean;
   createdAt: string;
 }
