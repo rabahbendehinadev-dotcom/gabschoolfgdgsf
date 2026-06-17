@@ -12,6 +12,7 @@ export const usersTable = pgTable("users", {
   subscriptionExpiresAt: timestamp("subscription_expires_at"),
   ipAddress: varchar("ip_address", { length: 45 }),
   ipAddress2: varchar("ip_address_2", { length: 45 }),
+  ipFirstSeenAt: timestamp("ip_first_seen_at"),
   isActive: boolean("is_active").notNull().default(true),
   phone: varchar("phone", { length: 20 }),
   createdAt: timestamp("created_at").notNull().defaultNow(),

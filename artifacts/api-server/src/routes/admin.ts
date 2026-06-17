@@ -6,6 +6,7 @@ import { db, usersTable, videosTable, categoriesTable, playlistsTable, subscript
 import { eq, sql, count, desc, asc, lt, and, gte, isNotNull, inArray } from "drizzle-orm";
 
 import { adminAuth } from "../middlewares/auth";
+import { effectiveIpState } from "../lib/ipPolicy";
 import { hashPassword, comparePassword } from "../lib/auth";
 import { adminsTable } from "@workspace/db";
 import * as zod from "zod";
@@ -121,19 +122,24 @@ router.get("/admin/stats", adminAuth, async (_req, res) => {
 router.get("/admin/users", adminAuth, async (_req, res) => {
   try {
     const users = await db.select().from(usersTable).orderBy(desc(usersTable.createdAt));
-    res.json(users.map(u => ({
-      id: u.id,
-      username: u.username,
-      email: u.email,
-      accountType: u.accountType,
-      subscriptionType: u.subscriptionType,
-      subscriptionExpiresAt: u.subscriptionExpiresAt?.toISOString() || null,
-      ipAddress: u.ipAddress,
-      ipAddress2: u.ipAddress2,
-      isActive: u.isActive,
-      phone: u.phone ?? null,
-      createdAt: u.createdAt.toISOString(),
-    })));
+    res.json(users.map(u => {
+      const ip = effectiveIpState(u);
+      return {
+        id: u.id,
+        username: u.username,
+        email: u.email,
+        accountType: u.accountType,
+        subscriptionType: u.subscriptionType,
+        subscriptionExpiresAt: u.subscriptionExpiresAt?.toISOString() || null,
+        ipAddress: ip.ipAddress,
+        ipAddress2: ip.ipAddress2,
+        ipFirstSeenAt: ip.ipFirstSeenAt?.toISOString() || null,
+        ipCount: ip.ipCount,
+        isActive: u.isActive,
+        phone: u.phone ?? null,
+        createdAt: u.createdAt.toISOString(),
+      };
+    }));
   } catch (error: unknown) {
     res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" || "Failed to fetch users" });
   }
@@ -145,7 +151,14 @@ router.patch("/admin/users/:id", adminAuth, async (req, res) => {
     const body = UpdateAdminUserBody.parse(req.body);
 
     const updateData: Partial<Record<string, unknown>> = {};
-    if (body.accountType !== undefined) updateData.accountType = body.accountType;
+    if (body.accountType !== undefined) {
+      updateData.accountType = body.accountType;
+      // Changing account type resets IP tracking: non-VIP must have no IP
+      // recorded, and a VIP starts a fresh 24h window on next access.
+      updateData.ipAddress = null;
+      updateData.ipAddress2 = null;
+      updateData.ipFirstSeenAt = null;
+    }
     if (body.subscriptionType !== undefined) {
       updateData.subscriptionType = body.subscriptionType;
       if (!body.subscriptionExpiresAt) {
@@ -174,6 +187,7 @@ router.patch("/admin/users/:id", adminAuth, async (req, res) => {
       return;
     }
 
+    const ip = effectiveIpState(user);
     res.json({
       id: user.id,
       username: user.username,
@@ -181,8 +195,10 @@ router.patch("/admin/users/:id", adminAuth, async (req, res) => {
       accountType: user.accountType,
       subscriptionType: user.subscriptionType,
       subscriptionExpiresAt: user.subscriptionExpiresAt?.toISOString() || null,
-      ipAddress: user.ipAddress,
-      ipAddress2: user.ipAddress2,
+      ipAddress: ip.ipAddress,
+      ipAddress2: ip.ipAddress2,
+      ipFirstSeenAt: ip.ipFirstSeenAt?.toISOString() || null,
+      ipCount: ip.ipCount,
       isActive: user.isActive,
       phone: user.phone ?? null,
       createdAt: user.createdAt.toISOString(),
@@ -293,7 +309,7 @@ router.post("/admin/users/:id/reset-password", adminAuth, async (req, res) => {
 router.post("/admin/users/:id/reset-ip", adminAuth, async (req, res) => {
   try {
     const id = Number(req.params.id);
-    await db.update(usersTable).set({ ipAddress: null, ipAddress2: null })
+    await db.update(usersTable).set({ ipAddress: null, ipAddress2: null, ipFirstSeenAt: null })
       .where(eq(usersTable.id, id));
     res.json({ message: "IP address reset successfully" });
   } catch (error: unknown) {

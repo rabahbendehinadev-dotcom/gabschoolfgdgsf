@@ -208,21 +208,26 @@ export function AdminUsers() {
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap">{formatDate(user.createdAt)}</td>
                     <td className="px-4 py-4 text-left">
-                      {user.ipAddress ? (
+                      {user.accountType === "vip" ? (
                         <div className="space-y-1">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-[10px] text-muted-foreground shrink-0">١</span>
-                            <span className="text-xs font-mono">{user.ipAddress}</span>
-                          </div>
-                          {(user as typeof user & { ipAddress2?: string }).ipAddress2 && (
+                          <Badge className={`border-0 font-mono ${user.ipCount >= 2 ? "bg-red-500/15 text-red-400 hover:bg-red-500/15" : "bg-amber-500/15 text-amber-500 hover:bg-amber-500/15"}`}>
+                            {user.ipCount} / 2
+                          </Badge>
+                          {user.ipAddress && (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] text-muted-foreground shrink-0">١</span>
+                              <span className="text-xs font-mono">{user.ipAddress}</span>
+                            </div>
+                          )}
+                          {user.ipAddress2 && (
                             <div className="flex items-center gap-1.5">
                               <span className="text-[10px] text-muted-foreground shrink-0">٢</span>
-                              <span className="text-xs font-mono">{(user as typeof user & { ipAddress2?: string }).ipAddress2}</span>
+                              <span className="text-xs font-mono">{user.ipAddress2}</span>
                             </div>
                           )}
                         </div>
                       ) : (
-                        <span className="text-muted-foreground text-xs">—</span>
+                        <span className="text-muted-foreground text-xs" title="غير مقيّد — التقييد للحسابات VIP فقط">—</span>
                       )}
                     </td>
                     <td className="px-4 py-4">
@@ -238,7 +243,7 @@ export function AdminUsers() {
                         <Button variant="ghost" size="icon" title="تغيير كلمة المرور" onClick={() => { setResetPwUser(user); setResetPwForm({ newPassword: "", confirmPassword: "" }); setResetPwError(""); setResetPwSuccess(""); setShowResetPw(false); setShowResetConfirm(false); }}>
                           <KeyRound className="w-4 h-4 text-purple-400" />
                         </Button>
-                        <Button variant="ghost" size="icon" title="تصفير IP" onClick={() => handleResetIp(user.id)} disabled={!user.ipAddress || loadingId === user.id}>
+                        <Button variant="ghost" size="icon" title="تصفير IP" onClick={() => handleResetIp(user.id)} disabled={user.ipCount === 0 || loadingId === user.id}>
                           <RefreshCw className="w-4 h-4 text-blue-400" />
                         </Button>
                         <Button

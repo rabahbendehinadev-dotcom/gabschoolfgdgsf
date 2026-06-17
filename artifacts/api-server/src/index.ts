@@ -2,6 +2,7 @@ import app from "./app";
 import { db, adminsTable, categoriesTable, subscriptionPlansTable } from "@workspace/db";
 import bcrypt from "bcryptjs";
 import { sql, eq } from "drizzle-orm";
+import { startIpResetScheduler } from "./lib/ipResetScheduler";
 
 const rawPort = process.env["PORT"];
 
@@ -31,6 +32,17 @@ async function runMigrations() {
     await db.execute(sql`
       ALTER TABLE users
         ADD COLUMN IF NOT EXISTS ip_address_2 VARCHAR(45)
+    `);
+    await db.execute(sql`
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS ip_first_seen_at TIMESTAMP
+    `);
+    // VIP-only IP restriction: non-VIP accounts must have no IP recorded.
+    await db.execute(sql`
+      UPDATE users
+        SET ip_address = NULL, ip_address_2 = NULL, ip_first_seen_at = NULL
+        WHERE account_type <> 'vip'
+          AND (ip_address IS NOT NULL OR ip_address_2 IS NOT NULL OR ip_first_seen_at IS NOT NULL)
     `);
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS playlists (
@@ -174,6 +186,7 @@ async function ensureSeed() {
 }
 
 runMigrations().then(() => ensureSeed()).then(() => {
+  startIpResetScheduler();
   app.listen(port, () => {
     console.log(`Server listening on port ${port}`);
   });

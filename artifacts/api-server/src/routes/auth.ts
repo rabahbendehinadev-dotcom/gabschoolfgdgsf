@@ -3,6 +3,7 @@ import { db, usersTable, adminsTable, subscriptionPlansTable, activityLogsTable 
 import { eq } from "drizzle-orm";
 
 import { hashPassword, comparePassword, generateToken, generateAdminToken } from "../lib/auth";
+import { applyVipIpPolicy, getClientIp, VIP_IP_LIMIT_MESSAGE } from "../lib/ipPolicy";
 import { userAuth } from "../middlewares/auth";
 
 import {
@@ -109,25 +110,17 @@ router.post("/auth/login", async (req, res) => {
       return;
     }
 
-    const clientIp = req.ip || req.headers["x-forwarded-for"]?.toString().split(",")[0]?.trim() || "unknown";
+    const clientIp = getClientIp(req);
 
-    const ip1 = user.ipAddress;
-    const ip2 = user.ipAddress2;
-
-    if (!ip1) {
-      // First login — register this as the primary IP
-      await db.update(usersTable).set({ ipAddress: clientIp }).where(eq(usersTable.id, user.id));
-    } else if (clientIp === ip1 || clientIp === ip2) {
-      // IP matches one of the registered devices — allow
-    } else if (!ip2) {
-      // Second device — register it
-      await db.update(usersTable).set({ ipAddress2: clientIp }).where(eq(usersTable.id, user.id));
-    } else {
-      // Both IPs registered and client doesn't match either
-      res.status(403).json({
-        message: "لقد وصلت إلى الحد الأقصى للأجهزة المسموح بها. سجّل الدخول من الجهاز الذي دخلت منه أول مرة، أو تواصل مع الأدمن لإعادة الضبط."
-      });
-      return;
+    // IP restriction applies to VIP accounts only (max 2 IPs / 24h window).
+    // Normal & demo accounts are never IP-restricted, so skip the locking
+    // transaction entirely for them.
+    if (user.accountType === "vip") {
+      const ipPolicy = await applyVipIpPolicy(user.id, clientIp);
+      if (!ipPolicy.allowed) {
+        res.status(403).json({ message: VIP_IP_LIMIT_MESSAGE });
+        return;
+      }
     }
 
     const token = generateToken({ userId: user.id });

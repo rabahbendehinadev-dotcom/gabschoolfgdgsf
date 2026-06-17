@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { verifyToken, verifyAdminToken } from "../lib/auth";
+import { applyVipIpPolicy, getClientIp, VIP_IP_LIMIT_MESSAGE } from "../lib/ipPolicy";
 import { db, usersTable, adminsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
@@ -45,15 +46,17 @@ export async function userAuth(req: Request, res: Response, next: NextFunction) 
     return;
   }
 
-  const clientIp = req.ip || req.headers["x-forwarded-for"]?.toString().split(",")[0]?.trim() || "unknown";
+  const clientIp = getClientIp(req);
 
-  if (user.ipAddress && user.ipAddress !== clientIp) {
-    res.status(403).json({ message: "Access denied: This account is linked to a different IP address. Please contact admin to reset." });
-    return;
-  }
-
-  if (!user.ipAddress) {
-    await db.update(usersTable).set({ ipAddress: clientIp }).where(eq(usersTable.id, user.id));
+  // IP restriction applies to VIP accounts only (max 2 IPs / 24h window).
+  // Normal & demo accounts are never IP-restricted, so skip the locking
+  // transaction entirely for them (runs on every authenticated request).
+  if (user.accountType === "vip") {
+    const ipPolicy = await applyVipIpPolicy(user.id, clientIp);
+    if (!ipPolicy.allowed) {
+      res.status(403).json({ message: VIP_IP_LIMIT_MESSAGE });
+      return;
+    }
   }
 
   if (user.subscriptionExpiresAt && new Date(user.subscriptionExpiresAt) < new Date()) {
