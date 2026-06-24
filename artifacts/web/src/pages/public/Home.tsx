@@ -6,7 +6,7 @@ import { Play, CheckCircle2, Shield, Zap, Crown, Lock, Search, LayoutGrid, Cloud
 import { useGetCategories, useGetSubscriptionPlans, useGetVideos } from "@workspace/api-client-react/src/generated/api";
 import { useAuth } from "@/lib/auth";
 import { CategoryCard } from "@/components/public/CategoryCard";
-import { LessonCard } from "@/components/public/LessonCard";
+import { CoursePlayer } from "@/components/public/CoursePlayer";
 import iphoneLocked from "@assets/generated_images/hero_iphone_locked.png";
 import iphoneHome from "@assets/generated_images/hero_iphone_home.png";
 import androidUnlock from "@assets/generated_images/hero_android_unlock.png";
@@ -40,6 +40,20 @@ export function Home() {
   const isDemo = user?.subscriptionType === "demo";
   const isVipUser = user?.accountType === "vip";
   const isLocked = !isLoggedIn || isDemo;
+
+  /* منطق وصول الفيديو — مطابق لصفحة الدروس (لا يغيّر الصلاحيات) */
+  const accessInfo = (video: { accessType?: string }) => {
+    const at = video.accessType || "normal";
+    const isVipVideo = at === "vip";
+    const isVisitorVideo = at === "visitor";
+    const videoLocked = isVisitorVideo ? false : isVipVideo ? !isVipUser : isLocked;
+    const lockMessage = isVipVideo
+      ? "مخصص لحسابات VIP فقط"
+      : isDemo
+        ? "ترقية حسابك للمشاهدة"
+        : "اشترك لمشاهدة هذا الدرس";
+    return { isVipVideo, isVisitorVideo, videoLocked, lockMessage };
+  };
 
   return (
     <div className="w-full">
@@ -194,30 +208,7 @@ export function Home() {
               </div>
 
               {videos && videos.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-                  {videos.map((video, i) => {
-                    const at = video.accessType || "normal";
-                    const isVipVideo = at === "vip";
-                    const isVisitorVideo = at === "visitor";
-                    const videoLocked = isVisitorVideo ? false : isVipVideo ? !isVipUser : isLocked;
-                    const href = videoLocked
-                      ? (isLoggedIn ? "/subscribe" : "/login")
-                      : `/videos/${video.id}`;
-
-                    return (
-                      <LessonCard
-                        key={video.id}
-                        video={video}
-                        locked={videoLocked}
-                        isVip={isVipVideo}
-                        isVisitor={isVisitorVideo}
-                        href={href}
-                        episodeNumber={i + 1}
-                        index={i}
-                      />
-                    );
-                  })}
-                </div>
+                <CoursePlayer lessons={videos} accessInfo={accessInfo} key={activeCategory} />
               ) : (
                 <div className="flex flex-col items-center justify-center py-16 text-foreground/40">
                   <Search className="w-12 h-12 mb-4 opacity-30" />
