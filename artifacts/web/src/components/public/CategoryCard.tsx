@@ -99,13 +99,13 @@ export function CategoryCard({ category, lessonCount, index = 0, active = false,
             />
 
             {/* الصورة / الأيقونة */}
-            <div className="cat-media absolute inset-0 flex items-center justify-center p-6">
+            <div className="cat-media absolute inset-0 flex items-center justify-center p-6 data-[fill=true]:p-0" data-fill={hasImage ? "true" : undefined}>
               {hasImage ? (
                 <img
                   src={imageUrl}
                   alt={category.name}
                   loading="lazy"
-                  className="h-full w-full object-contain drop-shadow-sm"
+                  className="h-full w-full object-cover"
                   onError={() => setImgError(true)}
                 />
               ) : isEmojiIcon ? (
@@ -142,15 +142,15 @@ export function CategoryCard({ category, lessonCount, index = 0, active = false,
           </div>
 
           {/* ── المحتوى ── */}
-          <div className="flex flex-1 flex-col p-5">
-            <h3 className="cat-name font-display text-xl font-extrabold leading-tight text-foreground transition-colors">
+          <div className="flex flex-1 flex-col p-4 sm:p-5">
+            <h3 className="cat-name font-display text-lg sm:text-xl font-extrabold leading-tight text-foreground transition-colors line-clamp-1">
               {category.name}
             </h3>
-            <p className="mb-5 mt-1.5 line-clamp-2 flex-1 text-sm leading-relaxed text-muted-foreground">
+            <p className="mt-1.5 mb-4 line-clamp-2 min-h-[2.5rem] text-sm text-muted-foreground">
               {description}
             </p>
 
-            <div className="flex items-center justify-between border-t border-border/70 pt-4">
+            <div className="mt-auto flex items-center justify-between border-t border-border/70 pt-3.5">
               <span className="cat-cta text-sm font-bold" style={{ color: accent }}>
                 استعراض الدروس
               </span>
