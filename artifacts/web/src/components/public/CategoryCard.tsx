@@ -77,7 +77,7 @@ export function CategoryCard({ category, lessonCount, index = 0, active = false,
         >
           {/* ── منطقة الصورة الكبيرة ── */}
           <div
-            className="relative aspect-[16/10] w-full overflow-hidden"
+            className="relative aspect-[16/10] lg:aspect-[4/3] w-full overflow-hidden"
             style={{
               backgroundImage: `linear-gradient(140deg, color-mix(in srgb, ${accent} 18%, transparent), color-mix(in srgb, ${accent} 5%, transparent))`,
             }}
@@ -105,7 +105,7 @@ export function CategoryCard({ category, lessonCount, index = 0, active = false,
                   src={imageUrl}
                   alt={category.name}
                   loading="lazy"
-                  className="h-full w-full object-cover"
+                  className="h-full w-full object-cover object-center"
                   onError={() => setImgError(true)}
                 />
               ) : isEmojiIcon ? (
