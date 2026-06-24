@@ -3,10 +3,11 @@ import { Link, useSearch, useLocation } from "wouter";
 import { useGetVideos, useGetCategories } from "@workspace/api-client-react/src/generated/api";
 import { useAuth } from "@/lib/auth";
 import { Card, Badge, Button, Input, Dialog, DialogContent } from "@/components/ui";
-import { Search, Crown, PlayCircle, Lock, X, Rocket, LayoutGrid, Play, Sparkles } from "lucide-react";
+import { Search, PlayCircle, Lock, X, Rocket, LayoutGrid, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
 import { CategoryCard } from "@/components/public/CategoryCard";
 import { LessonCard } from "@/components/public/LessonCard";
+import { CoursePlayer } from "@/components/public/CoursePlayer";
 import { getCategoryMeta } from "@/lib/categoryMeta";
 
 export function Videos() {
@@ -190,7 +191,6 @@ export function Videos() {
                       lessons={lessons}
                       isLoading={isLoading}
                       accessInfo={accessInfo}
-                      hrefFor={hrefFor}
                       onBack={() => selectCategory(undefined)}
                       isLocked={isLocked}
                       isDemo={isDemo}
@@ -361,7 +361,6 @@ function CategoryDetail({
   lessons,
   isLoading,
   accessInfo,
-  hrefFor,
   onBack,
   isLocked,
   isDemo,
@@ -370,7 +369,6 @@ function CategoryDetail({
   lessons: any[];
   isLoading: boolean;
   accessInfo: (v: { accessType?: string }) => { isVipVideo: boolean; isVisitorVideo: boolean; videoLocked: boolean; lockMessage: string };
-  hrefFor: (id: number, locked: boolean) => string;
   onBack: () => void;
   isLocked: boolean;
   isDemo: boolean;
@@ -466,103 +464,7 @@ function CategoryDetail({
           <Button variant="outline" onClick={onBack}>العودة لكل الأقسام</Button>
         </div>
       ) : (
-        <div className="relative space-y-3 md:space-y-4">
-          {lessons.map((video, i) => {
-            const { isVipVideo, isVisitorVideo, videoLocked, lockMessage } = accessInfo(video);
-            const episode = i + 1;
-            const isLast = i === lessons.length - 1;
-            return (
-              <div key={video.id} className="relative flex gap-3 md:gap-4">
-                {/* رقم الحلقة + خط الربط */}
-                <div className="flex flex-col items-center shrink-0">
-                  <div className={`w-9 h-9 md:w-10 md:h-10 rounded-full flex items-center justify-center font-black text-sm shadow-sm z-10 ${
-                    videoLocked ? "bg-muted text-foreground/50 border border-border" : "bg-primary text-white"
-                  }`}>
-                    {episode}
-                  </div>
-                  {!isLast && <div className="w-0.5 flex-1 bg-border mt-1" />}
-                </div>
-
-                {/* بطاقة الدرس */}
-                <Link href={hrefFor(video.id, videoLocked)} className="flex-1 min-w-0 pb-1">
-                  <motion.div
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: Math.min(i, 8) * 0.04 }}
-                    className="group flex gap-3 md:gap-4 rounded-2xl border border-border bg-card p-3 transition-all duration-300 hover:border-primary/40 hover:shadow-md hover:shadow-primary/10"
-                  >
-                    {/* مصغّرة */}
-                    <div className="relative w-32 sm:w-44 aspect-video shrink-0 rounded-xl overflow-hidden bg-muted">
-                      <img
-                        src={video.thumbnailUrl || "https://images.unsplash.com/photo-1580927752452-89d86da3fa0a?w=800&q=80"}
-                        alt={video.title}
-                        loading="lazy"
-                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                      />
-                      <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/40 to-transparent" />
-                      {!videoLocked && (
-                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                          <div className="w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center shadow-lg">
-                            <Play className="w-4 h-4 ml-0.5" />
-                          </div>
-                        </div>
-                      )}
-                      <div className="absolute top-2 right-2 flex gap-1">
-                        {isVipVideo && (
-                          <span className="inline-flex items-center gap-0.5 bg-gradient-to-r from-amber-500 to-orange-500 text-black text-[9px] font-black px-1.5 py-0.5 rounded-full">
-                            <Crown className="w-2 h-2" /> VIP
-                          </span>
-                        )}
-                        {isVisitorVideo && (
-                          <span className="inline-flex items-center bg-green-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
-                            مجاني
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* المحتوى */}
-                    <div className="flex-1 min-w-0 flex flex-col py-0.5">
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <span className="text-[11px] font-bold text-primary">الحلقة {episode}</span>
-                        {i === 0 && (
-                          <span className="text-[10px] font-bold bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-                            ابدأ من هنا
-                          </span>
-                        )}
-                      </div>
-                      <h3 className={`font-bold text-sm md:text-base leading-snug line-clamp-2 transition-colors ${
-                        videoLocked ? "text-foreground/80" : "group-hover:text-primary"
-                      }`}>
-                        {video.title}
-                      </h3>
-                      {video.description && (
-                        <p className="text-xs text-foreground/55 mt-1 line-clamp-1 md:line-clamp-2">
-                          {video.description}
-                        </p>
-                      )}
-                      <div className="mt-auto pt-2 flex items-center justify-between">
-                        {videoLocked ? (
-                          <span className="text-[11px] font-semibold text-foreground/45 flex items-center gap-1">
-                            <Lock className="w-3 h-3" /> {lockMessage}
-                          </span>
-                        ) : (
-                          <span className="text-[11px] font-semibold text-green-600 flex items-center gap-1">
-                            {isVisitorVideo ? "مجاني" : "متاح للمشاهدة"}
-                          </span>
-                        )}
-                        <span className="text-[11px] font-bold text-primary flex items-center gap-1 shrink-0">
-                          {videoLocked ? "اشترك" : "شاهد"}
-                          <Play className="w-3 h-3" />
-                        </span>
-                      </div>
-                    </div>
-                  </motion.div>
-                </Link>
-              </div>
-            );
-          })}
-        </div>
+        <CoursePlayer lessons={lessons} accessInfo={accessInfo} />
       )}
     </div>
   );
