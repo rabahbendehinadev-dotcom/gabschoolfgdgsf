@@ -3,6 +3,7 @@
 - [Accent theming via --accent + color-mix](accent-theming-css-var.md) — per-record dynamic colors & hover states; sanitize the color; Wouter Link focus-ring targets the anchor, not the inner card.
 - [Shared presigned-upload endpoint](shared-upload-endpoint.md) — upload-URL route is intentionally unauthenticated; regular users upload subscription payment proofs through it, so don't lock it behind admin auth.
 - [Pre-existing typecheck errors](preexisting-typecheck.md) — api-server + web have baseline typecheck failures unrelated to most work; confirm your own edited lines are clean instead of expecting green.
+- [Google Sign-In (GIS ID-token)](google-signin-gis.md) — no redirect URI; needs Authorized JS origins not redirect URIs; client secret unused; client id is public; after codegen/schema run `tsc --build` so artifact typecheck sees new exports.
 - [Fragment + Replit metadata warning](fragment-metadata-warning.md) — Vite metadata plugin adds data-* to Fragment → React "invalid prop" warning; use flatMap/keyed elements or a DOM wrapper, not a keyed <Fragment>.
 - [Gated lesson/video views](gated-lesson-views.md) — locked lessons must NOT mount the player iframe or call useGetVideo; gate both on accessInfo so client mirrors the server 403 and avoids leaking driveParts/softwareLink.
 - [Category-lessons two entry points](category-lessons-entrypoints.md) — category lessons render in BOTH Home.tsx (brand cards section, the one users click) and Videos.tsx CategoryDetail; change both (shared CoursePlayer) or it looks unapplied.
