@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Button, Card, Badge } from "@/components/ui";
 import { Link } from "wouter";
-import { Play, CheckCircle2, Shield, Zap, Crown, Lock, Search, LayoutGrid, Cloud, Terminal, Unlock, Cpu, ArrowRight, CircuitBoard, Usb, Wrench, Laptop, Smartphone, Tablet, Download, ChevronLeft, type LucideIcon } from "lucide-react";
+import { Play, CheckCircle2, Shield, Zap, Crown, Lock, Search, LayoutGrid, Cloud, Terminal, Unlock, Cpu, ArrowRight, CircuitBoard, Usb, Wrench, Laptop, Download, BookOpen, ShieldOff, KeyRound, Trophy, type LucideIcon } from "lucide-react";
 import { useGetCategories, useGetSubscriptionPlans, useGetVideos } from "@workspace/api-client-react/src/generated/api";
 import { useAuth } from "@/lib/auth";
 import { CategoryCard } from "@/components/public/CategoryCard";
@@ -12,17 +12,16 @@ import iphoneHome from "@assets/generated_images/hero_iphone_home.png";
 import androidUnlock from "@assets/generated_images/hero_android_unlock.png";
 import tabletClean from "@assets/generated_images/hero_tablet_clean.png";
 
-// مسار التعلّم داخل البانر الأفقي — أيقونات فقط (تفليش/صيانة الهواتف)
-const learningPath: { label: string; icon: LucideIcon; tone: "primary" | "sky" }[] = [
-  { label: "Android Flashing", icon: Download, tone: "primary" },
-  { label: "Samsung", icon: Smartphone, tone: "primary" },
-  { label: "Xiaomi", icon: Smartphone, tone: "primary" },
-  { label: "Huawei", icon: Smartphone, tone: "primary" },
-  { label: "Oppo", icon: Smartphone, tone: "primary" },
-  { label: "OnePlus", icon: Smartphone, tone: "primary" },
-  { label: "iPhone", icon: Smartphone, tone: "sky" },
-  { label: "iPad", icon: Tablet, tone: "sky" },
-  { label: "MacBook", icon: Laptop, tone: "sky" },
+// خارطة طريق التعلّم داخل البانر — رحلة الطالب من البداية حتى الاحتراف (بدون أسماء ماركات)
+const roadmap: { label: string; icon: LucideIcon; tone: "sky" | "primary" | "gold" }[] = [
+  { label: "الأساسيات", icon: BookOpen, tone: "sky" },
+  { label: "Android Flashing", icon: Download, tone: "sky" },
+  { label: "FRP", icon: ShieldOff, tone: "sky" },
+  { label: "Firmware", icon: Cpu, tone: "primary" },
+  { label: "Unlock", icon: KeyRound, tone: "primary" },
+  { label: "Apple Services", icon: Cloud, tone: "primary" },
+  { label: "MacBook", icon: Laptop, tone: "primary" },
+  { label: "Professional Technician", icon: Trophy, tone: "gold" },
 ];
 
 export function Home() {
@@ -283,28 +282,36 @@ export function Home() {
             <Usb className="pointer-events-none absolute left-28 top-4 hidden h-7 w-7 text-sky-500/[0.06] lg:block" />
             <Wrench className="pointer-events-none absolute left-32 bottom-4 hidden h-7 w-7 text-foreground/[0.06] lg:block" />
 
-            {/* مسار التعلّم بالأيقونات فقط */}
-            <div className="relative z-10 px-4 py-7 sm:py-9">
-              <div className="mx-auto flex max-w-full items-center justify-start gap-2 overflow-x-auto sm:gap-3 lg:justify-center [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                {learningPath.flatMap((step, i) => {
+            {/* خارطة الطريق: مراحل متصلة بخط مضيء (بدون أسماء ماركات) */}
+            <div className="relative z-10 px-5 py-7 sm:py-8">
+              <div className="mx-auto flex max-w-full items-start justify-start gap-1.5 overflow-x-auto sm:gap-2 lg:justify-center [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {roadmap.flatMap((step, i) => {
                   const Icon = step.icon;
-                  const tone =
-                    step.tone === "sky"
-                      ? "border-sky-500/20 bg-sky-500/10 text-sky-600"
-                      : "border-primary/20 bg-primary/10 text-primary";
-                  const chip = (
-                    <div key={step.label} className="flex shrink-0 flex-col items-center gap-1.5">
-                      <div className={`flex h-11 w-11 items-center justify-center rounded-xl border shadow-sm ${tone}`}>
+                  const isGold = step.tone === "gold";
+                  const tone = isGold
+                    ? "border-amber-400/50 bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-md shadow-orange-500/30"
+                    : step.tone === "sky"
+                      ? "border-sky-500/25 bg-sky-500/10 text-sky-600"
+                      : "border-primary/25 bg-primary/10 text-primary";
+                  const node = (
+                    <div key={step.label} className="flex w-[70px] shrink-0 flex-col items-center gap-2">
+                      <div className={`flex h-11 w-11 items-center justify-center rounded-full border ${tone}`}>
                         <Icon className="h-5 w-5" />
                       </div>
-                      <span className="whitespace-nowrap text-[11px] font-semibold text-foreground/70">
+                      <span className={`text-center text-[10.5px] font-semibold leading-tight ${isGold ? "text-orange-600" : "text-foreground/70"}`}>
                         {step.label}
                       </span>
                     </div>
                   );
-                  return i < learningPath.length - 1
-                    ? [chip, <ChevronLeft key={`${step.label}-sep`} className="h-4 w-4 shrink-0 text-foreground/25" />]
-                    : [chip];
+                  return i < roadmap.length - 1
+                    ? [
+                        node,
+                        <div
+                          key={`${step.label}-line`}
+                          className="mt-[21px] h-[3px] min-w-[14px] flex-1 rounded-full bg-gradient-to-l from-sky-400/60 via-primary/50 to-primary/60 shadow-[0_0_8px_rgba(249,115,22,0.35)]"
+                        />,
+                      ]
+                    : [node];
                 })}
               </div>
             </div>
