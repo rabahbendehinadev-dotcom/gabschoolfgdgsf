@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui";
+import { InstallAppButton } from "@/components/InstallAppButton";
 import { useAuth } from "@/lib/auth";
 import { LogOut, User, Crown, Menu, X, BookOpen, CreditCard, Home } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -53,6 +54,7 @@ export function Navbar() {
 
           {/* Left col: Actions (RTL — visually on left) */}
           <div className="hidden md:flex items-center gap-4 justify-end">
+            <InstallAppButton mode="navbar" />
             {user ? (
               <div className="flex items-center gap-3">
                 {user.accountType === "vip" && (
@@ -138,6 +140,8 @@ export function Navbar() {
                   {link.label}
                 </Link>
               ))}
+
+              <InstallAppButton mode="menu" onNavigate={() => setMobileOpen(false)} />
 
               {!user && (
                 <div className="mt-2 pt-3 border-t border-border flex flex-col gap-2">
