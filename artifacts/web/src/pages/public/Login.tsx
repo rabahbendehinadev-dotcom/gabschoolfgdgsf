@@ -6,6 +6,7 @@ import * as z from "zod";
 import { Button, Input, Label, Card } from "@/components/ui";
 import { useLogin } from "@workspace/api-client-react/src/generated/api";
 import { useAuth } from "@/lib/auth";
+import { GoogleSignInButton } from "@/components/GoogleSignInButton";
 import { useToast } from "@/hooks/use-toast";
 import { PlayCircle, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
@@ -82,6 +83,8 @@ export function Login() {
               {loginMut.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : "دخول"}
             </Button>
           </form>
+
+          <GoogleSignInButton redirectTo="/videos" />
 
           <div className="mt-6 text-center text-sm text-foreground/60 border-t border-border pt-6">
             ليس لديك حساب؟{" "}

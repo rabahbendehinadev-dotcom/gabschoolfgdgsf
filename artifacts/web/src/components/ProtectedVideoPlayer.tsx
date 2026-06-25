@@ -291,9 +291,8 @@ export function ProtectedVideoPlayer({
           <div className="flex-1">
             <p className="text-sm font-semibold text-amber-300 mb-1">الفيديو لا يعمل داخل الصفحة؟</p>
             <p className="text-xs text-muted-foreground leading-relaxed mb-3">
-              {isMobile
-                ? "متصفحات الهاتف قد تمنع تشغيل الفيديو مباشرة — اضغط الزر أعلاه لفتحه في تطبيق Drive أو متصفح جديد."
-                : "يجب أن تكون مسجلاً في حساب Google المرتبط بحسابك على المنصة لكي تتمكن من مشاهدة الفيديوهات."}
+              يجب الدخول بنفس حساب Google الذي تم تفعيل الدورة عليه.
+              {isMobile && " كما أن متصفحات الهاتف قد تمنع تشغيل الفيديو مباشرة — اضغط الزر أعلاه لفتحه في تطبيق Drive أو متصفح جديد."}
             </p>
             <div className="flex flex-col sm:flex-row gap-2">
               <a

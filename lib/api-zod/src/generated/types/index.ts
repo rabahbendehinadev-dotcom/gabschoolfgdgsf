@@ -25,6 +25,7 @@ export * from "./createVideoInputAccessType";
 export * from "./errorResponse";
 export * from "./getPlaylistsParams";
 export * from "./getVideosParams";
+export * from "./googleLoginInput";
 export * from "./healthStatus";
 export * from "./loginInput";
 export * from "./messageResponse";

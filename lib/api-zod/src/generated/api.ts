@@ -53,6 +53,27 @@ export const LoginResponse = zod.object({
 });
 
 /**
+ * @summary Sign in or sign up with Google
+ */
+export const GoogleLoginBody = zod.object({
+  credential: zod.string(),
+});
+
+export const GoogleLoginResponse = zod.object({
+  token: zod.string(),
+  user: zod.object({
+    id: zod.number(),
+    username: zod.string(),
+    email: zod.string(),
+    accountType: zod.enum(["vip", "normal"]),
+    subscriptionType: zod.enum(["demo", "monthly", "annual", "lifetime"]),
+    subscriptionExpiresAt: zod.date().nullish(),
+    isActive: zod.boolean(),
+    createdAt: zod.date(),
+  }),
+});
+
+/**
  * @summary Admin login
  */
 export const AdminLoginBody = zod.object({

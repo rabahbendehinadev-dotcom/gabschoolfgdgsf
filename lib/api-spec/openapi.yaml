@@ -89,6 +89,31 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /auth/google:
+    post:
+      operationId: googleLogin
+      tags: [auth]
+      summary: Sign in or sign up with Google
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GoogleLoginInput"
+      responses:
+        "200":
+          description: Google login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid Google credential
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /auth/admin-login:
     post:
       operationId: adminLogin
@@ -793,6 +818,14 @@ components:
       required:
         - email
         - password
+
+    GoogleLoginInput:
+      type: object
+      properties:
+        credential:
+          type: string
+      required:
+        - credential
 
     AuthResponse:
       type: object
