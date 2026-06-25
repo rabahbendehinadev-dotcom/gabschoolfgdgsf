@@ -7,7 +7,9 @@ type AuthState = {
   user: UserProfile | null;
   adminToken: string | null;
   admin: AdminAuthResponseAdmin | null;
+  bootstrapped: boolean;
   setAuth: (token: string, user: UserProfile) => void;
+  updateUser: (user: UserProfile) => void;
   setAdminAuth: (token: string, admin: AdminAuthResponseAdmin) => void;
   logout: () => void;
   adminLogout: () => void;
@@ -33,6 +35,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return saved ? JSON.parse(saved) : null;
   });
 
+  // True once the current user's profile has been confirmed against the server
+  // (or there is no session). The phone gate waits for this so a stale cached
+  // user object never triggers a false redirect for existing users.
+  const [bootstrapped, setBootstrapped] = useState(false);
+
   const tokenRef = useRef(token);
   useEffect(() => { tokenRef.current = token; }, [token]);
 
@@ -48,25 +55,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.removeItem("user");
         setTokenState(null);
         setUser(null);
+        setBootstrapped(true);
         return;
       }
-      if (!res.ok) return;
+      if (!res.ok) {
+        // Non-401 failure (e.g. transient 403/5xx): keep the cached profile but
+        // still mark bootstrap complete so the app/phone-gate never hangs.
+        setBootstrapped(true);
+        return;
+      }
       const fresh: UserProfile = await res.json();
       setUser(prev => {
         const changed =
           prev?.accountType !== fresh.accountType ||
           prev?.subscriptionType !== fresh.subscriptionType ||
           prev?.isActive !== fresh.isActive ||
-          prev?.subscriptionExpiresAt !== fresh.subscriptionExpiresAt;
+          prev?.subscriptionExpiresAt !== fresh.subscriptionExpiresAt ||
+          prev?.phone !== fresh.phone;
         if (!changed) return prev;
         localStorage.setItem("user", JSON.stringify(fresh));
         return fresh;
       });
-    } catch { }
+      setBootstrapped(true);
+    } catch {
+      // Network error: don't trap the app in a perpetual loading state.
+      setBootstrapped(true);
+    }
   }, []);
 
   useEffect(() => {
-    if (!token) return;
+    if (!token) {
+      setBootstrapped(true);
+      return;
+    }
 
     refreshUser();
     const timer = setInterval(refreshUser, REFRESH_INTERVAL_MS);
@@ -86,6 +107,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem("token", newToken);
     localStorage.setItem("user", JSON.stringify(newUser));
     setTokenState(newToken);
+    setUser(newUser);
+  };
+
+  const updateUser = (newUser: UserProfile) => {
+    localStorage.setItem("user", JSON.stringify(newUser));
     setUser(newUser);
   };
 
@@ -122,8 +148,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider value={{
-      token, user, adminToken, admin,
-      setAuth, setAdminAuth, logout, adminLogout, getAuthHeaders, getAdminAuthHeaders
+      token, user, adminToken, admin, bootstrapped,
+      setAuth, updateUser, setAdminAuth, logout, adminLogout, getAuthHeaders, getAdminAuthHeaders
     }}>
       {children}
     </AuthContext.Provider>

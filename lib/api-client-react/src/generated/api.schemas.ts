@@ -36,6 +36,11 @@ export interface GoogleLoginInput {
   credential: string;
 }
 
+export interface UpdatePhoneInput {
+  /** @minLength 9 */
+  phone: string;
+}
+
 export type UserProfileAccountType =
   (typeof UserProfileAccountType)[keyof typeof UserProfileAccountType];
 
@@ -62,6 +67,7 @@ export interface UserProfile {
   subscriptionType: UserProfileSubscriptionType;
   subscriptionExpiresAt?: string | null;
   isActive: boolean;
+  phone?: string | null;
   createdAt: string;
 }
 

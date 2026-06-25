@@ -1,8 +1,10 @@
-import { Switch, Route, Router as WouterRouter } from "wouter";
+import { useEffect } from "react";
+import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
+import { Loader2 } from "lucide-react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AuthProvider } from "@/lib/auth";
+import { AuthProvider, useAuth } from "@/lib/auth";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { AdminLayout } from "@/components/layout/AdminLayout";
@@ -13,6 +15,7 @@ import { Videos } from "@/pages/public/Videos";
 import { VideoDetail } from "@/pages/public/VideoDetail";
 import { Dashboard } from "@/pages/public/Dashboard";
 import { Subscribe } from "@/pages/public/Subscribe";
+import { CompletePhone } from "@/pages/public/CompletePhone";
 import { AdminLogin } from "@/pages/admin/AdminLogin";
 import { AdminDashboard } from "@/pages/admin/Dashboard";
 import { AdminUsers } from "@/pages/admin/Users";
@@ -38,6 +41,40 @@ function PublicLayout({ children }: { children: React.ReactNode }) {
   );
 }
 
+// New users (signed up via Google with no WhatsApp number yet) must provide one
+// before reaching any user-facing page. We block protected pages from mounting
+// while such a user is routed to onboarding, and we wait for the server-confirmed
+// profile (`bootstrapped`) before redirecting so existing users are never sent to
+// the phone page on a stale cache. Admin pages use a separate session and are
+// excluded; existing users (phone already set) render immediately with no loader.
+function GatedRouter() {
+  const { token, user, bootstrapped } = useAuth();
+  const [location, navigate] = useLocation();
+
+  const isAdminRoute = location.startsWith("/gab-ctrl-9x");
+  const onCompletePhone = location === "/complete-phone";
+  const phoneMissing = !!token && !!user && !user.phone && !isAdminRoute;
+
+  useEffect(() => {
+    if (!bootstrapped) return;
+    if (phoneMissing && !onCompletePhone) {
+      navigate("/complete-phone", { replace: true });
+    }
+  }, [bootstrapped, phoneMissing, onCompletePhone, navigate]);
+
+  // Hold protected pages until we know the phone status, so a phone-less user
+  // never mounts a lesson page or fires its data requests before redirecting.
+  if (phoneMissing && !onCompletePhone) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" dir="rtl">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return <Router />;
+}
+
 function Router() {
   return (
     <Switch>
@@ -49,6 +86,9 @@ function Router() {
       </Route>
       <Route path="/register">
         <Register />
+      </Route>
+      <Route path="/complete-phone">
+        <CompletePhone />
       </Route>
       <Route path="/videos">
         <PublicLayout><Videos /></PublicLayout>
@@ -106,7 +146,7 @@ function App() {
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
           <AuthProvider>
-            <Router />
+            <GatedRouter />
           </AuthProvider>
         </WouterRouter>
         <Toaster />

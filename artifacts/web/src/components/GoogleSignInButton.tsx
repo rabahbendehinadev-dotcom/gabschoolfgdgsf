@@ -58,7 +58,8 @@ export function GoogleSignInButton({ redirectTo = "/videos" }: { redirectTo?: st
       onSuccess: (res) => {
         setAuth(res.token, res.user);
         toast({ title: "تم تسجيل الدخول بنجاح", className: "bg-green-600 text-white border-none" });
-        navigate(redirectTo);
+        // New Google users have no WhatsApp number yet -> collect it first.
+        navigate(res.user.phone ? redirectTo : "/complete-phone");
       },
       onError: (err) => {
         const apiErr = err as Error & { status?: number; data?: { message?: string } };

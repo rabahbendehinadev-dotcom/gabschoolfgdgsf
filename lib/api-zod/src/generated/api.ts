@@ -48,6 +48,7 @@ export const LoginResponse = zod.object({
     subscriptionType: zod.enum(["demo", "monthly", "annual", "lifetime"]),
     subscriptionExpiresAt: zod.date().nullish(),
     isActive: zod.boolean(),
+    phone: zod.string().nullish(),
     createdAt: zod.date(),
   }),
 });
@@ -69,6 +70,7 @@ export const GoogleLoginResponse = zod.object({
     subscriptionType: zod.enum(["demo", "monthly", "annual", "lifetime"]),
     subscriptionExpiresAt: zod.date().nullish(),
     isActive: zod.boolean(),
+    phone: zod.string().nullish(),
     createdAt: zod.date(),
   }),
 });
@@ -100,6 +102,7 @@ export const GetMeResponse = zod.object({
   subscriptionType: zod.enum(["demo", "monthly", "annual", "lifetime"]),
   subscriptionExpiresAt: zod.date().nullish(),
   isActive: zod.boolean(),
+  phone: zod.string().nullish(),
   createdAt: zod.date(),
 });
 
@@ -122,6 +125,27 @@ export const ChangePasswordBody = zod.object({
 
 export const ChangePasswordResponse = zod.object({
   message: zod.string(),
+});
+
+/**
+ * @summary Set or update current user's WhatsApp phone number
+ */
+export const updateMyPhoneBodyPhoneMin = 9;
+
+export const UpdateMyPhoneBody = zod.object({
+  phone: zod.string().min(updateMyPhoneBodyPhoneMin),
+});
+
+export const UpdateMyPhoneResponse = zod.object({
+  id: zod.number(),
+  username: zod.string(),
+  email: zod.string(),
+  accountType: zod.enum(["vip", "normal"]),
+  subscriptionType: zod.enum(["demo", "monthly", "annual", "lifetime"]),
+  subscriptionExpiresAt: zod.date().nullish(),
+  isActive: zod.boolean(),
+  phone: zod.string().nullish(),
+  createdAt: zod.date(),
 });
 
 /**
