@@ -10,9 +10,14 @@ type ActivityLogEntry = {
   id: number;
   userId: number | null;
   username: string | null;
+  email: string | null;
+  phone: string | null;
   action: string;
   details: string | null;
   ipAddress: string | null;
+  deviceType: string | null;
+  videoId: number | null;
+  videoTitle: string | null;
   createdAt: string;
 };
 
@@ -25,6 +30,21 @@ const ACTION_LABELS: Record<string, { label: string; color: string }> = {
   subscription_deleted: { label: "إلغاء اشتراك", color: "bg-orange-500/20 text-orange-400" },
   subscription_changed: { label: "تغيير اشتراك", color: "bg-purple-500/20 text-purple-400" },
   ip_reset: { label: "تصفير IP", color: "bg-cyan-500/20 text-cyan-400" },
+  // أحداث حماية الفيديو والوصول المشبوه
+  screenshot_attempt: { label: "محاولة تصوير الشاشة", color: "bg-red-500/20 text-red-400" },
+  external_open_attempt: { label: "محاولة فتح رابط خارجي", color: "bg-red-600/25 text-red-300" },
+  copy_link_attempt: { label: "محاولة نسخ الرابط", color: "bg-orange-500/20 text-orange-400" },
+  devtools_attempt: { label: "محاولة فتح أدوات المطور", color: "bg-rose-500/20 text-rose-400" },
+  locked_video_attempt: { label: "مشاهدة فيديو غير مفعّل", color: "bg-amber-500/20 text-amber-400" },
+  frequent_ip_change: { label: "تغيّر متكرر لعنوان IP", color: "bg-fuchsia-500/20 text-fuchsia-400" },
+  frequent_device_change: { label: "تغيّر متكرر للأجهزة", color: "bg-violet-500/20 text-violet-400" },
+};
+
+const DEVICE_LABELS: Record<string, string> = {
+  mobile: "هاتف",
+  tablet: "جهاز لوحي",
+  desktop: "حاسوب",
+  unknown: "غير معروف",
 };
 
 function formatDateTime(iso: string) {
@@ -50,10 +70,15 @@ export function AdminActivityLog() {
     refetchInterval: 30000,
   });
 
+  const q = search.toLowerCase();
   const filtered = logs?.filter(l =>
-    (l.username ?? "").toLowerCase().includes(search.toLowerCase()) ||
-    (l.action ?? "").toLowerCase().includes(search.toLowerCase()) ||
-    (l.details ?? "").toLowerCase().includes(search.toLowerCase()) ||
+    (l.username ?? "").toLowerCase().includes(q) ||
+    (l.email ?? "").toLowerCase().includes(q) ||
+    (l.phone ?? "").toLowerCase().includes(q) ||
+    (l.action ?? "").toLowerCase().includes(q) ||
+    (ACTION_LABELS[l.action]?.label ?? "").toLowerCase().includes(q) ||
+    (l.details ?? "").toLowerCase().includes(q) ||
+    (l.videoTitle ?? "").toLowerCase().includes(q) ||
     (l.ipAddress ?? "").includes(search)
   );
 
@@ -87,7 +112,11 @@ export function AdminActivityLog() {
               <tr>
                 <th className="px-4 py-4">التاريخ والوقت</th>
                 <th className="px-4 py-4">المستخدم</th>
+                <th className="px-4 py-4">البريد الإلكتروني</th>
+                <th className="px-4 py-4">واتساب</th>
                 <th className="px-4 py-4">الحدث</th>
+                <th className="px-4 py-4">الفيديو</th>
+                <th className="px-4 py-4">الجهاز</th>
                 <th className="px-4 py-4">التفاصيل</th>
                 <th className="px-4 py-4 text-left">IP</th>
               </tr>
@@ -95,7 +124,7 @@ export function AdminActivityLog() {
             <tbody>
               {isLoading && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">جارٍ التحميل...</td>
+                  <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">جارٍ التحميل...</td>
                 </tr>
               )}
               {filtered?.map(log => (
@@ -110,8 +139,20 @@ export function AdminActivityLog() {
                       <span className="text-muted-foreground text-xs">—</span>
                     )}
                   </td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground max-w-[180px] truncate">
+                    {log.email || "—"}
+                  </td>
+                  <td className="px-4 py-3 font-mono text-xs text-muted-foreground whitespace-nowrap" dir="ltr">
+                    {log.phone || "—"}
+                  </td>
                   <td className="px-4 py-3">
                     {getActionBadge(log.action)}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground max-w-[160px] truncate">
+                    {log.videoTitle || "—"}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
+                    {log.deviceType ? (DEVICE_LABELS[log.deviceType] ?? log.deviceType) : "—"}
                   </td>
                   <td className="px-4 py-3 text-muted-foreground text-xs max-w-xs truncate">
                     {log.details || "—"}
@@ -123,7 +164,7 @@ export function AdminActivityLog() {
               ))}
               {!isLoading && filtered?.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
                     لا توجد نتائج
                   </td>
                 </tr>

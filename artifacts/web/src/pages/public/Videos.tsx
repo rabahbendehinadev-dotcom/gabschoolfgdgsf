@@ -8,6 +8,7 @@ import { motion } from "framer-motion";
 import { CategoryCard } from "@/components/public/CategoryCard";
 import { LessonCard } from "@/components/public/LessonCard";
 import { CoursePlayer } from "@/components/public/CoursePlayer";
+import { ProtectedVideoPlayer } from "@/components/ProtectedVideoPlayer";
 import { getCategoryMeta } from "@/lib/categoryMeta";
 
 export function Videos() {
@@ -109,13 +110,13 @@ export function Videos() {
               <X className="w-5 h-5" />
             </button>
           </div>
-          <div className="aspect-video w-full bg-black">
+          <div className="w-full bg-black p-3">
             {videoModalOpen && freeVideo?.driveEmbedUrl && (
-              <iframe
-                src={freeVideo.driveEmbedUrl}
-                className="w-full h-full"
-                allow="autoplay"
-                allowFullScreen
+              <ProtectedVideoPlayer
+                driveUrl={freeVideo.driveEmbedUrl}
+                username={user?.username}
+                email={user?.email}
+                videoId={freeVideo.id}
               />
             )}
           </div>

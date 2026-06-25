@@ -1,9 +1,10 @@
 import { Router, type IRouter } from "express";
 import { db, usersTable, adminsTable, subscriptionPlansTable, activityLogsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, and, gte } from "drizzle-orm";
 
 import { hashPassword, comparePassword, generateToken, generateAdminToken } from "../lib/auth";
 import { applyVipIpPolicy, getClientIp, VIP_IP_LIMIT_MESSAGE } from "../lib/ipPolicy";
+import { deviceTypeFromUA } from "../lib/device";
 import { userAuth } from "../middlewares/auth";
 
 import {
@@ -37,10 +38,66 @@ async function generateUniqueUsername(base: string): Promise<string> {
   return `${root}${Date.now()}`.slice(0, 100);
 }
 
-async function logActivity(userId: number | null, username: string | null, action: string, details?: string, ip?: string) {
+async function logActivity(userId: number | null, username: string | null, action: string, details?: string, ip?: string, ua?: string | null) {
   try {
-    await db.insert(activityLogsTable).values({ userId, username, action, details: details || null, ipAddress: ip || null });
+    await db.insert(activityLogsTable).values({
+      userId,
+      username,
+      action,
+      details: details || null,
+      ipAddress: ip || null,
+      deviceType: ua ? deviceTypeFromUA(ua) : null,
+      userAgent: ua || null,
+    });
   } catch (_) { }
+}
+
+/**
+ * Best-effort heuristic that flags abnormal account access by inspecting the
+ * user's prior `user_login` rows over the last 24h. Logs `frequent_ip_change`
+ * / `frequent_device_change` only when the *current* login introduces a new
+ * IP/device that pushes the distinct count to the threshold (>=3), so it does
+ * not re-fire on every subsequent login from the same set. Never throws and
+ * never blocks login.
+ */
+async function detectSuspiciousAccess(
+  userId: number,
+  username: string | null,
+  ip: string,
+  ua?: string | null,
+) {
+  try {
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const recent = await db
+      .select({ ipAddress: activityLogsTable.ipAddress, deviceType: activityLogsTable.deviceType })
+      .from(activityLogsTable)
+      .where(
+        and(
+          eq(activityLogsTable.userId, userId),
+          eq(activityLogsTable.action, "user_login"),
+          gte(activityLogsTable.createdAt, since),
+        ),
+      );
+
+    const priorIps = new Set(recent.map((r) => r.ipAddress).filter(Boolean) as string[]);
+    const priorDevices = new Set(recent.map((r) => r.deviceType).filter(Boolean) as string[]);
+
+    const currentDevice = ua ? deviceTypeFromUA(ua) : null;
+    const isNewIp = !!ip && !priorIps.has(ip);
+    const isNewDevice = !!currentDevice && !priorDevices.has(currentDevice);
+
+    const totalIps = new Set([...priorIps, ...(ip ? [ip] : [])]).size;
+    const totalDevices = new Set([...priorDevices, ...(currentDevice ? [currentDevice] : [])]).size;
+
+    if (isNewIp && totalIps >= 3) {
+      await logActivity(userId, username, "frequent_ip_change", `عدد عناوين IP المختلفة خلال 24 ساعة: ${totalIps}`, ip, ua);
+    }
+    if (isNewDevice && totalDevices >= 3) {
+      await logActivity(userId, username, "frequent_device_change", `عدد الأجهزة المختلفة خلال 24 ساعة: ${totalDevices}`, ip, ua);
+    }
+  } catch (_) {
+    /* best-effort: detection must never break login */
+  }
 }
 
 const router: IRouter = Router();
@@ -91,8 +148,8 @@ router.post("/auth/register", async (req, res) => {
     }).returning();
 
     const token = generateToken({ userId: user.id });
-    const regIp = req.ip || req.headers["x-forwarded-for"]?.toString().split(",")[0]?.trim();
-    await logActivity(user.id, user.username, "user_registered", `New user registered: ${user.username} (${user.email})`, regIp);
+    const regIp = getClientIp(req);
+    await logActivity(user.id, user.username, "user_registered", `New user registered: ${user.username} (${user.email})`, regIp, req.headers["user-agent"]);
 
     res.status(201).json({
       token,
@@ -141,6 +198,7 @@ router.post("/auth/login", async (req, res) => {
     }
 
     const clientIp = getClientIp(req);
+    const userAgent = req.headers["user-agent"];
 
     // IP restriction applies to VIP accounts only (max 2 IPs / 24h window).
     // Normal & demo accounts are never IP-restricted, so skip the locking
@@ -148,13 +206,15 @@ router.post("/auth/login", async (req, res) => {
     if (user.accountType === "vip") {
       const ipPolicy = await applyVipIpPolicy(user.id, clientIp);
       if (!ipPolicy.allowed) {
+        await logActivity(user.id, user.username, "frequent_ip_change", "تجاوز الحد المسموح لعناوين IP لحساب VIP — تم رفض الدخول", clientIp, userAgent);
         res.status(403).json({ message: VIP_IP_LIMIT_MESSAGE });
         return;
       }
     }
 
     const token = generateToken({ userId: user.id });
-    await logActivity(user.id, user.username, "user_login", `Login from IP: ${clientIp}`, clientIp);
+    await detectSuspiciousAccess(user.id, user.username, clientIp, userAgent);
+    await logActivity(user.id, user.username, "user_login", `Login from IP: ${clientIp}`, clientIp, userAgent);
 
     res.json({
       token,
@@ -289,6 +349,7 @@ router.post("/auth/google", async (req, res) => {
     const fullName = payload.name || null;
     const profileImage = payload.picture || null;
     const clientIp = getClientIp(req);
+    const userAgent = req.headers["user-agent"];
 
     const [existing] = await db.select().from(usersTable)
       .where(eq(usersTable.email, email)).limit(1);
@@ -303,6 +364,7 @@ router.post("/auth/google", async (req, res) => {
       if (existing.accountType === "vip") {
         const ipPolicy = await applyVipIpPolicy(existing.id, clientIp);
         if (!ipPolicy.allowed) {
+          await logActivity(existing.id, existing.username, "frequent_ip_change", "تجاوز الحد المسموح لعناوين IP لحساب VIP — تم رفض الدخول", clientIp, userAgent);
           res.status(403).json({ message: VIP_IP_LIMIT_MESSAGE });
           return;
         }
@@ -314,7 +376,8 @@ router.post("/auth/google", async (req, res) => {
         profileImage: profileImage || existing.profileImage,
       }).where(eq(usersTable.id, existing.id)).returning();
       user = updated;
-      await logActivity(user.id, user.username, "user_login", `Google login from IP: ${clientIp}`, clientIp);
+      await detectSuspiciousAccess(user.id, user.username, clientIp, userAgent);
+      await logActivity(user.id, user.username, "user_login", `Google login from IP: ${clientIp}`, clientIp, userAgent);
     } else {
       const username = await generateUniqueUsername(email.split("@")[0] || "user");
 
@@ -337,7 +400,7 @@ router.post("/auth/google", async (req, res) => {
         subscriptionExpiresAt,
       }).returning();
       user = created;
-      await logActivity(user.id, user.username, "user_registered", `New user via Google: ${user.username} (${user.email})`, clientIp);
+      await logActivity(user.id, user.username, "user_registered", `New user via Google: ${user.username} (${user.email})`, clientIp, userAgent);
     }
 
     const token = generateToken({ userId: user.id });
