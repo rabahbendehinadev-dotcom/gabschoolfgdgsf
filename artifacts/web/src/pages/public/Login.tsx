@@ -8,7 +8,7 @@ import { useLogin } from "@workspace/api-client-react/src/generated/api";
 import { useAuth } from "@/lib/auth";
 import { GoogleSignInButton } from "@/components/GoogleSignInButton";
 import { useToast } from "@/hooks/use-toast";
-import { PlayCircle, Loader2 } from "lucide-react";
+import { Mail, Loader2, ChevronDown } from "lucide-react";
 import { motion } from "framer-motion";
 
 const loginSchema = z.object({
@@ -23,6 +23,7 @@ export function Login() {
   const { setAuth } = useAuth();
   const { toast } = useToast();
   const loginMut = useLogin();
+  const [showEmailLogin, setShowEmailLogin] = useState(false);
 
   const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>({
     resolver: zodResolver(loginSchema)
@@ -33,7 +34,7 @@ export function Login() {
       onSuccess: (res) => {
         setAuth(res.token, res.user);
         toast({ title: "تم تسجيل الدخول بنجاح", className: "bg-green-600 text-white border-none" });
-        navigate("/videos");
+        navigate(res.user.phone ? "/videos" : "/complete-phone");
       },
       onError: (err) => {
         const apiErr = err as Error & { status?: number; data?: { message?: string } };
@@ -45,51 +46,75 @@ export function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden" dir="rtl">
       <div className="absolute inset-0 bg-gradient-to-br from-background via-background to-primary/10" />
-      
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.95 }}
+
+      <motion.div
+        initial={{ opacity: 0, scale: 0.97 }}
         animate={{ opacity: 1, scale: 1 }}
         className="w-full max-w-md relative z-10"
       >
         <div className="text-center mb-8">
-          <Link href="/" className="inline-flex items-center gap-3 mb-6">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/20 text-primary glow-primary">
-              <PlayCircle className="h-7 w-7" />
-            </div>
+          <Link href="/" className="inline-flex items-center justify-center mb-6">
+            <img src="/logo.png" alt="GAB" className="h-16 w-auto" />
           </Link>
           <h1 className="text-3xl font-bold mb-2">مرحباً بعودتك</h1>
-          <p className="text-foreground/60">سجل دخولك لمتابعة دروسك</p>
+          <p className="text-foreground/60">سجّل دخولك لمتابعة دروسك</p>
         </div>
 
-        <Card className="p-8 glass-card">
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-            <div className="space-y-2">
-              <Label>البريد الإلكتروني</Label>
-              <Input {...register("email")} placeholder="name@example.com" dir="ltr" className="text-left" />
-              {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
-            </div>
-            
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label>كلمة المرور</Label>
-              </div>
-              <Input type="password" {...register("password")} dir="ltr" className="text-left" />
-              {errors.password && <p className="text-sm text-destructive">{errors.password.message}</p>}
-            </div>
+        <Card className="p-7 sm:p-8 glass-card">
+          {/* Gmail notice */}
+          <div className="flex items-start gap-3 rounded-xl bg-primary/10 border border-primary/20 p-4 mb-6">
+            <Mail className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+            <p className="text-sm text-foreground/80 leading-relaxed">
+              سجّل الدخول بنفس حساب Gmail الذي تم تفعيل الدورة عليه.
+            </p>
+          </div>
 
-            <Button type="submit" className="w-full h-12 text-lg" disabled={loginMut.isPending}>
-              {loginMut.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : "دخول"}
-            </Button>
-          </form>
-
+          {/* Primary: Google */}
           <GoogleSignInButton redirectTo="/videos" />
+
+          {/* Secondary: email + password (for existing accounts) */}
+          <div className="mt-6">
+            <button
+              type="button"
+              onClick={() => setShowEmailLogin((v) => !v)}
+              className="flex w-full items-center justify-center gap-1.5 text-sm text-foreground/50 hover:text-foreground/80 transition-colors"
+            >
+              تسجيل الدخول بالبريد الإلكتروني
+              <ChevronDown className={`h-4 w-4 transition-transform ${showEmailLogin ? "rotate-180" : ""}`} />
+            </button>
+
+            {showEmailLogin && (
+              <motion.form
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                onSubmit={handleSubmit(onSubmit)}
+                className="space-y-4 mt-4 overflow-hidden"
+              >
+                <div className="space-y-2">
+                  <Label>البريد الإلكتروني</Label>
+                  <Input {...register("email")} placeholder="name@example.com" dir="ltr" className="text-left" />
+                  {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
+                </div>
+
+                <div className="space-y-2">
+                  <Label>كلمة المرور</Label>
+                  <Input type="password" {...register("password")} dir="ltr" className="text-left" />
+                  {errors.password && <p className="text-sm text-destructive">{errors.password.message}</p>}
+                </div>
+
+                <Button type="submit" variant="secondary" className="w-full h-11" disabled={loginMut.isPending}>
+                  {loginMut.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : "دخول"}
+                </Button>
+              </motion.form>
+            )}
+          </div>
 
           <div className="mt-6 text-center text-sm text-foreground/60 border-t border-border pt-6">
             ليس لديك حساب؟{" "}
             <Link href="/register" className="text-primary hover:underline font-bold">
-              سجل الآن
+              أنشئ حسابك الآن
             </Link>
           </div>
         </Card>
