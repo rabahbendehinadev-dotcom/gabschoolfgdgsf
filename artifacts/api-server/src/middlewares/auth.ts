@@ -16,6 +16,7 @@ declare global {
         subscriptionExpiresAt: Date | null;
         ipAddress: string | null;
         isActive: boolean;
+        phone: string | null;
       };
       admin?: {
         id: number;
@@ -73,6 +74,7 @@ export async function userAuth(req: Request, res: Response, next: NextFunction) 
     subscriptionExpiresAt: user.subscriptionExpiresAt,
     ipAddress: user.ipAddress || clientIp,
     isActive: user.isActive,
+    phone: user.phone ?? null,
   };
   req.userCreatedAt = user.createdAt;
 
@@ -99,6 +101,7 @@ export async function optionalUserAuth(req: Request, _res: Response, next: NextF
       subscriptionExpiresAt: user.subscriptionExpiresAt,
       ipAddress: user.ipAddress,
       isActive: user.isActive,
+      phone: user.phone ?? null,
     };
     req.userCreatedAt = user.createdAt;
   }

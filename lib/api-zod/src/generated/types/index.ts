@@ -39,6 +39,7 @@ export * from "./reorderVideosInput";
 export * from "./reorderVideosInputItemsItem";
 export * from "./subscriptionPlan";
 export * from "./updateCategoryInput";
+export * from "./updatePhoneInput";
 export * from "./updatePlanInput";
 export * from "./updatePlaylistInput";
 export * from "./updateUserInput";

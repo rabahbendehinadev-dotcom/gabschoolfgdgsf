@@ -196,6 +196,39 @@ paths:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
 
+  /auth/me/phone:
+    patch:
+      operationId: updateMyPhone
+      tags: [auth]
+      summary: Set or update current user's WhatsApp phone number
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePhoneInput"
+      responses:
+        "200":
+          description: Phone updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /videos:
     get:
       operationId: getVideos
@@ -827,6 +860,15 @@ components:
       required:
         - credential
 
+    UpdatePhoneInput:
+      type: object
+      properties:
+        phone:
+          type: string
+          minLength: 9
+      required:
+        - phone
+
     AuthResponse:
       type: object
       properties:
@@ -878,6 +920,9 @@ components:
           nullable: true
         isActive:
           type: boolean
+        phone:
+          type: string
+          nullable: true
         createdAt:
           type: string
           format: date-time

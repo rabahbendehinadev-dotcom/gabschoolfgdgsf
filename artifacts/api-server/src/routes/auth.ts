@@ -12,6 +12,7 @@ import {
   AdminLoginBody,
   ChangePasswordBody,
   GoogleLoginBody,
+  UpdateMyPhoneBody,
 } from "@workspace/api-zod";
 import { OAuth2Client } from "google-auth-library";
 
@@ -103,6 +104,7 @@ router.post("/auth/register", async (req, res) => {
         subscriptionType: user.subscriptionType,
         subscriptionExpiresAt: user.subscriptionExpiresAt?.toISOString() || null,
         isActive: user.isActive,
+        phone: user.phone ?? null,
         createdAt: user.createdAt.toISOString(),
       },
     });
@@ -164,6 +166,7 @@ router.post("/auth/login", async (req, res) => {
         subscriptionType: user.subscriptionType,
         subscriptionExpiresAt: user.subscriptionExpiresAt?.toISOString() || null,
         isActive: user.isActive,
+        phone: user.phone ?? null,
         createdAt: user.createdAt.toISOString(),
       },
     });
@@ -210,8 +213,45 @@ router.get("/auth/me", userAuth, async (req, res) => {
     subscriptionType: user.subscriptionType,
     subscriptionExpiresAt: user.subscriptionExpiresAt?.toISOString() || null,
     isActive: user.isActive,
+    phone: user.phone ?? null,
     createdAt: req.userCreatedAt?.toISOString() || new Date().toISOString(),
   });
+});
+
+router.patch("/auth/me/phone", userAuth, async (req, res) => {
+  try {
+    const body = UpdateMyPhoneBody.parse(req.body);
+    const digitsOnly = body.phone.replace(/\D/g, "");
+
+    // Algerian mobile numbers: 0[5/6/7]xxxxxxxx (local) or 213[5/6/7]xxxxxxxx (international).
+    const isLocal = /^0[567]\d{8}$/.test(digitsOnly);
+    const isIntl = /^213[567]\d{8}$/.test(digitsOnly);
+    if (!isLocal && !isIntl) {
+      res.status(400).json({ message: "رقم الهاتف غير صحيح. استعمل رقمًا جزائريًا مثل 0512345678 أو +213512345678" });
+      return;
+    }
+
+    const normalizedPhone = isLocal ? "213" + digitsOnly.slice(1) : digitsOnly;
+
+    const [updated] = await db.update(usersTable)
+      .set({ phone: normalizedPhone })
+      .where(eq(usersTable.id, req.user!.id))
+      .returning();
+
+    res.json({
+      id: updated.id,
+      username: updated.username,
+      email: updated.email,
+      accountType: updated.accountType,
+      subscriptionType: updated.subscriptionType,
+      subscriptionExpiresAt: updated.subscriptionExpiresAt?.toISOString() || null,
+      isActive: updated.isActive,
+      phone: updated.phone ?? null,
+      createdAt: updated.createdAt.toISOString(),
+    });
+  } catch (error: unknown) {
+    res.status(400).json({ message: error instanceof Error ? error.message : "Failed to update phone" });
+  }
 });
 
 router.get("/auth/google/config", (_req, res) => {
@@ -312,6 +352,7 @@ router.post("/auth/google", async (req, res) => {
         subscriptionType: user.subscriptionType,
         subscriptionExpiresAt: user.subscriptionExpiresAt?.toISOString() || null,
         isActive: user.isActive,
+        phone: user.phone ?? null,
         createdAt: user.createdAt.toISOString(),
       },
     });

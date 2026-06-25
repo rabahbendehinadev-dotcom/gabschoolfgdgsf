@@ -40,6 +40,7 @@ import type {
   ReorderVideosInput,
   SubscriptionPlan,
   UpdateCategoryInput,
+  UpdatePhoneInput,
   UpdatePlanInput,
   UpdatePlaylistInput,
   UpdateUserInput,
@@ -704,6 +705,92 @@ export const useChangePassword = <
   TContext
 > => {
   return useMutation(getChangePasswordMutationOptions(options));
+};
+
+/**
+ * @summary Set or update current user's WhatsApp phone number
+ */
+export const getUpdateMyPhoneUrl = () => {
+  return `/api/auth/me/phone`;
+};
+
+export const updateMyPhone = async (
+  updatePhoneInput: UpdatePhoneInput,
+  options?: RequestInit,
+): Promise<UserProfile> => {
+  return customFetch<UserProfile>(getUpdateMyPhoneUrl(), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updatePhoneInput),
+  });
+};
+
+export const getUpdateMyPhoneMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateMyPhone>>,
+    TError,
+    { data: BodyType<UpdatePhoneInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateMyPhone>>,
+  TError,
+  { data: BodyType<UpdatePhoneInput> },
+  TContext
+> => {
+  const mutationKey = ["updateMyPhone"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateMyPhone>>,
+    { data: BodyType<UpdatePhoneInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateMyPhone(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateMyPhoneMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateMyPhone>>
+>;
+export type UpdateMyPhoneMutationBody = BodyType<UpdatePhoneInput>;
+export type UpdateMyPhoneMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Set or update current user's WhatsApp phone number
+ */
+export const useUpdateMyPhone = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateMyPhone>>,
+    TError,
+    { data: BodyType<UpdatePhoneInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateMyPhone>>,
+  TError,
+  { data: BodyType<UpdatePhoneInput> },
+  TContext
+> => {
+  return useMutation(getUpdateMyPhoneMutationOptions(options));
 };
 
 /**
