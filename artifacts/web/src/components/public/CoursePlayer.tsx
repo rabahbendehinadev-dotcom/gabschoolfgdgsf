@@ -2,8 +2,9 @@ import { useState, useRef, useMemo, useEffect, useCallback } from "react";
 import { Link } from "wouter";
 import {
   Lock, Crown, Play, Check, CheckCircle2, Clock,
-  ChevronLeft, ChevronRight, ListVideo, Download, PlaySquare, Loader2,
+  ChevronLeft, ChevronRight, ChevronDown, ListVideo, Download, PlaySquare, Loader2, FileText,
 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { Card, Badge, Button } from "@/components/ui";
 import { useAuth } from "@/lib/auth";
 import { useGetVideo, getGetVideoQueryKey } from "@workspace/api-client-react/src/generated/api";
@@ -45,6 +46,7 @@ export function CoursePlayer({ lessons, accessInfo }: CoursePlayerProps) {
   const isLoggedIn = !!user;
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedPartIndex, setSelectedPartIndex] = useState(0);
+  const [descOpen, setDescOpen] = useState(false);
   const playerRef = useRef<HTMLDivElement>(null);
 
   const total = lessons.length;
@@ -112,6 +114,7 @@ export function CoursePlayer({ lessons, accessInfo }: CoursePlayerProps) {
     if (i < 0 || i >= total) return;
     setCurrentIndex(i);
     setSelectedPartIndex(0);
+    setDescOpen(false);
     if (typeof window !== "undefined" && window.innerWidth < 1024) {
       requestAnimationFrame(() =>
         playerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
@@ -286,9 +289,9 @@ export function CoursePlayer({ lessons, accessInfo }: CoursePlayerProps) {
             </a>
           )}
 
-          {/* وصف الدرس */}
+          {/* وصف الدرس — يظهر مباشرة على الكمبيوتر فقط (على الجوال يصبح أكورديون أسفل القائمة) */}
           {description && (
-            <div className="mt-5 rounded-2xl border border-border bg-card p-5">
+            <div className="mt-5 hidden rounded-2xl border border-border bg-card p-5 lg:block">
               <h3 className="text-base font-bold mb-2.5 text-primary">وصف الدرس</h3>
               <p className="text-foreground/75 leading-loose whitespace-pre-wrap text-sm">
                 {description}
@@ -404,6 +407,42 @@ export function CoursePlayer({ lessons, accessInfo }: CoursePlayerProps) {
           </div>
         </Card>
       </div>
+
+      {/* ════════ وصف الدرس — أكورديون على الجوال فقط (أسفل قائمة الدروس) ════════ */}
+      {description && (
+        <div className="w-full overflow-hidden rounded-2xl border border-border bg-card lg:hidden">
+          <button
+            type="button"
+            onClick={() => setDescOpen((o) => !o)}
+            aria-expanded={descOpen}
+            className="flex w-full items-center justify-between px-4 py-3.5 text-right transition-colors hover:bg-muted/40"
+          >
+            <span className="flex items-center gap-2 text-base font-bold text-primary">
+              <FileText className="h-4 w-4" />
+              وصف الدرس
+            </span>
+            <ChevronDown
+              className={`h-5 w-5 text-primary transition-transform duration-300 ${descOpen ? "rotate-180" : ""}`}
+            />
+          </button>
+          <AnimatePresence initial={false}>
+            {descOpen && (
+              <motion.div
+                key="lesson-desc"
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.28, ease: "easeInOut" }}
+                className="overflow-hidden"
+              >
+                <p className="whitespace-pre-wrap border-t border-border px-4 py-4 text-sm leading-loose text-foreground/75">
+                  {description}
+                </p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
     </div>
   );
 }
