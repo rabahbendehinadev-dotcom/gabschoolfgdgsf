@@ -289,7 +289,7 @@ export function ProtectedVideoPlayer({
         width: "min(100vw, calc(100vh * 16 / 9))",
         height: "min(100vh, calc(100vw * 9 / 16))",
       }
-    : { paddingBottom: "56.25%" };
+    : { width: "100%", aspectRatio: "16 / 9" };
 
   return (
     <div
@@ -311,7 +311,7 @@ export function ProtectedVideoPlayer({
         className={isFullscreen ? "flex items-center justify-center bg-black w-screen h-screen" : "relative w-full"}
       >
         {/* Aspect ratio 16:9 wrapper (fits viewport in fullscreen) */}
-        <div className="relative w-full" style={aspectBoxStyle}>
+        <div className="relative w-full overflow-hidden rounded-2xl" style={aspectBoxStyle}>
 
           {/* Video player */}
           {!videoDisabled ? (
@@ -332,14 +332,12 @@ export function ProtectedVideoPlayer({
             </div>
           )}
 
-          {/* Block the "open in external window" button in top-right of Drive iframe */}
+          {/* Invisibly block the Drive iframe's "open in new window" button (top-right).
+              Transparent so it never shows a black box over the video; still intercepts the tap/click. */}
           <div
-            className="absolute top-0 right-0 z-30"
+            className="absolute top-0 right-0 z-30 w-[64px] h-[40px] md:w-[110px] md:h-[52px]"
             style={{
-              width: "110px",
-              height: "52px",
-              background: "black",
-              borderTopRightRadius: "1rem",
+              background: "transparent",
               cursor: "default",
               pointerEvents: "all",
             }}
@@ -399,10 +397,11 @@ export function ProtectedVideoPlayer({
             </div>
           </div>
 
-          {/* Persistent warning line (bottom) — stays visible in fullscreen too */}
+          {/* Persistent warning line (bottom) — stays visible in fullscreen too.
+              Lighter & more compact on mobile so it never reads as a black overlay. */}
           <div className="absolute bottom-0 inset-x-0 z-20 pointer-events-none">
-            <div className="bg-gradient-to-t from-black/70 to-transparent px-3 pb-2 pt-6 text-center">
-              <p className="text-[10px] md:text-xs font-medium text-white/75 leading-snug" dir="rtl">
+            <div className="bg-gradient-to-t from-black/40 md:from-black/70 to-transparent px-2 md:px-3 pb-1 md:pb-2 pt-3 md:pt-6 text-center">
+              <p className="text-[8px] md:text-xs font-medium text-white/75 leading-snug line-clamp-2 md:line-clamp-none" dir="rtl">
                 {SECURITY_WARNING_TEXT}
               </p>
             </div>
@@ -411,17 +410,17 @@ export function ProtectedVideoPlayer({
       </div>
 
       {/* Prominent security warning banner (below the player) */}
-      <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/5 p-4" dir="rtl">
-        <div className="flex items-start gap-3 text-right">
-          <ShieldAlert className="mt-0.5 w-5 h-5 shrink-0 text-red-400" />
-          <p className="text-sm font-semibold leading-relaxed text-red-200">
+      <div className="mt-3 md:mt-4 rounded-xl border border-red-500/30 bg-red-500/5 p-3 md:p-4" dir="rtl">
+        <div className="flex items-start gap-2 md:gap-3 text-right">
+          <ShieldAlert className="mt-0.5 w-4 h-4 md:w-5 md:h-5 shrink-0 text-red-400" />
+          <p className="text-xs md:text-sm font-semibold leading-relaxed text-red-200">
             {SECURITY_WARNING_TEXT}
           </p>
         </div>
       </div>
 
       {/* Google account required notice */}
-      <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+      <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 md:p-4">
         <div className="flex items-start gap-3 text-right" dir="rtl">
           <div className="mt-0.5 shrink-0">
             <svg className="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
