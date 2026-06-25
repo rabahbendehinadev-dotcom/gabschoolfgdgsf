@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Button, Card, Badge } from "@/components/ui";
 import { Link } from "wouter";
-import { Play, CheckCircle2, Shield, Zap, Crown, Lock, Search, LayoutGrid, Cloud, Terminal, Unlock, Cpu, ArrowRight, type LucideIcon } from "lucide-react";
+import { Play, CheckCircle2, Shield, Zap, Crown, Lock, Search, LayoutGrid, Cloud, Terminal, Unlock, Cpu, ArrowRight, CircuitBoard, Usb, Wrench, Laptop, Smartphone, Tablet, Download, ChevronLeft, type LucideIcon } from "lucide-react";
 import { useGetCategories, useGetSubscriptionPlans, useGetVideos } from "@workspace/api-client-react/src/generated/api";
 import { useAuth } from "@/lib/auth";
 import { CategoryCard } from "@/components/public/CategoryCard";
@@ -11,6 +11,19 @@ import iphoneLocked from "@assets/generated_images/hero_iphone_locked.png";
 import iphoneHome from "@assets/generated_images/hero_iphone_home.png";
 import androidUnlock from "@assets/generated_images/hero_android_unlock.png";
 import tabletClean from "@assets/generated_images/hero_tablet_clean.png";
+
+// مسار التعلّم داخل البانر الأفقي — أيقونات فقط (تفليش/صيانة الهواتف)
+const learningPath: { label: string; icon: LucideIcon; tone: "primary" | "sky" }[] = [
+  { label: "Android Flashing", icon: Download, tone: "primary" },
+  { label: "Samsung", icon: Smartphone, tone: "primary" },
+  { label: "Xiaomi", icon: Smartphone, tone: "primary" },
+  { label: "Huawei", icon: Smartphone, tone: "primary" },
+  { label: "Oppo", icon: Smartphone, tone: "primary" },
+  { label: "OnePlus", icon: Smartphone, tone: "primary" },
+  { label: "iPhone", icon: Smartphone, tone: "sky" },
+  { label: "iPad", icon: Tablet, tone: "sky" },
+  { label: "MacBook", icon: Laptop, tone: "sky" },
+];
 
 export function Home() {
   const { user, getAuthHeaders } = useAuth();
@@ -230,17 +243,71 @@ export function Home() {
       <section id="courses" className="py-24 bg-background relative">
         <div className="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent pointer-events-none" />
         <div className="container mx-auto px-4 relative z-10">
+          {/* بانر أفقي (Ribbon) — هوية المنصة: تفليش وصيانة الهواتف */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 16 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="text-center mb-12"
+            className="relative mb-12 overflow-hidden rounded-3xl border border-border bg-card shadow-sm"
           >
-            <Badge variant="outline" className="mb-4 border-primary/30 bg-primary/10 text-primary">
-              <Lock className="w-3.5 h-3.5 ml-1.5 inline-block" /> محتوى حصري
-            </Badge>
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">ماركات الهواتف المدعومة</h2>
-            <p className="text-foreground/60 max-w-xl mx-auto">اختر الماركة لعرض دروسها مرتّبة كمسار تعليمي متكامل</p>
+            {/* تدرّج + توهّج برتقالي/أزرق خفيف */}
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-l from-primary/[0.06] via-transparent to-sky-400/[0.06]" />
+            <div className="pointer-events-none absolute -top-20 right-12 h-56 w-56 rounded-full bg-primary/10 blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-24 left-12 h-56 w-56 rounded-full bg-sky-400/10 blur-3xl" />
+
+            {/* خطوط إلكترونية خفيفة في الخلفية */}
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 1200 140"
+              preserveAspectRatio="none"
+              className="pointer-events-none absolute inset-0 h-full w-full"
+            >
+              <g stroke="currentColor" strokeWidth="1.2" fill="none" className="text-primary" opacity="0.08">
+                <path d="M0 30 H150 a10 10 0 0 1 10 10 V70" />
+                <path d="M60 0 V20 a10 10 0 0 0 10 10 H130" />
+                <circle cx="160" cy="78" r="4" fill="currentColor" />
+                <circle cx="130" cy="30" r="4" fill="currentColor" />
+              </g>
+              <g stroke="currentColor" strokeWidth="1.2" fill="none" className="text-sky-500" opacity="0.08">
+                <path d="M1200 40 H1050 a10 10 0 0 0 -10 10 V80" />
+                <path d="M1140 0 V18 a10 10 0 0 1 -10 10 H1070" />
+                <circle cx="1040" cy="88" r="4" fill="currentColor" />
+                <circle cx="1070" cy="28" r="4" fill="currentColor" />
+              </g>
+            </svg>
+
+            {/* أيقونات تزيينية خفيفة على الأطراف (لوحة أم، كابل USB، لابتوب، أدوات) */}
+            <CircuitBoard className="pointer-events-none absolute right-5 top-1/2 hidden h-20 w-20 -translate-y-1/2 text-primary/[0.07] lg:block" />
+            <Cpu className="pointer-events-none absolute right-28 bottom-4 hidden h-8 w-8 text-primary/[0.06] lg:block" />
+            <Laptop className="pointer-events-none absolute left-5 top-1/2 hidden h-20 w-20 -translate-y-1/2 text-sky-500/[0.07] lg:block" />
+            <Usb className="pointer-events-none absolute left-28 top-4 hidden h-7 w-7 text-sky-500/[0.06] lg:block" />
+            <Wrench className="pointer-events-none absolute left-32 bottom-4 hidden h-7 w-7 text-foreground/[0.06] lg:block" />
+
+            {/* مسار التعلّم بالأيقونات فقط */}
+            <div className="relative z-10 px-4 py-7 sm:py-9">
+              <div className="mx-auto flex max-w-full items-center justify-start gap-2 overflow-x-auto sm:gap-3 lg:justify-center [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {learningPath.flatMap((step, i) => {
+                  const Icon = step.icon;
+                  const tone =
+                    step.tone === "sky"
+                      ? "border-sky-500/20 bg-sky-500/10 text-sky-600"
+                      : "border-primary/20 bg-primary/10 text-primary";
+                  const chip = (
+                    <div key={step.label} className="flex shrink-0 flex-col items-center gap-1.5">
+                      <div className={`flex h-11 w-11 items-center justify-center rounded-xl border shadow-sm ${tone}`}>
+                        <Icon className="h-5 w-5" />
+                      </div>
+                      <span className="whitespace-nowrap text-[11px] font-semibold text-foreground/70">
+                        {step.label}
+                      </span>
+                    </div>
+                  );
+                  return i < learningPath.length - 1
+                    ? [chip, <ChevronLeft key={`${step.label}-sep`} className="h-4 w-4 shrink-0 text-foreground/25" />]
+                    : [chip];
+                })}
+              </div>
+            </div>
           </motion.div>
 
           {/* (1) كروت الماركات — دائماً أعلى القسم */}
