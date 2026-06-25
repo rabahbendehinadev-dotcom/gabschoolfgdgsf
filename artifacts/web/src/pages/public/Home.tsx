@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Button, Card, Badge } from "@/components/ui";
 import { Link } from "wouter";
-import { Play, CheckCircle2, Shield, Zap, Crown, Lock, Search, LayoutGrid, Cloud, Terminal, Unlock, Cpu, ArrowRight, CircuitBoard, Usb, Wrench, Laptop, Download, BookOpen, ShieldOff, KeyRound, Trophy, type LucideIcon } from "lucide-react";
+import { Play, CheckCircle2, Shield, Zap, Crown, Lock, Search, LayoutGrid, Cloud, Terminal, Unlock, Cpu, ArrowRight, CircuitBoard, Usb, Wrench, Laptop, Download, BookOpen, ShieldOff, KeyRound, Trophy, MoveHorizontal, type LucideIcon } from "lucide-react";
 import { useGetCategories, useGetSubscriptionPlans, useGetVideos } from "@workspace/api-client-react/src/generated/api";
 import { useAuth } from "@/lib/auth";
 import { CategoryCard } from "@/components/public/CategoryCard";
@@ -283,8 +283,12 @@ export function Home() {
             <Wrench className="pointer-events-none absolute left-32 bottom-4 hidden h-7 w-7 text-foreground/[0.06] lg:block" />
 
             {/* خارطة الطريق: مراحل متصلة بخط مضيء (بدون أسماء ماركات) */}
-            <div className="relative z-10 px-5 py-7 sm:py-8">
-              <div className="mx-auto flex max-w-full items-start justify-start gap-1.5 overflow-x-auto sm:gap-2 lg:justify-center [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="relative z-10 py-7 sm:py-8">
+              {/* تلاشٍ عند الحافتين يدلّ أن المسار يكمل (الهاتف فقط) */}
+              <div className="pointer-events-none absolute inset-y-0 right-0 z-20 w-10 bg-gradient-to-l from-card to-transparent lg:hidden" />
+              <div className="pointer-events-none absolute inset-y-0 left-0 z-20 w-10 bg-gradient-to-r from-card to-transparent lg:hidden" />
+
+              <div className="flex max-w-full items-start justify-start gap-1.5 overflow-x-auto scroll-smooth px-6 sm:gap-2 sm:px-5 lg:justify-center lg:px-5 [-ms-overflow-style:none] [overscroll-behavior-x:contain] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {roadmap.flatMap((step, i) => {
                   const Icon = step.icon;
                   const isGold = step.tone === "gold";
@@ -308,11 +312,17 @@ export function Home() {
                         node,
                         <div
                           key={`${step.label}-line`}
-                          className="mt-[21px] h-[3px] min-w-[14px] flex-1 rounded-full bg-gradient-to-l from-sky-400/60 via-primary/50 to-primary/60 shadow-[0_0_8px_rgba(249,115,22,0.35)]"
+                          className="mt-[21px] h-[3px] w-8 shrink-0 rounded-full bg-gradient-to-l from-sky-400/60 via-primary/50 to-primary/60 shadow-[0_0_8px_rgba(249,115,22,0.35)] lg:w-auto lg:min-w-[14px] lg:flex-1"
                         />,
                       ]
                     : [node];
                 })}
+              </div>
+
+              {/* مؤشر السحب — الهاتف فقط */}
+              <div className="mt-3.5 flex items-center justify-center gap-1.5 lg:hidden">
+                <MoveHorizontal className="h-3.5 w-3.5 text-primary/70 motion-safe:animate-pulse" />
+                <span className="text-[10px] font-medium text-foreground/50">اسحب يميناً ويساراً لرؤية كل المراحل</span>
               </div>
             </div>
           </motion.div>
