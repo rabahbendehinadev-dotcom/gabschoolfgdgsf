@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Button, Card, Badge } from "@/components/ui";
 import { Link } from "wouter";
-import { Play, CheckCircle2, Shield, Zap, Crown, Lock, Search, LayoutGrid, Cloud, Terminal, Unlock, Cpu, type LucideIcon } from "lucide-react";
+import { Play, CheckCircle2, Shield, Zap, Crown, Lock, Search, LayoutGrid, Cloud, Terminal, Unlock, Cpu, ArrowRight, type LucideIcon } from "lucide-react";
 import { useGetCategories, useGetSubscriptionPlans, useGetVideos } from "@workspace/api-client-react/src/generated/api";
 import { useAuth } from "@/lib/auth";
 import { CategoryCard } from "@/components/public/CategoryCard";
@@ -26,14 +26,17 @@ export function Home() {
     return map;
   }, [allVideos]);
 
-  const lessonsRef = useRef<HTMLDivElement>(null);
   const activeCategoryObj = categories?.find(c => c.id === activeCategory);
+  const prevActiveCategory = useRef<number | undefined>(undefined);
 
-  // عند اختيار ماركة: مرّر بسلاسة إلى قسم دروسها أسفل الكروت
+  // الدخول لقسم: اعرض صفحة الدروس من الأعلى. الرجوع: انزل إلى قسم الماركات
   useEffect(() => {
-    if (activeCategory && lessonsRef.current) {
-      lessonsRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (activeCategory) {
+      window.scrollTo({ top: 0, behavior: "auto" });
+    } else if (prevActiveCategory.current) {
+      document.getElementById("courses")?.scrollIntoView({ behavior: "auto", block: "start" });
     }
+    prevActiveCategory.current = activeCategory;
   }, [activeCategory]);
 
   const isLoggedIn = !!user;
@@ -57,6 +60,49 @@ export function Home() {
 
   return (
     <div className="w-full">
+      {activeCategory ? (
+        /* صفحة دروس القسم فقط — بدون باقي الماركات + زر رجوع بالأعلى */
+        <section className="py-8 lg:py-12 bg-background min-h-[80vh]">
+          <div className="container mx-auto px-4">
+            <button
+              onClick={() => setActiveCategory(undefined)}
+              className="inline-flex items-center gap-2 mb-8 px-5 py-2.5 rounded-full border border-border bg-card hover:bg-muted text-sm font-bold text-foreground shadow-sm transition-colors"
+            >
+              <ArrowRight className="w-4 h-4" />
+              الرجوع إلى كل الماركات
+            </button>
+
+            <div className="mb-8">
+              <h1 className="text-2xl md:text-3xl font-bold">
+                دروس {activeCategoryObj?.name ?? "القسم"}
+              </h1>
+              {activeCategoryObj?.description && (
+                <p className="text-foreground/60 mt-2 max-w-2xl">{activeCategoryObj.description}</p>
+              )}
+            </div>
+
+            {videos && videos.length > 0 ? (
+              <CoursePlayer lessons={videos} accessInfo={accessInfo} key={activeCategory} />
+            ) : (
+              <div className="flex flex-col items-center justify-center py-16 text-foreground/40">
+                <Search className="w-12 h-12 mb-4 opacity-30" />
+                <p className="text-lg">لا توجد دروس في هذه الماركة بعد</p>
+              </div>
+            )}
+
+            <div className="text-center mt-14">
+              <p className="text-foreground/60 mb-5">اشترك الآن وابدأ مسيرتك نحو الاحتراف</p>
+              <Link href="/subscribe">
+                <Button size="lg" className="rounded-full px-12 glow-primary">
+                  اشترك وشاهد جميع الدروس
+                  <Play className="w-5 h-5 mr-2" />
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </section>
+      ) : (
+      <>
       {/* ═══════════════════════════════════════════════════════
           HERO — Visual-only animated device showcase (no marketing copy)
       ════════════════════════════════════════════════════════ */}
@@ -175,7 +221,7 @@ export function Home() {
               <Lock className="w-3.5 h-3.5 ml-1.5 inline-block" /> محتوى حصري
             </Badge>
             <h2 className="text-3xl md:text-4xl font-bold mb-4">ماركات الهواتف المدعومة</h2>
-            <p className="text-foreground/60 max-w-xl mx-auto">اختر الماركة لعرض دروسها بالأسفل، مرتّبة كمسار تعليمي متكامل</p>
+            <p className="text-foreground/60 max-w-xl mx-auto">اختر الماركة لعرض دروسها مرتّبة كمسار تعليمي متكامل</p>
           </motion.div>
 
           {/* (1) كروت الماركات — دائماً أعلى القسم */}
@@ -192,52 +238,12 @@ export function Home() {
             ))}
           </div>
 
-          {/* (2) أسفل الكروت: دروس الماركة المختارة، أو رسالة في العرض الأولي */}
-          {activeCategory ? (
-            <div ref={lessonsRef} className="mt-16 scroll-mt-24 border-t border-border pt-12">
-              <div className="flex items-center justify-between gap-4 flex-wrap mb-8">
-                <h2 className="text-2xl md:text-3xl font-bold">
-                  دروس {activeCategoryObj?.name ?? "القسم"}
-                </h2>
-                <button
-                  onClick={() => setActiveCategory(undefined)}
-                  className="text-sm font-semibold text-primary hover:underline"
-                >
-                  عرض كل الماركات
-                </button>
-              </div>
-
-              {videos && videos.length > 0 ? (
-                <CoursePlayer lessons={videos} accessInfo={accessInfo} key={activeCategory} />
-              ) : (
-                <div className="flex flex-col items-center justify-center py-16 text-foreground/40">
-                  <Search className="w-12 h-12 mb-4 opacity-30" />
-                  <p className="text-lg">لا توجد دروس في هذه الماركة بعد</p>
-                </div>
-              )}
-
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                className="text-center mt-14"
-              >
-                <p className="text-foreground/60 mb-5">اشترك الآن وابدأ مسيرتك نحو الاحتراف</p>
-                <Link href="/subscribe">
-                  <Button size="lg" className="rounded-full px-12 glow-primary">
-                    اشترك وشاهد جميع الدروس
-                    <Play className="w-5 h-5 mr-2" />
-                  </Button>
-                </Link>
-              </motion.div>
-            </div>
-          ) : (
-            <div className="mt-14 text-center bg-muted/40 rounded-2xl border border-border py-14 px-6">
-              <LayoutGrid className="w-11 h-11 text-primary/60 mx-auto mb-4" />
-              <h3 className="text-xl md:text-2xl font-bold mb-2">اختر ماركة لعرض دروسها</h3>
-              <p className="text-foreground/60 max-w-md mx-auto">اضغط على أي ماركة بالأعلى لتظهر دروسها هنا، مرتّبة كمسار تعليمي متكامل.</p>
-            </div>
-          )}
+          {/* (2) أسفل الكروت: رسالة إرشادية لاختيار ماركة */}
+          <div className="mt-14 text-center bg-muted/40 rounded-2xl border border-border py-14 px-6">
+            <LayoutGrid className="w-11 h-11 text-primary/60 mx-auto mb-4" />
+            <h3 className="text-xl md:text-2xl font-bold mb-2">اختر ماركة لعرض دروسها</h3>
+            <p className="text-foreground/60 max-w-md mx-auto">اضغط على أي ماركة لعرض دروسها كاملة في صفحة مستقلة، مرتّبة كمسار تعليمي متكامل.</p>
+          </div>
         </div>
       </section>
 
@@ -347,6 +353,8 @@ export function Home() {
           </div>
         </div>
       </section>
+      </>
+      )}
     </div>
   );
 }
