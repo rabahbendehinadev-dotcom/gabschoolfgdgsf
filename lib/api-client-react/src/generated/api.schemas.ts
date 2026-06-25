@@ -32,6 +32,10 @@ export interface LoginInput {
   password: string;
 }
 
+export interface GoogleLoginInput {
+  credential: string;
+}
+
 export type UserProfileAccountType =
   (typeof UserProfileAccountType)[keyof typeof UserProfileAccountType];
 

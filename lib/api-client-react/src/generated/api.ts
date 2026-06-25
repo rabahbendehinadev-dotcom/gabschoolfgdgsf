@@ -30,6 +30,7 @@ import type {
   ErrorResponse,
   GetPlaylistsParams,
   GetVideosParams,
+  GoogleLoginInput,
   HealthStatus,
   LoginInput,
   MessageResponse,
@@ -301,6 +302,92 @@ export const useLogin = <
   TContext
 > => {
   return useMutation(getLoginMutationOptions(options));
+};
+
+/**
+ * @summary Sign in or sign up with Google
+ */
+export const getGoogleLoginUrl = () => {
+  return `/api/auth/google`;
+};
+
+export const googleLogin = async (
+  googleLoginInput: GoogleLoginInput,
+  options?: RequestInit,
+): Promise<AuthResponse> => {
+  return customFetch<AuthResponse>(getGoogleLoginUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(googleLoginInput),
+  });
+};
+
+export const getGoogleLoginMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof googleLogin>>,
+    TError,
+    { data: BodyType<GoogleLoginInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof googleLogin>>,
+  TError,
+  { data: BodyType<GoogleLoginInput> },
+  TContext
+> => {
+  const mutationKey = ["googleLogin"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof googleLogin>>,
+    { data: BodyType<GoogleLoginInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return googleLogin(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type GoogleLoginMutationResult = NonNullable<
+  Awaited<ReturnType<typeof googleLogin>>
+>;
+export type GoogleLoginMutationBody = BodyType<GoogleLoginInput>;
+export type GoogleLoginMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Sign in or sign up with Google
+ */
+export const useGoogleLogin = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof googleLogin>>,
+    TError,
+    { data: BodyType<GoogleLoginInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof googleLogin>>,
+  TError,
+  { data: BodyType<GoogleLoginInput> },
+  TContext
+> => {
+  return useMutation(getGoogleLoginMutationOptions(options));
 };
 
 /**
