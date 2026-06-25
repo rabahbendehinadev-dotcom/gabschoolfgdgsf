@@ -9,9 +9,11 @@ When changing how a category's lessons are displayed in the public web app, you
 must update BOTH entry points or the change appears to have no effect:
 
 1. `artifacts/web/src/pages/public/Home.tsx` — the "ماركات الهواتف المدعومة"
-   section. Clicking a brand card sets `activeCategory` and renders the lessons
-   inline below the brand grid. **This is the entry point users actually click**
-   from the landing page.
+   section. Clicking a brand card sets `activeCategory`, which swaps the WHOLE
+   Home page to a focused single-category watch view (a "الرجوع إلى كل الماركات"
+   back button + title + CoursePlayer); the hero, brands grid, features, and
+   pricing are hidden while a category is active so other brands don't show.
+   **This is the entry point users actually click** from the landing page.
 2. `artifacts/web/src/pages/public/Videos.tsx` — `CategoryDetail`, reached via
    `/videos?categoryId=ID`.
 
@@ -25,5 +27,7 @@ had its own separate inline lesson grid.
 **How to apply:** Treat `CoursePlayer` as the single source of truth for the
 category watch view and feed it from both pages (`lessons` + an `accessInfo`
 helper). The two pages each define their own identical `accessInfo` gating
-function — keep them in sync. Note: `Home` also keeps its own `activeCategory`
-state + scroll-to-lessons behavior; it does not navigate to `/videos`.
+function — keep them in sync. Note: `Home` drives the view with its own
+`activeCategory` state (no navigation to `/videos`); entering a category scrolls
+to top, the back button clears state and scrolls back to the `#courses` brands
+section.
