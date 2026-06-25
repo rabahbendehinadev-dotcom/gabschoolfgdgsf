@@ -16,7 +16,9 @@ export function Home() {
   const { user, getAuthHeaders } = useAuth();
   const { data: categories } = useGetCategories();
   const { data: plans } = useGetSubscriptionPlans();
-  const [activeCategory, setActiveCategory] = useState<number | undefined>();
+  const [activeCategory, setActiveCategory] = useState<number | undefined>(
+    () => (typeof window !== "undefined" ? (window.history.state?.brandView as number | undefined) : undefined)
+  );
   const { data: videos } = useGetVideos({ categoryId: activeCategory }, { request: getAuthHeaders() });
   const { data: allVideos } = useGetVideos({}, { request: getAuthHeaders() });
 
@@ -38,6 +40,23 @@ export function Home() {
     }
     prevActiveCategory.current = activeCategory;
   }, [activeCategory]);
+
+  // فتح قسم: أضف مدخل history حتى يرجع زر المتصفح إلى الماركات داخل الموقع
+  const openCategory = (id: number) => {
+    if (activeCategory === id) return;
+    window.history.pushState({ brandView: id }, "");
+    setActiveCategory(id);
+  };
+
+  // زر الرجوع/التقدّم في المتصفح: تنقّل داخلي بين الماركات وصفحة القسم
+  useEffect(() => {
+    const onPop = (e: PopStateEvent) => {
+      const st = e.state as { brandView?: number } | null;
+      setActiveCategory(st?.brandView);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
 
   const isLoggedIn = !!user;
   const isDemo = user?.subscriptionType === "demo";
@@ -65,7 +84,7 @@ export function Home() {
         <section className="py-8 lg:py-12 bg-background min-h-[80vh]">
           <div className="container mx-auto px-4">
             <button
-              onClick={() => setActiveCategory(undefined)}
+              onClick={() => window.history.back()}
               className="inline-flex items-center gap-2 mb-8 px-5 py-2.5 rounded-full border border-border bg-card hover:bg-muted text-sm font-bold text-foreground shadow-sm transition-colors"
             >
               <ArrowRight className="w-4 h-4" />
@@ -233,7 +252,7 @@ export function Home() {
                 lessonCount={countByCategory.get(cat.id) ?? 0}
                 index={i}
                 active={activeCategory === cat.id}
-                onSelect={() => setActiveCategory(cat.id)}
+                onSelect={() => openCategory(cat.id)}
               />
             ))}
           </div>
