@@ -28,6 +28,9 @@ had its own separate inline lesson grid.
 category watch view and feed it from both pages (`lessons` + an `accessInfo`
 helper). The two pages each define their own identical `accessInfo` gating
 function — keep them in sync. Note: `Home` drives the view with its own
-`activeCategory` state (no navigation to `/videos`); entering a category scrolls
-to top, the back button clears state and scrolls back to the `#courses` brands
-section.
+`activeCategory` state (no navigation to `/videos`), but syncs it with browser
+history: `openCategory` does `pushState({brandView:id})`, a `popstate` listener
+restores `activeCategory` from `history.state`, the in-page back button calls
+`history.back()`, and initial state hydrates from `history.state?.brandView`.
+Don't revert this to pure state — without it the browser Back button leaves the
+site. Entering a category scrolls to top; returning scrolls to `#courses`.
