@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { AlertTriangle, ShieldAlert, X, ExternalLink } from "lucide-react";
+import { AlertTriangle, ShieldAlert, ShieldCheck, X, Maximize, Minimize } from "lucide-react";
 import { Button } from "@/components/ui";
 
 interface ProtectedVideoPlayerProps {
@@ -9,6 +9,10 @@ interface ProtectedVideoPlayerProps {
   videoId?: number;
   onViolation?: (count: number) => void;
 }
+
+/** النص التحذيري الرسمي — يظهر للمستخدم داخل المشغّل وأسفله. */
+const SECURITY_WARNING_TEXT =
+  "هذا المحتوى محمي ومخصص لحسابك فقط. أي محاولة تصوير أو مشاركة قد تؤدي إلى إيقاف حسابك.";
 
 function extractDriveFileId(url: string): string | null {
   const patterns = [
@@ -30,25 +34,6 @@ function getDrivePreviewUrl(url: string): string {
   return url;
 }
 
-function getDriveViewUrl(url: string): string {
-  if (!url) return "";
-  const fileId = extractDriveFileId(url);
-  if (fileId) return `https://drive.google.com/file/d/${fileId}/view`;
-  return url.replace("/preview", "/view");
-}
-
-function useIsMobile(): boolean {
-  const [isMobile, setIsMobile] = useState(false);
-  useEffect(() => {
-    const check = () => setIsMobile(window.matchMedia("(max-width: 768px)").matches || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent));
-    check();
-    const mq = window.matchMedia("(max-width: 768px)");
-    mq.addEventListener("change", check);
-    return () => mq.removeEventListener("change", check);
-  }, []);
-  return isMobile;
-}
-
 const WATERMARK_POSITIONS = [
   { top: "10%", left: "10%" },
   { top: "10%", left: "60%" },
@@ -62,7 +47,6 @@ const WATERMARK_POSITIONS = [
 
 type Warning = "first" | "second" | "blocked" | null;
 
-
 export function ProtectedVideoPlayer({
   driveUrl,
   username,
@@ -71,17 +55,22 @@ export function ProtectedVideoPlayer({
   onViolation,
 }: ProtectedVideoPlayerProps) {
   const previewUrl = getDrivePreviewUrl(driveUrl);
-  const viewUrl = getDriveViewUrl(driveUrl);
-  const isMobile = useIsMobile();
   const [wmIndex, setWmIndex] = useState(0);
   const [warning, setWarning] = useState<Warning>(null);
   const [videoDisabled, setVideoDisabled] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const violationsRef = useRef(0);
+  const reportedRef = useRef<Set<string>>(new Set());
   const containerRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
   const focusTrapRef = useRef<HTMLDivElement>(null);
 
   const watermarkLabel = username || email || "محمي";
   const wmPos = WATERMARK_POSITIONS[wmIndex % WATERMARK_POSITIONS.length];
+
+  const fullscreenSupported =
+    typeof document !== "undefined" &&
+    (document.fullscreenEnabled || Boolean((document as unknown as { webkitFullscreenEnabled?: boolean }).webkitFullscreenEnabled));
 
   // Rotate watermark position
   useEffect(() => {
@@ -90,6 +79,26 @@ export function ProtectedVideoPlayer({
     }, 4000);
     return () => clearInterval(interval);
   }, []);
+
+  // ── Report a suspicious security event to the server (deduped per type) ────
+  const reportSecurity = useCallback(
+    async (eventType: string, details?: string) => {
+      if (!videoId) return;
+      if (reportedRef.current.has(eventType)) return;
+      reportedRef.current.add(eventType);
+      try {
+        await fetch(`/api/videos/${videoId}/security-event`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ eventType, details }),
+        });
+      } catch {
+        /* silent — protection reporting must never break playback */
+      }
+    },
+    [videoId],
+  );
 
   const logViolation = useCallback(async (count: number) => {
     try {
@@ -122,15 +131,76 @@ export function ProtectedVideoPlayer({
     }
   }, [logViolation, videoDisabled]);
 
+  // ── In-page fullscreen (keeps watermark + warning overlays visible) ───────
+  const toggleFullscreen = useCallback(() => {
+    const el = stageRef.current as
+      | (HTMLDivElement & {
+          webkitRequestFullscreen?: () => void;
+          msRequestFullscreen?: () => void;
+        })
+      | null;
+    if (!el) return;
+    const doc = document as Document & {
+      webkitFullscreenElement?: Element | null;
+      webkitExitFullscreen?: () => void;
+      msExitFullscreen?: () => void;
+    };
+    const active = doc.fullscreenElement || doc.webkitFullscreenElement;
+    if (!active) {
+      const request = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+      try {
+        request?.call(el);
+      } catch {
+        /* ignore — unsupported */
+      }
+    } else {
+      const exit = doc.exitFullscreen || doc.webkitExitFullscreen || doc.msExitFullscreen;
+      try {
+        exit?.call(doc);
+      } catch {
+        /* ignore */
+      }
+    }
+  }, []);
+
   useEffect(() => {
-    // ── 1. Keyboard: PrintScreen (Windows) / Cmd+Shift+3/4/5 (Mac) ─────────
+    const doc = document as Document & { webkitFullscreenElement?: Element | null };
+    const onFsChange = () => {
+      setIsFullscreen(Boolean(doc.fullscreenElement || doc.webkitFullscreenElement));
+    };
+    document.addEventListener("fullscreenchange", onFsChange);
+    document.addEventListener("webkitfullscreenchange", onFsChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", onFsChange);
+      document.removeEventListener("webkitfullscreenchange", onFsChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    // ── 1. Keyboard: screenshot keys + devtools/save/view-source deterrents ──
     const handleKeydown = (e: KeyboardEvent) => {
+      // Screenshot attempts (Windows PrintScreen / Mac Cmd+Shift+3/4/5)
       if (
         e.key === "PrintScreen" ||
         e.keyCode === 44 ||
         (e.metaKey && e.shiftKey && ["3", "4", "5"].includes(e.key))
       ) {
         handleSuspiciousActivity();
+        return;
+      }
+      // DevTools / view-source / save-page deterrents
+      const k = e.key.toLowerCase();
+      const isDevtools =
+        e.key === "F12" ||
+        e.keyCode === 123 ||
+        ((e.ctrlKey || e.metaKey) && e.shiftKey && ["i", "j", "c"].includes(k)) ||
+        ((e.ctrlKey || e.metaKey) && k === "u");
+      const isSave = (e.ctrlKey || e.metaKey) && k === "s";
+      if (isDevtools) {
+        e.preventDefault();
+        reportSecurity("devtools_attempt", `key:${e.key}`);
+      } else if (isSave) {
+        e.preventDefault();
       }
     };
     // keyup as backup — some systems fire keyup but not keydown for PrtScn
@@ -140,9 +210,24 @@ export function ProtectedVideoPlayer({
       }
     };
 
-    // ── 2. Context menu & text selection prevention ─────────────────────────
-    const handleContextMenu = (e: MouseEvent) => { e.preventDefault(); };
+    // ── 2. Context menu, selection, copy, drag, middle-click prevention ─────
+    const handleContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+      reportSecurity("copy_link_attempt", "contextmenu");
+    };
     const handleSelectStart = (e: Event) => { e.preventDefault(); };
+    const handleCopy = (e: Event) => {
+      e.preventDefault();
+      reportSecurity("copy_link_attempt", "copy");
+    };
+    const handleDragStart = (e: Event) => { e.preventDefault(); };
+    const handleAuxClick = (e: MouseEvent) => {
+      // middle / right click — often used to open the media in a new window
+      if (e.button === 1 || e.button === 2) {
+        e.preventDefault();
+        reportSecurity("external_open_attempt", "auxclick");
+      }
+    };
 
     document.addEventListener("keydown", handleKeydown);
     document.addEventListener("keyup", handleKeyup);
@@ -151,10 +236,12 @@ export function ProtectedVideoPlayer({
     if (container) {
       container.addEventListener("contextmenu", handleContextMenu);
       container.addEventListener("selectstart", handleSelectStart);
+      container.addEventListener("copy", handleCopy);
+      container.addEventListener("dragstart", handleDragStart);
+      container.addEventListener("auxclick", handleAuxClick);
     }
 
     // ── 3. Focus-steal: keep keyboard focus on the page (not the iframe) ────
-    // This ensures keydown/keyup events reach our document listener
     const focusInterval = setInterval(() => {
       if (
         document.activeElement &&
@@ -165,18 +252,44 @@ export function ProtectedVideoPlayer({
       }
     }, 250);
 
+    // ── 4. Conservative single-shot devtools-open size heuristic (log only) ─
+    const THRESHOLD = 200;
+    const devtoolsInterval = setInterval(() => {
+      if (reportedRef.current.has("devtools_attempt")) {
+        clearInterval(devtoolsInterval);
+        return;
+      }
+      const widthGap = window.outerWidth - window.innerWidth;
+      const heightGap = window.outerHeight - window.innerHeight;
+      if (widthGap > THRESHOLD || heightGap > THRESHOLD) {
+        reportSecurity("devtools_attempt", "size-heuristic");
+      }
+    }, 1500);
+
     return () => {
       document.removeEventListener("keydown", handleKeydown);
       document.removeEventListener("keyup", handleKeyup);
       clearInterval(focusInterval);
+      clearInterval(devtoolsInterval);
       if (container) {
         container.removeEventListener("contextmenu", handleContextMenu);
         container.removeEventListener("selectstart", handleSelectStart);
+        container.removeEventListener("copy", handleCopy);
+        container.removeEventListener("dragstart", handleDragStart);
+        container.removeEventListener("auxclick", handleAuxClick);
       }
     };
-  }, [handleSuspiciousActivity]);
+  }, [handleSuspiciousActivity, reportSecurity]);
 
   const dismissWarning = () => setWarning(null);
+
+  // Sizing for the video area: padding-box ratio normally, fit-to-viewport in fullscreen.
+  const aspectBoxStyle: React.CSSProperties = isFullscreen
+    ? {
+        width: "min(100vw, calc(100vh * 16 / 9))",
+        height: "min(100vh, calc(100vw * 9 / 16))",
+      }
+    : { paddingBottom: "56.25%" };
 
   return (
     <div
@@ -192,93 +305,120 @@ export function ProtectedVideoPlayer({
         style={{ position: "absolute", opacity: 0, width: 0, height: 0, overflow: "hidden", pointerEvents: "none" }}
       />
 
-      {/* Aspect ratio 16:9 wrapper */}
-      <div className="relative w-full" style={{ paddingBottom: "56.25%" }}>
+      {/* Stage = fullscreen target. Holds the video + all in-player overlays. */}
+      <div
+        ref={stageRef}
+        className={isFullscreen ? "flex items-center justify-center bg-black w-screen h-screen" : "relative w-full"}
+      >
+        {/* Aspect ratio 16:9 wrapper (fits viewport in fullscreen) */}
+        <div className="relative w-full" style={aspectBoxStyle}>
 
-        {/* Video player */}
-        {!videoDisabled ? (
-          <iframe
-            src={previewUrl}
-            className="absolute inset-0 w-full h-full rounded-2xl border border-white/10"
-            allow="autoplay; fullscreen"
-            allowFullScreen
-            frameBorder="0"
-            referrerPolicy="no-referrer"
+          {/* Video player */}
+          {!videoDisabled ? (
+            <iframe
+              src={previewUrl}
+              className="absolute inset-0 w-full h-full rounded-2xl border border-white/10"
+              allow="autoplay"
+              frameBorder="0"
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <div className="absolute inset-0 rounded-2xl bg-black/90 border border-red-500/30 flex flex-col items-center justify-center">
+              <ShieldAlert className="w-16 h-16 text-red-500 mb-4" />
+              <p className="text-red-400 font-bold text-xl mb-2">تم تعطيل الفيديو</p>
+              <p className="text-muted-foreground text-sm text-center max-w-xs">
+                تم رصد نشاط مشبوه. تواصل مع الدعم لإعادة تفعيل الوصول.
+              </p>
+            </div>
+          )}
+
+          {/* Block the "open in external window" button in top-right of Drive iframe */}
+          <div
+            className="absolute top-0 right-0 z-30"
+            style={{
+              width: "110px",
+              height: "52px",
+              background: "black",
+              borderTopRightRadius: "1rem",
+              cursor: "default",
+              pointerEvents: "all",
+            }}
+            onClick={(e) => { e.stopPropagation(); reportSecurity("external_open_attempt", "popout-overlay"); }}
+            onMouseDown={(e) => e.stopPropagation()}
           />
-        ) : (
-          <div className="absolute inset-0 rounded-2xl bg-black/90 border border-red-500/30 flex flex-col items-center justify-center">
-            <ShieldAlert className="w-16 h-16 text-red-500 mb-4" />
-            <p className="text-red-400 font-bold text-xl mb-2">تم تعطيل الفيديو</p>
-            <p className="text-muted-foreground text-sm text-center max-w-xs">
-              تم رصد نشاط مشبوه. تواصل مع الدعم لإعادة تفعيل الوصول.
-            </p>
-          </div>
-        )}
 
-        {/* Block the "open in external window" button in top-right of Drive iframe */}
-        <div
-          className="absolute top-0 right-0 z-30"
-          style={{
-            width: "110px",
-            height: "52px",
-            background: "black",
-            borderTopRightRadius: "1rem",
-            cursor: "default",
-            pointerEvents: "all",
-          }}
-          onClick={(e) => e.stopPropagation()}
-          onMouseDown={(e) => e.stopPropagation()}
-        />
+          {/* Custom in-page fullscreen button (top-left) */}
+          {!videoDisabled && fullscreenSupported && (
+            <button
+              type="button"
+              onClick={toggleFullscreen}
+              aria-label={isFullscreen ? "إنهاء ملء الشاشة" : "ملء الشاشة"}
+              className="absolute top-2 left-2 z-40 flex items-center justify-center w-9 h-9 rounded-lg bg-black/55 hover:bg-black/75 text-white border border-white/15 backdrop-blur-sm transition-colors"
+            >
+              {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+            </button>
+          )}
 
-        {/* Moving watermark — primary */}
-        <div
-          className="absolute z-20 transition-all duration-1000 pointer-events-none"
-          style={{ top: wmPos.top, left: wmPos.left }}
-        >
-          <div
-            className="text-white/25 font-bold text-xs md:text-sm whitespace-nowrap"
-            style={{ transform: "rotate(-15deg)", textShadow: "0 0 8px rgba(0,0,0,0.9)" }}
-          >
-            {watermarkLabel}
+          {/* Persistent protection strip (top-center) */}
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+            <div className="flex items-center gap-1.5 rounded-full bg-black/45 px-3 py-1 text-[10px] md:text-xs font-semibold text-white/80 backdrop-blur-sm border border-white/10 whitespace-nowrap">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+              محتوى محمي — مخصص لحسابك فقط
+            </div>
           </div>
-          <div
-            className="text-white/20 font-bold text-[9px] md:text-xs whitespace-nowrap mt-0.5"
-            style={{ transform: "rotate(-15deg)", textShadow: "0 0 8px rgba(0,0,0,0.9)" }}
-          >
-            محمي بالمنصة
-          </div>
-        </div>
 
-        {/* Moving watermark — secondary (opposite corner) */}
-        <div
-          className="absolute z-20 transition-all duration-1000 pointer-events-none"
-          style={{ bottom: wmPos.top, right: wmPos.left }}
-        >
+          {/* Moving watermark — primary */}
           <div
-            className="text-white/18 font-bold text-xs whitespace-nowrap"
-            style={{ transform: "rotate(10deg)", textShadow: "0 0 8px rgba(0,0,0,0.9)" }}
+            className="absolute z-20 transition-all duration-1000 pointer-events-none"
+            style={{ top: wmPos.top, left: wmPos.left }}
           >
-            {watermarkLabel}
+            <div
+              className="text-white/25 font-bold text-xs md:text-sm whitespace-nowrap"
+              style={{ transform: "rotate(-15deg)", textShadow: "0 0 8px rgba(0,0,0,0.9)" }}
+            >
+              {watermarkLabel}
+            </div>
+            <div
+              className="text-white/20 font-bold text-[9px] md:text-xs whitespace-nowrap mt-0.5"
+              style={{ transform: "rotate(-15deg)", textShadow: "0 0 8px rgba(0,0,0,0.9)" }}
+            >
+              محمي بالمنصة
+            </div>
+          </div>
+
+          {/* Moving watermark — secondary (opposite corner) */}
+          <div
+            className="absolute z-20 transition-all duration-1000 pointer-events-none"
+            style={{ bottom: wmPos.top, right: wmPos.left }}
+          >
+            <div
+              className="text-white/18 font-bold text-xs whitespace-nowrap"
+              style={{ transform: "rotate(10deg)", textShadow: "0 0 8px rgba(0,0,0,0.9)" }}
+            >
+              {watermarkLabel}
+            </div>
+          </div>
+
+          {/* Persistent warning line (bottom) — stays visible in fullscreen too */}
+          <div className="absolute bottom-0 inset-x-0 z-20 pointer-events-none">
+            <div className="bg-gradient-to-t from-black/70 to-transparent px-3 pb-2 pt-6 text-center">
+              <p className="text-[10px] md:text-xs font-medium text-white/75 leading-snug" dir="rtl">
+                {SECURITY_WARNING_TEXT}
+              </p>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Direct open button — always visible, more prominent on mobile */}
-      {viewUrl && (
-        <a
-          href={viewUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={`mt-4 flex items-center justify-center gap-2.5 w-full rounded-xl font-bold transition-all ${
-            isMobile
-              ? "bg-primary text-white py-4 text-base shadow-lg shadow-primary/30 hover:bg-primary/90"
-              : "bg-primary/10 text-primary border border-primary/30 py-3 text-sm hover:bg-primary/20"
-          }`}
-        >
-          <ExternalLink className={isMobile ? "w-5 h-5" : "w-4 h-4"} />
-          {isMobile ? "افتح الفيديو مباشرة 📱" : "فتح الفيديو في نافذة جديدة"}
-        </a>
-      )}
+      {/* Prominent security warning banner (below the player) */}
+      <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/5 p-4" dir="rtl">
+        <div className="flex items-start gap-3 text-right">
+          <ShieldAlert className="mt-0.5 w-5 h-5 shrink-0 text-red-400" />
+          <p className="text-sm font-semibold leading-relaxed text-red-200">
+            {SECURITY_WARNING_TEXT}
+          </p>
+        </div>
+      </div>
 
       {/* Google account required notice */}
       <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
@@ -291,8 +431,7 @@ export function ProtectedVideoPlayer({
           <div className="flex-1">
             <p className="text-sm font-semibold text-amber-300 mb-1">الفيديو لا يعمل داخل الصفحة؟</p>
             <p className="text-xs text-muted-foreground leading-relaxed mb-3">
-              يجب الدخول بنفس حساب Google الذي تم تفعيل الدورة عليه.
-              {isMobile && " كما أن متصفحات الهاتف قد تمنع تشغيل الفيديو مباشرة — اضغط الزر أعلاه لفتحه في تطبيق Drive أو متصفح جديد."}
+              تأكد من تسجيل الدخول بنفس حساب Google الذي تم تفعيل الدورة عليه. الفيديو يُشاهَد داخل المنصة فقط.
             </p>
             <div className="flex flex-col sm:flex-row gap-2">
               <a

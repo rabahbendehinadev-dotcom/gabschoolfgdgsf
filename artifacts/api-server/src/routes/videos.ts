@@ -2,8 +2,44 @@ import { Router, type IRouter } from "express";
 import { db, videosTable, categoriesTable, visitLogsTable, playlistsTable, activityLogsTable } from "@workspace/db";
 import { eq, and, or, asc, sql, isNull } from "drizzle-orm";
 import { optionalUserAuth, userAuth } from "../middlewares/auth";
+import { getClientIp } from "../lib/ipPolicy";
+import { deviceTypeFromUA } from "../lib/device";
 
 const router: IRouter = Router();
+
+// Allowed client-reported security events (allowlist — never trust arbitrary input).
+const SECURITY_EVENTS = new Set([
+  "external_open_attempt",
+  "copy_link_attempt",
+  "devtools_attempt",
+]);
+
+// Best-effort insert of a video-related activity log row. Never throws.
+async function logVideoActivity(opts: {
+  user?: { id: number; username: string } | null;
+  action: string;
+  videoId: number;
+  videoTitle?: string | null;
+  details?: string | null;
+  ip: string;
+  ua?: string | null;
+}): Promise<void> {
+  try {
+    await db.insert(activityLogsTable).values({
+      userId: opts.user?.id ?? null,
+      username: opts.user?.username ?? null,
+      action: opts.action,
+      details: opts.details ?? null,
+      ipAddress: opts.ip,
+      deviceType: deviceTypeFromUA(opts.ua),
+      userAgent: opts.ua ?? null,
+      videoId: opts.videoId,
+      videoTitle: opts.videoTitle ?? null,
+    });
+  } catch {
+    /* best-effort: logging must never break the request */
+  }
+}
 
 router.get("/videos", optionalUserAuth, async (req, res) => {
   try {
@@ -97,21 +133,34 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
     const isVipUser = user?.accountType === "vip";
     const isSubscribed = user && user.subscriptionType !== "demo";
 
+    // Log + deny when a user tries to open a video they are not entitled to.
+    const denyVideoAccess = async (message: string) => {
+      await logVideoActivity({
+        user,
+        action: "locked_video_attempt",
+        videoId: id,
+        videoTitle: video.title,
+        details: `accessType=${accessType} | accountType=${user?.accountType ?? "guest"}`,
+        ip: getClientIp(req),
+        ua: req.headers["user-agent"],
+      });
+      res.status(403).json({ message });
+    };
+
     if (accessType === "vip") {
       if (!isVipUser) {
-        res.status(403).json({ message: "This video is only available for VIP accounts" });
+        await denyVideoAccess("This video is only available for VIP accounts");
         return;
       }
     } else if (accessType === "normal") {
       if (!isVipUser && !isSubscribed) {
-        res.status(403).json({ message: "Subscribe to watch this video" });
+        await denyVideoAccess("Subscribe to watch this video");
         return;
       }
     }
 
     if (user) {
-      const clientIp = req.ip || req.headers["x-forwarded-for"]?.toString().split(",")[0]?.trim() || "unknown";
-      await db.insert(visitLogsTable).values({ userId: user.id, path: `/videos/${id}`, ip: clientIp });
+      await db.insert(visitLogsTable).values({ userId: user.id, path: `/videos/${id}`, ip: getClientIp(req) });
     }
 
     // Fetch playlist info if video belongs to a playlist
@@ -156,20 +205,59 @@ router.post("/videos/:id/violation", optionalUserAuth, async (req, res) => {
   try {
     const videoId = Number(req.params.id);
     const { count } = req.body as { count?: number };
-    const user = req.user;
-    const clientIp = req.ip || req.headers["x-forwarded-for"]?.toString().split(",")[0]?.trim() || "unknown";
+    const [video] = await db
+      .select({ title: videosTable.title })
+      .from(videosTable)
+      .where(eq(videosTable.id, videoId))
+      .limit(1);
 
-    await db.insert(activityLogsTable).values({
-      userId: user?.id ?? null,
-      username: user?.username ?? null,
+    await logVideoActivity({
+      user: req.user,
       action: "screenshot_attempt",
-      details: `Video ID: ${videoId} | Attempt count: ${count ?? 1}`,
-      ipAddress: clientIp,
+      videoId,
+      videoTitle: video?.title ?? null,
+      details: `Attempt count: ${count ?? 1}`,
+      ip: getClientIp(req),
+      ua: req.headers["user-agent"],
     });
 
     res.json({ ok: true });
   } catch (error: unknown) {
     res.status(500).json({ message: error instanceof Error ? error.message : "Failed to log violation" });
+  }
+});
+
+// Generic suspicious-activity reporter for the in-page player (right-click,
+// copy-link, devtools, attempts to open the video outside the platform, etc.).
+router.post("/videos/:id/security-event", optionalUserAuth, async (req, res) => {
+  try {
+    const videoId = Number(req.params.id);
+    const { eventType, details } = req.body as { eventType?: string; details?: string };
+
+    if (!eventType || !SECURITY_EVENTS.has(eventType)) {
+      res.status(400).json({ message: "Invalid event type" });
+      return;
+    }
+
+    const [video] = await db
+      .select({ title: videosTable.title })
+      .from(videosTable)
+      .where(eq(videosTable.id, videoId))
+      .limit(1);
+
+    await logVideoActivity({
+      user: req.user,
+      action: eventType,
+      videoId,
+      videoTitle: video?.title ?? null,
+      details: typeof details === "string" ? details.slice(0, 300) : null,
+      ip: getClientIp(req),
+      ua: req.headers["user-agent"],
+    });
+
+    res.json({ ok: true });
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Failed to log event" });
   }
 });
 

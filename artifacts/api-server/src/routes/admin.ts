@@ -274,14 +274,37 @@ router.get("/admin/subscriptions", adminAuth, async (_req, res) => {
 router.get("/admin/activity-logs", adminAuth, async (req, res) => {
   try {
     const limit = Math.min(Number(req.query.limit) || 100, 500);
-    const logs = await db.select().from(activityLogsTable).orderBy(desc(activityLogsTable.createdAt)).limit(limit);
+    const logs = await db
+      .select({
+        id: activityLogsTable.id,
+        userId: activityLogsTable.userId,
+        username: activityLogsTable.username,
+        action: activityLogsTable.action,
+        details: activityLogsTable.details,
+        ipAddress: activityLogsTable.ipAddress,
+        deviceType: activityLogsTable.deviceType,
+        videoId: activityLogsTable.videoId,
+        videoTitle: activityLogsTable.videoTitle,
+        createdAt: activityLogsTable.createdAt,
+        email: usersTable.email,
+        phone: usersTable.phone,
+      })
+      .from(activityLogsTable)
+      .leftJoin(usersTable, eq(activityLogsTable.userId, usersTable.id))
+      .orderBy(desc(activityLogsTable.createdAt))
+      .limit(limit);
     res.json(logs.map(l => ({
       id: l.id,
       userId: l.userId,
       username: l.username,
+      email: l.email ?? null,
+      phone: l.phone ?? null,
       action: l.action,
       details: l.details,
       ipAddress: l.ipAddress,
+      deviceType: l.deviceType ?? null,
+      videoId: l.videoId ?? null,
+      videoTitle: l.videoTitle ?? null,
       createdAt: l.createdAt.toISOString(),
     })));
   } catch (error: unknown) {
