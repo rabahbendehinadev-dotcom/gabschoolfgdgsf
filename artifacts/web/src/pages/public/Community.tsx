@@ -120,17 +120,25 @@ export function Community() {
             </button>
           ) : (
             <Link href="/subscribe">
-              <div className="flex w-full cursor-pointer items-center gap-3 rounded-3xl border border-orange-500/30 bg-gradient-to-l from-amber-400/10 to-orange-500/10 p-4 shadow-sm transition-shadow hover:shadow-md">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-orange-500 text-white">
-                  <Crown className="h-5 w-5" />
-                </div>
-                <div className="flex-1">
-                  <div className="font-bold text-foreground">النشر متاح لأعضاء VIP</div>
-                  <div className="text-xs text-muted-foreground">
-                    ترقَّ لعضوية VIP لمشاركة منشوراتك ووسائطك مع المجتمع
+              <div className="group w-full cursor-pointer rounded-3xl border border-orange-500/25 bg-gradient-to-br from-amber-50 via-orange-50 to-white p-5 shadow-[0_6px_24px_rgba(234,88,12,0.12)] transition-shadow hover:shadow-[0_10px_32px_rgba(234,88,12,0.18)] sm:p-6">
+                <div className="flex items-start gap-3.5 sm:gap-4">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-lg shadow-orange-500/30 sm:h-14 sm:w-14">
+                    <Crown className="h-6 w-6 sm:h-7 sm:w-7" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="flex flex-wrap items-center gap-1.5 text-base font-extrabold leading-snug text-foreground sm:text-lg">
+                      <span aria-hidden>👑</span>
+                      <span>النشر متاح لأعضاء VIP</span>
+                    </h3>
+                    <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground sm:text-sm">
+                      قم بالترقية إلى عضوية VIP لرفع الصور والفيديوهات ومشاركة خبراتك مع أعضاء المجتمع.
+                    </p>
                   </div>
                 </div>
-                <span className="rounded-full bg-primary px-4 py-2 text-sm font-bold text-primary-foreground">ترقية</span>
+                <span className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-l from-amber-500 to-orange-600 px-6 py-3.5 text-base font-extrabold text-white shadow-md shadow-orange-500/30 transition-transform group-hover:scale-[1.02]">
+                  <Crown className="h-5 w-5" />
+                  الترقية الآن
+                </span>
               </div>
             </Link>
           )}
