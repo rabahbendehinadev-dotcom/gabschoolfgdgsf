@@ -15,6 +15,7 @@ import { Videos } from "@/pages/public/Videos";
 import { VideoDetail } from "@/pages/public/VideoDetail";
 import { Dashboard } from "@/pages/public/Dashboard";
 import { Subscribe } from "@/pages/public/Subscribe";
+import { Community } from "@/pages/public/Community";
 import { CompletePhone } from "@/pages/public/CompletePhone";
 import { AdminLogin } from "@/pages/admin/AdminLogin";
 import { AdminDashboard } from "@/pages/admin/Dashboard";
@@ -101,6 +102,9 @@ function Router() {
       </Route>
       <Route path="/subscribe">
         <PublicLayout><Subscribe /></PublicLayout>
+      </Route>
+      <Route path="/community">
+        <PublicLayout><Community /></PublicLayout>
       </Route>
       <Route path="/gab-ctrl-9x/login">
         <AdminLogin />

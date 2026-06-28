@@ -25,6 +25,8 @@ tags:
     description: Subscription plan operations
   - name: stats
     description: Statistics operations
+  - name: community
+    description: Community operations
 paths:
   /healthz:
     get:
@@ -784,6 +786,289 @@ paths:
               schema:
                 $ref: "#/components/schemas/SubscriptionPlan"
 
+  /community/summary:
+    get:
+      operationId: getCommunitySummary
+      tags: [community]
+      summary: Community header summary (member count, today's posts, viewer entitlement)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Community summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunitySummary"
+
+  /community/posts:
+    get:
+      operationId: getCommunityFeed
+      tags: [community]
+      summary: List community posts (sanitized for the viewer's entitlement)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Community feed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunityFeedResponse"
+    post:
+      operationId: createCommunityPost
+      tags: [community]
+      summary: Create a community post (VIP only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCommunityPostInput"
+      responses:
+        "201":
+          description: Post created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunityPost"
+        "403":
+          description: Not a VIP member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /community/posts/{id}:
+    get:
+      operationId: getCommunityPost
+      tags: [community]
+      summary: Get a single community post
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Post
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunityPost"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateCommunityPost
+      tags: [community]
+      summary: Update own community post (caption)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCommunityPostInput"
+      responses:
+        "200":
+          description: Post updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunityPost"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteCommunityPost
+      tags: [community]
+      summary: Delete own community post
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /community/posts/{id}/like:
+    post:
+      operationId: likeCommunityPost
+      tags: [community]
+      summary: Like a post
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Like state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunityLikeResponse"
+    delete:
+      operationId: unlikeCommunityPost
+      tags: [community]
+      summary: Remove like from a post
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Like state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunityLikeResponse"
+
+  /community/posts/{id}/view:
+    post:
+      operationId: viewCommunityPost
+      tags: [community]
+      summary: Register a (deduped) view for a post
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: View registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunityViewResponse"
+
+  /community/posts/{id}/comments:
+    get:
+      operationId: getCommunityComments
+      tags: [community]
+      summary: List comments (with replies) for a post
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Comments
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunityCommentsResponse"
+    post:
+      operationId: createCommunityComment
+      tags: [community]
+      summary: Add a comment or reply
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCommentInput"
+      responses:
+        "201":
+          description: Comment created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunityComment"
+
+  /community/comments/{id}:
+    delete:
+      operationId: deleteCommunityComment
+      tags: [community]
+      summary: Delete own comment
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1492,3 +1777,307 @@ components:
         - lifetimeSubscriptions
         - recentRegistrations
         - totalVisits
+
+    CommunityAuthor:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        accountType:
+          type: string
+          enum: [vip, normal]
+      required:
+        - id
+        - username
+        - accountType
+
+    CommunityMediaItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        mediaType:
+          type: string
+          enum: [image, video]
+        locked:
+          type: boolean
+        previewUrl:
+          type: string
+          nullable: true
+        fullUrl:
+          type: string
+          nullable: true
+        width:
+          type: integer
+          nullable: true
+        height:
+          type: integer
+          nullable: true
+        durationSec:
+          type: integer
+          nullable: true
+        sortOrder:
+          type: integer
+      required:
+        - id
+        - mediaType
+        - locked
+        - sortOrder
+
+    CommunityPost:
+      type: object
+      properties:
+        id:
+          type: integer
+        author:
+          $ref: "#/components/schemas/CommunityAuthor"
+        content:
+          type: string
+          nullable: true
+        postType:
+          type: string
+          enum: [text, image, gallery, video]
+        isVipLocked:
+          type: boolean
+        isPinned:
+          type: boolean
+        isFeatured:
+          type: boolean
+        likesCount:
+          type: integer
+        commentsCount:
+          type: integer
+        viewsCount:
+          type: integer
+        likedByMe:
+          type: boolean
+        canEdit:
+          type: boolean
+        media:
+          type: array
+          items:
+            $ref: "#/components/schemas/CommunityMediaItem"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - author
+        - postType
+        - isVipLocked
+        - isPinned
+        - isFeatured
+        - likesCount
+        - commentsCount
+        - viewsCount
+        - likedByMe
+        - canEdit
+        - media
+        - createdAt
+        - updatedAt
+
+    CommunityFeedResponse:
+      type: object
+      properties:
+        posts:
+          type: array
+          items:
+            $ref: "#/components/schemas/CommunityPost"
+        nextCursor:
+          type: integer
+          nullable: true
+      required:
+        - posts
+
+    CommunitySummary:
+      type: object
+      properties:
+        memberCount:
+          type: integer
+        todayPostsCount:
+          type: integer
+        totalPostsCount:
+          type: integer
+        coverImageUrl:
+          type: string
+          nullable: true
+        isAuthenticated:
+          type: boolean
+        isVip:
+          type: boolean
+        canPost:
+          type: boolean
+      required:
+        - memberCount
+        - todayPostsCount
+        - totalPostsCount
+        - isAuthenticated
+        - isVip
+        - canPost
+
+    CommunityMediaInput:
+      type: object
+      properties:
+        mediaType:
+          type: string
+          enum: [image, video]
+        objectPath:
+          type: string
+        previewObjectPath:
+          type: string
+          nullable: true
+        thumbnailObjectPath:
+          type: string
+          nullable: true
+        width:
+          type: integer
+          nullable: true
+        height:
+          type: integer
+          nullable: true
+        durationSec:
+          type: integer
+          nullable: true
+        contentType:
+          type: string
+          nullable: true
+        sizeBytes:
+          type: integer
+          nullable: true
+        sortOrder:
+          type: integer
+          nullable: true
+      required:
+        - mediaType
+        - objectPath
+
+    CreateCommunityPostInput:
+      type: object
+      properties:
+        content:
+          type: string
+          nullable: true
+        postType:
+          type: string
+          enum: [text, image, gallery, video]
+        media:
+          type: array
+          items:
+            $ref: "#/components/schemas/CommunityMediaInput"
+      required:
+        - postType
+
+    UpdateCommunityPostInput:
+      type: object
+      properties:
+        content:
+          type: string
+          nullable: true
+
+    CommunityReply:
+      type: object
+      properties:
+        id:
+          type: integer
+        postId:
+          type: integer
+        parentId:
+          type: integer
+        author:
+          $ref: "#/components/schemas/CommunityAuthor"
+        body:
+          type: string
+        canDelete:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - postId
+        - parentId
+        - author
+        - body
+        - canDelete
+        - createdAt
+
+    CommunityComment:
+      type: object
+      properties:
+        id:
+          type: integer
+        postId:
+          type: integer
+        author:
+          $ref: "#/components/schemas/CommunityAuthor"
+        body:
+          type: string
+        parentId:
+          type: integer
+          nullable: true
+        canDelete:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        replies:
+          type: array
+          items:
+            $ref: "#/components/schemas/CommunityReply"
+      required:
+        - id
+        - postId
+        - author
+        - body
+        - canDelete
+        - createdAt
+        - replies
+
+    CommunityCommentsResponse:
+      type: object
+      properties:
+        comments:
+          type: array
+          items:
+            $ref: "#/components/schemas/CommunityComment"
+      required:
+        - comments
+
+    CreateCommentInput:
+      type: object
+      properties:
+        body:
+          type: string
+          minLength: 1
+        parentId:
+          type: integer
+          nullable: true
+      required:
+        - body
+
+    CommunityLikeResponse:
+      type: object
+      properties:
+        liked:
+          type: boolean
+        likesCount:
+          type: integer
+      required:
+        - liked
+        - likesCount
+
+    CommunityViewResponse:
+      type: object
+      properties:
+        counted:
+          type: boolean
+        viewsCount:
+          type: integer
+      required:
+        - counted
+        - viewsCount

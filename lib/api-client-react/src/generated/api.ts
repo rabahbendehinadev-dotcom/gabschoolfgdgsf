@@ -24,10 +24,20 @@ import type {
   AuthResponse,
   Category,
   ChangePasswordInput,
+  CommunityComment,
+  CommunityCommentsResponse,
+  CommunityFeedResponse,
+  CommunityLikeResponse,
+  CommunityPost,
+  CommunitySummary,
+  CommunityViewResponse,
   CreateCategoryInput,
+  CreateCommentInput,
+  CreateCommunityPostInput,
   CreatePlaylistInput,
   CreateVideoInput,
   ErrorResponse,
+  GetCommunityFeedParams,
   GetPlaylistsParams,
   GetVideosParams,
   GoogleLoginInput,
@@ -40,6 +50,7 @@ import type {
   ReorderVideosInput,
   SubscriptionPlan,
   UpdateCategoryInput,
+  UpdateCommunityPostInput,
   UpdatePhoneInput,
   UpdatePlanInput,
   UpdatePlaylistInput,
@@ -3037,4 +3048,1036 @@ export const useUpdateSubscriptionPlan = <
   TContext
 > => {
   return useMutation(getUpdateSubscriptionPlanMutationOptions(options));
+};
+
+/**
+ * @summary Community header summary (member count, today's posts, viewer entitlement)
+ */
+export const getGetCommunitySummaryUrl = () => {
+  return `/api/community/summary`;
+};
+
+export const getCommunitySummary = async (
+  options?: RequestInit,
+): Promise<CommunitySummary> => {
+  return customFetch<CommunitySummary>(getGetCommunitySummaryUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetCommunitySummaryQueryKey = () => {
+  return [`/api/community/summary`] as const;
+};
+
+export const getGetCommunitySummaryQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCommunitySummary>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getCommunitySummary>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetCommunitySummaryQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getCommunitySummary>>
+  > = ({ signal }) => getCommunitySummary({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCommunitySummary>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetCommunitySummaryQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCommunitySummary>>
+>;
+export type GetCommunitySummaryQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Community header summary (member count, today's posts, viewer entitlement)
+ */
+
+export function useGetCommunitySummary<
+  TData = Awaited<ReturnType<typeof getCommunitySummary>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getCommunitySummary>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetCommunitySummaryQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List community posts (sanitized for the viewer's entitlement)
+ */
+export const getGetCommunityFeedUrl = (params?: GetCommunityFeedParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/community/posts?${stringifiedParams}`
+    : `/api/community/posts`;
+};
+
+export const getCommunityFeed = async (
+  params?: GetCommunityFeedParams,
+  options?: RequestInit,
+): Promise<CommunityFeedResponse> => {
+  return customFetch<CommunityFeedResponse>(getGetCommunityFeedUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetCommunityFeedQueryKey = (
+  params?: GetCommunityFeedParams,
+) => {
+  return [`/api/community/posts`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetCommunityFeedQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCommunityFeed>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetCommunityFeedParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCommunityFeed>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetCommunityFeedQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getCommunityFeed>>
+  > = ({ signal }) => getCommunityFeed(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCommunityFeed>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetCommunityFeedQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCommunityFeed>>
+>;
+export type GetCommunityFeedQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List community posts (sanitized for the viewer's entitlement)
+ */
+
+export function useGetCommunityFeed<
+  TData = Awaited<ReturnType<typeof getCommunityFeed>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetCommunityFeedParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCommunityFeed>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetCommunityFeedQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a community post (VIP only)
+ */
+export const getCreateCommunityPostUrl = () => {
+  return `/api/community/posts`;
+};
+
+export const createCommunityPost = async (
+  createCommunityPostInput: CreateCommunityPostInput,
+  options?: RequestInit,
+): Promise<CommunityPost> => {
+  return customFetch<CommunityPost>(getCreateCommunityPostUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createCommunityPostInput),
+  });
+};
+
+export const getCreateCommunityPostMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createCommunityPost>>,
+    TError,
+    { data: BodyType<CreateCommunityPostInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createCommunityPost>>,
+  TError,
+  { data: BodyType<CreateCommunityPostInput> },
+  TContext
+> => {
+  const mutationKey = ["createCommunityPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createCommunityPost>>,
+    { data: BodyType<CreateCommunityPostInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createCommunityPost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateCommunityPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createCommunityPost>>
+>;
+export type CreateCommunityPostMutationBody =
+  BodyType<CreateCommunityPostInput>;
+export type CreateCommunityPostMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Create a community post (VIP only)
+ */
+export const useCreateCommunityPost = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createCommunityPost>>,
+    TError,
+    { data: BodyType<CreateCommunityPostInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createCommunityPost>>,
+  TError,
+  { data: BodyType<CreateCommunityPostInput> },
+  TContext
+> => {
+  return useMutation(getCreateCommunityPostMutationOptions(options));
+};
+
+/**
+ * @summary Get a single community post
+ */
+export const getGetCommunityPostUrl = (id: number) => {
+  return `/api/community/posts/${id}`;
+};
+
+export const getCommunityPost = async (
+  id: number,
+  options?: RequestInit,
+): Promise<CommunityPost> => {
+  return customFetch<CommunityPost>(getGetCommunityPostUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetCommunityPostQueryKey = (id: number) => {
+  return [`/api/community/posts/${id}`] as const;
+};
+
+export const getGetCommunityPostQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCommunityPost>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCommunityPost>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetCommunityPostQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getCommunityPost>>
+  > = ({ signal }) => getCommunityPost(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCommunityPost>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetCommunityPostQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCommunityPost>>
+>;
+export type GetCommunityPostQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Get a single community post
+ */
+
+export function useGetCommunityPost<
+  TData = Awaited<ReturnType<typeof getCommunityPost>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCommunityPost>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetCommunityPostQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Update own community post (caption)
+ */
+export const getUpdateCommunityPostUrl = (id: number) => {
+  return `/api/community/posts/${id}`;
+};
+
+export const updateCommunityPost = async (
+  id: number,
+  updateCommunityPostInput: UpdateCommunityPostInput,
+  options?: RequestInit,
+): Promise<CommunityPost> => {
+  return customFetch<CommunityPost>(getUpdateCommunityPostUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateCommunityPostInput),
+  });
+};
+
+export const getUpdateCommunityPostMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateCommunityPost>>,
+    TError,
+    { id: number; data: BodyType<UpdateCommunityPostInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateCommunityPost>>,
+  TError,
+  { id: number; data: BodyType<UpdateCommunityPostInput> },
+  TContext
+> => {
+  const mutationKey = ["updateCommunityPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateCommunityPost>>,
+    { id: number; data: BodyType<UpdateCommunityPostInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateCommunityPost(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateCommunityPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateCommunityPost>>
+>;
+export type UpdateCommunityPostMutationBody =
+  BodyType<UpdateCommunityPostInput>;
+export type UpdateCommunityPostMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Update own community post (caption)
+ */
+export const useUpdateCommunityPost = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateCommunityPost>>,
+    TError,
+    { id: number; data: BodyType<UpdateCommunityPostInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateCommunityPost>>,
+  TError,
+  { id: number; data: BodyType<UpdateCommunityPostInput> },
+  TContext
+> => {
+  return useMutation(getUpdateCommunityPostMutationOptions(options));
+};
+
+/**
+ * @summary Delete own community post
+ */
+export const getDeleteCommunityPostUrl = (id: number) => {
+  return `/api/community/posts/${id}`;
+};
+
+export const deleteCommunityPost = async (
+  id: number,
+  options?: RequestInit,
+): Promise<MessageResponse> => {
+  return customFetch<MessageResponse>(getDeleteCommunityPostUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteCommunityPostMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteCommunityPost>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteCommunityPost>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteCommunityPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteCommunityPost>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteCommunityPost(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteCommunityPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteCommunityPost>>
+>;
+
+export type DeleteCommunityPostMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Delete own community post
+ */
+export const useDeleteCommunityPost = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteCommunityPost>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteCommunityPost>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteCommunityPostMutationOptions(options));
+};
+
+/**
+ * @summary Like a post
+ */
+export const getLikeCommunityPostUrl = (id: number) => {
+  return `/api/community/posts/${id}/like`;
+};
+
+export const likeCommunityPost = async (
+  id: number,
+  options?: RequestInit,
+): Promise<CommunityLikeResponse> => {
+  return customFetch<CommunityLikeResponse>(getLikeCommunityPostUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getLikeCommunityPostMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof likeCommunityPost>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof likeCommunityPost>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["likeCommunityPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof likeCommunityPost>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return likeCommunityPost(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type LikeCommunityPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof likeCommunityPost>>
+>;
+
+export type LikeCommunityPostMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Like a post
+ */
+export const useLikeCommunityPost = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof likeCommunityPost>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof likeCommunityPost>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getLikeCommunityPostMutationOptions(options));
+};
+
+/**
+ * @summary Remove like from a post
+ */
+export const getUnlikeCommunityPostUrl = (id: number) => {
+  return `/api/community/posts/${id}/like`;
+};
+
+export const unlikeCommunityPost = async (
+  id: number,
+  options?: RequestInit,
+): Promise<CommunityLikeResponse> => {
+  return customFetch<CommunityLikeResponse>(getUnlikeCommunityPostUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getUnlikeCommunityPostMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof unlikeCommunityPost>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof unlikeCommunityPost>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["unlikeCommunityPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof unlikeCommunityPost>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return unlikeCommunityPost(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UnlikeCommunityPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof unlikeCommunityPost>>
+>;
+
+export type UnlikeCommunityPostMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Remove like from a post
+ */
+export const useUnlikeCommunityPost = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof unlikeCommunityPost>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof unlikeCommunityPost>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getUnlikeCommunityPostMutationOptions(options));
+};
+
+/**
+ * @summary Register a (deduped) view for a post
+ */
+export const getViewCommunityPostUrl = (id: number) => {
+  return `/api/community/posts/${id}/view`;
+};
+
+export const viewCommunityPost = async (
+  id: number,
+  options?: RequestInit,
+): Promise<CommunityViewResponse> => {
+  return customFetch<CommunityViewResponse>(getViewCommunityPostUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getViewCommunityPostMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof viewCommunityPost>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof viewCommunityPost>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["viewCommunityPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof viewCommunityPost>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return viewCommunityPost(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ViewCommunityPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof viewCommunityPost>>
+>;
+
+export type ViewCommunityPostMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Register a (deduped) view for a post
+ */
+export const useViewCommunityPost = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof viewCommunityPost>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof viewCommunityPost>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getViewCommunityPostMutationOptions(options));
+};
+
+/**
+ * @summary List comments (with replies) for a post
+ */
+export const getGetCommunityCommentsUrl = (id: number) => {
+  return `/api/community/posts/${id}/comments`;
+};
+
+export const getCommunityComments = async (
+  id: number,
+  options?: RequestInit,
+): Promise<CommunityCommentsResponse> => {
+  return customFetch<CommunityCommentsResponse>(
+    getGetCommunityCommentsUrl(id),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetCommunityCommentsQueryKey = (id: number) => {
+  return [`/api/community/posts/${id}/comments`] as const;
+};
+
+export const getGetCommunityCommentsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCommunityComments>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCommunityComments>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetCommunityCommentsQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getCommunityComments>>
+  > = ({ signal }) => getCommunityComments(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCommunityComments>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetCommunityCommentsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCommunityComments>>
+>;
+export type GetCommunityCommentsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List comments (with replies) for a post
+ */
+
+export function useGetCommunityComments<
+  TData = Awaited<ReturnType<typeof getCommunityComments>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCommunityComments>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetCommunityCommentsQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Add a comment or reply
+ */
+export const getCreateCommunityCommentUrl = (id: number) => {
+  return `/api/community/posts/${id}/comments`;
+};
+
+export const createCommunityComment = async (
+  id: number,
+  createCommentInput: CreateCommentInput,
+  options?: RequestInit,
+): Promise<CommunityComment> => {
+  return customFetch<CommunityComment>(getCreateCommunityCommentUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createCommentInput),
+  });
+};
+
+export const getCreateCommunityCommentMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createCommunityComment>>,
+    TError,
+    { id: number; data: BodyType<CreateCommentInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createCommunityComment>>,
+  TError,
+  { id: number; data: BodyType<CreateCommentInput> },
+  TContext
+> => {
+  const mutationKey = ["createCommunityComment"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createCommunityComment>>,
+    { id: number; data: BodyType<CreateCommentInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return createCommunityComment(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateCommunityCommentMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createCommunityComment>>
+>;
+export type CreateCommunityCommentMutationBody = BodyType<CreateCommentInput>;
+export type CreateCommunityCommentMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Add a comment or reply
+ */
+export const useCreateCommunityComment = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createCommunityComment>>,
+    TError,
+    { id: number; data: BodyType<CreateCommentInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createCommunityComment>>,
+  TError,
+  { id: number; data: BodyType<CreateCommentInput> },
+  TContext
+> => {
+  return useMutation(getCreateCommunityCommentMutationOptions(options));
+};
+
+/**
+ * @summary Delete own comment
+ */
+export const getDeleteCommunityCommentUrl = (id: number) => {
+  return `/api/community/comments/${id}`;
+};
+
+export const deleteCommunityComment = async (
+  id: number,
+  options?: RequestInit,
+): Promise<MessageResponse> => {
+  return customFetch<MessageResponse>(getDeleteCommunityCommentUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteCommunityCommentMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteCommunityComment>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteCommunityComment>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteCommunityComment"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteCommunityComment>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteCommunityComment(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteCommunityCommentMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteCommunityComment>>
+>;
+
+export type DeleteCommunityCommentMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Delete own comment
+ */
+export const useDeleteCommunityComment = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteCommunityComment>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteCommunityComment>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteCommunityCommentMutationOptions(options));
 };

@@ -393,6 +393,165 @@ export interface AdminStats {
   totalVisits: number;
 }
 
+export type CommunityAuthorAccountType =
+  (typeof CommunityAuthorAccountType)[keyof typeof CommunityAuthorAccountType];
+
+export const CommunityAuthorAccountType = {
+  vip: "vip",
+  normal: "normal",
+} as const;
+
+export interface CommunityAuthor {
+  id: number;
+  username: string;
+  accountType: CommunityAuthorAccountType;
+}
+
+export type CommunityMediaItemMediaType =
+  (typeof CommunityMediaItemMediaType)[keyof typeof CommunityMediaItemMediaType];
+
+export const CommunityMediaItemMediaType = {
+  image: "image",
+  video: "video",
+} as const;
+
+export interface CommunityMediaItem {
+  id: number;
+  mediaType: CommunityMediaItemMediaType;
+  locked: boolean;
+  previewUrl?: string | null;
+  fullUrl?: string | null;
+  width?: number | null;
+  height?: number | null;
+  durationSec?: number | null;
+  sortOrder: number;
+}
+
+export type CommunityPostPostType =
+  (typeof CommunityPostPostType)[keyof typeof CommunityPostPostType];
+
+export const CommunityPostPostType = {
+  text: "text",
+  image: "image",
+  gallery: "gallery",
+  video: "video",
+} as const;
+
+export interface CommunityPost {
+  id: number;
+  author: CommunityAuthor;
+  content?: string | null;
+  postType: CommunityPostPostType;
+  isVipLocked: boolean;
+  isPinned: boolean;
+  isFeatured: boolean;
+  likesCount: number;
+  commentsCount: number;
+  viewsCount: number;
+  likedByMe: boolean;
+  canEdit: boolean;
+  media: CommunityMediaItem[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CommunityFeedResponse {
+  posts: CommunityPost[];
+  nextCursor?: number | null;
+}
+
+export interface CommunitySummary {
+  memberCount: number;
+  todayPostsCount: number;
+  totalPostsCount: number;
+  coverImageUrl?: string | null;
+  isAuthenticated: boolean;
+  isVip: boolean;
+  canPost: boolean;
+}
+
+export type CommunityMediaInputMediaType =
+  (typeof CommunityMediaInputMediaType)[keyof typeof CommunityMediaInputMediaType];
+
+export const CommunityMediaInputMediaType = {
+  image: "image",
+  video: "video",
+} as const;
+
+export interface CommunityMediaInput {
+  mediaType: CommunityMediaInputMediaType;
+  objectPath: string;
+  previewObjectPath?: string | null;
+  thumbnailObjectPath?: string | null;
+  width?: number | null;
+  height?: number | null;
+  durationSec?: number | null;
+  contentType?: string | null;
+  sizeBytes?: number | null;
+  sortOrder?: number | null;
+}
+
+export type CreateCommunityPostInputPostType =
+  (typeof CreateCommunityPostInputPostType)[keyof typeof CreateCommunityPostInputPostType];
+
+export const CreateCommunityPostInputPostType = {
+  text: "text",
+  image: "image",
+  gallery: "gallery",
+  video: "video",
+} as const;
+
+export interface CreateCommunityPostInput {
+  content?: string | null;
+  postType: CreateCommunityPostInputPostType;
+  media?: CommunityMediaInput[];
+}
+
+export interface UpdateCommunityPostInput {
+  content?: string | null;
+}
+
+export interface CommunityReply {
+  id: number;
+  postId: number;
+  parentId: number;
+  author: CommunityAuthor;
+  body: string;
+  canDelete: boolean;
+  createdAt: string;
+}
+
+export interface CommunityComment {
+  id: number;
+  postId: number;
+  author: CommunityAuthor;
+  body: string;
+  parentId?: number | null;
+  canDelete: boolean;
+  createdAt: string;
+  replies: CommunityReply[];
+}
+
+export interface CommunityCommentsResponse {
+  comments: CommunityComment[];
+}
+
+export interface CreateCommentInput {
+  /** @minLength 1 */
+  body: string;
+  parentId?: number | null;
+}
+
+export interface CommunityLikeResponse {
+  liked: boolean;
+  likesCount: number;
+}
+
+export interface CommunityViewResponse {
+  counted: boolean;
+  viewsCount: number;
+}
+
 export type GetVideosParams = {
   categoryId?: number;
   search?: string;
@@ -400,4 +559,9 @@ export type GetVideosParams = {
 
 export type GetPlaylistsParams = {
   categoryId?: number;
+};
+
+export type GetCommunityFeedParams = {
+  cursor?: number;
+  limit?: number;
 };
