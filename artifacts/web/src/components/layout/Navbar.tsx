@@ -26,10 +26,10 @@ export function Navbar() {
     >
       <div className="container mx-auto px-4 sm:px-6">
         {/* 3-column grid: nav links | centered logo | actions */}
-        <div className="grid grid-cols-3 h-16 md:h-20 items-center">
+        <div className="grid grid-cols-3 h-14 lg:h-20 items-center">
 
           {/* Right col: nav links (RTL — visually on right) */}
-          <div className="hidden md:flex items-center gap-8 justify-start">
+          <div className="hidden lg:flex items-center gap-8 justify-start">
             {navLinks.map(link => (
               <Link
                 key={link.href}
@@ -48,13 +48,13 @@ export function Navbar() {
               <img
                 src="/logo.png"
                 alt="GAB Logo"
-                className="h-12 md:h-14 w-auto rounded-xl bg-white px-3 py-1.5 shadow-md hover:shadow-primary/30 transition-all duration-300"
+                className="h-9 lg:h-14 w-auto rounded-xl bg-white px-2.5 py-1 lg:px-3 lg:py-1.5 shadow-md hover:shadow-primary/30 transition-all duration-300"
               />
             </Link>
           </div>
 
           {/* Left col: Actions (RTL — visually on left) */}
-          <div className="hidden md:flex items-center gap-4 justify-end">
+          <div className="hidden lg:flex items-center gap-4 justify-end">
             <InstallAppButton mode="navbar" />
             {user ? (
               <div className="flex items-center gap-3">
@@ -87,32 +87,19 @@ export function Navbar() {
             )}
           </div>
 
-          {/* Mobile: hamburger on left side, visible only on mobile */}
-          <div className="flex md:hidden items-center gap-2 justify-end col-start-3">
-            {user ? (
-              <>
-                {user.accountType === "vip" && (
-                  <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-500/20 border border-orange-500/30 text-orange-500 text-xs font-bold">
-                    <Crown className="w-3 h-3" /> VIP
-                  </div>
-                )}
-                <Link href="/dashboard" onClick={() => setMobileOpen(false)}>
-                  <Button variant="ghost" size="icon" className="rounded-full bg-muted/60 border border-border w-9 h-9">
-                    <User className="h-4 w-4" />
-                  </Button>
-                </Link>
-              </>
-            ) : (
-              <Link href="/login" onClick={() => setMobileOpen(false)}>
-                <Button size="sm" variant="ghost" className="text-sm px-3">دخول</Button>
-              </Link>
+          {/* Mobile/tablet: VIP badge + hamburger (primary nav lives in the bottom bar) */}
+          <div className="flex lg:hidden items-center gap-2 justify-end col-start-3">
+            {user?.accountType === "vip" && (
+              <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-500/15 border border-orange-500/30 text-orange-500 text-[11px] font-bold">
+                <Crown className="w-3 h-3" /> VIP
+              </div>
             )}
             <button
               onClick={() => setMobileOpen(v => !v)}
-              className="flex items-center justify-center w-9 h-9 rounded-xl bg-muted/60 border border-border text-foreground/70 hover:text-foreground hover:bg-muted transition-all"
+              className="flex items-center justify-center w-8 h-8 rounded-lg bg-muted/60 border border-border text-foreground/70 hover:text-foreground hover:bg-muted transition-all"
               aria-label="القائمة"
             >
-              {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              {mobileOpen ? <X className="w-[18px] h-[18px]" /> : <Menu className="w-[18px] h-[18px]" />}
             </button>
           </div>
 
@@ -127,20 +114,22 @@ export function Navbar() {
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.2 }}
-            className="md:hidden border-t border-border bg-white/95 backdrop-blur-xl overflow-hidden"
+            className="lg:hidden border-t border-border bg-white/95 backdrop-blur-xl overflow-hidden"
           >
             <div className="container mx-auto px-4 py-4 flex flex-col gap-1">
-              {navLinks.map(link => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  onClick={() => setMobileOpen(false)}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${location === link.href ? "bg-primary/10 text-primary border border-primary/20" : "text-foreground/70 hover:bg-muted hover:text-foreground"}`}
-                >
-                  {link.icon}
-                  {link.label}
-                </Link>
-              ))}
+              {navLinks
+                .filter(link => !["/", "/videos", "/community"].includes(link.href))
+                .map(link => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    onClick={() => setMobileOpen(false)}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${location === link.href ? "bg-primary/10 text-primary border border-primary/20" : "text-foreground/70 hover:bg-muted hover:text-foreground"}`}
+                  >
+                    {link.icon}
+                    {link.label}
+                  </Link>
+                ))}
 
               <InstallAppButton mode="menu" onNavigate={() => setMobileOpen(false)} />
 

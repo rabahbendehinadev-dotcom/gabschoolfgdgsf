@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { Navbar } from "@/components/layout/Navbar";
+import { BottomNav } from "@/components/layout/BottomNav";
 import { Footer } from "@/components/layout/Footer";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { Home } from "@/pages/public/Home";
@@ -16,6 +17,7 @@ import { VideoDetail } from "@/pages/public/VideoDetail";
 import { Dashboard } from "@/pages/public/Dashboard";
 import { Subscribe } from "@/pages/public/Subscribe";
 import { Community } from "@/pages/public/Community";
+import { Notifications } from "@/pages/public/Notifications";
 import { CompletePhone } from "@/pages/public/CompletePhone";
 import { AdminLogin } from "@/pages/admin/AdminLogin";
 import { AdminDashboard } from "@/pages/admin/Dashboard";
@@ -34,10 +36,11 @@ const queryClient = new QueryClient();
 
 function PublicLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen flex flex-col rtl" dir="rtl">
+    <div className="min-h-screen flex flex-col rtl pb-[calc(70px_+_env(safe-area-inset-bottom))] lg:pb-0" dir="rtl">
       <Navbar />
       <main className="flex-1">{children}</main>
       <Footer />
+      <BottomNav />
     </div>
   );
 }
@@ -76,12 +79,29 @@ function GatedRouter() {
   return <Router />;
 }
 
+// Public pages share one persistent chrome (Navbar / Footer / BottomNav) so that
+// switching tabs only swaps the inner content — the header no longer re-animates and
+// the bottom-nav active indicator slides smoothly between tabs (true native feel).
+function PublicRoutes() {
+  return (
+    <PublicLayout>
+      <Switch>
+        <Route path="/"><Home /></Route>
+        <Route path="/videos"><Videos /></Route>
+        <Route path="/videos/:id"><VideoDetail /></Route>
+        <Route path="/dashboard"><Dashboard /></Route>
+        <Route path="/subscribe"><Subscribe /></Route>
+        <Route path="/community"><Community /></Route>
+        <Route path="/notifications"><Notifications /></Route>
+        <Route component={NotFound} />
+      </Switch>
+    </PublicLayout>
+  );
+}
+
 function Router() {
   return (
     <Switch>
-      <Route path="/">
-        <PublicLayout><Home /></PublicLayout>
-      </Route>
       <Route path="/login">
         <Login />
       </Route>
@@ -90,21 +110,6 @@ function Router() {
       </Route>
       <Route path="/complete-phone">
         <CompletePhone />
-      </Route>
-      <Route path="/videos">
-        <PublicLayout><Videos /></PublicLayout>
-      </Route>
-      <Route path="/videos/:id">
-        <PublicLayout><VideoDetail /></PublicLayout>
-      </Route>
-      <Route path="/dashboard">
-        <PublicLayout><Dashboard /></PublicLayout>
-      </Route>
-      <Route path="/subscribe">
-        <PublicLayout><Subscribe /></PublicLayout>
-      </Route>
-      <Route path="/community">
-        <PublicLayout><Community /></PublicLayout>
       </Route>
       <Route path="/gab-ctrl-9x/login">
         <AdminLogin />
@@ -139,7 +144,7 @@ function Router() {
       <Route path="/gab-ctrl-9x/change-password">
         <AdminLayout><AdminChangePassword /></AdminLayout>
       </Route>
-      <Route component={NotFound} />
+      <Route><PublicRoutes /></Route>
     </Switch>
   );
 }
