@@ -24,6 +24,36 @@ export function verifyToken(token: string): { userId: number } | null {
   }
 }
 
+// Short-lived token used to authorize community media streaming requests.
+// <img>/<video> tags cannot send Authorization headers, so the feed embeds a
+// signed token in the media URL. Entitlement is still re-checked server-side at
+// stream time — this token only proves the request was issued by our API.
+export function generateMediaToken(payload: {
+  userId: number;
+  mediaId: number;
+  variant: "preview" | "full";
+}): string {
+  return jwt.sign({ ...payload, kind: "community-media" }, JWT_SECRET, { expiresIn: "2h" });
+}
+
+export function verifyMediaToken(
+  token: string,
+): { userId: number; mediaId: number; variant: "preview" | "full" } | null {
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as {
+      userId: number;
+      mediaId: number;
+      variant?: "preview" | "full";
+      kind?: string;
+    };
+    if (decoded.kind !== "community-media") return null;
+    if (decoded.variant !== "preview" && decoded.variant !== "full") return null;
+    return { userId: decoded.userId, mediaId: decoded.mediaId, variant: decoded.variant };
+  } catch {
+    return null;
+  }
+}
+
 export function generateAdminToken(payload: { adminId: number }): string {
   return jwt.sign(payload, ADMIN_JWT_SECRET, { expiresIn: "7d" });
 }

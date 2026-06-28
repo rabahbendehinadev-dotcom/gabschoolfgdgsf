@@ -725,3 +725,283 @@ export const UpdateSubscriptionPlanResponse = zod.object({
   durationDays: zod.number().nullish(),
   isHidden: zod.boolean(),
 });
+
+/**
+ * @summary Community header summary (member count, today's posts, viewer entitlement)
+ */
+export const GetCommunitySummaryResponse = zod.object({
+  memberCount: zod.number(),
+  todayPostsCount: zod.number(),
+  totalPostsCount: zod.number(),
+  coverImageUrl: zod.string().nullish(),
+  isAuthenticated: zod.boolean(),
+  isVip: zod.boolean(),
+  canPost: zod.boolean(),
+});
+
+/**
+ * @summary List community posts (sanitized for the viewer's entitlement)
+ */
+export const GetCommunityFeedQueryParams = zod.object({
+  cursor: zod.coerce.number().optional(),
+  limit: zod.coerce.number().optional(),
+});
+
+export const GetCommunityFeedResponse = zod.object({
+  posts: zod.array(
+    zod.object({
+      id: zod.number(),
+      author: zod.object({
+        id: zod.number(),
+        username: zod.string(),
+        accountType: zod.enum(["vip", "normal"]),
+      }),
+      content: zod.string().nullish(),
+      postType: zod.enum(["text", "image", "gallery", "video"]),
+      isVipLocked: zod.boolean(),
+      isPinned: zod.boolean(),
+      isFeatured: zod.boolean(),
+      likesCount: zod.number(),
+      commentsCount: zod.number(),
+      viewsCount: zod.number(),
+      likedByMe: zod.boolean(),
+      canEdit: zod.boolean(),
+      media: zod.array(
+        zod.object({
+          id: zod.number(),
+          mediaType: zod.enum(["image", "video"]),
+          locked: zod.boolean(),
+          previewUrl: zod.string().nullish(),
+          fullUrl: zod.string().nullish(),
+          width: zod.number().nullish(),
+          height: zod.number().nullish(),
+          durationSec: zod.number().nullish(),
+          sortOrder: zod.number(),
+        }),
+      ),
+      createdAt: zod.date(),
+      updatedAt: zod.date(),
+    }),
+  ),
+  nextCursor: zod.number().nullish(),
+});
+
+/**
+ * @summary Create a community post (VIP only)
+ */
+export const CreateCommunityPostBody = zod.object({
+  content: zod.string().nullish(),
+  postType: zod.enum(["text", "image", "gallery", "video"]),
+  media: zod
+    .array(
+      zod.object({
+        mediaType: zod.enum(["image", "video"]),
+        objectPath: zod.string(),
+        previewObjectPath: zod.string().nullish(),
+        thumbnailObjectPath: zod.string().nullish(),
+        width: zod.number().nullish(),
+        height: zod.number().nullish(),
+        durationSec: zod.number().nullish(),
+        contentType: zod.string().nullish(),
+        sizeBytes: zod.number().nullish(),
+        sortOrder: zod.number().nullish(),
+      }),
+    )
+    .optional(),
+});
+
+/**
+ * @summary Get a single community post
+ */
+export const GetCommunityPostParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetCommunityPostResponse = zod.object({
+  id: zod.number(),
+  author: zod.object({
+    id: zod.number(),
+    username: zod.string(),
+    accountType: zod.enum(["vip", "normal"]),
+  }),
+  content: zod.string().nullish(),
+  postType: zod.enum(["text", "image", "gallery", "video"]),
+  isVipLocked: zod.boolean(),
+  isPinned: zod.boolean(),
+  isFeatured: zod.boolean(),
+  likesCount: zod.number(),
+  commentsCount: zod.number(),
+  viewsCount: zod.number(),
+  likedByMe: zod.boolean(),
+  canEdit: zod.boolean(),
+  media: zod.array(
+    zod.object({
+      id: zod.number(),
+      mediaType: zod.enum(["image", "video"]),
+      locked: zod.boolean(),
+      previewUrl: zod.string().nullish(),
+      fullUrl: zod.string().nullish(),
+      width: zod.number().nullish(),
+      height: zod.number().nullish(),
+      durationSec: zod.number().nullish(),
+      sortOrder: zod.number(),
+    }),
+  ),
+  createdAt: zod.date(),
+  updatedAt: zod.date(),
+});
+
+/**
+ * @summary Update own community post (caption)
+ */
+export const UpdateCommunityPostParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateCommunityPostBody = zod.object({
+  content: zod.string().nullish(),
+});
+
+export const UpdateCommunityPostResponse = zod.object({
+  id: zod.number(),
+  author: zod.object({
+    id: zod.number(),
+    username: zod.string(),
+    accountType: zod.enum(["vip", "normal"]),
+  }),
+  content: zod.string().nullish(),
+  postType: zod.enum(["text", "image", "gallery", "video"]),
+  isVipLocked: zod.boolean(),
+  isPinned: zod.boolean(),
+  isFeatured: zod.boolean(),
+  likesCount: zod.number(),
+  commentsCount: zod.number(),
+  viewsCount: zod.number(),
+  likedByMe: zod.boolean(),
+  canEdit: zod.boolean(),
+  media: zod.array(
+    zod.object({
+      id: zod.number(),
+      mediaType: zod.enum(["image", "video"]),
+      locked: zod.boolean(),
+      previewUrl: zod.string().nullish(),
+      fullUrl: zod.string().nullish(),
+      width: zod.number().nullish(),
+      height: zod.number().nullish(),
+      durationSec: zod.number().nullish(),
+      sortOrder: zod.number(),
+    }),
+  ),
+  createdAt: zod.date(),
+  updatedAt: zod.date(),
+});
+
+/**
+ * @summary Delete own community post
+ */
+export const DeleteCommunityPostParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const DeleteCommunityPostResponse = zod.object({
+  message: zod.string(),
+});
+
+/**
+ * @summary Like a post
+ */
+export const LikeCommunityPostParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const LikeCommunityPostResponse = zod.object({
+  liked: zod.boolean(),
+  likesCount: zod.number(),
+});
+
+/**
+ * @summary Remove like from a post
+ */
+export const UnlikeCommunityPostParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UnlikeCommunityPostResponse = zod.object({
+  liked: zod.boolean(),
+  likesCount: zod.number(),
+});
+
+/**
+ * @summary Register a (deduped) view for a post
+ */
+export const ViewCommunityPostParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ViewCommunityPostResponse = zod.object({
+  counted: zod.boolean(),
+  viewsCount: zod.number(),
+});
+
+/**
+ * @summary List comments (with replies) for a post
+ */
+export const GetCommunityCommentsParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetCommunityCommentsResponse = zod.object({
+  comments: zod.array(
+    zod.object({
+      id: zod.number(),
+      postId: zod.number(),
+      author: zod.object({
+        id: zod.number(),
+        username: zod.string(),
+        accountType: zod.enum(["vip", "normal"]),
+      }),
+      body: zod.string(),
+      parentId: zod.number().nullish(),
+      canDelete: zod.boolean(),
+      createdAt: zod.date(),
+      replies: zod.array(
+        zod.object({
+          id: zod.number(),
+          postId: zod.number(),
+          parentId: zod.number(),
+          author: zod.object({
+            id: zod.number(),
+            username: zod.string(),
+            accountType: zod.enum(["vip", "normal"]),
+          }),
+          body: zod.string(),
+          canDelete: zod.boolean(),
+          createdAt: zod.date(),
+        }),
+      ),
+    }),
+  ),
+});
+
+/**
+ * @summary Add a comment or reply
+ */
+export const CreateCommunityCommentParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const CreateCommunityCommentBody = zod.object({
+  body: zod.string().min(1),
+  parentId: zod.number().nullish(),
+});
+
+/**
+ * @summary Delete own comment
+ */
+export const DeleteCommunityCommentParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const DeleteCommunityCommentResponse = zod.object({
+  message: zod.string(),
+});

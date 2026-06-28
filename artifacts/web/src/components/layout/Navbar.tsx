@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui";
 import { InstallAppButton } from "@/components/InstallAppButton";
 import { useAuth } from "@/lib/auth";
-import { LogOut, User, Crown, Menu, X, BookOpen, CreditCard, Home } from "lucide-react";
+import { LogOut, User, Crown, Menu, X, BookOpen, CreditCard, Home, Users } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export function Navbar() {
@@ -14,6 +14,7 @@ export function Navbar() {
   const navLinks = [
     { href: "/",          label: "الرئيسية",     icon: <Home className="w-4 h-4" /> },
     { href: "/videos",    label: "الدورات",      icon: <BookOpen className="w-4 h-4" /> },
+    { href: "/community", label: "مجتمع GAB",    icon: <Users className="w-4 h-4" /> },
     { href: "/subscribe", label: "الاشتراكات",   icon: <CreditCard className="w-4 h-4" /> },
   ];
 

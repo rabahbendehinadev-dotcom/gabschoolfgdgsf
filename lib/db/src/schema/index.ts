@@ -8,3 +8,8 @@ export * from "./subscriptionPlans";
 export * from "./visitLogs";
 export * from "./activityLogs";
 export * from "./paymentSubmissions";
+export * from "./communityPosts";
+export * from "./communityPostMedia";
+export * from "./communityPostLikes";
+export * from "./communityComments";
+export * from "./communityPostViews";

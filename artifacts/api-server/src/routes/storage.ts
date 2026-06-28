@@ -1,6 +1,8 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { Readable } from "stream";
 import { z } from "zod";
+import { db, communityPostMediaTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
 import { ObjectPermission } from "../lib/objectAcl";
 
@@ -98,6 +100,21 @@ router.get("/storage/objects/*path", async (req: Request, res: Response) => {
     const raw = req.params.path;
     const wildcardPath = Array.isArray(raw) ? raw.join("/") : raw;
     const objectPath = `/objects/${wildcardPath}`;
+
+    // Community post ORIGINALS are VIP-gated and must ONLY be reachable through
+    // the entitlement-checked /community/media route. Block them here even if
+    // their object UUID leaks. Non-community objects (payment proofs, etc.) are
+    // unaffected.
+    const [communityOriginal] = await db
+      .select({ id: communityPostMediaTable.id })
+      .from(communityPostMediaTable)
+      .where(eq(communityPostMediaTable.objectPath, objectPath))
+      .limit(1);
+    if (communityOriginal) {
+      res.status(404).json({ error: "Object not found" });
+      return;
+    }
+
     const objectFile = await objectStorageService.getObjectEntityFile(objectPath);
 
     // --- Protected route example (uncomment when using replit-auth) ---
