@@ -1,9 +1,11 @@
 import { Router, type IRouter } from "express";
-import { db, videosTable, categoriesTable, visitLogsTable, playlistsTable, activityLogsTable } from "@workspace/db";
+import { db, videosTable, categoriesTable, visitLogsTable, playlistsTable, activityLogsTable, usersTable } from "@workspace/db";
 import { eq, and, or, asc, sql, isNull } from "drizzle-orm";
 import { optionalUserAuth, userAuth } from "../middlewares/auth";
 import { getClientIp } from "../lib/ipPolicy";
 import { deviceTypeFromUA } from "../lib/device";
+import { generateVideoStreamToken, verifyVideoStreamToken } from "../lib/auth";
+import { extractDriveFileId, streamDriveFile } from "../lib/googleDrive";
 
 const router: IRouter = Router();
 
@@ -41,6 +43,31 @@ async function logVideoActivity(opts: {
   }
 }
 
+// Build the ordered list of playable parts for a video. driveParts (when present)
+// is a JSON string of [{label,url}]; otherwise we fall back to the single
+// driveEmbedUrl. The returned URLs are RAW Drive URLs used ONLY server-side to
+// resolve a file id — they are never sent to the browser.
+function resolveVideoParts(video: {
+  driveEmbedUrl: string;
+  driveParts: string | null;
+}): { label: string; url: string }[] {
+  if (video.driveParts) {
+    try {
+      const parsed = JSON.parse(video.driveParts) as Array<{ label?: string; url?: string }>;
+      const valid = (Array.isArray(parsed) ? parsed : []).filter(
+        (p) => p && typeof p.url === "string" && p.url.length > 0,
+      );
+      if (valid.length > 0) {
+        return valid.map((p, i) => ({ label: p.label || `الجزء ${i + 1}`, url: p.url as string }));
+      }
+    } catch {
+      /* malformed driveParts → fall back to the single embed url */
+    }
+  }
+  if (video.driveEmbedUrl) return [{ label: "الفيديو", url: video.driveEmbedUrl }];
+  return [];
+}
+
 router.get("/videos", optionalUserAuth, async (req, res) => {
   try {
     const categoryId = req.query.categoryId ? Number(req.query.categoryId) : undefined;
@@ -59,7 +86,6 @@ router.get("/videos", optionalUserAuth, async (req, res) => {
       title: videosTable.title,
       description: videosTable.description,
       thumbnailUrl: videosTable.thumbnailUrl,
-      driveEmbedUrl: videosTable.driveEmbedUrl,
       categoryId: videosTable.categoryId,
       categoryName: categoriesTable.name,
       playlistId: videosTable.playlistId,
@@ -179,12 +205,26 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
       }
     }
 
+    // Build same-origin, token-protected stream URLs — one per part. The raw
+    // Drive URLs never leave the server; the browser only ever sees these.
+    const partsList = resolveVideoParts({
+      driveEmbedUrl: video.driveEmbedUrl,
+      driveParts: video.driveParts,
+    });
+    const streamParts = partsList.map((p, i) => ({
+      label: p.label,
+      url: `/api/videos/${id}/stream/${i}?token=${generateVideoStreamToken({
+        userId: user?.id ?? 0,
+        videoId: id,
+        part: i,
+      })}`,
+    }));
+
     res.json({
       id: video.id,
       title: video.title,
       description: video.description,
       thumbnailUrl: video.thumbnailUrl,
-      driveEmbedUrl: video.driveEmbedUrl,
       categoryId: video.categoryId,
       categoryName: video.categoryName || "",
       playlistId: video.playlistId,
@@ -192,7 +232,7 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
       isVipOnly: video.isVipOnly,
       accessType: video.accessType,
       softwareLink: isVipUser ? (video.softwareLink ?? null) : null,
-      driveParts: video.driveParts ?? null,
+      streamParts,
       createdAt: video.createdAt.toISOString(),
       playlist: playlistInfo,
     });
@@ -258,6 +298,101 @@ router.post("/videos/:id/security-event", optionalUserAuth, async (req, res) => 
     res.json({ ok: true });
   } catch (error: unknown) {
     res.status(500).json({ message: error instanceof Error ? error.message : "Failed to log event" });
+  }
+});
+
+// Token-protected, same-origin video stream. The native <video> element cannot
+// send Authorization headers, so the player passes a short-lived signed token in
+// the query string. We re-verify ENTITLEMENT here on every request (never trust
+// the token alone) and pipe the private Drive bytes through our own server.
+router.get("/videos/:id/stream/:part", async (req, res) => {
+  try {
+    const token = typeof req.query.token === "string" ? req.query.token : null;
+    const payload = token ? verifyVideoStreamToken(token) : null;
+    if (!payload) {
+      res.status(401).end();
+      return;
+    }
+
+    const id = Number(req.params.id);
+    const part = Number(req.params.part);
+    if (
+      !Number.isInteger(id) ||
+      !Number.isInteger(part) ||
+      part < 0 ||
+      payload.videoId !== id ||
+      payload.part !== part
+    ) {
+      res.status(403).end();
+      return;
+    }
+
+    const [video] = await db
+      .select({
+        isVisible: videosTable.isVisible,
+        accessType: videosTable.accessType,
+        driveEmbedUrl: videosTable.driveEmbedUrl,
+        driveParts: videosTable.driveParts,
+      })
+      .from(videosTable)
+      .where(eq(videosTable.id, id))
+      .limit(1);
+
+    if (!video || !video.isVisible) {
+      res.status(404).end();
+      return;
+    }
+
+    // Fresh entitlement re-check, mirroring GET /videos/:id. The token's userId
+    // is looked up live so revoked/downgraded accounts immediately lose access.
+    const accessType = video.accessType || "normal";
+    if (accessType === "vip" || accessType === "normal") {
+      const [u] = payload.userId
+        ? await db
+            .select({
+              accountType: usersTable.accountType,
+              subscriptionType: usersTable.subscriptionType,
+            })
+            .from(usersTable)
+            .where(eq(usersTable.id, payload.userId))
+            .limit(1)
+        : [undefined];
+      const isVipUser = u?.accountType === "vip";
+      const isSubscribed = !!u && u.subscriptionType !== "demo";
+      if (accessType === "vip" && !isVipUser) {
+        res.status(403).end();
+        return;
+      }
+      if (accessType === "normal" && !isVipUser && !isSubscribed) {
+        res.status(403).end();
+        return;
+      }
+    }
+
+    const partsList = resolveVideoParts({
+      driveEmbedUrl: video.driveEmbedUrl,
+      driveParts: video.driveParts,
+    });
+    const target = partsList[part];
+    if (!target) {
+      res.status(404).end();
+      return;
+    }
+    const fileId = extractDriveFileId(target.url);
+    if (!fileId) {
+      res.status(404).end();
+      return;
+    }
+
+    await streamDriveFile(req, res, fileId);
+  } catch (error: unknown) {
+    if (!res.headersSent) {
+      res.status(500).json({
+        message: error instanceof Error ? error.message : "Failed to stream video",
+      });
+    } else {
+      res.end();
+    }
   }
 });
 

@@ -92,6 +92,15 @@ export interface ChangePasswordInput {
   newPassword: string;
 }
 
+/**
+ * A single playable part streamed securely from our server (no Drive link exposed).
+ */
+export interface VideoStreamPart {
+  label: string;
+  /** Same-origin, token-protected stream URL (e.g. /api/videos/{id}/stream/{part}?token=...). */
+  url: string;
+}
+
 export type VideoAccessType =
   (typeof VideoAccessType)[keyof typeof VideoAccessType];
 
@@ -106,7 +115,6 @@ export interface Video {
   title: string;
   description: string;
   thumbnailUrl: string;
-  driveEmbedUrl: string;
   categoryId: number;
   categoryName?: string;
   playlistId?: number | null;
@@ -114,6 +122,8 @@ export interface Video {
   isVipOnly: boolean;
   accessType: VideoAccessType;
   sortOrder: number;
+  /** Present on the single-video response for entitled viewers; one entry per part. */
+  streamParts?: VideoStreamPart[] | null;
   createdAt: string;
 }
 
@@ -220,7 +230,6 @@ export interface PlaylistVideo {
   id: number;
   title: string;
   thumbnailUrl: string;
-  driveEmbedUrl: string;
   partNumber?: number | null;
   accessType: PlaylistVideoAccessType;
   isVisible: boolean;

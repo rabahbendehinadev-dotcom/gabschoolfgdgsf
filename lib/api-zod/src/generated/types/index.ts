@@ -72,3 +72,4 @@ export * from "./userProfileAccountType";
 export * from "./userProfileSubscriptionType";
 export * from "./video";
 export * from "./videoAccessType";
+export * from "./videoStreamPart";

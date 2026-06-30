@@ -25,7 +25,6 @@ function buildPlaylistResponse(
         id: v.id,
         title: v.title,
         thumbnailUrl: v.thumbnailUrl,
-        driveEmbedUrl: v.driveEmbedUrl,
         partNumber: v.partNumber,
         accessType: v.accessType,
         isVisible: v.isVisible,
