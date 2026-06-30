@@ -11,7 +11,6 @@ export interface PlaylistVideo {
   id: number;
   title: string;
   thumbnailUrl: string;
-  driveEmbedUrl: string;
   partNumber?: number | null;
   accessType: PlaylistVideoAccessType;
   isVisible: boolean;

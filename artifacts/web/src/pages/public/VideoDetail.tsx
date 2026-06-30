@@ -7,7 +7,7 @@ import { Crown, ArrowRight, PlaySquare, Lock, CalendarDays, Tag, ListVideo, Chev
 import { Link } from "wouter";
 import { formatDate } from "@/lib/utils";
 import { motion } from "framer-motion";
-import { ProtectedVideoPlayer } from "@/components/ProtectedVideoPlayer";
+import { CourseVideoPlayer } from "@/components/CourseVideoPlayer";
 
 interface PlaylistPartVideo {
   id: number;
@@ -24,11 +24,6 @@ interface PlaylistInfo {
   videos: PlaylistPartVideo[];
 }
 
-interface DrivePart {
-  label: string;
-  url: string;
-}
-
 export function VideoDetail() {
   const [, params] = useRoute("/videos/:id");
   const [, navigate] = useLocation();
@@ -41,7 +36,7 @@ export function VideoDetail() {
     request: getAuthHeaders(),
   });
 
-  const video = videoRaw as (typeof videoRaw & { playlist?: PlaylistInfo; driveParts?: string | null; softwareLink?: string | null }) | undefined;
+  const video = videoRaw as (typeof videoRaw & { playlist?: PlaylistInfo; softwareLink?: string | null }) | undefined;
   const status = (error as (Error & { response?: { status: number } }) | null)?.response?.status;
 
   if (isLoading) return (
@@ -103,14 +98,8 @@ export function VideoDetail() {
   const prevVideo = playlist && currentIndex > 0 ? playlist.videos[currentIndex - 1] : null;
   const nextVideo = playlist && currentIndex < playlist.videos.length - 1 ? playlist.videos[currentIndex + 1] : null;
 
-  const parts: DrivePart[] = (() => {
-    try { return video.driveParts ? (JSON.parse(video.driveParts) as DrivePart[]) : []; }
-    catch { return []; }
-  })();
-
-  const activeVideoUrl = parts.length > 0
-    ? parts[selectedPartIndex]?.url ?? ""
-    : (video.driveEmbedUrl ?? "");
+  const parts = video.streamParts ?? [];
+  const activeVideoUrl = parts[selectedPartIndex]?.url ?? "";
 
   return (
     <div className="min-h-screen py-8">
@@ -180,10 +169,13 @@ export function VideoDetail() {
             {/* Protected Video Player */}
             {activeVideoUrl ? (
               <div className="mb-8">
-                <ProtectedVideoPlayer
-                  driveUrl={activeVideoUrl}
+                <CourseVideoPlayer
+                  key={`${id}-${selectedPartIndex}`}
+                  src={activeVideoUrl}
+                  poster={video.thumbnailUrl}
+                  title={video.title}
                   username={user?.username}
-                  email={user?.username}
+                  email={user?.email}
                   videoId={id}
                 />
               </div>

@@ -161,7 +161,6 @@ export const GetVideosResponseItem = zod.object({
   title: zod.string(),
   description: zod.string(),
   thumbnailUrl: zod.string(),
-  driveEmbedUrl: zod.string(),
   categoryId: zod.number(),
   categoryName: zod.string().optional(),
   playlistId: zod.number().nullish(),
@@ -169,6 +168,25 @@ export const GetVideosResponseItem = zod.object({
   isVipOnly: zod.boolean(),
   accessType: zod.enum(["visitor", "normal", "vip"]),
   sortOrder: zod.number(),
+  streamParts: zod
+    .array(
+      zod
+        .object({
+          label: zod.string(),
+          url: zod
+            .string()
+            .describe(
+              "Same-origin, token-protected stream URL (e.g. \/api\/videos\/{id}\/stream\/{part}?token=...).",
+            ),
+        })
+        .describe(
+          "A single playable part streamed securely from our server (no Drive link exposed).",
+        ),
+    )
+    .nullish()
+    .describe(
+      "Present on the single-video response for entitled viewers; one entry per part.",
+    ),
   createdAt: zod.date(),
 });
 export const GetVideosResponse = zod.array(GetVideosResponseItem);
@@ -185,7 +203,6 @@ export const GetVideoResponse = zod.object({
   title: zod.string(),
   description: zod.string(),
   thumbnailUrl: zod.string(),
-  driveEmbedUrl: zod.string(),
   categoryId: zod.number(),
   categoryName: zod.string().optional(),
   playlistId: zod.number().nullish(),
@@ -193,6 +210,25 @@ export const GetVideoResponse = zod.object({
   isVipOnly: zod.boolean(),
   accessType: zod.enum(["visitor", "normal", "vip"]),
   sortOrder: zod.number(),
+  streamParts: zod
+    .array(
+      zod
+        .object({
+          label: zod.string(),
+          url: zod
+            .string()
+            .describe(
+              "Same-origin, token-protected stream URL (e.g. \/api\/videos\/{id}\/stream\/{part}?token=...).",
+            ),
+        })
+        .describe(
+          "A single playable part streamed securely from our server (no Drive link exposed).",
+        ),
+    )
+    .nullish()
+    .describe(
+      "Present on the single-video response for entitled viewers; one entry per part.",
+    ),
   createdAt: zod.date(),
 });
 
@@ -239,7 +275,6 @@ export const GetPlaylistsResponseItem = zod.object({
       id: zod.number(),
       title: zod.string(),
       thumbnailUrl: zod.string(),
-      driveEmbedUrl: zod.string(),
       partNumber: zod.number().nullish(),
       accessType: zod.enum(["visitor", "normal", "vip"]),
       isVisible: zod.boolean(),
@@ -270,7 +305,6 @@ export const GetPlaylistResponse = zod.object({
       id: zod.number(),
       title: zod.string(),
       thumbnailUrl: zod.string(),
-      driveEmbedUrl: zod.string(),
       partNumber: zod.number().nullish(),
       accessType: zod.enum(["visitor", "normal", "vip"]),
       isVisible: zod.boolean(),
@@ -616,7 +650,6 @@ export const GetAdminPlaylistsResponseItem = zod.object({
       id: zod.number(),
       title: zod.string(),
       thumbnailUrl: zod.string(),
-      driveEmbedUrl: zod.string(),
       partNumber: zod.number().nullish(),
       accessType: zod.enum(["visitor", "normal", "vip"]),
       isVisible: zod.boolean(),
@@ -668,7 +701,6 @@ export const UpdatePlaylistResponse = zod.object({
       id: zod.number(),
       title: zod.string(),
       thumbnailUrl: zod.string(),
-      driveEmbedUrl: zod.string(),
       partNumber: zod.number().nullish(),
       accessType: zod.enum(["visitor", "normal", "vip"]),
       isVisible: zod.boolean(),

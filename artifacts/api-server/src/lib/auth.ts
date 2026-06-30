@@ -54,6 +54,43 @@ export function verifyMediaToken(
   }
 }
 
+// Short-lived token used to authorize course-video streaming requests.
+// The native <video> element cannot send Authorization headers, so the player
+// embeds this signed token in the stream URL. Entitlement (VIP / subscription)
+// is STILL re-checked server-side at stream time — this token only proves the
+// request was issued by our API for a specific user + video + part.
+export function generateVideoStreamToken(payload: {
+  userId: number;
+  videoId: number;
+  part: number;
+}): string {
+  return jwt.sign({ ...payload, kind: "course-video" }, JWT_SECRET, { expiresIn: "6h" });
+}
+
+export function verifyVideoStreamToken(
+  token: string,
+): { userId: number; videoId: number; part: number } | null {
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as {
+      userId?: number;
+      videoId?: number;
+      part?: number;
+      kind?: string;
+    };
+    if (decoded.kind !== "course-video") return null;
+    if (
+      typeof decoded.userId !== "number" ||
+      typeof decoded.videoId !== "number" ||
+      typeof decoded.part !== "number"
+    ) {
+      return null;
+    }
+    return { userId: decoded.userId, videoId: decoded.videoId, part: decoded.part };
+  } catch {
+    return null;
+  }
+}
+
 export function generateAdminToken(payload: { adminId: number }): string {
   return jwt.sign(payload, ADMIN_JWT_SECRET, { expiresIn: "7d" });
 }

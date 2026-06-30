@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Card, Badge, Button } from "@/components/ui";
 import { useAuth } from "@/lib/auth";
 import { useGetVideo, getGetVideoQueryKey } from "@workspace/api-client-react/src/generated/api";
-import { ProtectedVideoPlayer } from "@/components/ProtectedVideoPlayer";
+import { CourseVideoPlayer } from "@/components/CourseVideoPlayer";
 
 const FALLBACK_THUMB =
   "https://images.unsplash.com/photo-1580927752452-89d86da3fa0a?w=800&q=80";
@@ -23,11 +23,6 @@ interface AccessResult {
 interface CoursePlayerProps {
   lessons: any[];
   accessInfo: (v: { accessType?: string }) => AccessResult;
-}
-
-interface DrivePart {
-  label: string;
-  url: string;
 }
 
 /* مدة الدرس — تُعرض فقط إن كانت متوفرة (لا يوجد حقل مدة حالياً في قاعدة البيانات) */
@@ -93,22 +88,13 @@ export function CoursePlayer({ lessons, accessInfo }: CoursePlayerProps) {
     },
   );
   const detail = detailRaw as
-    | (typeof detailRaw & { driveParts?: string | null; softwareLink?: string | null })
+    | (typeof detailRaw & { softwareLink?: string | null })
     | undefined;
 
-  const parts: DrivePart[] = useMemo(() => {
-    try {
-      return detail?.driveParts ? (JSON.parse(detail.driveParts) as DrivePart[]) : [];
-    } catch {
-      return [];
-    }
-  }, [detail]);
+  // روابط البثّ الآمنة القادمة من الخادم (لا روابط Google Drive في المتصفّح)
+  const parts = useMemo(() => detail?.streamParts ?? [], [detail]);
 
-  const listUrl = currentLesson?.driveEmbedUrl ?? "";
-  const activeUrl =
-    parts.length > 0
-      ? parts[selectedPartIndex]?.url ?? ""
-      : detail?.driveEmbedUrl ?? listUrl;
+  const activeUrl = parts[selectedPartIndex]?.url ?? "";
 
   const selectLesson = (i: number) => {
     if (i < 0 || i >= total) return;
@@ -178,9 +164,11 @@ export function CoursePlayer({ lessons, accessInfo }: CoursePlayerProps) {
                 ))}
               </div>
             )}
-            <ProtectedVideoPlayer
+            <CourseVideoPlayer
               key={`${lessonId}-${selectedPartIndex}`}
-              driveUrl={activeUrl}
+              src={activeUrl}
+              poster={currentLesson?.thumbnailUrl}
+              title={currentLesson?.title}
               username={user?.username}
               email={user?.email}
               videoId={lessonId}

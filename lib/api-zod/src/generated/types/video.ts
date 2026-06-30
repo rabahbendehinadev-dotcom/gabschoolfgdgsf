@@ -6,13 +6,13 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { VideoAccessType } from "./videoAccessType";
+import type { VideoStreamPart } from "./videoStreamPart";
 
 export interface Video {
   id: number;
   title: string;
   description: string;
   thumbnailUrl: string;
-  driveEmbedUrl: string;
   categoryId: number;
   categoryName?: string;
   playlistId?: number | null;
@@ -20,5 +20,7 @@ export interface Video {
   isVipOnly: boolean;
   accessType: VideoAccessType;
   sortOrder: number;
+  /** Present on the single-video response for entitled viewers; one entry per part. */
+  streamParts?: VideoStreamPart[] | null;
   createdAt: Date;
 }

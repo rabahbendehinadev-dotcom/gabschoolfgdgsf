@@ -1,14 +1,14 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { Link, useSearch, useLocation } from "wouter";
-import { useGetVideos, useGetCategories } from "@workspace/api-client-react/src/generated/api";
+import { useGetVideos, useGetCategories, useGetVideo, getGetVideoQueryKey } from "@workspace/api-client-react/src/generated/api";
 import { useAuth } from "@/lib/auth";
 import { Card, Badge, Button, Input, Dialog, DialogContent } from "@/components/ui";
-import { Search, PlayCircle, Lock, X, Rocket, LayoutGrid, Sparkles } from "lucide-react";
+import { Search, PlayCircle, Lock, X, Rocket, LayoutGrid, Sparkles, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { CategoryCard } from "@/components/public/CategoryCard";
 import { LessonCard } from "@/components/public/LessonCard";
 import { CoursePlayer } from "@/components/public/CoursePlayer";
-import { ProtectedVideoPlayer } from "@/components/ProtectedVideoPlayer";
+import { CourseVideoPlayer } from "@/components/CourseVideoPlayer";
 import { getCategoryMeta } from "@/lib/categoryMeta";
 
 export function Videos() {
@@ -38,6 +38,16 @@ export function Videos() {
   /* ── طلب مستقل لجلب كل الفيديوهات (للفيديو المجاني + عدّ الدروس لكل قسم) ── */
   const { data: allVideosUnfiltered } = useGetVideos({}, { request: getAuthHeaders() });
   const freeVideo = allVideosUnfiltered?.find(v => v.accessType === "visitor");
+
+  /* تفاصيل الفيديو المجاني (روابط البثّ الآمنة) — تُجلب فقط عند فتح النافذة */
+  const { data: freeDetail } = useGetVideo(freeVideo?.id ?? 0, {
+    request: getAuthHeaders(),
+    query: {
+      queryKey: getGetVideoQueryKey(freeVideo?.id ?? 0),
+      enabled: videoModalOpen && !!freeVideo?.id,
+    },
+  });
+  const freeStreamUrl = freeDetail?.streamParts?.[0]?.url ?? "";
 
   /* ── الفيديوهات حسب الفلاتر الحالية (قسم / بحث) ── */
   const { data: videos, isLoading } = useGetVideos(
@@ -111,13 +121,24 @@ export function Videos() {
             </button>
           </div>
           <div className="w-full bg-black p-3">
-            {videoModalOpen && freeVideo?.driveEmbedUrl && (
-              <ProtectedVideoPlayer
-                driveUrl={freeVideo.driveEmbedUrl}
-                username={user?.username}
-                email={user?.email}
-                videoId={freeVideo.id}
-              />
+            {videoModalOpen && (
+              freeStreamUrl ? (
+                <CourseVideoPlayer
+                  src={freeStreamUrl}
+                  poster={freeVideo?.thumbnailUrl}
+                  title={freeVideo?.title}
+                  username={user?.username}
+                  email={user?.email}
+                  videoId={freeVideo?.id}
+                />
+              ) : (
+                <div
+                  className="relative w-full bg-black rounded-2xl flex items-center justify-center"
+                  style={{ aspectRatio: "16 / 9" }}
+                >
+                  <Loader2 className="w-8 h-8 text-white/60 animate-spin" />
+                </div>
+              )
             )}
           </div>
         </DialogContent>
