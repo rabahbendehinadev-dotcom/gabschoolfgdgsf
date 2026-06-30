@@ -163,6 +163,7 @@ router.get("/admin/users", adminAuth, async (req, res) => {
         phone: u.phone ?? null,
         pushEnabled: enabledIds.has(u.id),
         pushSupported: u.pushSupported,
+        pushPermission: u.pushPermission,
         lastNotifiedAt: last ? new Date(last).toISOString() : null,
         createdAt: u.createdAt.toISOString(),
       };

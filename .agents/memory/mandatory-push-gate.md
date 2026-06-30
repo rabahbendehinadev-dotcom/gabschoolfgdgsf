@@ -17,6 +17,17 @@ each situation to exactly one of: uncloseable / dismissible / hidden.
 
 **Why:** the product wants it mandatory, but iOS-not-installed / unsupported / VIP users could otherwise be locked out of the whole app behind an uncloseable modal.
 
+## Decision-ORDER gotcha (the one that silently dropped all iPhone users)
+The gate's mount effect must check **iOS-not-standalone BEFORE the generic
+`!supported` hide-bail**. On iOS Safari (app not added to home screen) there is no
+`window.Notification` / `PushManager`, so `isPushSupported()` returns **false** —
+meaning a `!supported → hidden` early-return runs first and the iOS install-guide
+branch becomes dead code for exactly the users who need it. Symptom: "the opt-in
+modal never appeared and push never works" on iPhone while in-app notifications
+work fine. Correct order: enabled→hidden, no-VAPID→hidden, **iOS&&!standalone→install**,
+!supported→hidden, denied→recovery, default→mandatory. Also keep `status.enabled`
+as its own check (don't fold it into the `!supported` condition).
+
 ## Permission-detection gotcha
 `enablePushSubscription()` returns `null` for BOTH a permission denial AND a
 silent failure (missing key, subscribe throw). After it returns null you MUST
