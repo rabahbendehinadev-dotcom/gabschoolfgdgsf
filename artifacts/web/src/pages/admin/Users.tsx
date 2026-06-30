@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { useGetAdminUsers, useUpdateAdminUser, useResetUserIp, useDeleteAdminUser } from "@workspace/api-client-react/src/generated/api";
-import { AdminUser, UpdateUserInput } from "@workspace/api-client-react/src/generated/api.schemas";
+import { useGetAdminUsers, useUpdateAdminUser, useResetUserIp, useDeleteAdminUser, useGetAdminNotificationStats } from "@workspace/api-client-react/src/generated/api";
+import { AdminUser, UpdateUserInput, GetAdminUsersNotifications } from "@workspace/api-client-react/src/generated/api.schemas";
 import { useAuth } from "@/lib/auth";
 import { Card, Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label } from "@/components/ui";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Edit, RefreshCw, ShieldOff, ShieldCheck, Trash2, MessageCircle, KeyRound, Eye, EyeOff } from "lucide-react";
+import { Search, Edit, RefreshCw, ShieldOff, ShieldCheck, Trash2, MessageCircle, KeyRound, Eye, EyeOff, BellRing, BellOff, Clock } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 
 const API_BASE = "";
@@ -19,7 +19,12 @@ function normalizeWhatsApp(phone: string): string {
 export function AdminUsers() {
   const { getAdminAuthHeaders } = useAuth();
   const { toast } = useToast();
-  const { data: users, refetch } = useGetAdminUsers({ request: getAdminAuthHeaders() });
+  const [notifFilter, setNotifFilter] = useState<GetAdminUsersNotifications | "all">("all");
+  const { data: users, refetch } = useGetAdminUsers(
+    notifFilter === "all" ? undefined : { notifications: notifFilter },
+    { request: getAdminAuthHeaders() },
+  );
+  const { data: notifStats } = useGetAdminNotificationStats({ request: getAdminAuthHeaders() });
   const updateMut = useUpdateAdminUser({ request: getAdminAuthHeaders() });
   const resetIpMut = useResetUserIp({ request: getAdminAuthHeaders() });
   const deleteMut = useDeleteAdminUser({ request: getAdminAuthHeaders() });
@@ -154,6 +159,38 @@ export function AdminUsers() {
         </div>
       </div>
 
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge className="bg-white/5 text-foreground border-0 px-3 py-1.5 text-xs">
+            الإجمالي: <span className="font-bold mr-1">{notifStats?.total ?? "—"}</span>
+          </Badge>
+          <Badge className="bg-green-500/15 text-green-400 hover:bg-green-500/15 border-0 px-3 py-1.5 text-xs gap-1">
+            <BellRing className="w-3 h-3" /> مفعّلة: <span className="font-bold mr-1">{notifStats?.enabled ?? "—"}</span>
+          </Badge>
+          <Badge className="bg-red-500/15 text-red-400 hover:bg-red-500/15 border-0 px-3 py-1.5 text-xs gap-1">
+            <BellOff className="w-3 h-3" /> غير مفعّلة: <span className="font-bold mr-1">{notifStats?.disabled ?? "—"}</span>
+          </Badge>
+        </div>
+        <div className="flex items-center gap-1 rounded-xl bg-white/5 p-1">
+          {([
+            { v: "all", label: "الكل" },
+            { v: "enabled", label: "مفعّلة" },
+            { v: "disabled", label: "غير مفعّلة" },
+          ] as const).map(opt => (
+            <button
+              key={opt.v}
+              type="button"
+              onClick={() => setNotifFilter(opt.v)}
+              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                notifFilter === opt.v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <Card className="border-white/5 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-right">
@@ -165,6 +202,8 @@ export function AdminUsers() {
                 <th className="px-4 py-4">الاشتراك</th>
                 <th className="px-4 py-4">تاريخ التسجيل</th>
                 <th className="px-4 py-4">IP</th>
+                <th className="px-4 py-4">الإشعارات</th>
+                <th className="px-4 py-4">آخر إشعار</th>
                 <th className="px-4 py-4">الحالة</th>
                 <th className="px-4 py-4">إجراءات</th>
               </tr>
@@ -229,6 +268,28 @@ export function AdminUsers() {
                       ) : (
                         <span className="text-muted-foreground text-xs" title="غير مقيّد — التقييد للحسابات VIP فقط">—</span>
                       )}
+                    </td>
+                    <td className="px-4 py-4">
+                      {user.pushEnabled ? (
+                        <Badge className="bg-green-500/15 text-green-400 hover:bg-green-500/15 border-0 gap-1">
+                          <BellRing className="w-3 h-3" /> مفعّلة
+                        </Badge>
+                      ) : user.pushSupported ? (
+                        <Badge className="bg-red-500/15 text-red-400 hover:bg-red-500/15 border-0 gap-1">
+                          <BellOff className="w-3 h-3" /> غير مفعّلة
+                        </Badge>
+                      ) : (
+                        <Badge className="bg-white/5 text-muted-foreground border-0 gap-1" title="جهاز/متصفح لا يدعم الإشعارات">
+                          <BellOff className="w-3 h-3" /> غير مدعومة
+                        </Badge>
+                      )}
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap text-xs text-muted-foreground">
+                      {user.lastNotifiedAt ? (
+                        <span className="inline-flex items-center gap-1">
+                          <Clock className="w-3 h-3" /> {formatDate(user.lastNotifiedAt)}
+                        </span>
+                      ) : "—"}
                     </td>
                     <td className="px-4 py-4">
                       {user.isActive

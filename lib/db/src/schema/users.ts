@@ -18,6 +18,14 @@ export const usersTable = pgTable("users", {
   ipFirstSeenAt: timestamp("ip_first_seen_at"),
   isActive: boolean("is_active").notNull().default(true),
   phone: varchar("phone", { length: 20 }),
+  // Push-notification telemetry (best-effort, per last device the user reported
+  // from). Actual reachability is derived from push_subscriptions (a row with
+  // failed_at IS NULL); these columns power the admin dashboard and the
+  // one-time "still not enabled" reminder gate.
+  pushPermission: varchar("push_permission", { length: 20 }).notNull().default("default"),
+  pushSupported: boolean("push_supported").notNull().default(false),
+  pushEnabledAt: timestamp("push_enabled_at"),
+  pushReminderSeenAt: timestamp("push_reminder_seen_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
