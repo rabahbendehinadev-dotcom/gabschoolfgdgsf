@@ -274,6 +274,10 @@ export function AdminUsers() {
                         <Badge className="bg-green-500/15 text-green-400 hover:bg-green-500/15 border-0 gap-1">
                           <BellRing className="w-3 h-3" /> مفعّلة
                         </Badge>
+                      ) : user.pushPermission === "denied" ? (
+                        <Badge className="bg-amber-500/15 text-amber-400 hover:bg-amber-500/15 border-0 gap-1" title="المستخدم رفض إذن الإشعارات في المتصفح">
+                          <BellOff className="w-3 h-3" /> رُفِض الإذن
+                        </Badge>
                       ) : user.pushSupported ? (
                         <Badge className="bg-red-500/15 text-red-400 hover:bg-red-500/15 border-0 gap-1">
                           <BellOff className="w-3 h-3" /> غير مفعّلة

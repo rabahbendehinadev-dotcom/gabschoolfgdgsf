@@ -16,6 +16,7 @@ export * from "./adminStats";
 export * from "./adminStatsRecentRegistrationsItem";
 export * from "./adminUser";
 export * from "./adminUserAccountType";
+export * from "./adminUserPushPermission";
 export * from "./adminUserSubscriptionType";
 export * from "./adminVideo";
 export * from "./adminVideoAccessType";

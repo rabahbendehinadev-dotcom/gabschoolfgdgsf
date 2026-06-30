@@ -397,6 +397,16 @@ export const AdminUserSubscriptionType = {
   lifetime: "lifetime",
 } as const;
 
+export type AdminUserPushPermission =
+  (typeof AdminUserPushPermission)[keyof typeof AdminUserPushPermission];
+
+export const AdminUserPushPermission = {
+  default: "default",
+  granted: "granted",
+  denied: "denied",
+  unsupported: "unsupported",
+} as const;
+
 export interface AdminUser {
   id: number;
   username: string;
@@ -411,6 +421,7 @@ export interface AdminUser {
   isActive: boolean;
   pushEnabled: boolean;
   pushSupported: boolean;
+  pushPermission: AdminUserPushPermission;
   lastNotifiedAt?: string | null;
   createdAt: string;
 }

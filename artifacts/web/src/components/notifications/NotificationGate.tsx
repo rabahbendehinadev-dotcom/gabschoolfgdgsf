@@ -169,12 +169,14 @@ export function NotificationGate() {
       const status = await report(localPerm, supported);
       if (cancelled) return;
 
-      if (status?.enabled || !supported) {
+      // Already reachable on at least one device → never bother them again.
+      if (status?.enabled) {
         setMode("hidden");
         return;
       }
 
-      // Push must actually be configured on the server to be enable-able.
+      // Push must actually be configured on the server to be enable-able at all.
+      // If it isn't, no platform can opt in, so never trap anyone.
       const key = await getVapid();
       if (cancelled) return;
       if (!key) {
@@ -185,9 +187,22 @@ export function NotificationGate() {
       const remind = !!status?.shouldRemind;
       remindRef.current = remind;
 
+      // iOS only exposes the Notification / Push APIs once the app is INSTALLED
+      // to the home screen, so isPushSupported() is FALSE in a normal iOS Safari
+      // tab. This MUST be checked before the generic `!supported` bail below, or
+      // iPhone users — who need the install step the most — would silently get
+      // nothing (no modal, no push). Standalone iOS reports supported and falls
+      // through to the normal grant flow.
       if (isIOS() && !isStandalone()) {
         const dismissed = safeGetItem(IOS_DISMISS_KEY) === "1";
         setMode(!dismissed || remind ? "ios" : "hidden");
+        return;
+      }
+
+      // Genuinely unsupported (e.g. a desktop browser without Web Push). In-app
+      // notifications keep working; we never trap a user who can't physically enable.
+      if (!supported) {
+        setMode("hidden");
         return;
       }
 
@@ -319,7 +334,7 @@ export function NotificationGate() {
                   لا تفوت الدروس الجديدة والإعلانات المهمة
                 </h2>
                 <p className="mt-3 text-[15px] leading-relaxed text-slate-500">
-                  فعّل الإشعارات لتصلك أحدث الدروس وإعلانات المنصة فور نشرها، مباشرة على جهازك.
+                  فعّل الإشعارات لتصلك الدروس الجديدة وتنبيهات المجتمع فور نشرها، حتى عندما يكون التطبيق مغلقاً.
                 </p>
                 <Button
                   onClick={handleEnable}

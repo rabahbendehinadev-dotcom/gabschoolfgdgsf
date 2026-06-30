@@ -373,6 +373,7 @@ export const GetAdminUsersResponseItem = zod.object({
   isActive: zod.boolean(),
   pushEnabled: zod.boolean(),
   pushSupported: zod.boolean(),
+  pushPermission: zod.enum(["default", "granted", "denied", "unsupported"]),
   lastNotifiedAt: zod.date().nullish(),
   createdAt: zod.date(),
 });
@@ -417,6 +418,7 @@ export const UpdateAdminUserResponse = zod.object({
   isActive: zod.boolean(),
   pushEnabled: zod.boolean(),
   pushSupported: zod.boolean(),
+  pushPermission: zod.enum(["default", "granted", "denied", "unsupported"]),
   lastNotifiedAt: zod.date().nullish(),
   createdAt: zod.date(),
 });

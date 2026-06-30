@@ -2018,6 +2018,9 @@ components:
           type: boolean
         pushSupported:
           type: boolean
+        pushPermission:
+          type: string
+          enum: [default, granted, denied, unsupported]
         lastNotifiedAt:
           type: string
           format: date-time
@@ -2035,6 +2038,7 @@ components:
         - isActive
         - pushEnabled
         - pushSupported
+        - pushPermission
         - createdAt
 
     AdminStats:

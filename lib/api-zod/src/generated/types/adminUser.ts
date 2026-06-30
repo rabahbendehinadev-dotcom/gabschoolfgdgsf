@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { AdminUserAccountType } from "./adminUserAccountType";
+import type { AdminUserPushPermission } from "./adminUserPushPermission";
 import type { AdminUserSubscriptionType } from "./adminUserSubscriptionType";
 
 export interface AdminUser {
@@ -22,6 +23,7 @@ export interface AdminUser {
   isActive: boolean;
   pushEnabled: boolean;
   pushSupported: boolean;
+  pushPermission: AdminUserPushPermission;
   lastNotifiedAt?: Date | null;
   createdAt: Date;
 }
