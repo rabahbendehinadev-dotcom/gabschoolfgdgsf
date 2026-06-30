@@ -1,12 +1,27 @@
 import { Link, useLocation } from "wouter";
 import { motion } from "framer-motion";
+import { useQuery } from "@tanstack/react-query";
 import { Home, GraduationCap, Users, Bell, User } from "lucide-react";
+import {
+  getUnreadNotificationCount,
+  getGetUnreadNotificationCountQueryKey,
+} from "@workspace/api-client-react/src/generated/api";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
 export function BottomNav() {
   const [location] = useLocation();
-  const { user } = useAuth();
+  const { user, getAuthHeaders } = useAuth();
+
+  const { data: unread } = useQuery({
+    queryKey: getGetUnreadNotificationCountQueryKey(),
+    queryFn: () => getUnreadNotificationCount(getAuthHeaders()),
+    enabled: !!user,
+    refetchInterval: 45_000,
+    refetchOnWindowFocus: true,
+    staleTime: 30_000,
+  });
+  const unreadCount = user ? unread?.count ?? 0 : 0;
 
   const items = [
     { label: "الرئيسية", icon: Home, href: "/", match: (l: string) => l === "/" },
@@ -27,6 +42,7 @@ export function BottomNav() {
         {items.map((item) => {
           const active = item.match(location);
           const Icon = item.icon;
+          const showBadge = item.href === "/notifications" && unreadCount > 0;
           return (
             <li key={item.label} className="flex-1">
               <Link
@@ -53,6 +69,11 @@ export function BottomNav() {
                     )}
                     strokeWidth={active ? 2.4 : 2}
                   />
+                  {showBadge && (
+                    <span className="absolute -right-2 -top-1.5 z-10 flex h-[18px] min-w-[18px] items-center justify-center rounded-full border-2 border-white bg-red-500 px-1 text-[10px] font-bold leading-none text-white">
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </span>
+                  )}
                 </motion.span>
                 <span
                   className={cn(

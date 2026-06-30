@@ -30,6 +30,8 @@ import { AdminSubscriptions } from "@/pages/admin/Subscriptions";
 import { AdminActivityLog } from "@/pages/admin/ActivityLog";
 import { AdminPayments } from "@/pages/admin/Payments";
 import { AdminChangePassword } from "@/pages/admin/ChangePassword";
+import { AdminSendNotification } from "@/pages/admin/SendNotification";
+import { PushOptInCard } from "@/components/notifications/PushOptInCard";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
@@ -41,6 +43,7 @@ function PublicLayout({ children }: { children: React.ReactNode }) {
       <main className="flex-1">{children}</main>
       <Footer />
       <BottomNav />
+      <PushOptInCard />
     </div>
   );
 }
@@ -134,6 +137,9 @@ function Router() {
       </Route>
       <Route path="/gab-ctrl-9x/subscriptions">
         <AdminLayout><AdminSubscriptions /></AdminLayout>
+      </Route>
+      <Route path="/gab-ctrl-9x/send-notification">
+        <AdminLayout><AdminSendNotification /></AdminLayout>
       </Route>
       <Route path="/gab-ctrl-9x/activity-log">
         <AdminLayout><AdminActivityLog /></AdminLayout>

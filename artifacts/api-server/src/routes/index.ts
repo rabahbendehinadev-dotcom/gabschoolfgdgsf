@@ -9,6 +9,7 @@ import adminRouter from "./admin";
 import storageRouter from "./storage";
 import paymentsRouter from "./payments";
 import communityRouter from "./community";
+import notificationsRouter from "./notifications";
 
 const router: IRouter = Router();
 
@@ -22,5 +23,6 @@ router.use(adminRouter);
 router.use(storageRouter);
 router.use(paymentsRouter);
 router.use(communityRouter);
+router.use(notificationsRouter);
 
 export default router;
