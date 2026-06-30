@@ -456,6 +456,27 @@ paths:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
 
+  /admin/users/{id}/test-push:
+    post:
+      operationId: sendUserTestPush
+      tags: [admin]
+      summary: Send a test Web Push to a single user
+      security:
+        - adminAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Test push dispatched
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TestPushResult"
+
   /admin/users/{id}/reset-ip:
     post:
       operationId: resetUserIp
@@ -1465,6 +1486,17 @@ components:
         - enabled
         - disabled
 
+    TestPushResult:
+      type: object
+      properties:
+        attempted:
+          type: integer
+        success:
+          type: integer
+      required:
+        - attempted
+        - success
+
     UserProfile:
       type: object
       properties:
@@ -2021,7 +2053,18 @@ components:
         pushPermission:
           type: string
           enum: [default, granted, denied, unsupported]
+        pushState:
+          type: string
+          description: >-
+            Derived per-user push health: enabled (live subscription), missing
+            (granted permission but no subscription row), broken (has rows but
+            all failed delivery), denied (permission denied), none (never opted in).
+          enum: [enabled, missing, broken, denied, none]
         lastNotifiedAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastPushTestAt:
           type: string
           format: date-time
           nullable: true
@@ -2039,6 +2082,7 @@ components:
         - pushEnabled
         - pushSupported
         - pushPermission
+        - pushState
         - createdAt
 
     AdminStats:

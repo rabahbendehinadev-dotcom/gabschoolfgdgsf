@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { useGetAdminUsers, useUpdateAdminUser, useResetUserIp, useDeleteAdminUser, useGetAdminNotificationStats } from "@workspace/api-client-react/src/generated/api";
+import { useGetAdminUsers, useUpdateAdminUser, useResetUserIp, useDeleteAdminUser, useGetAdminNotificationStats, useSendUserTestPush } from "@workspace/api-client-react/src/generated/api";
 import { AdminUser, UpdateUserInput, GetAdminUsersNotifications } from "@workspace/api-client-react/src/generated/api.schemas";
 import { useAuth } from "@/lib/auth";
 import { Card, Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label } from "@/components/ui";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Edit, RefreshCw, ShieldOff, ShieldCheck, Trash2, MessageCircle, KeyRound, Eye, EyeOff, BellRing, BellOff, Clock } from "lucide-react";
+import { Search, Edit, RefreshCw, ShieldOff, ShieldCheck, Trash2, MessageCircle, KeyRound, Eye, EyeOff, BellRing, BellOff, Clock, Send, Loader2 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 
 const API_BASE = "";
@@ -28,11 +28,13 @@ export function AdminUsers() {
   const updateMut = useUpdateAdminUser({ request: getAdminAuthHeaders() });
   const resetIpMut = useResetUserIp({ request: getAdminAuthHeaders() });
   const deleteMut = useDeleteAdminUser({ request: getAdminAuthHeaders() });
+  const testPushMut = useSendUserTestPush({ request: getAdminAuthHeaders() });
 
   const [search, setSearch] = useState("");
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [formData, setFormData] = useState<UpdateUserInput>({});
   const [loadingId, setLoadingId] = useState<number | null>(null);
+  const [testingId, setTestingId] = useState<number | null>(null);
   const [resetPwUser, setResetPwUser] = useState<AdminUser | null>(null);
   const [resetPwForm, setResetPwForm] = useState({ newPassword: "", confirmPassword: "" });
   const [resetPwLoading, setResetPwLoading] = useState(false);
@@ -45,6 +47,36 @@ export function AdminUsers() {
     u.username.toLowerCase().includes(search.toLowerCase()) ||
     u.email.toLowerCase().includes(search.toLowerCase())
   );
+
+  const handleTestPush = async (user: AdminUser) => {
+    setTestingId(user.id);
+    try {
+      const r = await testPushMut.mutateAsync({ id: user.id });
+      if (r.attempted === 0) {
+        toast({
+          title: "لا يوجد اشتراك فعّال",
+          description: `${user.username} لا يملك جهازًا مُسجّلًا — اطلب منه إعادة تفعيل الإشعارات.`,
+          variant: "destructive",
+        });
+      } else if (r.success > 0) {
+        toast({
+          title: "تم إرسال الإشعار التجريبي ✅",
+          description: `وصل إلى ${r.success} من ${r.attempted} جهاز.`,
+        });
+      } else {
+        toast({
+          title: "فشل وصول الإشعار",
+          description: "رفضت الأجهزة المُسجّلة الإشعار — اطلب من المستخدم إعادة التفعيل.",
+          variant: "destructive",
+        });
+      }
+      refetch();
+    } catch {
+      toast({ title: "تعذّر إرسال الإشعار التجريبي", variant: "destructive" });
+    } finally {
+      setTestingId(null);
+    }
+  };
 
   const handleEdit = (user: AdminUser) => {
     setEditingUser(user);
@@ -270,23 +302,34 @@ export function AdminUsers() {
                       )}
                     </td>
                     <td className="px-4 py-4">
-                      {user.pushEnabled ? (
-                        <Badge className="bg-green-500/15 text-green-400 hover:bg-green-500/15 border-0 gap-1">
-                          <BellRing className="w-3 h-3" /> مفعّلة
-                        </Badge>
-                      ) : user.pushPermission === "denied" ? (
-                        <Badge className="bg-amber-500/15 text-amber-400 hover:bg-amber-500/15 border-0 gap-1" title="المستخدم رفض إذن الإشعارات في المتصفح">
-                          <BellOff className="w-3 h-3" /> رُفِض الإذن
-                        </Badge>
-                      ) : user.pushSupported ? (
-                        <Badge className="bg-red-500/15 text-red-400 hover:bg-red-500/15 border-0 gap-1">
-                          <BellOff className="w-3 h-3" /> غير مفعّلة
-                        </Badge>
-                      ) : (
-                        <Badge className="bg-white/5 text-muted-foreground border-0 gap-1" title="جهاز/متصفح لا يدعم الإشعارات">
-                          <BellOff className="w-3 h-3" /> غير مدعومة
-                        </Badge>
-                      )}
+                      <div className="flex flex-col gap-1">
+                        {user.pushState === "enabled" ? (
+                          <Badge className="bg-green-500/15 text-green-400 hover:bg-green-500/15 border-0 gap-1">
+                            <BellRing className="w-3 h-3" /> مفعّلة
+                          </Badge>
+                        ) : user.pushState === "denied" ? (
+                          <Badge className="bg-amber-500/15 text-amber-400 hover:bg-amber-500/15 border-0 gap-1" title="المستخدم رفض إذن الإشعارات في المتصفح">
+                            <BellOff className="w-3 h-3" /> رُفِض الإذن
+                          </Badge>
+                        ) : user.pushState === "broken" ? (
+                          <Badge className="bg-red-500/15 text-red-400 hover:bg-red-500/15 border-0 gap-1" title="كان مشتركًا لكن توقّف وصول الإشعارات — بحاجة لإعادة التفعيل">
+                            <BellOff className="w-3 h-3" /> معطّلة
+                          </Badge>
+                        ) : user.pushState === "missing" ? (
+                          <Badge className="bg-orange-500/15 text-orange-400 hover:bg-orange-500/15 border-0 gap-1" title="مُنح الإذن لكن لا يوجد اشتراك صالح — سيُعاد إنشاؤه عند الدخول التالي">
+                            <BellOff className="w-3 h-3" /> ناقصة
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-white/5 text-muted-foreground border-0 gap-1" title="لم يُفعّل الإشعارات بعد / غير مدعوم">
+                            <BellOff className="w-3 h-3" /> غير مفعّلة
+                          </Badge>
+                        )}
+                        {user.lastPushTestAt && (
+                          <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground" title="آخر إشعار تجريبي">
+                            <Send className="w-2.5 h-2.5" /> {formatDate(user.lastPushTestAt)}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap text-xs text-muted-foreground">
                       {user.lastNotifiedAt ? (
@@ -310,6 +353,11 @@ export function AdminUsers() {
                         </Button>
                         <Button variant="ghost" size="icon" title="تصفير IP" onClick={() => handleResetIp(user.id)} disabled={user.ipCount === 0 || loadingId === user.id}>
                           <RefreshCw className="w-4 h-4 text-blue-400" />
+                        </Button>
+                        <Button variant="ghost" size="icon" title="إرسال إشعار تجريبي" onClick={() => handleTestPush(user)} disabled={testingId === user.id}>
+                          {testingId === user.id
+                            ? <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
+                            : <Send className="w-4 h-4 text-emerald-400" />}
                         </Button>
                         <Button
                           variant="ghost"

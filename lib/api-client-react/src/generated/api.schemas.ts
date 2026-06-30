@@ -114,6 +114,11 @@ export interface AdminNotificationStats {
   disabled: number;
 }
 
+export interface TestPushResult {
+  attempted: number;
+  success: number;
+}
+
 export interface ChangePasswordInput {
   currentPassword: string;
   /** @minLength 6 */
@@ -407,6 +412,20 @@ export const AdminUserPushPermission = {
   unsupported: "unsupported",
 } as const;
 
+/**
+ * Derived per-user push health: enabled (live subscription), missing (granted permission but no subscription row), broken (has rows but all failed delivery), denied (permission denied), none (never opted in).
+ */
+export type AdminUserPushState =
+  (typeof AdminUserPushState)[keyof typeof AdminUserPushState];
+
+export const AdminUserPushState = {
+  enabled: "enabled",
+  missing: "missing",
+  broken: "broken",
+  denied: "denied",
+  none: "none",
+} as const;
+
 export interface AdminUser {
   id: number;
   username: string;
@@ -422,7 +441,10 @@ export interface AdminUser {
   pushEnabled: boolean;
   pushSupported: boolean;
   pushPermission: AdminUserPushPermission;
+  /** Derived per-user push health: enabled (live subscription), missing (granted permission but no subscription row), broken (has rows but all failed delivery), denied (permission denied), none (never opted in). */
+  pushState: AdminUserPushState;
   lastNotifiedAt?: string | null;
+  lastPushTestAt?: string | null;
   createdAt: string;
 }
 

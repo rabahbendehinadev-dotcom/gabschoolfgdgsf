@@ -6,6 +6,7 @@ import {
   reportPushStatus,
   ackPushReminder,
   savePushSubscription,
+  deletePushSubscription,
 } from "@workspace/api-client-react/src/generated/api";
 import type {
   PushStatusResponse,
@@ -18,6 +19,7 @@ import {
   isPushSupported,
   getNotificationPermission,
   enablePushSubscription,
+  ensureFreshSubscription,
 } from "@/lib/push";
 
 /**
@@ -123,11 +125,24 @@ export function NotificationGate() {
   const subscribeAndSave = useCallback(async (): Promise<boolean> => {
     const key = await getVapid();
     if (!key) return false;
-    const sub = await enablePushSubscription(key);
-    if (!sub) return false;
+    // Already granted (e.g. an old user logging back in) → heal silently without
+    // a prompt, recreating the subscription if it's bound to a stale VAPID key.
+    // Still "default" (mandatory modal) → request permission then subscribe.
+    const fresh =
+      getNotificationPermission() === "granted"
+        ? await ensureFreshSubscription(key)
+        : await enablePushSubscription(key);
+    if (!fresh) return false;
     try {
       // The server stamps permission=granted/supported telemetry on save.
-      await savePushSubscription(sub, getAuthHeaders());
+      await savePushSubscription(fresh.sub, getAuthHeaders());
+      // Prune the dead endpoint we just replaced so it can't linger and report
+      // a false "enabled" / get retried forever.
+      if (fresh.staleEndpoint) {
+        await deletePushSubscription({ endpoint: fresh.staleEndpoint }, getAuthHeaders()).catch(
+          () => {},
+        );
+      }
       return true;
     } catch {
       return false;
