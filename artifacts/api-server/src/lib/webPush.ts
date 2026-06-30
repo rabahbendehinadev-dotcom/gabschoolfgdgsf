@@ -51,17 +51,22 @@ export type PushPayload = {
  *  - 403 / 400 (VAPID/auth)    → a single stale-key subscription returns this, BUT so
  *    does a *server-side* VAPID misconfiguration — for which EVERY endpoint would
  *    return it. To avoid mass-marking every user broken during such an outage, we
- *    suppress 403/400 pruning ONLY when it looks like a global outage: the whole
- *    attempted batch was rejected AND the batch was large enough to be meaningful
- *    evidence (>= GLOBAL_OUTAGE_MIN_BATCH). A tiny all-rejected batch — e.g. one
- *    old user with a single stale-key sub, or an admin single-user test push — is
- *    far more likely to be a genuinely-broken endpoint, so we still prune it.
- *    Callers that target a single user on purpose (admin test push) can force
- *    pruning via `pruneRejectedEvenIfAllFail` so the user flips to "broken".
+ *    suppress 403/400 pruning ONLY when the failure SHAPE looks global: nothing
+ *    was delivered (success === 0), every attempt resolved to a *classified*
+ *    failure (403/400 or 404/410 — no transient/other errors muddying the
+ *    signal), and there were enough 403/400 rejections to be meaningful evidence
+ *    (>= GLOBAL_OUTAGE_MIN_BATCH). Definite 404/410 "gone" endpoints are ALWAYS
+ *    pruned, so sprinkling a few of them into an outage batch must NOT disable the
+ *    guard for the 403/400 ones. A small rejection count — e.g. one old user with
+ *    a single stale-key sub, or an admin single-user test push — is far more
+ *    likely a genuinely-broken endpoint, so we still prune it. Callers that target
+ *    a single user on purpose (admin test push) can force pruning via
+ *    `pruneRejectedEvenIfAllFail` so the user flips to "broken".
  *  - anything else             → left untouched (transient; retried next send).
  */
-// Below this batch size, an all-403/400 result is treated as genuinely-broken
-// per-subscription endpoints rather than a server-wide VAPID misconfiguration.
+// Below this many 403/400 rejections, an all-failed send is treated as
+// genuinely-broken per-subscription endpoints rather than a server-wide VAPID
+// misconfiguration.
 const GLOBAL_OUTAGE_MIN_BATCH = 3;
 
 export async function sendPushToUsers(
@@ -106,15 +111,24 @@ export async function sendPushToUsers(
     }),
   );
 
+  // Definite 404/410 "gone" endpoints are always pruned.
   const deadIds = [...goneIds];
   // Treat 403/400 as a likely *global* VAPID misconfig (and therefore skip
-  // pruning) only when the ENTIRE batch was rejected AND that batch was large
-  // enough to be meaningful evidence. A small all-rejected batch — or a caller
-  // that deliberately targets one user (admin test push) — is instead treated
-  // as genuinely-broken per-subscription endpoints and pruned.
-  const allRejected = rejectedIds.length === subs.length;
+  // pruning the rejected endpoints) only when the failure SHAPE looks global:
+  // nothing was delivered, EVERY attempt resolved to a classified failure
+  // (403/400 or 404/410 — no transient/other errors muddying the signal), and
+  // there were enough 403/400 rejections to be meaningful evidence. Mixing a few
+  // genuinely-gone 404/410 endpoints into the batch must not defeat the guard, so
+  // it keys on the rejection count rather than on the whole batch being rejected.
+  // A small rejection count — or a caller that deliberately targets one user
+  // (admin test push) — is instead treated as genuinely-broken endpoints and pruned.
+  const nothingDelivered = success === 0;
+  const allFailuresClassified = goneIds.length + rejectedIds.length === subs.length;
   const looksGlobalOutage =
-    allRejected && subs.length >= GLOBAL_OUTAGE_MIN_BATCH && !opts.pruneRejectedEvenIfAllFail;
+    nothingDelivered &&
+    allFailuresClassified &&
+    rejectedIds.length >= GLOBAL_OUTAGE_MIN_BATCH &&
+    !opts.pruneRejectedEvenIfAllFail;
   if (rejectedIds.length > 0 && !looksGlobalOutage) {
     deadIds.push(...rejectedIds);
   }
