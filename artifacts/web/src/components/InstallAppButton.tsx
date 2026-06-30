@@ -9,9 +9,17 @@ type InstallAppButtonProps = {
   mode?: "navbar" | "menu";
   /** Called right before installing/opening the guide (e.g. to close the mobile menu). */
   onNavigate?: () => void;
+  /**
+   * Open a hoisted iOS guide that lives OUTSIDE this component's subtree. Pass
+   * this whenever the button sits inside a container that unmounts on click
+   * (e.g. a mobile menu that closes via `onNavigate`). Without it the locally
+   * rendered dialog unmounts the instant the menu closes, so the modal flashes
+   * open then disappears immediately.
+   */
+  onShowIosGuide?: () => void;
 };
 
-export function InstallAppButton({ mode = "navbar", onNavigate }: InstallAppButtonProps) {
+export function InstallAppButton({ mode = "navbar", onNavigate, onShowIosGuide }: InstallAppButtonProps) {
   const { canInstall, isStandalone, isIOS, promptInstall } = usePwaInstall();
   const [iosOpen, setIosOpen] = useState(false);
 
@@ -24,11 +32,26 @@ export function InstallAppButton({ mode = "navbar", onNavigate }: InstallAppButt
   if (!supported) return null;
 
   const handleClick = async () => {
-    onNavigate?.();
     if (canInstall) {
+      // Android / desktop: the browser's own install prompt. Never on iOS.
+      onNavigate?.();
       await promptInstall();
-    } else if (isIOS) {
-      setIosOpen(true);
+      return;
+    }
+    if (isIOS) {
+      // iOS has no native prompt → open the in-page step-by-step guide.
+      // No redirect, no reload.
+      if (onShowIosGuide) {
+        // The hoisted guide lives in a stable place, so it's safe to also
+        // close the menu without unmounting the dialog.
+        onShowIosGuide();
+        onNavigate?.();
+      } else {
+        // Local fallback — only safe where this component stays mounted (e.g.
+        // the desktop navbar). Do NOT call onNavigate here, or closing the
+        // container would unmount the dialog before it can be seen.
+        setIosOpen(true);
+      }
     }
   };
 
@@ -56,8 +79,9 @@ export function InstallAppButton({ mode = "navbar", onNavigate }: InstallAppButt
         </Button>
       )}
 
-      {/* iOS Safari has no native install prompt → premium step-by-step guide. */}
-      <IosInstallGuide open={iosOpen} onOpenChange={setIosOpen} />
+      {/* iOS Safari has no native install prompt → premium step-by-step guide.
+          Only render a local copy when no hoisted guide was provided. */}
+      {!onShowIosGuide && <IosInstallGuide open={iosOpen} onOpenChange={setIosOpen} />}
     </>
   );
 }

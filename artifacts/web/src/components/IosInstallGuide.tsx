@@ -288,6 +288,11 @@ export function IosInstallGuide({ open, onOpenChange }: IosInstallGuideProps) {
         <DialogPrimitive.Content
           dir="rtl"
           aria-describedby="ios-guide-desc"
+          // Only an explicit close (the X button, or finishing the steps) may
+          // dismiss the guide — never an outside tap or the Esc key.
+          onEscapeKeyDown={(e) => e.preventDefault()}
+          onPointerDownOutside={(e) => e.preventDefault()}
+          onInteractOutside={(e) => e.preventDefault()}
           className="fixed inset-0 z-[60] flex flex-col bg-background outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:slide-out-to-bottom-4 data-[state=open]:slide-in-from-bottom-4"
         >
           {/* header */}

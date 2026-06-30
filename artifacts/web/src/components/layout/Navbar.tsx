@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui";
 import { InstallAppButton } from "@/components/InstallAppButton";
+import { IosInstallGuide } from "@/components/IosInstallGuide";
 import { useAuth } from "@/lib/auth";
 import { LogOut, User, Crown, Menu, X, BookOpen, CreditCard, Home, Users } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -10,6 +11,9 @@ export function Navbar() {
   const { user, logout } = useAuth();
   const [location] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  // The iOS install guide lives at the Navbar root (always mounted) so closing
+  // the mobile menu can never unmount the dialog mid-open.
+  const [iosGuideOpen, setIosGuideOpen] = useState(false);
 
   const navLinks = [
     { href: "/",          label: "الرئيسية",     icon: <Home className="w-4 h-4" /> },
@@ -55,7 +59,7 @@ export function Navbar() {
 
           {/* Left col: Actions (RTL — visually on left) */}
           <div className="hidden lg:flex items-center gap-4 justify-end">
-            <InstallAppButton mode="navbar" />
+            <InstallAppButton mode="navbar" onShowIosGuide={() => setIosGuideOpen(true)} />
             {user ? (
               <div className="flex items-center gap-3">
                 {user.accountType === "vip" && (
@@ -131,7 +135,11 @@ export function Navbar() {
                   </Link>
                 ))}
 
-              <InstallAppButton mode="menu" onNavigate={() => setMobileOpen(false)} />
+              <InstallAppButton
+                mode="menu"
+                onNavigate={() => setMobileOpen(false)}
+                onShowIosGuide={() => setIosGuideOpen(true)}
+              />
 
               {!user && (
                 <div className="mt-2 pt-3 border-t border-border flex flex-col gap-2">
@@ -159,6 +167,9 @@ export function Navbar() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Mounted once at the Navbar root — stable across menu open/close. */}
+      <IosInstallGuide open={iosGuideOpen} onOpenChange={setIosGuideOpen} />
     </motion.nav>
   );
 }
