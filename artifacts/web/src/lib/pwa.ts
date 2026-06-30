@@ -63,6 +63,59 @@ export function isIOS(): boolean {
 }
 
 /**
+ * Known in-app browsers (embedded WebViews). "Add to Home Screen" is either
+ * missing or non-functional inside these, so the user must reopen the link in
+ * Safari first. Returns the app's slug (for tailored copy) or null.
+ */
+export type InAppBrowser =
+  | "instagram"
+  | "facebook"
+  | "messenger"
+  | "tiktok"
+  | "snapchat"
+  | "twitter"
+  | "linkedin"
+  | "line"
+  | "webview"
+  | null;
+
+export function getInAppBrowser(): InAppBrowser {
+  if (typeof window === "undefined") return null;
+  const ua = window.navigator.userAgent || "";
+  if (/Instagram/i.test(ua)) return "instagram";
+  if (/FBAN|FBAV|FB_IAB|FB4A/i.test(ua)) return "facebook";
+  if (/Messenger/i.test(ua)) return "messenger";
+  if (/TikTok|musical_ly|Bytedance/i.test(ua)) return "tiktok";
+  if (/Snapchat/i.test(ua)) return "snapchat";
+  if (/Twitter/i.test(ua)) return "twitter";
+  if (/LinkedInApp/i.test(ua)) return "linkedin";
+  if (/\bLine\//i.test(ua)) return "line";
+  // Generic iOS WebView: WebKit on an Apple device with no real browser token.
+  const isAppleDevice = /iPad|iPhone|iPod/.test(ua);
+  const isGenericIosWebview =
+    isAppleDevice &&
+    /AppleWebKit/.test(ua) &&
+    !/Safari/.test(ua) &&
+    !/CriOS|FxiOS|EdgiOS|OPiOS/.test(ua);
+  if (isGenericIosWebview) return "webview";
+  return null;
+}
+
+export function isInAppBrowser(): boolean {
+  return getInAppBrowser() !== null;
+}
+
+/** True only for genuine iOS Safari (not Chrome/Firefox/Edge on iOS, not a WebView). */
+export function isIOSSafari(): boolean {
+  if (typeof window === "undefined") return false;
+  if (!isIOS()) return false;
+  const ua = window.navigator.userAgent || "";
+  const isRealSafari =
+    /Safari/.test(ua) && /AppleWebKit/.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS/.test(ua);
+  return isRealSafari && !isInAppBrowser();
+}
+
+/**
  * Trigger the browser's native install dialog. A deferred prompt can only be
  * used once, so it is cleared afterwards.
  */
