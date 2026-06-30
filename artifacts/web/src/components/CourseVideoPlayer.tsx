@@ -98,6 +98,7 @@ export function CourseVideoPlayer({
   const [quality, setQuality] = useState("تلقائي");
   const [speed, setSpeed] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [theater, setTheater] = useState(false); // بديل ملء الشاشة داخل الصفحة عند عدم دعم Fullscreen
   const [controlsVisible, setControlsVisible] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [scrubbing, setScrubbing] = useState(false);
@@ -237,28 +238,50 @@ export function CourseVideoPlayer({
     setSpeed(s);
   }, []);
 
-  /* ── شاشة كاملة (داخل الصفحة) + قفل الاتجاه أفقياً على الجوال ── */
+  /* ── شاشة كاملة: حاوية (سطح المكتب + Android) ← فيديو أصلي (iPhone) ← وضع المسرح ──
+     iPhone Safari لا يدعم requestFullscreen للعناصر العادية (DIV)؛ لذلك نجرّب ملء
+     شاشة الحاوية أولاً (يحافظ على العلامة المائية والتحكم)، فإن لم تتوفّر ننتقل إلى
+     ملء شاشة الفيديو الأصلي webkitEnterFullscreen، وأخيراً وضع المسرح داخل الصفحة. */
   const toggleFullscreen = useCallback(async () => {
     const el = containerRef.current as FsEl | null;
     const doc = document as FsDoc;
     if (!el) return;
+
+    // وضع المسرح مفعّل → الزر يخرج منه
+    if (theater) { setTheater(false); return; }
+
     const active = doc.fullscreenElement || doc.webkitFullscreenElement;
-    try {
-      if (!active) {
-        const req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
-        await req?.call(el);
+    if (active) {
+      const exit = doc.exitFullscreen || doc.webkitExitFullscreen || doc.msExitFullscreen;
+      try { await exit?.call(doc); } catch { /* */ }
+      try { (screen as Screen & { orientation?: { unlock?: () => void } }).orientation?.unlock?.(); } catch { /* */ }
+      return;
+    }
+
+    // 1) ملء شاشة الحاوية (سطح المكتب + Android Chrome)
+    const req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+    if (typeof req === "function") {
+      try {
+        await req.call(el);
         const orientation = (screen as Screen & { orientation?: { lock?: (o: string) => Promise<void> } }).orientation;
         try { await orientation?.lock?.("landscape"); } catch { /* غير مدعوم على الكمبيوتر */ }
-      } else {
-        const exit = doc.exitFullscreen || doc.webkitExitFullscreen || doc.msExitFullscreen;
-        await exit?.call(doc);
-        try { (screen as Screen & { orientation?: { unlock?: () => void } }).orientation?.unlock?.(); } catch { /* */ }
-      }
-    } catch { /* iOS Safari قد يستخدم ملء شاشة الفيديو الأصلي */
-      const v = videoRef.current as (HTMLVideoElement & { webkitEnterFullscreen?: () => void }) | null;
-      v?.webkitEnterFullscreen?.();
+        return;
+      } catch { /* iPhone لا يدعم ملء شاشة DIV → جرّب ملء شاشة الفيديو الأصلي */ }
     }
-  }, []);
+
+    // 2) iPhone Safari: ملء شاشة الفيديو الأصلي (لا يفتح Google Drive، يبقى داخل المنصة)
+    const v = videoRef.current as (HTMLVideoElement & { webkitEnterFullscreen?: () => void }) | null;
+    if (typeof v?.webkitEnterFullscreen === "function") {
+      try {
+        if (v.paused) v.play().catch(() => { /* */ });
+        v.webkitEnterFullscreen();
+        return;
+      } catch { /* */ }
+    }
+
+    // 3) بديل أخير: وضع المسرح داخل الصفحة (حجم كبير دون مغادرة المنصة)
+    setTheater(true);
+  }, [theater]);
 
   const togglePip = useCallback(async () => {
     const v = videoRef.current as PipVideo | null;
@@ -275,6 +298,7 @@ export function CourseVideoPlayer({
     const v = videoRef.current;
     if (!v) return;
     const onLoaded = () => {
+      setWaiting(false); // الميتاداتا جاهزة → أظهر زر التشغيل بدل دوّارة التحميل الدائمة
       setDuration(v.duration || 0);
       setQuality(qualityLabel(v.videoHeight));
       // اختيار object-fit ذكي: ملء الكادر لمقاطع قريبة من 16:9، احتواء لغيرها (بلا تشويه)
@@ -305,6 +329,7 @@ export function CourseVideoPlayer({
     const onPause = () => { setPlaying(false); setControlsVisible(true); };
     const onWaiting = () => setWaiting(true);
     const onPlaying = () => setWaiting(false);
+    const onReady = () => setWaiting(false);
     const onEnded = () => { setPlaying(false); setControlsVisible(true); if (saveKey) { try { localStorage.removeItem(saveKey); } catch { /* */ } } };
     const onError = () => { setWaiting(false); setLoadError(true); };
     const onVol = () => { setVolume(v.volume); setMuted(v.muted); };
@@ -316,6 +341,8 @@ export function CourseVideoPlayer({
     v.addEventListener("pause", onPause);
     v.addEventListener("waiting", onWaiting);
     v.addEventListener("playing", onPlaying);
+    v.addEventListener("loadeddata", onReady);
+    v.addEventListener("canplay", onReady);
     v.addEventListener("ended", onEnded);
     v.addEventListener("error", onError);
     v.addEventListener("volumechange", onVol);
@@ -327,6 +354,8 @@ export function CourseVideoPlayer({
       v.removeEventListener("pause", onPause);
       v.removeEventListener("waiting", onWaiting);
       v.removeEventListener("playing", onPlaying);
+      v.removeEventListener("loadeddata", onReady);
+      v.removeEventListener("canplay", onReady);
       v.removeEventListener("ended", onEnded);
       v.removeEventListener("error", onError);
       v.removeEventListener("volumechange", onVol);
@@ -356,6 +385,19 @@ export function CourseVideoPlayer({
       document.removeEventListener("webkitfullscreenchange", onFs);
     };
   }, []);
+
+  /* ── وضع المسرح: قفل تمرير الصفحة + Escape للخروج ── */
+  useEffect(() => {
+    if (!theater) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setTheater(false); };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [theater]);
 
   /* ── الحماية: منع القائمة/النسخ/السحب + رصد محاولات التصوير وأدوات المطوّر ── */
   useEffect(() => {
@@ -485,37 +527,49 @@ export function CourseVideoPlayer({
     dragRef.current = null;
     if (!d) { return; }
     if (d.mode !== "") return; // كانت إيماءة سحب، ليست نقرة
-    // نقرة: كشف النقر المزدوج للتقديم/الترجيع 10 ثوان
+    const v = videoRef.current;
     const now = Date.now();
     const rect = containerRef.current?.getBoundingClientRect();
     const isRight = rect ? e.clientX - rect.left > rect.width / 2 : true;
     const last = lastTapRef.current;
-    if (last && now - last.t < 300 && Math.abs(e.clientX - last.x) < 60) {
-      // RTL: نصف يمين = ترجيع، نصف يسار = تقديم
+
+    // نقر مزدوج (أثناء التشغيل فقط): تقديم/ترجيع 10 ثوان — RTL: يمين=ترجيع، يسار=تقديم
+    if (last && now - last.t < 300 && Math.abs(e.clientX - last.x) < 60 && v && !v.paused) {
       seekBy(isRight ? -10 : 10);
       lastTapRef.current = null;
-    } else {
-      lastTapRef.current = { t: now, x: e.clientX };
-      setTimeout(() => {
-        if (lastTapRef.current && Date.now() - lastTapRef.current.t >= 280) {
-          setControlsVisible(v => !v);
-          if (!controlsVisible) showControls();
-          lastTapRef.current = null;
-        }
-      }, 300);
+      return;
     }
-  }, [seekBy, controlsVisible, showControls]);
+
+    // الفيديو متوقّف → أي نقرة تشغّله فوراً (تجربة مثل YouTube Mobile: Tap = Play)
+    if (v && v.paused && !videoDisabled) {
+      togglePlay();
+      lastTapRef.current = null;
+      return;
+    }
+
+    // الفيديو يعمل → نقرة مفردة تُظهر/تُخفي التحكم (مع إتاحة كشف النقر المزدوج)
+    lastTapRef.current = { t: now, x: e.clientX };
+    setTimeout(() => {
+      if (lastTapRef.current && Date.now() - lastTapRef.current.t >= 280) {
+        setControlsVisible(vv => !vv);
+        if (!controlsVisible) showControls();
+        lastTapRef.current = null;
+      }
+    }, 300);
+  }, [seekBy, controlsVisible, showControls, togglePlay, videoDisabled]);
 
   const progressPct = duration ? (current / duration) * 100 : 0;
   const bufferedPct = duration ? (buffered / duration) * 100 : 0;
 
   const containerClass = cn(
     "relative w-full overflow-hidden bg-black select-none group/player",
-    isFullscreen ? "rounded-none" : "rounded-2xl",
+    isFullscreen || theater ? "rounded-none" : "rounded-2xl",
   );
-  const containerStyle: CSSProperties = isFullscreen
-    ? { width: "100vw", height: "100vh" }
-    : { aspectRatio: "16 / 9" };
+  const containerStyle: CSSProperties = theater
+    ? { position: "fixed", inset: 0, width: "100vw", height: "100dvh", zIndex: 9999 }
+    : isFullscreen
+      ? { width: "100vw", height: "100vh" }
+      : { aspectRatio: "16 / 9" };
 
   return (
     <div className="w-full">
@@ -715,8 +769,8 @@ export function CourseVideoPlayer({
                 </CtrlBtn>
               )}
 
-              <CtrlBtn onClick={toggleFullscreen} label={isFullscreen ? "إنهاء ملء الشاشة" : "ملء الشاشة"}>
-                {isFullscreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
+              <CtrlBtn onClick={toggleFullscreen} label={isFullscreen || theater ? "إنهاء ملء الشاشة" : "ملء الشاشة"}>
+                {isFullscreen || theater ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
               </CtrlBtn>
             </div>
           </div>
