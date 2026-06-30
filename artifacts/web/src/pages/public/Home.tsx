@@ -7,6 +7,7 @@ import { useGetCategories, useGetSubscriptionPlans, useGetVideos } from "@worksp
 import { useAuth } from "@/lib/auth";
 import { CategoryCard } from "@/components/public/CategoryCard";
 import { CoursePlayer } from "@/components/public/CoursePlayer";
+import { InstallAppSection } from "@/components/public/InstallAppSection";
 import iphoneLocked from "@assets/generated_images/hero_iphone_locked.png";
 import iphoneHome from "@assets/generated_images/hero_iphone_home.png";
 import androidUnlock from "@assets/generated_images/hero_android_unlock.png";
@@ -235,6 +236,11 @@ export function Home() {
           </svg>
         </div>
       </section>
+
+      {/* ══════════════════════════════════
+          قسم تثبيت التطبيق — أزرار iPhone / Android بارزة تحت البانر
+      ══════════════════════════════════ */}
+      <InstallAppSection />
 
       {/* ══════════════════════════════════
           ماركات الهواتف المدعومة (الكروت) + دروس الماركة المختارة أسفلها
