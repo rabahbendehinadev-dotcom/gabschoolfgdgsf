@@ -23,3 +23,12 @@ The web artifact is an installable PWA with a **manual** install button (no auto
 - Manifest + apple-touch-icon links are injected at runtime from `import.meta.env.BASE_URL`
   (not hard-coded in index.html) so they stay correct across deep-linked SPA routes and any
   base path. The web artifact's `BASE_PATH` is `/` in both dev and prod.
+
+- "Modal flashes open then disappears" = the dialog is owned by a subtree that unmounts on the
+  same tap that opens it. The install button sat inside the mobile menu, whose tap handler both
+  opened the guide and closed the menu (`mobileOpen` → false), unmounting the button. A React
+  Portal does NOT save you: portal content unmounts when its owning component unmounts.
+  **Why:** dialog open-state and the menu's mounted-state were coupled to the same click.
+  **How to apply:** mount any such dialog at a stable, always-mounted ancestor and trigger it via
+  a callback — never as a child of a conditionally-rendered menu/sheet. For the iOS install guide
+  specifically, also suppress Esc + outside-tap dismissal so it only closes via its own controls.
