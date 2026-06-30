@@ -23,6 +23,14 @@ function AndroidGlyph({ className }: { className?: string }) {
   );
 }
 
+function WindowsGlyph({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 448 512" fill="currentColor" className={className} aria-hidden="true">
+      <path d="M0 93.7l183.6-25.3v177.4H0V93.7zm0 324.6l183.6 25.3V268.4H0v149.9zm203.8 28L448 480V268.4H203.8v177.9zm0-380.6v180.1H448V32L203.8 65.7z" />
+    </svg>
+  );
+}
+
 /* ------------------------------ store button ------------------------------ */
 
 function StoreButton({
@@ -82,6 +90,25 @@ export function InstallAppSection() {
     showAndroidHint();
   };
 
+  const showDesktopHint = () => {
+    toast({
+      title: "تثبيت التطبيق على الكمبيوتر",
+      description:
+        "انقر على أيقونة التثبيت (⊕) في شريط العنوان أعلى المتصفح، أو افتح قائمة المتصفح (⋮) واختر «تثبيت GAB».",
+    });
+  };
+
+  const handleDesktop = async () => {
+    // Desktop PWA install uses the same browser prompt as Android. If it isn't
+    // available, guide the user to the address-bar install icon. No downloads.
+    if (canInstall) {
+      const outcome = await promptInstall();
+      if (outcome === "unavailable") showDesktopHint();
+      return;
+    }
+    showDesktopHint();
+  };
+
   // iPhone has no native prompt → open the in-page step-by-step guide.
   // Never opens the App Store, no redirect/reload.
   const handleIphone = () => setIosOpen(true);
@@ -112,7 +139,7 @@ export function InstallAppSection() {
               متجر.
             </p>
 
-            <div className="mt-8 flex flex-col items-center justify-center gap-3.5 sm:flex-row">
+            <div className="mt-8 flex flex-col items-center justify-center gap-3.5">
               <StoreButton
                 icon={<AppleGlyph className="h-7 w-7 text-white dark:text-neutral-900" />}
                 small="أضف GAB إلى الشاشة الرئيسية"
@@ -124,6 +151,12 @@ export function InstallAppSection() {
                 small="ثبّت GAB كتطبيق على هاتفك"
                 big="تثبيت على Android"
                 onClick={handleAndroid}
+              />
+              <StoreButton
+                icon={<WindowsGlyph className="h-7 w-7 text-[#00A4EF]" />}
+                small="ثبّت GAB كتطبيق على جهازك"
+                big="تثبيت على الكمبيوتر"
+                onClick={handleDesktop}
               />
             </div>
           </div>
