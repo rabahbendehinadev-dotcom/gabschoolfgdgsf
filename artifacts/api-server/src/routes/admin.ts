@@ -2,8 +2,8 @@ import path from "path";
 import fs from "fs";
 import { Router, type IRouter } from "express";
 import multer from "multer";
-import { db, usersTable, videosTable, categoriesTable, playlistsTable, subscriptionPlansTable, visitLogsTable, activityLogsTable, notificationsTable, notificationRecipientsTable } from "@workspace/db";
-import { eq, sql, count, desc, asc, lt, and, gte, isNotNull, inArray } from "drizzle-orm";
+import { db, usersTable, videosTable, categoriesTable, playlistsTable, subscriptionPlansTable, visitLogsTable, activityLogsTable, notificationsTable, notificationRecipientsTable, pushSubscriptionsTable } from "@workspace/db";
+import { eq, sql, count, desc, asc, lt, and, gte, isNull, isNotNull, inArray, max } from "drizzle-orm";
 
 import { adminAuth } from "../middlewares/auth";
 import { effectiveIpState } from "../lib/ipPolicy";
@@ -121,11 +121,33 @@ router.get("/admin/stats", adminAuth, async (_req, res) => {
   }
 });
 
-router.get("/admin/users", adminAuth, async (_req, res) => {
+router.get("/admin/users", adminAuth, async (req, res) => {
   try {
+    const notifFilter = req.query.notifications;
     const users = await db.select().from(usersTable).orderBy(desc(usersTable.createdAt));
-    res.json(users.map(u => {
+
+    // A user is "enabled" iff they have at least one push subscription that
+    // hasn't been pruned for delivery failures — the only proof we can reach
+    // them, independent of the per-device permission they last reported.
+    const activeSubs = await db
+      .selectDistinct({ userId: pushSubscriptionsTable.userId })
+      .from(pushSubscriptionsTable)
+      .where(isNull(pushSubscriptionsTable.failedAt));
+    const enabledIds = new Set(activeSubs.map((s) => s.userId));
+
+    // Last time each user actually received a notification (fan-out delivery).
+    const lastDelivered = await db
+      .select({
+        userId: notificationRecipientsTable.userId,
+        last: max(notificationRecipientsTable.deliveredAt),
+      })
+      .from(notificationRecipientsTable)
+      .groupBy(notificationRecipientsTable.userId);
+    const lastMap = new Map(lastDelivered.map((r) => [r.userId, r.last]));
+
+    const mapped = users.map(u => {
       const ip = effectiveIpState(u);
+      const last = lastMap.get(u.id) ?? null;
       return {
         id: u.id,
         username: u.username,
@@ -139,11 +161,39 @@ router.get("/admin/users", adminAuth, async (_req, res) => {
         ipCount: ip.ipCount,
         isActive: u.isActive,
         phone: u.phone ?? null,
+        pushEnabled: enabledIds.has(u.id),
+        pushSupported: u.pushSupported,
+        lastNotifiedAt: last ? new Date(last).toISOString() : null,
         createdAt: u.createdAt.toISOString(),
       };
-    }));
+    });
+
+    const filtered =
+      notifFilter === "enabled"
+        ? mapped.filter((u) => u.pushEnabled)
+        : notifFilter === "disabled"
+          ? mapped.filter((u) => !u.pushEnabled)
+          : mapped;
+
+    res.json(filtered);
   } catch (error: unknown) {
     res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" || "Failed to fetch users" });
+  }
+});
+
+// GET /admin/users/notification-stats — opt-in counts for the dashboard badge.
+router.get("/admin/users/notification-stats", adminAuth, async (_req, res) => {
+  try {
+    const [totalRow] = await db.select({ c: count() }).from(usersTable);
+    const activeSubs = await db
+      .selectDistinct({ userId: pushSubscriptionsTable.userId })
+      .from(pushSubscriptionsTable)
+      .where(isNull(pushSubscriptionsTable.failedAt));
+    const total = Number(totalRow?.c ?? 0);
+    const enabled = activeSubs.length;
+    res.json({ total, enabled, disabled: Math.max(total - enabled, 0) });
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Failed to load notification stats" });
   }
 });
 

@@ -31,7 +31,7 @@ import { AdminActivityLog } from "@/pages/admin/ActivityLog";
 import { AdminPayments } from "@/pages/admin/Payments";
 import { AdminChangePassword } from "@/pages/admin/ChangePassword";
 import { AdminSendNotification } from "@/pages/admin/SendNotification";
-import { PushOptInCard } from "@/components/notifications/PushOptInCard";
+import { NotificationGate } from "@/components/notifications/NotificationGate";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
@@ -43,7 +43,7 @@ function PublicLayout({ children }: { children: React.ReactNode }) {
       <main className="flex-1">{children}</main>
       <Footer />
       <BottomNav />
-      <PushOptInCard />
+      <NotificationGate />
     </div>
   );
 }

@@ -20,5 +20,8 @@ export interface AdminUser {
   ipFirstSeenAt?: Date | null;
   ipCount: number;
   isActive: boolean;
+  pushEnabled: boolean;
+  pushSupported: boolean;
+  lastNotifiedAt?: Date | null;
   createdAt: Date;
 }

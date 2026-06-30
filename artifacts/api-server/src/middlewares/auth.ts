@@ -27,7 +27,12 @@ declare global {
   }
 }
 
-export async function userAuth(req: Request, res: Response, next: NextFunction) {
+async function authenticateUser(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+  enforceIpPolicy: boolean,
+) {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith("Bearer ")) {
     res.status(401).json({ message: "Authentication required" });
@@ -52,7 +57,13 @@ export async function userAuth(req: Request, res: Response, next: NextFunction) 
   // IP restriction applies to VIP accounts only (max 2 IPs / 24h window).
   // Normal & demo accounts are never IP-restricted, so skip the locking
   // transaction entirely for them (runs on every authenticated request).
-  if (user.accountType === "vip") {
+  //
+  // Benign per-user endpoints (notifications: reading the feed, registering a
+  // push device, reporting permission state) opt out via `userAuthNoIpLimit`.
+  // A VIP's mobile IP rotates often, so enforcing the 2-IP limit there would
+  // (a) block them from enabling notifications and (b) burn their device slots
+  // on transient IPs, locking them out of paid content.
+  if (enforceIpPolicy && user.accountType === "vip") {
     const ipPolicy = await applyVipIpPolicy(user.id, clientIp);
     if (!ipPolicy.allowed) {
       res.status(403).json({ message: VIP_IP_LIMIT_MESSAGE });
@@ -79,6 +90,20 @@ export async function userAuth(req: Request, res: Response, next: NextFunction) 
   req.userCreatedAt = user.createdAt;
 
   next();
+}
+
+/** Authenticated access WITH the VIP IP policy enforced (content endpoints). */
+export function userAuth(req: Request, res: Response, next: NextFunction) {
+  return authenticateUser(req, res, next, true);
+}
+
+/**
+ * Authenticated access WITHOUT the VIP IP policy — for benign per-user
+ * endpoints (notifications) that must not be blocked by mobile IP rotation.
+ * JWT auth, account-active and subscription-expiry checks still apply.
+ */
+export function userAuthNoIpLimit(req: Request, res: Response, next: NextFunction) {
+  return authenticateUser(req, res, next, false);
 }
 
 export async function optionalUserAuth(req: Request, _res: Response, next: NextFunction) {

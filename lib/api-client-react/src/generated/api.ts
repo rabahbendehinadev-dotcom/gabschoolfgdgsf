@@ -18,6 +18,7 @@ import type {
 
 import type {
   AdminAuthResponse,
+  AdminNotificationStats,
   AdminNotificationsResponse,
   AdminSendNotificationResponse,
   AdminStats,
@@ -39,6 +40,7 @@ import type {
   CreatePlaylistInput,
   CreateVideoInput,
   ErrorResponse,
+  GetAdminUsersParams,
   GetCommunityFeedParams,
   GetNotificationsParams,
   GetPlaylistsParams,
@@ -49,6 +51,8 @@ import type {
   MessageResponse,
   NotificationListResponse,
   Playlist,
+  PushStatusInput,
+  PushStatusResponse,
   PushSubscriptionInput,
   PushUnsubscribeInput,
   RegisterInput,
@@ -1401,41 +1405,57 @@ export function useGetAdminStats<
 /**
  * @summary Get all users
  */
-export const getGetAdminUsersUrl = () => {
-  return `/api/admin/users`;
+export const getGetAdminUsersUrl = (params?: GetAdminUsersParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/admin/users?${stringifiedParams}`
+    : `/api/admin/users`;
 };
 
 export const getAdminUsers = async (
+  params?: GetAdminUsersParams,
   options?: RequestInit,
 ): Promise<AdminUser[]> => {
-  return customFetch<AdminUser[]>(getGetAdminUsersUrl(), {
+  return customFetch<AdminUser[]>(getGetAdminUsersUrl(params), {
     ...options,
     method: "GET",
   });
 };
 
-export const getGetAdminUsersQueryKey = () => {
-  return [`/api/admin/users`] as const;
+export const getGetAdminUsersQueryKey = (params?: GetAdminUsersParams) => {
+  return [`/api/admin/users`, ...(params ? [params] : [])] as const;
 };
 
 export const getGetAdminUsersQueryOptions = <
   TData = Awaited<ReturnType<typeof getAdminUsers>>,
   TError = ErrorType<unknown>,
->(options?: {
-  query?: UseQueryOptions<
-    Awaited<ReturnType<typeof getAdminUsers>>,
-    TError,
-    TData
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}) => {
+>(
+  params?: GetAdminUsersParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAdminUsers>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getGetAdminUsersQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getGetAdminUsersQueryKey(params);
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminUsers>>> = ({
     signal,
-  }) => getAdminUsers({ signal, ...requestOptions });
+  }) => getAdminUsers(params, { signal, ...requestOptions });
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof getAdminUsers>>,
@@ -1456,15 +1476,97 @@ export type GetAdminUsersQueryError = ErrorType<unknown>;
 export function useGetAdminUsers<
   TData = Awaited<ReturnType<typeof getAdminUsers>>,
   TError = ErrorType<unknown>,
+>(
+  params?: GetAdminUsersParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAdminUsers>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetAdminUsersQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Push-notification opt-in counts across all users
+ */
+export const getGetAdminNotificationStatsUrl = () => {
+  return `/api/admin/users/notification-stats`;
+};
+
+export const getAdminNotificationStats = async (
+  options?: RequestInit,
+): Promise<AdminNotificationStats> => {
+  return customFetch<AdminNotificationStats>(
+    getGetAdminNotificationStatsUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetAdminNotificationStatsQueryKey = () => {
+  return [`/api/admin/users/notification-stats`] as const;
+};
+
+export const getGetAdminNotificationStatsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAdminNotificationStats>>,
+  TError = ErrorType<unknown>,
 >(options?: {
   query?: UseQueryOptions<
-    Awaited<ReturnType<typeof getAdminUsers>>,
+    Awaited<ReturnType<typeof getAdminNotificationStats>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetAdminNotificationStatsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getAdminNotificationStats>>
+  > = ({ signal }) => getAdminNotificationStats({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAdminNotificationStats>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetAdminNotificationStatsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAdminNotificationStats>>
+>;
+export type GetAdminNotificationStatsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Push-notification opt-in counts across all users
+ */
+
+export function useGetAdminNotificationStats<
+  TData = Awaited<ReturnType<typeof getAdminNotificationStats>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getAdminNotificationStats>>,
     TError,
     TData
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-  const queryOptions = getGetAdminUsersQueryOptions(options);
+  const queryOptions = getGetAdminNotificationStatsQueryOptions(options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;
@@ -4674,6 +4776,248 @@ export const useDeletePushSubscription = <
   TContext
 > => {
   return useMutation(getDeletePushSubscriptionMutationOptions(options));
+};
+
+/**
+ * @summary Current push-notification state for the signed-in user
+ */
+export const getGetPushStatusUrl = () => {
+  return `/api/notifications/push-status`;
+};
+
+export const getPushStatus = async (
+  options?: RequestInit,
+): Promise<PushStatusResponse> => {
+  return customFetch<PushStatusResponse>(getGetPushStatusUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetPushStatusQueryKey = () => {
+  return [`/api/notifications/push-status`] as const;
+};
+
+export const getGetPushStatusQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPushStatus>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getPushStatus>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetPushStatusQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getPushStatus>>> = ({
+    signal,
+  }) => getPushStatus({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPushStatus>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetPushStatusQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPushStatus>>
+>;
+export type GetPushStatusQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Current push-notification state for the signed-in user
+ */
+
+export function useGetPushStatus<
+  TData = Awaited<ReturnType<typeof getPushStatus>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getPushStatus>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetPushStatusQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Report this device's push permission/support state
+ */
+export const getReportPushStatusUrl = () => {
+  return `/api/notifications/push-status`;
+};
+
+export const reportPushStatus = async (
+  pushStatusInput: PushStatusInput,
+  options?: RequestInit,
+): Promise<PushStatusResponse> => {
+  return customFetch<PushStatusResponse>(getReportPushStatusUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(pushStatusInput),
+  });
+};
+
+export const getReportPushStatusMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reportPushStatus>>,
+    TError,
+    { data: BodyType<PushStatusInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof reportPushStatus>>,
+  TError,
+  { data: BodyType<PushStatusInput> },
+  TContext
+> => {
+  const mutationKey = ["reportPushStatus"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof reportPushStatus>>,
+    { data: BodyType<PushStatusInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return reportPushStatus(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ReportPushStatusMutationResult = NonNullable<
+  Awaited<ReturnType<typeof reportPushStatus>>
+>;
+export type ReportPushStatusMutationBody = BodyType<PushStatusInput>;
+export type ReportPushStatusMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Report this device's push permission/support state
+ */
+export const useReportPushStatus = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reportPushStatus>>,
+    TError,
+    { data: BodyType<PushStatusInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof reportPushStatus>>,
+  TError,
+  { data: BodyType<PushStatusInput> },
+  TContext
+> => {
+  return useMutation(getReportPushStatusMutationOptions(options));
+};
+
+/**
+ * @summary Acknowledge the one-time "enable notifications" reminder
+ */
+export const getAckPushReminderUrl = () => {
+  return `/api/notifications/push-reminder-ack`;
+};
+
+export const ackPushReminder = async (
+  options?: RequestInit,
+): Promise<MessageResponse> => {
+  return customFetch<MessageResponse>(getAckPushReminderUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getAckPushReminderMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof ackPushReminder>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof ackPushReminder>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["ackPushReminder"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof ackPushReminder>>,
+    void
+  > = () => {
+    return ackPushReminder(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AckPushReminderMutationResult = NonNullable<
+  Awaited<ReturnType<typeof ackPushReminder>>
+>;
+
+export type AckPushReminderMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Acknowledge the one-time "enable notifications" reminder
+ */
+export const useAckPushReminder = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof ackPushReminder>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof ackPushReminder>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getAckPushReminderMutationOptions(options));
 };
 
 /**

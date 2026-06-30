@@ -352,6 +352,13 @@ export const GetAdminStatsResponse = zod.object({
 /**
  * @summary Get all users
  */
+export const GetAdminUsersQueryParams = zod.object({
+  notifications: zod
+    .enum(["enabled", "disabled"])
+    .optional()
+    .describe("Filter by push-notification state."),
+});
+
 export const GetAdminUsersResponseItem = zod.object({
   id: zod.number(),
   username: zod.string(),
@@ -364,9 +371,21 @@ export const GetAdminUsersResponseItem = zod.object({
   ipFirstSeenAt: zod.date().nullish(),
   ipCount: zod.number(),
   isActive: zod.boolean(),
+  pushEnabled: zod.boolean(),
+  pushSupported: zod.boolean(),
+  lastNotifiedAt: zod.date().nullish(),
   createdAt: zod.date(),
 });
 export const GetAdminUsersResponse = zod.array(GetAdminUsersResponseItem);
+
+/**
+ * @summary Push-notification opt-in counts across all users
+ */
+export const GetAdminNotificationStatsResponse = zod.object({
+  total: zod.number(),
+  enabled: zod.number(),
+  disabled: zod.number(),
+});
 
 /**
  * @summary Update user
@@ -396,6 +415,9 @@ export const UpdateAdminUserResponse = zod.object({
   ipFirstSeenAt: zod.date().nullish(),
   ipCount: zod.number(),
   isActive: zod.boolean(),
+  pushEnabled: zod.boolean(),
+  pushSupported: zod.boolean(),
+  lastNotifiedAt: zod.date().nullish(),
   createdAt: zod.date(),
 });
 
@@ -1120,6 +1142,38 @@ export const DeletePushSubscriptionBody = zod.object({
 });
 
 export const DeletePushSubscriptionResponse = zod.object({
+  message: zod.string(),
+});
+
+/**
+ * @summary Current push-notification state for the signed-in user
+ */
+export const GetPushStatusResponse = zod.object({
+  enabled: zod.boolean(),
+  permission: zod.string(),
+  supported: zod.boolean(),
+  shouldRemind: zod.boolean(),
+});
+
+/**
+ * @summary Report this device's push permission/support state
+ */
+export const ReportPushStatusBody = zod.object({
+  permission: zod.enum(["default", "granted", "denied", "unsupported"]),
+  supported: zod.boolean(),
+});
+
+export const ReportPushStatusResponse = zod.object({
+  enabled: zod.boolean(),
+  permission: zod.string(),
+  supported: zod.boolean(),
+  shouldRemind: zod.boolean(),
+});
+
+/**
+ * @summary Acknowledge the one-time "enable notifications" reminder
+ */
+export const AckPushReminderResponse = zod.object({
   message: zod.string(),
 });
 

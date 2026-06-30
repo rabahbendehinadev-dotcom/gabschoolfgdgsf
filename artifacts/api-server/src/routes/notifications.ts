@@ -7,14 +7,14 @@ import {
   usersTable,
 } from "@workspace/db";
 import { and, eq, desc, lt, isNull, count } from "drizzle-orm";
-import { userAuth } from "../middlewares/auth";
+import { userAuthNoIpLimit } from "../middlewares/auth";
 import { getVapidPublicKey } from "../lib/webPush";
-import { SavePushSubscriptionBody, DeletePushSubscriptionBody } from "@workspace/api-zod";
+import { SavePushSubscriptionBody, DeletePushSubscriptionBody, ReportPushStatusBody } from "@workspace/api-zod";
 
 const router: IRouter = Router();
 
 // GET /notifications — the current user's feed (cursor = last notification id).
-router.get("/notifications", userAuth, async (req: Request, res: Response) => {
+router.get("/notifications", userAuthNoIpLimit, async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
     const rawLimit = Number(req.query.limit);
@@ -74,7 +74,7 @@ router.get("/notifications", userAuth, async (req: Request, res: Response) => {
 });
 
 // GET /notifications/unread-count
-router.get("/notifications/unread-count", userAuth, async (req: Request, res: Response) => {
+router.get("/notifications/unread-count", userAuthNoIpLimit, async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
     const [row] = await db
@@ -90,7 +90,7 @@ router.get("/notifications/unread-count", userAuth, async (req: Request, res: Re
 });
 
 // POST /notifications/read-all
-router.post("/notifications/read-all", userAuth, async (req: Request, res: Response) => {
+router.post("/notifications/read-all", userAuthNoIpLimit, async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
     await db
@@ -106,7 +106,7 @@ router.post("/notifications/read-all", userAuth, async (req: Request, res: Respo
 });
 
 // POST /notifications/:id/read
-router.post("/notifications/:id/read", userAuth, async (req: Request, res: Response) => {
+router.post("/notifications/:id/read", userAuthNoIpLimit, async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
     const id = Number(req.params.id);
@@ -138,7 +138,7 @@ router.get("/notifications/vapid-public-key", async (_req: Request, res: Respons
 });
 
 // POST /notifications/push-subscriptions — register / refresh a Web Push sub.
-router.post("/notifications/push-subscriptions", userAuth, async (req: Request, res: Response) => {
+router.post("/notifications/push-subscriptions", userAuthNoIpLimit, async (req: Request, res: Response) => {
   try {
     const parsed = SavePushSubscriptionBody.safeParse(req.body);
     if (!parsed.success) {
@@ -166,6 +166,18 @@ router.post("/notifications/push-subscriptions", userAuth, async (req: Request, 
           failedAt: null,
         },
       });
+
+    // A saved subscription is the strongest proof of "granted + supported";
+    // record it as opt-in telemetry and stamp the first-enable time once.
+    await db
+      .update(usersTable)
+      .set({ pushPermission: "granted", pushSupported: true })
+      .where(eq(usersTable.id, userId));
+    await db
+      .update(usersTable)
+      .set({ pushEnabledAt: new Date() })
+      .where(and(eq(usersTable.id, userId), isNull(usersTable.pushEnabledAt)));
+
     res.json({ message: "ok" });
   } catch (error: unknown) {
     res.status(500).json({
@@ -175,7 +187,7 @@ router.post("/notifications/push-subscriptions", userAuth, async (req: Request, 
 });
 
 // DELETE /notifications/push-subscriptions
-router.delete("/notifications/push-subscriptions", userAuth, async (req: Request, res: Response) => {
+router.delete("/notifications/push-subscriptions", userAuthNoIpLimit, async (req: Request, res: Response) => {
   try {
     const parsed = DeletePushSubscriptionBody.safeParse(req.body);
     if (!parsed.success) {
@@ -195,6 +207,116 @@ router.delete("/notifications/push-subscriptions", userAuth, async (req: Request
   } catch (error: unknown) {
     res.status(500).json({
       message: error instanceof Error ? error.message : "Failed to remove subscription",
+    });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Mandatory opt-in: per-user permission/support telemetry + the one-time
+// "you still haven't enabled notifications" reminder. None are IP-restricted
+// (userAuthNoIpLimit) so a VIP on a rotating mobile IP can always report state.
+// ---------------------------------------------------------------------------
+
+const REMINDER_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
+
+// A user is "enabled" iff they have at least one push subscription that hasn't
+// been pruned for delivery failures — the only proof we can actually reach them.
+async function loadPushState(userId: number): Promise<{
+  enabled: boolean;
+  permission: string;
+  supported: boolean;
+  shouldRemind: boolean;
+}> {
+  const [user] = await db
+    .select({
+      pushPermission: usersTable.pushPermission,
+      pushSupported: usersTable.pushSupported,
+      pushReminderSeenAt: usersTable.pushReminderSeenAt,
+      createdAt: usersTable.createdAt,
+    })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId))
+    .limit(1);
+
+  const [activeSub] = await db
+    .select({ id: pushSubscriptionsTable.id })
+    .from(pushSubscriptionsTable)
+    .where(
+      and(
+        eq(pushSubscriptionsTable.userId, userId),
+        isNull(pushSubscriptionsTable.failedAt),
+      ),
+    )
+    .limit(1);
+
+  const enabled = !!activeSub;
+  const ageMs = user ? Date.now() - new Date(user.createdAt).getTime() : 0;
+  const shouldRemind =
+    !!user && !enabled && user.pushReminderSeenAt == null && ageMs >= REMINDER_AFTER_MS;
+
+  return {
+    enabled,
+    permission: user?.pushPermission ?? "default",
+    supported: user?.pushSupported ?? false,
+    shouldRemind,
+  };
+}
+
+// GET /notifications/push-status — current opt-in state for the gate.
+router.get("/notifications/push-status", userAuthNoIpLimit, async (req: Request, res: Response) => {
+  try {
+    res.json(await loadPushState(req.user!.id));
+  } catch (error: unknown) {
+    res.status(500).json({
+      message: error instanceof Error ? error.message : "Failed to load push status",
+    });
+  }
+});
+
+// POST /notifications/push-status — the client reports this device's permission
+// and push capability after login and after each decision.
+router.post("/notifications/push-status", userAuthNoIpLimit, async (req: Request, res: Response) => {
+  try {
+    const parsed = ReportPushStatusBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: "بيانات غير صالحة" });
+      return;
+    }
+    const userId = req.user!.id;
+    const { permission, supported } = parsed.data;
+
+    await db
+      .update(usersTable)
+      .set({ pushPermission: permission, pushSupported: supported })
+      .where(eq(usersTable.id, userId));
+
+    // Stamp the first time they reach "granted"; keep it stable thereafter.
+    if (permission === "granted") {
+      await db
+        .update(usersTable)
+        .set({ pushEnabledAt: new Date() })
+        .where(and(eq(usersTable.id, userId), isNull(usersTable.pushEnabledAt)));
+    }
+
+    res.json(await loadPushState(userId));
+  } catch (error: unknown) {
+    res.status(500).json({
+      message: error instanceof Error ? error.message : "Failed to update push status",
+    });
+  }
+});
+
+// POST /notifications/push-reminder-ack — mark the one-time reminder as shown.
+router.post("/notifications/push-reminder-ack", userAuthNoIpLimit, async (req: Request, res: Response) => {
+  try {
+    await db
+      .update(usersTable)
+      .set({ pushReminderSeenAt: new Date() })
+      .where(eq(usersTable.id, req.user!.id));
+    res.json({ message: "ok" });
+  } catch (error: unknown) {
+    res.status(500).json({
+      message: error instanceof Error ? error.message : "Failed to acknowledge reminder",
     });
   }
 });

@@ -86,6 +86,34 @@ export interface AdminAuthResponse {
   admin: AdminAuthResponseAdmin;
 }
 
+export type PushStatusInputPermission =
+  (typeof PushStatusInputPermission)[keyof typeof PushStatusInputPermission];
+
+export const PushStatusInputPermission = {
+  default: "default",
+  granted: "granted",
+  denied: "denied",
+  unsupported: "unsupported",
+} as const;
+
+export interface PushStatusInput {
+  permission: PushStatusInputPermission;
+  supported: boolean;
+}
+
+export interface PushStatusResponse {
+  enabled: boolean;
+  permission: string;
+  supported: boolean;
+  shouldRemind: boolean;
+}
+
+export interface AdminNotificationStats {
+  total: number;
+  enabled: number;
+  disabled: number;
+}
+
 export interface ChangePasswordInput {
   currentPassword: string;
   /** @minLength 6 */
@@ -381,6 +409,9 @@ export interface AdminUser {
   ipFirstSeenAt?: string | null;
   ipCount: number;
   isActive: boolean;
+  pushEnabled: boolean;
+  pushSupported: boolean;
+  lastNotifiedAt?: string | null;
   createdAt: string;
 }
 
@@ -666,6 +697,21 @@ export type GetVideosParams = {
 export type GetPlaylistsParams = {
   categoryId?: number;
 };
+
+export type GetAdminUsersParams = {
+  /**
+   * Filter by push-notification state.
+   */
+  notifications?: GetAdminUsersNotifications;
+};
+
+export type GetAdminUsersNotifications =
+  (typeof GetAdminUsersNotifications)[keyof typeof GetAdminUsersNotifications];
+
+export const GetAdminUsersNotifications = {
+  enabled: "enabled",
+  disabled: "disabled",
+} as const;
 
 export type GetCommunityFeedParams = {
   cursor?: number;
