@@ -99,13 +99,39 @@ export async function streamDriveFile(
   fileId: string,
 ): Promise<void> {
   const token = await getDriveAccessToken();
-  const range = req.headers.range;
-  const driveHeaders: Record<string, string> = { Authorization: `Bearer ${token}` };
-  if (range) driveHeaders.Range = range;
+
+  // Cap every response to a bounded window. iPhone Safari (and other players)
+  // routinely ask for the ENTIRE file in one Range (e.g. `bytes=0-` or
+  // `bytes=0-<size-1>`). Piping a multi-hundred-MB response through the
+  // autoscale proxy over a mobile connection is terminated before it finishes,
+  // so the native <video> reports a generic playback error and then retries the
+  // whole file again (an endless loop). By clamping each request to a small
+  // window and returning 206 + the real Content-Range, the player fetches the
+  // video in fast, reliable chunks and can still seek anywhere.
+  const MAX_CHUNK = 2 * 1024 * 1024; // 2 MiB per response
+
+  const clientRange = req.headers.range;
+  const match = clientRange ? /^bytes=(\d*)-(\d*)$/.exec(clientRange.trim()) : null;
+  let driveRange: string;
+  if (match && match[1] === "" && match[2] !== "") {
+    // Suffix range (final N bytes, e.g. reading an MP4 `moov` atom at EOF):
+    // forward as-is — these are small tail reads, not the full-file problem.
+    driveRange = `bytes=-${match[2]}`;
+  } else {
+    let start = match && match[1] ? parseInt(match[1], 10) : 0;
+    if (Number.isNaN(start) || start < 0) start = 0;
+    let requestedEnd = match && match[2] ? parseInt(match[2], 10) : null;
+    if (requestedEnd !== null && (Number.isNaN(requestedEnd) || requestedEnd < start)) {
+      requestedEnd = null;
+    }
+    const cappedEnd = start + MAX_CHUNK - 1;
+    const end = requestedEnd === null ? cappedEnd : Math.min(requestedEnd, cappedEnd);
+    driveRange = `bytes=${start}-${end}`;
+  }
 
   const driveResp = await fetch(
     `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true`,
-    { headers: driveHeaders },
+    { headers: { Authorization: `Bearer ${token}`, Range: driveRange } },
   );
 
   if (driveResp.status !== 200 && driveResp.status !== 206) {
@@ -115,7 +141,8 @@ export async function streamDriveFile(
     console.error("[video-stream] DRIVE ERROR: files.get returned non-2xx", {
       fileId,
       driveStatus: driveResp.status,
-      range: range ?? null,
+      clientRange: clientRange ?? null,
+      driveRange,
       reason:
         driveResp.status === 401
           ? "TOKEN/AUTH"
@@ -133,7 +160,8 @@ export async function streamDriveFile(
   console.info("[video-stream] OK: streaming Drive file", {
     fileId,
     driveStatus: driveResp.status,
-    range: range ?? null,
+    clientRange: clientRange ?? null,
+    driveRange,
     contentType: driveResp.headers.get("content-type"),
     contentLength: driveResp.headers.get("content-length"),
     contentRange: driveResp.headers.get("content-range"),

@@ -39,6 +39,24 @@ the DEPLOYED build. An old published build logs nothing no matter what you add n
 line (TOKEN ERROR / DRIVE ERROR + reason / DENY 4xx with which check failed /
 STREAM ERROR / OK with content-length+range). When prod playback fails: ensure
 the build with this logging is REPUBLISHED, reproduce, then read deployment logs
-to get the exact reason instead of guessing. If logs show `OK: streaming` with a
-huge `contentLength` and the client still fails, suspect autoscale handling of
-unbounded full-file responses (clamp open-ended Range to a bounded window).
+to get the exact reason instead of guessing.
+
+## CONFIRMED root cause (June 2026) + fix
+Logs showed `[video-stream] OK: streaming` repeatedly for the SAME file with
+`clientRange: bytes=0-<size-1>` and `contentLength` = the FULL file (e.g. 376 MB).
+The server was healthy (Drive 206 every time); the failure was the **response
+size**: piping a multi-hundred-MB body through the autoscale proxy over a mobile
+(LTE) connection is terminated before it finishes, so the native `<video>` shows
+the generic error and then retries the whole file in a loop.
+
+**Fix:** in `streamDriveFile`, clamp EVERY request to a bounded window
+(`MAX_CHUNK = 2 MiB`). Parse the client Range; for forward/open-ended ranges cap
+`end = start + MAX_CHUNK - 1`; forward suffix ranges (`bytes=-N`, small tail reads
+for the MP4 `moov` atom) as-is. Always send a Range to Drive so it returns 206 +
+the true `Content-Range` (with the real total), letting `<video>` learn the full
+size and fetch the next window. Each response is now small and fast, and seeking
+still works.
+
+**Why it wasn't caught earlier:** dev/prod DBs are separate (dev has no real Drive
+ids) and the isolated workspace test only ever requested small ranges, so the
+full-file code path never ran until a real iPhone hit production.
