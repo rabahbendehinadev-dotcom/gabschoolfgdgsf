@@ -1,0 +1,822 @@
+import {
+  useState, useEffect, useRef, useCallback, useMemo, type CSSProperties,
+} from "react";
+import {
+  Play, Pause, Volume2, VolumeX, Maximize, Minimize, Settings,
+  PictureInPicture2, RotateCcw, RotateCw, Loader2, ShieldAlert, ShieldCheck,
+  AlertTriangle, X, Sun, Check,
+} from "lucide-react";
+import { Button } from "@/components/ui";
+import { cn } from "@/lib/utils";
+
+/* ════════════════════════════════════════════════════════════════════════
+   CourseVideoPlayer — مشغّل فيديو احترافي (بمستوى YouTube / Netflix)
+   - يشغّل الفيديو داخل المنصة فقط عبر عنصر <video> أصلي (لا Google Drive، لا iframe).
+   - شاشة كاملة داخل الصفحة، Picture-in-Picture، دوران تلقائي، إيماءات لمس.
+   - علامة مائية + تحذيرات أمان + تسجيل المخالفات (نفس حماية المشغّل السابق).
+   ════════════════════════════════════════════════════════════════════════ */
+
+const SECURITY_WARNING_TEXT =
+  "هذا المحتوى محمي ومخصص لحسابك فقط. أي محاولة تصوير أو مشاركة قد تؤدي إلى إيقاف حسابك.";
+
+const WATERMARK_POSITIONS = [
+  { top: "12%", left: "10%" }, { top: "12%", left: "62%" },
+  { top: "42%", left: "22%" }, { top: "42%", left: "56%" },
+  { top: "72%", left: "12%" }, { top: "70%", left: "66%" },
+  { top: "55%", left: "40%" }, { top: "26%", left: "38%" },
+];
+
+const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
+
+type Warning = "first" | "second" | "blocked" | null;
+type Fit = "cover" | "contain";
+
+interface CourseVideoPlayerProps {
+  /** رابط بثّ آمن من خادم المنصة (mp4) — ليس رابط Google Drive. */
+  src: string;
+  poster?: string | null;
+  title?: string;
+  /** معرّف الدرس — لحفظ موضع المشاهدة وتسجيل المخالفات. */
+  videoId?: number;
+  username?: string;
+  email?: string;
+  onViolation?: (count: number) => void;
+}
+
+function formatTime(sec: number): string {
+  if (!Number.isFinite(sec) || sec < 0) sec = 0;
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = Math.floor(sec % 60);
+  const mm = h > 0 ? String(m).padStart(2, "0") : String(m);
+  const ss = String(s).padStart(2, "0");
+  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+}
+
+function qualityLabel(height: number): string {
+  if (!height) return "تلقائي";
+  if (height >= 2000) return "4K";
+  if (height >= 1400) return "1440p";
+  if (height >= 1000) return "1080p";
+  if (height >= 700) return "720p";
+  if (height >= 460) return "480p";
+  if (height >= 340) return "360p";
+  return `${height}p`;
+}
+
+type FsDoc = Document & {
+  webkitFullscreenElement?: Element | null;
+  webkitExitFullscreen?: () => Promise<void> | void;
+  msExitFullscreen?: () => Promise<void> | void;
+};
+type FsEl = HTMLElement & {
+  webkitRequestFullscreen?: () => Promise<void> | void;
+  msRequestFullscreen?: () => Promise<void> | void;
+};
+type PipVideo = HTMLVideoElement & {
+  webkitSetPresentationMode?: (mode: string) => void;
+  webkitSupportsPresentationMode?: (mode: string) => boolean;
+  requestPictureInPicture?: () => Promise<PictureInPictureWindow>;
+};
+
+export function CourseVideoPlayer({
+  src, poster, title, videoId, username, email, onViolation,
+}: CourseVideoPlayerProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const progressRef = useRef<HTMLDivElement>(null);
+
+  const [playing, setPlaying] = useState(false);
+  const [waiting, setWaiting] = useState(true);
+  const [started, setStarted] = useState(false);
+  const [duration, setDuration] = useState(0);
+  const [current, setCurrent] = useState(0);
+  const [buffered, setBuffered] = useState(0);
+  const [volume, setVolume] = useState(1);
+  const [muted, setMuted] = useState(false);
+  const [fit, setFit] = useState<Fit>("contain");
+  const [quality, setQuality] = useState("تلقائي");
+  const [speed, setSpeed] = useState(1);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [scrubbing, setScrubbing] = useState(false);
+  const [brightness, setBrightness] = useState(1); // 1 = full, ↓ dims overlay
+  const [pipSupported, setPipSupported] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+
+  // إيماءات: مؤشّر مؤقت يظهر عند التقديم/الترجيع/الصوت/الإضاءة
+  const [gesture, setGesture] = useState<{ kind: "seek" | "vol" | "bright"; text: string; side?: "l" | "r" } | null>(null);
+
+  const [wmIndex, setWmIndex] = useState(0);
+  const [warning, setWarning] = useState<Warning>(null);
+  const [videoDisabled, setVideoDisabled] = useState(false);
+
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const gestureTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const violationsRef = useRef(0);
+  const reportedRef = useRef<Set<string>>(new Set());
+  const lastTapRef = useRef<{ t: number; x: number } | null>(null);
+  const saveKey = videoId ? `gab_vpos_${videoId}` : null;
+
+  const watermarkLabel = username || email || "محمي";
+  const wmPos = WATERMARK_POSITIONS[wmIndex % WATERMARK_POSITIONS.length];
+
+  /* ── دوران العلامة المائية ── */
+  useEffect(() => {
+    const id = setInterval(() => setWmIndex(i => (i + 1) % WATERMARK_POSITIONS.length), 4500);
+    return () => clearInterval(id);
+  }, []);
+
+  /* ── كشف دعم Picture-in-Picture ── */
+  useEffect(() => {
+    const v = videoRef.current as PipVideo | null;
+    const supported =
+      (typeof document !== "undefined" && "pictureInPictureEnabled" in document &&
+        document.pictureInPictureEnabled) ||
+      Boolean(v?.webkitSupportsPresentationMode?.("picture-in-picture"));
+    setPipSupported(Boolean(supported));
+  }, []);
+
+  /* ── تسجيل حدث أمني (مرة واحدة لكل نوع) ── */
+  const reportSecurity = useCallback(async (eventType: string, details?: string) => {
+    if (!videoId || reportedRef.current.has(eventType)) return;
+    reportedRef.current.add(eventType);
+    try {
+      await fetch(`/api/videos/${videoId}/security-event`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ eventType, details }),
+      });
+    } catch { /* الحماية يجب ألا تكسر التشغيل */ }
+  }, [videoId]);
+
+  const logViolation = useCallback(async (count: number) => {
+    try {
+      if (videoId) {
+        await fetch(`/api/videos/${videoId}/violation`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ count }),
+        });
+      }
+    } catch { /* silent */ }
+    onViolation?.(count);
+  }, [videoId, onViolation]);
+
+  const handleSuspicious = useCallback(() => {
+    if (videoDisabled) return;
+    violationsRef.current += 1;
+    const c = violationsRef.current;
+    if (c === 1) setWarning("first");
+    else if (c === 2) { setWarning("second"); logViolation(c); }
+    else { setWarning("blocked"); setVideoDisabled(true); logViolation(c); videoRef.current?.pause(); }
+  }, [logViolation, videoDisabled]);
+
+  /* ── إظهار/إخفاء التحكم تلقائياً ── */
+  const showControls = useCallback(() => {
+    setControlsVisible(true);
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+    hideTimer.current = setTimeout(() => {
+      if (videoRef.current && !videoRef.current.paused && !settingsOpen) setControlsVisible(false);
+    }, 3200);
+  }, [settingsOpen]);
+
+  const flashGesture = useCallback((g: NonNullable<typeof gesture>) => {
+    setGesture(g);
+    if (gestureTimer.current) clearTimeout(gestureTimer.current);
+    gestureTimer.current = setTimeout(() => setGesture(null), 650);
+  }, []);
+
+  /* ── أزرار التشغيل ── */
+  const togglePlay = useCallback(() => {
+    const v = videoRef.current;
+    if (!v || videoDisabled) return;
+    if (v.paused) v.play().catch(() => { /* تجاهل رفض autoplay */ });
+    else v.pause();
+    showControls();
+  }, [videoDisabled, showControls]);
+
+  const seekBy = useCallback((delta: number) => {
+    const v = videoRef.current;
+    if (!v || !Number.isFinite(v.duration)) return;
+    v.currentTime = Math.min(Math.max(0, v.currentTime + delta), v.duration);
+    flashGesture({ kind: "seek", text: `${delta > 0 ? "+" : ""}${Math.round(delta)} ث`, side: delta > 0 ? "r" : "l" });
+    showControls();
+  }, [flashGesture, showControls]);
+
+  const seekTo = useCallback((time: number) => {
+    const v = videoRef.current;
+    if (!v || !Number.isFinite(v.duration)) return;
+    v.currentTime = Math.min(Math.max(0, time), v.duration);
+    setCurrent(v.currentTime);
+  }, []);
+
+  const setVol = useCallback((val: number) => {
+    const v = videoRef.current;
+    const nv = Math.min(1, Math.max(0, val));
+    setVolume(nv);
+    setMuted(nv === 0);
+    if (v) { v.volume = nv; v.muted = nv === 0; }
+  }, []);
+
+  const toggleMute = useCallback(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    const nm = !v.muted;
+    v.muted = nm;
+    setMuted(nm);
+    if (!nm && v.volume === 0) { v.volume = 0.5; setVolume(0.5); }
+  }, []);
+
+  const changeSpeed = useCallback((s: number) => {
+    const v = videoRef.current;
+    if (v) v.playbackRate = s;
+    setSpeed(s);
+  }, []);
+
+  /* ── شاشة كاملة (داخل الصفحة) + قفل الاتجاه أفقياً على الجوال ── */
+  const toggleFullscreen = useCallback(async () => {
+    const el = containerRef.current as FsEl | null;
+    const doc = document as FsDoc;
+    if (!el) return;
+    const active = doc.fullscreenElement || doc.webkitFullscreenElement;
+    try {
+      if (!active) {
+        const req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+        await req?.call(el);
+        const orientation = (screen as Screen & { orientation?: { lock?: (o: string) => Promise<void> } }).orientation;
+        try { await orientation?.lock?.("landscape"); } catch { /* غير مدعوم على الكمبيوتر */ }
+      } else {
+        const exit = doc.exitFullscreen || doc.webkitExitFullscreen || doc.msExitFullscreen;
+        await exit?.call(doc);
+        try { (screen as Screen & { orientation?: { unlock?: () => void } }).orientation?.unlock?.(); } catch { /* */ }
+      }
+    } catch { /* iOS Safari قد يستخدم ملء شاشة الفيديو الأصلي */
+      const v = videoRef.current as (HTMLVideoElement & { webkitEnterFullscreen?: () => void }) | null;
+      v?.webkitEnterFullscreen?.();
+    }
+  }, []);
+
+  const togglePip = useCallback(async () => {
+    const v = videoRef.current as PipVideo | null;
+    if (!v) return;
+    try {
+      if (document.pictureInPictureElement) await document.exitPictureInPicture();
+      else if (v.requestPictureInPicture) await v.requestPictureInPicture();
+      else v.webkitSetPresentationMode?.("picture-in-picture");
+    } catch { /* تجاهل */ }
+  }, []);
+
+  /* ── أحداث عنصر الفيديو ── */
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    const onLoaded = () => {
+      setDuration(v.duration || 0);
+      setQuality(qualityLabel(v.videoHeight));
+      // اختيار object-fit ذكي: ملء الكادر لمقاطع قريبة من 16:9، احتواء لغيرها (بلا تشويه)
+      const vAR = v.videoWidth && v.videoHeight ? v.videoWidth / v.videoHeight : 16 / 9;
+      const boxAR = 16 / 9;
+      setFit(Math.abs(vAR - boxAR) / boxAR < 0.12 ? "cover" : "contain");
+      // استئناف آخر موضع مشاهدة
+      if (saveKey) {
+        try {
+          const raw = localStorage.getItem(saveKey);
+          const pos = raw ? Number(raw) : 0;
+          if (pos > 3 && v.duration && pos < v.duration - 5) v.currentTime = pos;
+        } catch { /* */ }
+      }
+    };
+    const onTime = () => {
+      setCurrent(v.currentTime);
+      if (saveKey && Math.floor(v.currentTime) % 3 === 0) {
+        try { localStorage.setItem(saveKey, String(v.currentTime)); } catch { /* */ }
+      }
+    };
+    const onProgress = () => {
+      try {
+        if (v.buffered.length) setBuffered(v.buffered.end(v.buffered.length - 1));
+      } catch { /* */ }
+    };
+    const onPlay = () => { setPlaying(true); setStarted(true); setWaiting(false); showControls(); };
+    const onPause = () => { setPlaying(false); setControlsVisible(true); };
+    const onWaiting = () => setWaiting(true);
+    const onPlaying = () => setWaiting(false);
+    const onEnded = () => { setPlaying(false); setControlsVisible(true); if (saveKey) { try { localStorage.removeItem(saveKey); } catch { /* */ } } };
+    const onError = () => { setWaiting(false); setLoadError(true); };
+    const onVol = () => { setVolume(v.volume); setMuted(v.muted); };
+
+    v.addEventListener("loadedmetadata", onLoaded);
+    v.addEventListener("timeupdate", onTime);
+    v.addEventListener("progress", onProgress);
+    v.addEventListener("play", onPlay);
+    v.addEventListener("pause", onPause);
+    v.addEventListener("waiting", onWaiting);
+    v.addEventListener("playing", onPlaying);
+    v.addEventListener("ended", onEnded);
+    v.addEventListener("error", onError);
+    v.addEventListener("volumechange", onVol);
+    return () => {
+      v.removeEventListener("loadedmetadata", onLoaded);
+      v.removeEventListener("timeupdate", onTime);
+      v.removeEventListener("progress", onProgress);
+      v.removeEventListener("play", onPlay);
+      v.removeEventListener("pause", onPause);
+      v.removeEventListener("waiting", onWaiting);
+      v.removeEventListener("playing", onPlaying);
+      v.removeEventListener("ended", onEnded);
+      v.removeEventListener("error", onError);
+      v.removeEventListener("volumechange", onVol);
+    };
+  }, [saveKey, showControls]);
+
+  /* ── إعادة الضبط عند تغيّر المصدر (دون إعادة تركيب العنصر → لا وميض) ── */
+  useEffect(() => {
+    setLoadError(false);
+    setStarted(false);
+    setWaiting(true);
+    setCurrent(0);
+    setBuffered(0);
+    const v = videoRef.current;
+    if (v) v.playbackRate = speed;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [src]);
+
+  /* ── مزامنة حالة الشاشة الكاملة ── */
+  useEffect(() => {
+    const doc = document as FsDoc;
+    const onFs = () => setIsFullscreen(Boolean(doc.fullscreenElement || doc.webkitFullscreenElement));
+    document.addEventListener("fullscreenchange", onFs);
+    document.addEventListener("webkitfullscreenchange", onFs);
+    return () => {
+      document.removeEventListener("fullscreenchange", onFs);
+      document.removeEventListener("webkitfullscreenchange", onFs);
+    };
+  }, []);
+
+  /* ── الحماية: منع القائمة/النسخ/السحب + رصد محاولات التصوير وأدوات المطوّر ── */
+  useEffect(() => {
+    const handleKeydown = (e: KeyboardEvent) => {
+      if (e.key === "PrintScreen" || e.keyCode === 44 ||
+        (e.metaKey && e.shiftKey && ["3", "4", "5"].includes(e.key))) {
+        handleSuspicious(); return;
+      }
+      const k = e.key.toLowerCase();
+      const isDevtools = e.key === "F12" || e.keyCode === 123 ||
+        ((e.ctrlKey || e.metaKey) && e.shiftKey && ["i", "j", "c"].includes(k)) ||
+        ((e.ctrlKey || e.metaKey) && k === "u");
+      const isSave = (e.ctrlKey || e.metaKey) && k === "s";
+      if (isDevtools) { e.preventDefault(); reportSecurity("devtools_attempt", `key:${e.key}`); }
+      else if (isSave) e.preventDefault();
+
+      // اختصارات التشغيل عندما يكون المشغّل نشطاً
+      const within = containerRef.current?.contains(document.activeElement) || isFullscreen;
+      if (!within) return;
+      if (e.code === "Space" || k === "k") { e.preventDefault(); togglePlay(); }
+      else if (e.key === "ArrowRight") { e.preventDefault(); seekBy(-10); } // RTL: يمين = ترجيع
+      else if (e.key === "ArrowLeft") { e.preventDefault(); seekBy(10); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); setVol(volume + 0.1); }
+      else if (e.key === "ArrowDown") { e.preventDefault(); setVol(volume - 0.1); }
+      else if (k === "f") { e.preventDefault(); toggleFullscreen(); }
+      else if (k === "m") { e.preventDefault(); toggleMute(); }
+    };
+    const handleKeyup = (e: KeyboardEvent) => {
+      if (e.key === "PrintScreen" || e.keyCode === 44) handleSuspicious();
+    };
+    const c = containerRef.current;
+    const onCtx = (e: MouseEvent) => { e.preventDefault(); reportSecurity("copy_link_attempt", "contextmenu"); };
+    const onSel = (e: Event) => e.preventDefault();
+    const onCopy = (e: Event) => { e.preventDefault(); reportSecurity("copy_link_attempt", "copy"); };
+    const onDrag = (e: Event) => e.preventDefault();
+
+    document.addEventListener("keydown", handleKeydown);
+    document.addEventListener("keyup", handleKeyup);
+    if (c) {
+      c.addEventListener("contextmenu", onCtx);
+      c.addEventListener("selectstart", onSel);
+      c.addEventListener("copy", onCopy);
+      c.addEventListener("dragstart", onDrag);
+    }
+    return () => {
+      document.removeEventListener("keydown", handleKeydown);
+      document.removeEventListener("keyup", handleKeyup);
+      if (c) {
+        c.removeEventListener("contextmenu", onCtx);
+        c.removeEventListener("selectstart", onSel);
+        c.removeEventListener("copy", onCopy);
+        c.removeEventListener("dragstart", onDrag);
+      }
+    };
+  }, [handleSuspicious, reportSecurity, togglePlay, seekBy, setVol, volume, toggleFullscreen, toggleMute, isFullscreen]);
+
+  /* ── شريط التقدّم: نقر/سحب للتقديم ── */
+  const pointerToTime = useCallback((clientX: number): number => {
+    const bar = progressRef.current;
+    if (!bar || !duration) return 0;
+    const rect = bar.getBoundingClientRect();
+    // RTL: أقصى اليمين = 0، أقصى اليسار = النهاية
+    const ratio = 1 - (clientX - rect.left) / rect.width;
+    return Math.min(1, Math.max(0, ratio)) * duration;
+  }, [duration]);
+
+  const onProgressDown = useCallback((e: React.PointerEvent) => {
+    e.stopPropagation();
+    setScrubbing(true);
+    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+    seekTo(pointerToTime(e.clientX));
+  }, [pointerToTime, seekTo]);
+
+  const onProgressMove = useCallback((e: React.PointerEvent) => {
+    if (!scrubbing) return;
+    seekTo(pointerToTime(e.clientX));
+  }, [scrubbing, pointerToTime, seekTo]);
+
+  const onProgressUp = useCallback(() => setScrubbing(false), []);
+
+  /* ── إيماءات اللمس على مساحة الفيديو ── */
+  const dragRef = useRef<{
+    x: number; y: number; t: number; mode: "" | "seek" | "vol" | "bright";
+    startVal: number; startTime: number; side: "l" | "r";
+  } | null>(null);
+
+  const onSurfaceDown = useCallback((e: React.PointerEvent) => {
+    if (e.pointerType === "mouse") return; // الفأرة تستعمل النقر العادي
+    const rect = containerRef.current?.getBoundingClientRect();
+    const side: "l" | "r" = rect && e.clientX - rect.left < rect.width / 2 ? "l" : "r";
+    dragRef.current = {
+      x: e.clientX, y: e.clientY, t: Date.now(), mode: "",
+      startVal: side === "r" ? volume : brightness,
+      startTime: videoRef.current?.currentTime ?? 0, side,
+    };
+  }, [volume, brightness]);
+
+  const onSurfaceMove = useCallback((e: React.PointerEvent) => {
+    const d = dragRef.current;
+    if (!d) return;
+    const dx = e.clientX - d.x;
+    const dy = e.clientY - d.y;
+    if (d.mode === "") {
+      if (Math.abs(dx) < 12 && Math.abs(dy) < 12) return;
+      d.mode = Math.abs(dx) > Math.abs(dy) ? "seek" : (d.side === "r" ? "vol" : "bright");
+    }
+    const h = containerRef.current?.getBoundingClientRect().height || 300;
+    if (d.mode === "seek") {
+      // RTL: السحب لليمين = ترجيع، لليسار = تقديم
+      const delta = -(dx / 6);
+      const nt = Math.min(Math.max(0, d.startTime + delta), duration || 0);
+      seekTo(nt);
+      flashGesture({ kind: "seek", text: formatTime(nt), side: dx < 0 ? "l" : "r" });
+    } else if (d.mode === "vol") {
+      const nv = Math.min(1, Math.max(0, d.startVal - dy / h));
+      setVol(nv);
+      flashGesture({ kind: "vol", text: `${Math.round(nv * 100)}%` });
+    } else if (d.mode === "bright") {
+      const nb = Math.min(1, Math.max(0.15, d.startVal - dy / h));
+      setBrightness(nb);
+      flashGesture({ kind: "bright", text: `${Math.round(nb * 100)}%` });
+    }
+  }, [duration, seekTo, setVol, flashGesture]);
+
+  const onSurfaceUp = useCallback((e: React.PointerEvent) => {
+    const d = dragRef.current;
+    dragRef.current = null;
+    if (!d) { return; }
+    if (d.mode !== "") return; // كانت إيماءة سحب، ليست نقرة
+    // نقرة: كشف النقر المزدوج للتقديم/الترجيع 10 ثوان
+    const now = Date.now();
+    const rect = containerRef.current?.getBoundingClientRect();
+    const isRight = rect ? e.clientX - rect.left > rect.width / 2 : true;
+    const last = lastTapRef.current;
+    if (last && now - last.t < 300 && Math.abs(e.clientX - last.x) < 60) {
+      // RTL: نصف يمين = ترجيع، نصف يسار = تقديم
+      seekBy(isRight ? -10 : 10);
+      lastTapRef.current = null;
+    } else {
+      lastTapRef.current = { t: now, x: e.clientX };
+      setTimeout(() => {
+        if (lastTapRef.current && Date.now() - lastTapRef.current.t >= 280) {
+          setControlsVisible(v => !v);
+          if (!controlsVisible) showControls();
+          lastTapRef.current = null;
+        }
+      }, 300);
+    }
+  }, [seekBy, controlsVisible, showControls]);
+
+  const progressPct = duration ? (current / duration) * 100 : 0;
+  const bufferedPct = duration ? (buffered / duration) * 100 : 0;
+
+  const containerClass = cn(
+    "relative w-full overflow-hidden bg-black select-none group/player",
+    isFullscreen ? "rounded-none" : "rounded-2xl",
+  );
+  const containerStyle: CSSProperties = isFullscreen
+    ? { width: "100vw", height: "100vh" }
+    : { aspectRatio: "16 / 9" };
+
+  return (
+    <div className="w-full">
+      <div
+        ref={containerRef}
+        className={containerClass}
+        style={containerStyle}
+        onMouseMove={showControls}
+        dir="rtl"
+      >
+        {/* الفيديو */}
+        <video
+          ref={videoRef}
+          src={src}
+          poster={poster || undefined}
+          playsInline
+          webkit-playsinline="true"
+          x5-playsinline="true"
+          preload="metadata"
+          controlsList="nodownload noremoteplayback"
+          disablePictureInPicture={false}
+          className={cn("absolute inset-0 h-full w-full", fit === "cover" ? "object-cover" : "object-contain")}
+          style={{ filter: brightness < 1 ? `brightness(${brightness})` : undefined }}
+          onClick={(e) => { if (e.detail === 0) return; togglePlay(); }}
+        />
+
+        {/* طبقة الإيماءات (لمس فقط) */}
+        <div
+          className="absolute inset-0 z-10 touch-none"
+          onPointerDown={onSurfaceDown}
+          onPointerMove={onSurfaceMove}
+          onPointerUp={onSurfaceUp}
+          onPointerCancel={() => { dragRef.current = null; }}
+        />
+
+        {/* مؤشّر إيماءة مؤقت */}
+        {gesture && (
+          <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center">
+            <div className="flex items-center gap-2 rounded-2xl bg-black/65 px-5 py-3 text-white backdrop-blur-md">
+              {gesture.kind === "seek" && (gesture.side === "l" ? <RotateCw className="h-5 w-5" /> : <RotateCcw className="h-5 w-5" />)}
+              {gesture.kind === "vol" && (gesture.text === "0%" ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />)}
+              {gesture.kind === "bright" && <Sun className="h-5 w-5" />}
+              <span className="text-base font-bold tabular-nums">{gesture.text}</span>
+            </div>
+          </div>
+        )}
+
+        {/* تعتيم خفيف لإبراز التحكم */}
+        <div
+          className={cn(
+            "pointer-events-none absolute inset-0 z-10 bg-gradient-to-t from-black/55 via-transparent to-black/35 transition-opacity duration-300",
+            controlsVisible || !playing ? "opacity-100" : "opacity-0",
+          )}
+        />
+
+        {/* مؤشّر التحميل */}
+        {waiting && !loadError && !videoDisabled && (
+          <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
+            <Loader2 className="h-12 w-12 animate-spin text-white/90" />
+          </div>
+        )}
+
+        {/* زر التشغيل الكبير في الوسط */}
+        {!videoDisabled && !loadError && (!playing || !started) && !waiting && (
+          <button
+            type="button"
+            onClick={togglePlay}
+            aria-label="تشغيل"
+            className="absolute inset-0 z-20 flex items-center justify-center"
+          >
+            <span className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/90 text-white shadow-2xl shadow-primary/40 ring-4 ring-white/15 backdrop-blur-sm transition-transform duration-200 hover:scale-105 active:scale-95">
+              <Play className="ms-1 h-9 w-9 fill-current" />
+            </span>
+          </button>
+        )}
+
+        {/* العلامة المائية المتحرّكة */}
+        <div className="pointer-events-none absolute z-20 transition-all duration-1000" style={{ top: wmPos.top, left: wmPos.left }}>
+          <div className="whitespace-nowrap text-xs font-bold text-white/25 md:text-sm" style={{ transform: "rotate(-14deg)", textShadow: "0 0 8px rgba(0,0,0,.9)" }}>
+            {watermarkLabel}
+          </div>
+          <div className="mt-0.5 whitespace-nowrap text-[9px] font-bold text-white/20 md:text-xs" style={{ transform: "rotate(-14deg)", textShadow: "0 0 8px rgba(0,0,0,.9)" }}>
+            محمي بمنصة GAB
+          </div>
+        </div>
+
+        {/* شريط الحماية العلوي */}
+        <div
+          className={cn(
+            "absolute inset-x-0 top-0 z-20 flex items-center justify-between gap-2 p-2 transition-all duration-300 md:p-3",
+            controlsVisible || !playing ? "translate-y-0 opacity-100" : "-translate-y-2 opacity-0",
+          )}
+        >
+          <div className="flex min-w-0 items-center gap-1.5 rounded-full bg-black/45 px-3 py-1 text-[10px] font-semibold text-white/85 backdrop-blur-sm md:text-xs">
+            <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
+            <span className="truncate">{title || "محتوى محمي — مخصص لحسابك فقط"}</span>
+          </div>
+        </div>
+
+        {/* ════ شريط التحكم السفلي ════ */}
+        {!videoDisabled && !loadError && (
+          <div
+            className={cn(
+              "absolute inset-x-0 bottom-0 z-30 px-2 pb-2 pt-8 transition-all duration-300 md:px-3 md:pb-3",
+              controlsVisible || !playing ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0 pointer-events-none",
+            )}
+          >
+            {/* شريط التقدّم */}
+            <div
+              ref={progressRef}
+              onPointerDown={onProgressDown}
+              onPointerMove={onProgressMove}
+              onPointerUp={onProgressUp}
+              className="group/bar relative mb-2 h-5 cursor-pointer touch-none"
+            >
+              <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 overflow-hidden rounded-full bg-white/25">
+                <div className="absolute inset-y-0 right-0 bg-white/30" style={{ width: `${bufferedPct}%` }} />
+                <div className="absolute inset-y-0 right-0 bg-primary" style={{ width: `${progressPct}%` }} />
+              </div>
+              <div
+                className={cn(
+                  "absolute top-1/2 h-3.5 w-3.5 -translate-y-1/2 translate-x-1/2 rounded-full bg-primary shadow ring-2 ring-white transition-transform",
+                  scrubbing ? "scale-110" : "scale-90 group-hover/bar:scale-100",
+                )}
+                style={{ right: `calc(${progressPct}% - 0px)` }}
+              />
+            </div>
+
+            {/* أزرار التحكم */}
+            <div className="flex items-center gap-1 text-white sm:gap-2">
+              <CtrlBtn onClick={togglePlay} label={playing ? "إيقاف مؤقت" : "تشغيل"}>
+                {playing ? <Pause className="h-5 w-5 fill-current" /> : <Play className="h-5 w-5 fill-current" />}
+              </CtrlBtn>
+
+              <CtrlBtn onClick={() => seekBy(-10)} label="ترجيع 10 ثوان">
+                <RotateCcw className="h-5 w-5" />
+              </CtrlBtn>
+              <CtrlBtn onClick={() => seekBy(10)} label="تقديم 10 ثوان">
+                <RotateCw className="h-5 w-5" />
+              </CtrlBtn>
+
+              {/* الصوت */}
+              <div className="group/vol flex items-center">
+                <CtrlBtn onClick={toggleMute} label={muted ? "إلغاء الكتم" : "كتم"}>
+                  {muted || volume === 0 ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
+                </CtrlBtn>
+                <input
+                  type="range" min={0} max={1} step={0.05}
+                  value={muted ? 0 : volume}
+                  onChange={(e) => setVol(Number(e.target.value))}
+                  aria-label="مستوى الصوت"
+                  className="h-1 w-0 cursor-pointer appearance-none rounded-full bg-white/30 opacity-0 transition-all duration-200 accent-primary group-hover/vol:ms-1 group-hover/vol:w-16 group-hover/vol:opacity-100"
+                />
+              </div>
+
+              <div className="mx-1 flex items-center gap-1 text-xs font-medium tabular-nums text-white/90 sm:text-sm">
+                <span>{formatTime(current)}</span>
+                <span className="text-white/50">/</span>
+                <span className="text-white/70">{formatTime(duration)}</span>
+              </div>
+
+              <div className="flex-1" />
+
+              <span className="hidden rounded bg-white/15 px-1.5 py-0.5 text-[10px] font-bold text-white/90 sm:inline">
+                {quality}
+              </span>
+
+              {/* الإعدادات */}
+              <div className="relative">
+                <CtrlBtn onClick={() => setSettingsOpen(o => !o)} label="الإعدادات" active={settingsOpen}>
+                  <Settings className="h-5 w-5" />
+                </CtrlBtn>
+                {settingsOpen && (
+                  <div className="absolute bottom-12 left-0 z-40 w-44 overflow-hidden rounded-xl border border-white/10 bg-black/90 p-1 text-sm text-white shadow-2xl backdrop-blur-md">
+                    <div className="px-3 py-1.5 text-[11px] font-bold text-white/50">سرعة التشغيل</div>
+                    {SPEEDS.map(s => (
+                      <button
+                        key={s}
+                        onClick={() => { changeSpeed(s); setSettingsOpen(false); }}
+                        className="flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-right transition-colors hover:bg-white/10"
+                      >
+                        <span>{s === 1 ? "عادية" : `${s}×`}</span>
+                        {speed === s && <Check className="h-4 w-4 text-primary" />}
+                      </button>
+                    ))}
+                    <div className="mt-1 flex items-center justify-between border-t border-white/10 px-3 py-2 text-[11px] text-white/50">
+                      <span>الجودة</span>
+                      <span className="font-bold text-white/80">{quality}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {pipSupported && (
+                <CtrlBtn onClick={togglePip} label="نافذة عائمة">
+                  <PictureInPicture2 className="h-5 w-5" />
+                </CtrlBtn>
+              )}
+
+              <CtrlBtn onClick={toggleFullscreen} label={isFullscreen ? "إنهاء ملء الشاشة" : "ملء الشاشة"}>
+                {isFullscreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
+              </CtrlBtn>
+            </div>
+          </div>
+        )}
+
+        {/* تحذير أمني سفلي دائم */}
+        <div className={cn(
+          "pointer-events-none absolute inset-x-0 bottom-0 z-20 transition-opacity duration-300",
+          controlsVisible || !playing ? "opacity-0" : "opacity-100",
+        )}>
+          <div className="bg-gradient-to-t from-black/45 to-transparent px-3 pb-1.5 pt-6 text-center">
+            <p className="line-clamp-1 text-[9px] font-medium text-white/70 md:text-xs">{SECURITY_WARNING_TEXT}</p>
+          </div>
+        </div>
+
+        {/* حالة الخطأ */}
+        {loadError && (
+          <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-black/90 px-6 text-center">
+            <AlertTriangle className="mb-3 h-12 w-12 text-amber-400" />
+            <p className="mb-1 text-lg font-bold text-white">تعذّر تشغيل الفيديو</p>
+            <p className="mb-4 max-w-xs text-sm text-white/60">حدث خطأ أثناء تحميل الفيديو. تحقق من اتصالك وحاول مرة أخرى.</p>
+            <Button
+              onClick={() => { setLoadError(false); setWaiting(true); videoRef.current?.load(); videoRef.current?.play().catch(() => {}); }}
+              className="gap-2"
+            >
+              <RotateCw className="h-4 w-4" /> إعادة المحاولة
+            </Button>
+          </div>
+        )}
+
+        {/* الفيديو معطّل بسبب نشاط مشبوه */}
+        {videoDisabled && (
+          <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-black/92 px-6 text-center">
+            <ShieldAlert className="mb-4 h-16 w-16 text-red-500" />
+            <p className="mb-2 text-xl font-bold text-red-400">تم تعطيل الفيديو</p>
+            <p className="max-w-xs text-sm text-white/60">تم رصد نشاط مشبوه. تواصل مع الدعم لإعادة تفعيل الوصول.</p>
+          </div>
+        )}
+
+        {/* نوافذ التحذير */}
+        {warning === "first" && (
+          <WarningModal icon={<AlertTriangle className="h-10 w-10 text-amber-400" />} title="⚠️ تحذير: تم رصد محاولة تصوير الشاشة"
+            message="هذا المحتوى محمي. أي انتهاك يُسجَّل تلقائياً على حسابك." color="amber" onClose={() => setWarning(null)} />
+        )}
+        {warning === "second" && (
+          <WarningModal icon={<ShieldAlert className="h-10 w-10 text-red-400" />} title="🚫 تحذير شديد"
+            message="تم تسجيل نشاط غير مسموح. في حال التكرار سيتم حظر حسابك وإبلاغ الإدارة فوراً." color="red" onClose={() => setWarning(null)} />
+        )}
+        {warning === "blocked" && (
+          <WarningModal icon={<ShieldAlert className="h-10 w-10 text-red-500" />} title="🚫 تم تسجيل المخالفة وحظر الوصول"
+            message="تم تعطيل الفيديو مؤقتاً بسبب نشاط مشبوه متكرر. تواصل مع الإدارة." color="red" onClose={() => setWarning(null)} />
+        )}
+      </div>
+
+      {/* شريط التحذير أسفل المشغّل */}
+      <div className="mt-3 flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/5 p-3 md:p-4" dir="rtl">
+        <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-red-400 md:h-5 md:w-5" />
+        <p className="text-xs font-semibold leading-relaxed text-red-200 md:text-sm">{SECURITY_WARNING_TEXT}</p>
+      </div>
+    </div>
+  );
+}
+
+function CtrlBtn({
+  children, onClick, label, active,
+}: { children: React.ReactNode; onClick: () => void; label: string; active?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className={cn(
+        "flex h-10 w-10 items-center justify-center rounded-lg text-white/90 transition-colors hover:bg-white/15 active:scale-90",
+        active && "bg-white/15",
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+function WarningModal({
+  icon, title, message, color, onClose,
+}: {
+  icon: React.ReactNode; title: string; message: string; color: "amber" | "red"; onClose: () => void;
+}) {
+  return (
+    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm">
+      <div className={cn(
+        "w-full max-w-sm rounded-2xl border p-6 text-center shadow-2xl",
+        color === "amber" ? "border-amber-500/40 bg-amber-500/10" : "border-red-500/40 bg-red-950/60",
+      )}>
+        <div className="mb-4 flex justify-center">{icon}</div>
+        <h3 className={cn("mb-3 text-lg font-bold", color === "amber" ? "text-amber-300" : "text-red-400")}>{title}</h3>
+        <p className="mb-6 text-sm leading-relaxed text-foreground/80">{message}</p>
+        <Button onClick={onClose} className="w-full" variant={color === "amber" ? "default" : "destructive"}>
+          <X className="ml-2 h-4 w-4" /> فهمت
+        </Button>
+      </div>
+    </div>
+  );
+}
