@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
@@ -7,13 +8,19 @@ import {
   getGetUnreadNotificationCountQueryKey,
   useMarkNotificationRead,
   useMarkAllNotificationsRead,
+  getVapidPublicKey,
+  savePushSubscription,
+  deletePushSubscription,
 } from "@workspace/api-client-react/src/generated/api";
 import type { NotificationItem } from "@workspace/api-client-react/src/generated/api.schemas";
 import { useAuth } from "@/lib/auth";
 import { Button, Skeleton } from "@/components/ui";
+import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { isPushSupported, resubscribePush } from "@/lib/push";
 import {
   Bell,
+  BellRing,
   CheckCheck,
   Loader2,
   Heart,
@@ -55,8 +62,11 @@ function formatRelative(iso: string): string {
 
 export function Notifications() {
   const { user, getAuthHeaders } = useAuth();
+  const { toast } = useToast();
   const [, navigate] = useLocation();
   const queryClient = useQueryClient();
+  const [reenabling, setReenabling] = useState(false);
+  const [pushSupported] = useState(() => isPushSupported());
 
   const listKey = getGetNotificationsQueryKey({ limit: PAGE_SIZE });
 
@@ -106,6 +116,44 @@ export function Notifications() {
     });
   };
 
+  // Manual self-heal for users whose push silently stopped working (e.g. a
+  // subscription bound to an old VAPID key): tear down whatever the browser has
+  // and recreate a fresh, deliverable subscription, then prune the dead one.
+  const onReenable = async () => {
+    if (reenabling) return;
+    setReenabling(true);
+    try {
+      const { publicKey } = await getVapidPublicKey();
+      if (!publicKey) {
+        toast({ title: "الإشعارات غير متاحة حاليًا", variant: "destructive" });
+        return;
+      }
+      const fresh = await resubscribePush(publicKey);
+      if (!fresh) {
+        toast({
+          title: "تعذّر تفعيل الإشعارات",
+          description: "تأكد من السماح بالإشعارات في إعدادات المتصفح ثم أعد المحاولة.",
+          variant: "destructive",
+        });
+        return;
+      }
+      await savePushSubscription(fresh.sub, getAuthHeaders());
+      if (fresh.staleEndpoint) {
+        await deletePushSubscription({ endpoint: fresh.staleEndpoint }, getAuthHeaders()).catch(
+          () => {},
+        );
+      }
+      toast({
+        title: "تم إعادة تفعيل الإشعارات ✅",
+        description: "ستصلك الإشعارات الآن حتى عندما يكون هاتفك مقفلًا.",
+      });
+    } catch {
+      toast({ title: "تعذّر إعادة التفعيل", variant: "destructive" });
+    } finally {
+      setReenabling(false);
+    }
+  };
+
   return (
     <div className="container mx-auto max-w-2xl px-4 py-6 sm:py-8">
       <div className="mb-5 flex items-center justify-between gap-3">
@@ -113,22 +161,41 @@ export function Notifications() {
           <Bell className="h-6 w-6 text-primary" />
           الإشعارات
         </h1>
-        {hasUnread && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onMarkAll}
-            disabled={markAllRead.isPending}
-            className="gap-1.5 text-primary hover:text-primary"
-          >
-            {markAllRead.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <CheckCheck className="h-4 w-4" />
-            )}
-            تحديد الكل كمقروء
-          </Button>
-        )}
+        <div className="flex items-center gap-1.5">
+          {pushSupported && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onReenable}
+              disabled={reenabling}
+              className="gap-1.5"
+              title="أعد تفعيل الإشعارات إذا توقفت عن الوصول إلى هاتفك"
+            >
+              {reenabling ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <BellRing className="h-4 w-4" />
+              )}
+              إعادة تفعيل الإشعارات
+            </Button>
+          )}
+          {hasUnread && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onMarkAll}
+              disabled={markAllRead.isPending}
+              className="gap-1.5 text-primary hover:text-primary"
+            >
+              {markAllRead.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <CheckCheck className="h-4 w-4" />
+              )}
+              تحديد الكل كمقروء
+            </Button>
+          )}
+        </div>
       </div>
 
       {isLoading ? (

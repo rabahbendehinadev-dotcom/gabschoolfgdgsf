@@ -374,7 +374,13 @@ export const GetAdminUsersResponseItem = zod.object({
   pushEnabled: zod.boolean(),
   pushSupported: zod.boolean(),
   pushPermission: zod.enum(["default", "granted", "denied", "unsupported"]),
+  pushState: zod
+    .enum(["enabled", "missing", "broken", "denied", "none"])
+    .describe(
+      "Derived per-user push health: enabled (live subscription), missing (granted permission but no subscription row), broken (has rows but all failed delivery), denied (permission denied), none (never opted in).",
+    ),
   lastNotifiedAt: zod.date().nullish(),
+  lastPushTestAt: zod.date().nullish(),
   createdAt: zod.date(),
 });
 export const GetAdminUsersResponse = zod.array(GetAdminUsersResponseItem);
@@ -419,7 +425,13 @@ export const UpdateAdminUserResponse = zod.object({
   pushEnabled: zod.boolean(),
   pushSupported: zod.boolean(),
   pushPermission: zod.enum(["default", "granted", "denied", "unsupported"]),
+  pushState: zod
+    .enum(["enabled", "missing", "broken", "denied", "none"])
+    .describe(
+      "Derived per-user push health: enabled (live subscription), missing (granted permission but no subscription row), broken (has rows but all failed delivery), denied (permission denied), none (never opted in).",
+    ),
   lastNotifiedAt: zod.date().nullish(),
+  lastPushTestAt: zod.date().nullish(),
   createdAt: zod.date(),
 });
 
@@ -432,6 +444,18 @@ export const DeleteAdminUserParams = zod.object({
 
 export const DeleteAdminUserResponse = zod.object({
   message: zod.string(),
+});
+
+/**
+ * @summary Send a test Web Push to a single user
+ */
+export const SendUserTestPushParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const SendUserTestPushResponse = zod.object({
+  attempted: zod.number(),
+  success: zod.number(),
 });
 
 /**

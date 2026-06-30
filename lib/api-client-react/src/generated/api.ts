@@ -60,6 +60,7 @@ import type {
   ReorderVideosInput,
   SendNotificationInput,
   SubscriptionPlan,
+  TestPushResult,
   UnreadCountResponse,
   UpdateCategoryInput,
   UpdateCommunityPostInput,
@@ -1744,6 +1745,90 @@ export const useDeleteAdminUser = <
   TContext
 > => {
   return useMutation(getDeleteAdminUserMutationOptions(options));
+};
+
+/**
+ * @summary Send a test Web Push to a single user
+ */
+export const getSendUserTestPushUrl = (id: number) => {
+  return `/api/admin/users/${id}/test-push`;
+};
+
+export const sendUserTestPush = async (
+  id: number,
+  options?: RequestInit,
+): Promise<TestPushResult> => {
+  return customFetch<TestPushResult>(getSendUserTestPushUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getSendUserTestPushMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendUserTestPush>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof sendUserTestPush>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["sendUserTestPush"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof sendUserTestPush>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return sendUserTestPush(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SendUserTestPushMutationResult = NonNullable<
+  Awaited<ReturnType<typeof sendUserTestPush>>
+>;
+
+export type SendUserTestPushMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Send a test Web Push to a single user
+ */
+export const useSendUserTestPush = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendUserTestPush>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof sendUserTestPush>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getSendUserTestPushMutationOptions(options));
 };
 
 /**

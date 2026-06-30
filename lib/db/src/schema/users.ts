@@ -26,6 +26,7 @@ export const usersTable = pgTable("users", {
   pushSupported: boolean("push_supported").notNull().default(false),
   pushEnabledAt: timestamp("push_enabled_at"),
   pushReminderSeenAt: timestamp("push_reminder_seen_at"),
+  lastPushTestAt: timestamp("last_push_test_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

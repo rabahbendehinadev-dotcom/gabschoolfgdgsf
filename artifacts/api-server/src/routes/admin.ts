@@ -10,6 +10,7 @@ import { effectiveIpState } from "../lib/ipPolicy";
 import { hashPassword, comparePassword } from "../lib/auth";
 import { adminsTable } from "@workspace/db";
 import { createNotification, type AudienceType, type TargetType } from "../lib/notifications";
+import { sendPushToUsers } from "../lib/webPush";
 import * as zod from "zod";
 import {
   UpdateAdminUserBody,
@@ -135,6 +136,13 @@ router.get("/admin/users", adminAuth, async (req, res) => {
       .where(isNull(pushSubscriptionsTable.failedAt));
     const enabledIds = new Set(activeSubs.map((s) => s.userId));
 
+    // Users who have ANY subscription row (active or already soft-failed). Lets us
+    // tell "broken" (had a sub, all failed) apart from "missing/none" (no row).
+    const anySubs = await db
+      .selectDistinct({ userId: pushSubscriptionsTable.userId })
+      .from(pushSubscriptionsTable);
+    const hasAnySubIds = new Set(anySubs.map((s) => s.userId));
+
     // Last time each user actually received a notification (fan-out delivery).
     const lastDelivered = await db
       .select({
@@ -164,7 +172,17 @@ router.get("/admin/users", adminAuth, async (req, res) => {
         pushEnabled: enabledIds.has(u.id),
         pushSupported: u.pushSupported,
         pushPermission: u.pushPermission,
+        pushState: enabledIds.has(u.id)
+          ? "enabled"
+          : u.pushPermission === "denied"
+            ? "denied"
+            : hasAnySubIds.has(u.id)
+              ? "broken"
+              : u.pushPermission === "granted"
+                ? "missing"
+                : "none",
         lastNotifiedAt: last ? new Date(last).toISOString() : null,
+        lastPushTestAt: u.lastPushTestAt ? u.lastPushTestAt.toISOString() : null,
         createdAt: u.createdAt.toISOString(),
       };
     });
@@ -195,6 +213,45 @@ router.get("/admin/users/notification-stats", adminAuth, async (_req, res) => {
     res.json({ total, enabled, disabled: Math.max(total - enabled, 0) });
   } catch (error: unknown) {
     res.status(500).json({ message: error instanceof Error ? error.message : "Failed to load notification stats" });
+  }
+});
+
+// POST /admin/users/:id/test-push — send a one-off Web Push to a single user so
+// an admin can confirm a device is genuinely reachable (locked screen included).
+// Returns { attempted, success }: attempted=0 means no active subscription on
+// file, success=0 with attempted>0 means the device(s) rejected delivery.
+router.post("/admin/users/:id/test-push", adminAuth, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      res.status(400).json({ message: "معرّف مستخدم غير صالح" });
+      return;
+    }
+    const [user] = await db
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(eq(usersTable.id, id))
+      .limit(1);
+    if (!user) {
+      res.status(404).json({ message: "المستخدم غير موجود" });
+      return;
+    }
+    const result = await sendPushToUsers(
+      [id],
+      {
+        title: "إشعار تجريبي ✅",
+        body: "هذا إشعار تجريبي من إدارة GAB للتأكد من وصول الإشعارات إلى جهازك.",
+        url: "/notifications",
+        tag: "admin-test-push",
+      },
+      // A targeted single-user test: a 403/400 here means THIS user's sub is
+      // stale, not a global outage — prune it so the admin sees "broken".
+      { pruneRejectedEvenIfAllFail: true },
+    );
+    await db.update(usersTable).set({ lastPushTestAt: new Date() }).where(eq(usersTable.id, id));
+    res.json(result);
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Failed to send test push" });
   }
 });
 

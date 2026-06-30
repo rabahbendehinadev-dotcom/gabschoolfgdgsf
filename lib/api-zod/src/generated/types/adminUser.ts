@@ -7,6 +7,7 @@
  */
 import type { AdminUserAccountType } from "./adminUserAccountType";
 import type { AdminUserPushPermission } from "./adminUserPushPermission";
+import type { AdminUserPushState } from "./adminUserPushState";
 import type { AdminUserSubscriptionType } from "./adminUserSubscriptionType";
 
 export interface AdminUser {
@@ -24,6 +25,9 @@ export interface AdminUser {
   pushEnabled: boolean;
   pushSupported: boolean;
   pushPermission: AdminUserPushPermission;
+  /** Derived per-user push health: enabled (live subscription), missing (granted permission but no subscription row), broken (has rows but all failed delivery), denied (permission denied), none (never opted in). */
+  pushState: AdminUserPushState;
   lastNotifiedAt?: Date | null;
+  lastPushTestAt?: Date | null;
   createdAt: Date;
 }
