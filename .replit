@@ -36,3 +36,6 @@ defaultBucketID = "replit-objstore-2acbf51a-a082-4579-b9f8-c885034b0c57"
 
 [userenv.shared]
 GOOGLE_CLIENT_ID = "193433676813-tq5d6c0elrnbscusljbc6n74n0k7h7g6.apps.googleusercontent.com"
+VAPID_PUBLIC_KEY = "BEAfrJklMYprCgEcG-Ns0ANPhH6sDiM6iHIhOYyBMs05-i7gEr9E85RdAvhq3RSR5cRSZ6Dp0B6YiUyYbjKtUYU"
+VAPID_PRIVATE_KEY = "AcA4tiUOSA1dCdutlbw59557MI0vgGPvbFhuSQ15yR4"
+VAPID_SUBJECT = "mailto:notifications@gabschool.app"

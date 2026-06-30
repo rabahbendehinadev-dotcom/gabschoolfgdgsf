@@ -561,6 +561,103 @@ export interface CommunityViewResponse {
   viewsCount: number;
 }
 
+export interface NotificationItem {
+  id: number;
+  type: string;
+  title: string;
+  body: string;
+  targetType: string;
+  targetId?: number | null;
+  targetPath?: string | null;
+  actorUsername?: string | null;
+  isRead: boolean;
+  createdAt: string;
+}
+
+export interface NotificationListResponse {
+  items: NotificationItem[];
+  nextCursor?: number | null;
+}
+
+export interface UnreadCountResponse {
+  count: number;
+}
+
+export interface VapidKeyResponse {
+  publicKey: string | null;
+}
+
+export interface PushSubscriptionKeys {
+  p256dh: string;
+  auth: string;
+}
+
+export interface PushSubscriptionInput {
+  endpoint: string;
+  keys: PushSubscriptionKeys;
+  userAgent?: string | null;
+}
+
+export interface PushUnsubscribeInput {
+  endpoint: string;
+}
+
+export type SendNotificationInputAudienceType =
+  (typeof SendNotificationInputAudienceType)[keyof typeof SendNotificationInputAudienceType];
+
+export const SendNotificationInputAudienceType = {
+  all: "all",
+  vip: "vip",
+  normal: "normal",
+  user: "user",
+  category: "category",
+} as const;
+
+export type SendNotificationInputTargetType =
+  (typeof SendNotificationInputTargetType)[keyof typeof SendNotificationInputTargetType];
+
+export const SendNotificationInputTargetType = {
+  post: "post",
+  lesson: "lesson",
+  page: "page",
+  none: "none",
+} as const;
+
+export interface SendNotificationInput {
+  /** @minLength 1 */
+  title: string;
+  body: string;
+  audienceType: SendNotificationInputAudienceType;
+  audienceValue?: string | null;
+  targetType?: SendNotificationInputTargetType;
+  targetId?: number | null;
+  targetPath?: string | null;
+}
+
+export interface AdminSendNotificationResponse {
+  id: number;
+  recipientCount: number;
+}
+
+export interface AdminNotificationItem {
+  id: number;
+  type: string;
+  title: string;
+  body: string;
+  audienceType?: string | null;
+  audienceValue?: string | null;
+  targetType?: string;
+  targetPath?: string | null;
+  senderName?: string | null;
+  recipientCount: number;
+  openedCount: number;
+  createdAt: string;
+}
+
+export interface AdminNotificationsResponse {
+  items: AdminNotificationItem[];
+}
+
 export type GetVideosParams = {
   categoryId?: number;
   search?: string;
@@ -573,4 +670,9 @@ export type GetPlaylistsParams = {
 export type GetCommunityFeedParams = {
   cursor?: number;
   limit?: number;
+};
+
+export type GetNotificationsParams = {
+  limit?: number;
+  cursor?: number;
 };

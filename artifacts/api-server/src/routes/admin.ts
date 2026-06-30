@@ -2,13 +2,14 @@ import path from "path";
 import fs from "fs";
 import { Router, type IRouter } from "express";
 import multer from "multer";
-import { db, usersTable, videosTable, categoriesTable, playlistsTable, subscriptionPlansTable, visitLogsTable, activityLogsTable } from "@workspace/db";
+import { db, usersTable, videosTable, categoriesTable, playlistsTable, subscriptionPlansTable, visitLogsTable, activityLogsTable, notificationsTable, notificationRecipientsTable } from "@workspace/db";
 import { eq, sql, count, desc, asc, lt, and, gte, isNotNull, inArray } from "drizzle-orm";
 
 import { adminAuth } from "../middlewares/auth";
 import { effectiveIpState } from "../lib/ipPolicy";
 import { hashPassword, comparePassword } from "../lib/auth";
 import { adminsTable } from "@workspace/db";
+import { createNotification, type AudienceType, type TargetType } from "../lib/notifications";
 import * as zod from "zod";
 import {
   UpdateAdminUserBody,
@@ -17,6 +18,7 @@ import {
   CreateCategoryBody,
   UpdateCategoryBody,
   UpdateSubscriptionPlanBody,
+  SendAdminNotificationBody,
 } from "@workspace/api-zod";
 
 const CreateSubscriptionPlanBody = zod.object({
@@ -769,6 +771,106 @@ router.post("/admin/upload-thumbnail", adminAuth, upload.single("thumbnail"), (r
   }
   const url = `/uploads/${req.file!.filename}`;
   res.json({ url });
+});
+
+// POST /admin/notifications/send — broadcast to an audience.
+router.post("/admin/notifications/send", adminAuth, async (req, res) => {
+  try {
+    const parsed = SendAdminNotificationBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: "بيانات الإشعار غير صالحة" });
+      return;
+    }
+    const { title, body, audienceType, audienceValue, targetType, targetId, targetPath } =
+      parsed.data;
+
+    if ((audienceType === "user" || audienceType === "category") && !audienceValue?.trim()) {
+      res.status(400).json({ message: "يجب تحديد الجمهور المستهدف" });
+      return;
+    }
+
+    // Deep links must be INTERNAL app-relative paths. Reject schemes,
+    // protocol-relative URLs, and backslashes so a notification click can never
+    // be turned into an open-redirect to an external site.
+    const trimmedPath = targetPath?.trim() || null;
+    if (
+      trimmedPath !== null &&
+      (!trimmedPath.startsWith("/") ||
+        trimmedPath.startsWith("//") ||
+        trimmedPath.includes("\\") ||
+        trimmedPath.includes("://") ||
+        /\s/.test(trimmedPath))
+    ) {
+      res.status(400).json({ message: "مسار الوجهة غير صالح" });
+      return;
+    }
+
+    const result = await createNotification({
+      type: "admin_broadcast",
+      title: title.trim(),
+      body: body.trim(),
+      adminId: req.admin!.id,
+      audienceType: audienceType as AudienceType,
+      audienceValue: audienceValue ?? null,
+      targetType: (targetType as TargetType) ?? "none",
+      targetId: targetId ?? null,
+      targetPath: trimmedPath,
+    });
+
+    res.status(201).json({ id: result.notificationId, recipientCount: result.recipientCount });
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "فشل إرسال الإشعار" });
+  }
+});
+
+// GET /admin/notifications — activity log with reached/opened counts.
+router.get("/admin/notifications", adminAuth, async (_req, res) => {
+  try {
+    const rows = await db
+      .select({
+        id: notificationsTable.id,
+        type: notificationsTable.type,
+        title: notificationsTable.title,
+        body: notificationsTable.body,
+        audienceType: notificationsTable.audienceType,
+        audienceValue: notificationsTable.audienceValue,
+        targetType: notificationsTable.targetType,
+        targetPath: notificationsTable.targetPath,
+        recipientCount: notificationsTable.recipientCount,
+        createdAt: notificationsTable.createdAt,
+        adminUsername: adminsTable.username,
+        actorUsername: usersTable.username,
+        openedCount: sql<number>`(
+          SELECT COUNT(*) FROM ${notificationRecipientsTable}
+          WHERE ${notificationRecipientsTable.notificationId} = ${notificationsTable.id}
+            AND ${notificationRecipientsTable.readAt} IS NOT NULL
+        )`,
+      })
+      .from(notificationsTable)
+      .leftJoin(adminsTable, eq(notificationsTable.adminId, adminsTable.id))
+      .leftJoin(usersTable, eq(notificationsTable.actorUserId, usersTable.id))
+      .orderBy(desc(notificationsTable.id))
+      .limit(200);
+
+    res.json({
+      items: rows.map((r) => ({
+        id: r.id,
+        type: r.type,
+        title: r.title,
+        body: r.body,
+        audienceType: r.audienceType ?? null,
+        audienceValue: r.audienceValue ?? null,
+        targetType: r.targetType,
+        targetPath: r.targetPath ?? null,
+        senderName: r.adminUsername ?? r.actorUsername ?? null,
+        recipientCount: r.recipientCount,
+        openedCount: Number(r.openedCount ?? 0),
+        createdAt: (r.createdAt as Date).toISOString(),
+      })),
+    });
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "فشل تحميل سجل الإشعارات" });
+  }
 });
 
 export default router;

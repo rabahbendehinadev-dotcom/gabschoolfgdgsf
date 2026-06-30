@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, useRef, ReactNode, useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { UserProfile, AdminAuthResponseAdmin } from "@workspace/api-client-react/src/generated/api.schemas";
 import { useLocation } from "wouter";
 
@@ -23,6 +24,7 @@ const REFRESH_INTERVAL_MS = 20_000;
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [, navigate] = useLocation();
+  const queryClient = useQueryClient();
   const [token, setTokenState] = useState<string | null>(() => localStorage.getItem("token"));
   const [user, setUser] = useState<UserProfile | null>(() => {
     const saved = localStorage.getItem("user");
@@ -104,6 +106,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [token, refreshUser]);
 
   const setAuth = (newToken: string, newUser: UserProfile) => {
+    // Drop any cached per-user data (notifications, unread count, feed, etc.) from
+    // a previous session so one account never momentarily sees another's data on
+    // the same device before refetch completes.
+    queryClient.clear();
     localStorage.setItem("token", newToken);
     localStorage.setItem("user", JSON.stringify(newUser));
     setTokenState(newToken);
@@ -127,6 +133,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem("user");
     setTokenState(null);
     setUser(null);
+    // Clear cached per-user data so the next account starts clean.
+    queryClient.clear();
     navigate("/login");
   };
 

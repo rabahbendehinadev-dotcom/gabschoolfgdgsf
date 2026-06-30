@@ -12,6 +12,7 @@ import { eq, and, desc, asc, inArray, count, gte } from "drizzle-orm";
 import { optionalUserAuth, userAuth } from "../middlewares/auth";
 import { generateMediaToken, verifyMediaToken } from "../lib/auth";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
+import { createNotification } from "../lib/notifications";
 import {
   CreateCommunityPostBody,
   UpdateCommunityPostBody,
@@ -36,6 +37,12 @@ function isActiveVip(viewer: Viewer): boolean {
     return false;
   }
   return true;
+}
+
+// Short single-line preview of user text for a notification body.
+function snippet(text: string, max = 120): string {
+  const t = text.trim().replace(/\s+/g, " ");
+  return t.length > max ? `${t.slice(0, max)}…` : t;
 }
 
 // Whether the viewer may access the ORIGINAL media of a post. Text is always
@@ -518,6 +525,26 @@ router.post("/community/posts", userAuth, async (req, res) => {
         .values(mediaToInsert.map((m) => ({ ...m, postId: created.id })));
     }
 
+    // A new VIP post is broadcast to everyone (except the author). Notifications
+    // must never break post creation, so failures are swallowed.
+    if (isActiveVip(req.user)) {
+      try {
+        await createNotification({
+          type: "community_vip_post",
+          title: "منشور VIP جديد",
+          body: snippet(content ?? "") || "شاهد أحدث منشور في مجتمع GAB School",
+          actorUserId: req.user!.id,
+          audienceType: "all",
+          excludeUserIds: [req.user!.id],
+          targetType: "post",
+          targetId: created.id,
+          targetPath: "/community",
+        });
+      } catch {
+        /* notifications are best-effort */
+      }
+    }
+
     const post = await getVisiblePostRow(created.id);
     const mediaMap = await loadMediaFor([created.id]);
     res.status(201).json(serializePost(post!, mediaMap.get(created.id) ?? [], req.user, false));
@@ -608,6 +635,26 @@ router.post("/community/posts/:id/like", userAuth, async (req, res) => {
       .values({ postId: id, userId: req.user!.id })
       .onConflictDoNothing();
     const likesCount = await recomputeLikes(id);
+
+    // Notify the post owner (deduped per actor so re-likes don't re-notify).
+    if (post.authorUserId && post.authorUserId !== req.user!.id) {
+      try {
+        await createNotification({
+          type: "like",
+          title: "إعجاب جديد بمنشورك",
+          body: `أعجب ${req.user!.username} بمنشورك`,
+          actorUserId: req.user!.id,
+          recipientUserIds: [post.authorUserId],
+          targetType: "post",
+          targetId: id,
+          targetPath: "/community",
+          dedupeKey: `like:${id}:${req.user!.id}`,
+        });
+      } catch {
+        /* notifications are best-effort */
+      }
+    }
+
     res.json({ liked: true, likesCount });
   } catch (error: unknown) {
     res.status(500).json({ message: error instanceof Error ? error.message : "Failed to like post" });
@@ -750,6 +797,9 @@ router.post("/community/posts/:id/comments", userAuth, async (req, res) => {
     // Flatten threading to a single level: replying to a reply attaches to the
     // reply's top-level parent.
     let parentId: number | null = null;
+    // The owner of the exact comment being replied to (notify them, not the
+    // flattened top-level parent's owner).
+    let replyTargetOwnerId: number | null = null;
     if (parsed.data.parentId != null) {
       const [parent] = await db
         .select()
@@ -761,7 +811,10 @@ router.post("/community/posts/:id/comments", userAuth, async (req, res) => {
           ),
         )
         .limit(1);
-      if (parent) parentId = parent.parentId ?? parent.id;
+      if (parent) {
+        parentId = parent.parentId ?? parent.id;
+        replyTargetOwnerId = parent.userId;
+      }
     }
 
     const [created] = await db
@@ -770,6 +823,38 @@ router.post("/community/posts/:id/comments", userAuth, async (req, res) => {
       .returning();
 
     await recomputeComments(id);
+
+    // A reply notifies the replied-to comment's owner; a top-level comment
+    // notifies the post owner. Self-actions are skipped.
+    try {
+      if (replyTargetOwnerId != null) {
+        if (replyTargetOwnerId !== req.user!.id) {
+          await createNotification({
+            type: "reply",
+            title: "رد جديد على تعليقك",
+            body: `رد ${req.user!.username}: ${snippet(created.body)}`,
+            actorUserId: req.user!.id,
+            recipientUserIds: [replyTargetOwnerId],
+            targetType: "post",
+            targetId: id,
+            targetPath: "/community",
+          });
+        }
+      } else if (post.authorUserId && post.authorUserId !== req.user!.id) {
+        await createNotification({
+          type: "comment",
+          title: "تعليق جديد على منشورك",
+          body: `علّق ${req.user!.username}: ${snippet(created.body)}`,
+          actorUserId: req.user!.id,
+          recipientUserIds: [post.authorUserId],
+          targetType: "post",
+          targetId: id,
+          targetPath: "/community",
+        });
+      }
+    } catch {
+      /* notifications are best-effort */
+    }
 
     res.status(201).json({
       id: created.id,

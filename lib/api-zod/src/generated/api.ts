@@ -1037,3 +1037,124 @@ export const DeleteCommunityCommentParams = zod.object({
 export const DeleteCommunityCommentResponse = zod.object({
   message: zod.string(),
 });
+
+/**
+ * @summary List the current user's notifications
+ */
+export const GetNotificationsQueryParams = zod.object({
+  limit: zod.coerce.number().optional(),
+  cursor: zod.coerce.number().optional(),
+});
+
+export const GetNotificationsResponse = zod.object({
+  items: zod.array(
+    zod.object({
+      id: zod.number(),
+      type: zod.string(),
+      title: zod.string(),
+      body: zod.string(),
+      targetType: zod.string(),
+      targetId: zod.number().nullish(),
+      targetPath: zod.string().nullish(),
+      actorUsername: zod.string().nullish(),
+      isRead: zod.boolean(),
+      createdAt: zod.date(),
+    }),
+  ),
+  nextCursor: zod.number().nullish(),
+});
+
+/**
+ * @summary Count unread notifications
+ */
+export const GetUnreadNotificationCountResponse = zod.object({
+  count: zod.number(),
+});
+
+/**
+ * @summary Mark all notifications as read
+ */
+export const MarkAllNotificationsReadResponse = zod.object({
+  message: zod.string(),
+});
+
+/**
+ * @summary Mark a single notification as read
+ */
+export const MarkNotificationReadParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const MarkNotificationReadResponse = zod.object({
+  message: zod.string(),
+});
+
+/**
+ * @summary Get the Web Push VAPID public key
+ */
+export const GetVapidPublicKeyResponse = zod.object({
+  publicKey: zod.string().nullable(),
+});
+
+/**
+ * @summary Register a Web Push subscription
+ */
+export const SavePushSubscriptionBody = zod.object({
+  endpoint: zod.string(),
+  keys: zod.object({
+    p256dh: zod.string(),
+    auth: zod.string(),
+  }),
+  userAgent: zod.string().nullish(),
+});
+
+export const SavePushSubscriptionResponse = zod.object({
+  message: zod.string(),
+});
+
+/**
+ * @summary Remove a Web Push subscription
+ */
+export const DeletePushSubscriptionBody = zod.object({
+  endpoint: zod.string(),
+});
+
+export const DeletePushSubscriptionResponse = zod.object({
+  message: zod.string(),
+});
+
+/**
+ * @summary List sent notifications with delivery stats
+ */
+export const GetAdminNotificationsResponse = zod.object({
+  items: zod.array(
+    zod.object({
+      id: zod.number(),
+      type: zod.string(),
+      title: zod.string(),
+      body: zod.string(),
+      audienceType: zod.string().nullish(),
+      audienceValue: zod.string().nullish(),
+      targetType: zod.string().optional(),
+      targetPath: zod.string().nullish(),
+      senderName: zod.string().nullish(),
+      recipientCount: zod.number(),
+      openedCount: zod.number(),
+      createdAt: zod.date(),
+    }),
+  ),
+});
+
+/**
+ * @summary Send a notification to an audience
+ */
+
+export const SendAdminNotificationBody = zod.object({
+  title: zod.string().min(1),
+  body: zod.string(),
+  audienceType: zod.enum(["all", "vip", "normal", "user", "category"]),
+  audienceValue: zod.string().nullish(),
+  targetType: zod.enum(["post", "lesson", "page", "none"]).optional(),
+  targetId: zod.number().nullish(),
+  targetPath: zod.string().nullish(),
+});

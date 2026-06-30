@@ -1069,6 +1069,172 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /notifications:
+    get:
+      operationId: getNotifications
+      tags: [notifications]
+      summary: List the current user's notifications
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Notifications
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationListResponse"
+
+  /notifications/unread-count:
+    get:
+      operationId: getUnreadNotificationCount
+      tags: [notifications]
+      summary: Count unread notifications
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Unread count
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnreadCountResponse"
+
+  /notifications/read-all:
+    post:
+      operationId: markAllNotificationsRead
+      tags: [notifications]
+      summary: Mark all notifications as read
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Marked read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /notifications/{id}/read:
+    post:
+      operationId: markNotificationRead
+      tags: [notifications]
+      summary: Mark a single notification as read
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Marked read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /notifications/vapid-public-key:
+    get:
+      operationId: getVapidPublicKey
+      tags: [notifications]
+      summary: Get the Web Push VAPID public key
+      responses:
+        "200":
+          description: Public key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VapidKeyResponse"
+
+  /notifications/push-subscriptions:
+    post:
+      operationId: savePushSubscription
+      tags: [notifications]
+      summary: Register a Web Push subscription
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PushSubscriptionInput"
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+    delete:
+      operationId: deletePushSubscription
+      tags: [notifications]
+      summary: Remove a Web Push subscription
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PushUnsubscribeInput"
+      responses:
+        "200":
+          description: Removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /admin/notifications:
+    get:
+      operationId: getAdminNotifications
+      tags: [admin]
+      summary: List sent notifications with delivery stats
+      security:
+        - adminAuth: []
+      responses:
+        "200":
+          description: Notifications log
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminNotificationsResponse"
+
+  /admin/notifications/send:
+    post:
+      operationId: sendAdminNotification
+      tags: [admin]
+      summary: Send a notification to an audience
+      security:
+        - adminAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendNotificationInput"
+      responses:
+        "201":
+          description: Sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminSendNotificationResponse"
+
 components:
   securitySchemes:
     bearerAuth:
@@ -2094,3 +2260,192 @@ components:
       required:
         - counted
         - viewsCount
+
+    NotificationItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+        title:
+          type: string
+        body:
+          type: string
+        targetType:
+          type: string
+        targetId:
+          type: integer
+          nullable: true
+        targetPath:
+          type: string
+          nullable: true
+        actorUsername:
+          type: string
+          nullable: true
+        isRead:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - type
+        - title
+        - body
+        - targetType
+        - isRead
+        - createdAt
+
+    NotificationListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/NotificationItem"
+        nextCursor:
+          type: integer
+          nullable: true
+      required:
+        - items
+
+    UnreadCountResponse:
+      type: object
+      properties:
+        count:
+          type: integer
+      required:
+        - count
+
+    VapidKeyResponse:
+      type: object
+      properties:
+        publicKey:
+          type: string
+          nullable: true
+      required:
+        - publicKey
+
+    PushSubscriptionKeys:
+      type: object
+      properties:
+        p256dh:
+          type: string
+        auth:
+          type: string
+      required:
+        - p256dh
+        - auth
+
+    PushSubscriptionInput:
+      type: object
+      properties:
+        endpoint:
+          type: string
+        keys:
+          $ref: "#/components/schemas/PushSubscriptionKeys"
+        userAgent:
+          type: string
+          nullable: true
+      required:
+        - endpoint
+        - keys
+
+    PushUnsubscribeInput:
+      type: object
+      properties:
+        endpoint:
+          type: string
+      required:
+        - endpoint
+
+    SendNotificationInput:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+        body:
+          type: string
+        audienceType:
+          type: string
+          enum: [all, vip, normal, user, category]
+        audienceValue:
+          type: string
+          nullable: true
+        targetType:
+          type: string
+          enum: [post, lesson, page, none]
+        targetId:
+          type: integer
+          nullable: true
+        targetPath:
+          type: string
+          nullable: true
+      required:
+        - title
+        - body
+        - audienceType
+
+    AdminSendNotificationResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        recipientCount:
+          type: integer
+      required:
+        - id
+        - recipientCount
+
+    AdminNotificationItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+        title:
+          type: string
+        body:
+          type: string
+        audienceType:
+          type: string
+          nullable: true
+        audienceValue:
+          type: string
+          nullable: true
+        targetType:
+          type: string
+        targetPath:
+          type: string
+          nullable: true
+        senderName:
+          type: string
+          nullable: true
+        recipientCount:
+          type: integer
+        openedCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - type
+        - title
+        - body
+        - recipientCount
+        - openedCount
+        - createdAt
+
+    AdminNotificationsResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminNotificationItem"
+      required:
+        - items
