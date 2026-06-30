@@ -27,6 +27,11 @@ async function fetchAccessToken(): Promise<{ token: string; expiresAtMs: number 
       : null;
 
   if (!hostname || !xReplitToken) {
+    console.error("[video-stream] TOKEN ERROR: connector env missing", {
+      hasHostname: !!hostname,
+      hasReplIdentity: !!process.env.REPL_IDENTITY,
+      hasWebReplRenewal: !!process.env.WEB_REPL_RENEWAL,
+    });
     throw new Error("Google Drive connector is not available in this environment");
   }
 
@@ -35,6 +40,11 @@ async function fetchAccessToken(): Promise<{ token: string; expiresAtMs: number 
     { headers: { Accept: "application/json", X_REPLIT_TOKEN: xReplitToken } },
   );
   if (!resp.ok) {
+    const body = await resp.text().catch(() => "");
+    console.error("[video-stream] TOKEN ERROR: connector lookup failed", {
+      status: resp.status,
+      body: body.slice(0, 400),
+    });
     throw new Error(`Google Drive connector lookup failed (${resp.status})`);
   }
 
@@ -47,6 +57,9 @@ async function fetchAccessToken(): Promise<{ token: string; expiresAtMs: number 
   const creds = settings?.oauth?.credentials;
   const token = creds?.access_token || settings?.access_token;
   if (!token) {
+    console.error("[video-stream] TOKEN ERROR: connector returned no access token", {
+      itemCount: data.items?.length ?? 0,
+    });
     throw new Error("Google Drive is not connected");
   }
 
@@ -96,9 +109,35 @@ export async function streamDriveFile(
   );
 
   if (driveResp.status !== 200 && driveResp.status !== 206) {
+    const errBody = await driveResp.text().catch(() => "");
+    // Surface the REAL reason: 401/403 = token/permission (Google API error),
+    // 404 = file not found / no access under this account's scope, else upstream.
+    console.error("[video-stream] DRIVE ERROR: files.get returned non-2xx", {
+      fileId,
+      driveStatus: driveResp.status,
+      range: range ?? null,
+      reason:
+        driveResp.status === 401
+          ? "TOKEN/AUTH"
+          : driveResp.status === 403
+            ? "PERMISSION/SCOPE"
+            : driveResp.status === 404
+              ? "FILE NOT FOUND / NOT ACCESSIBLE BY CONNECTED ACCOUNT"
+              : "UPSTREAM",
+      body: errBody.slice(0, 500),
+    });
     res.status(driveResp.status === 404 ? 404 : 502).end();
     return;
   }
+
+  console.info("[video-stream] OK: streaming Drive file", {
+    fileId,
+    driveStatus: driveResp.status,
+    range: range ?? null,
+    contentType: driveResp.headers.get("content-type"),
+    contentLength: driveResp.headers.get("content-length"),
+    contentRange: driveResp.headers.get("content-range"),
+  });
 
   res.status(driveResp.status);
   res.setHeader("Accept-Ranges", "bytes");
@@ -118,6 +157,10 @@ export async function streamDriveFile(
   res.setHeader("Content-Disposition", "inline");
 
   if (!driveResp.body) {
+    console.error("[video-stream] STREAM ERROR: Drive response had no body", {
+      fileId,
+      driveStatus: driveResp.status,
+    });
     res.end();
     return;
   }
@@ -125,7 +168,11 @@ export async function streamDriveFile(
   const nodeStream = Readable.fromWeb(driveResp.body as NodeWebReadableStream<Uint8Array>);
   // Stop pulling bytes from Drive as soon as the client goes away (seek/close).
   res.on("close", () => nodeStream.destroy());
-  nodeStream.on("error", () => {
+  nodeStream.on("error", (err: unknown) => {
+    console.error("[video-stream] STREAM ERROR: pipe from Drive failed", {
+      fileId,
+      message: err instanceof Error ? err.message : String(err),
+    });
     if (!res.headersSent) res.status(502);
     res.end();
   });

@@ -310,6 +310,11 @@ router.get("/videos/:id/stream/:part", async (req, res) => {
     const token = typeof req.query.token === "string" ? req.query.token : null;
     const payload = token ? verifyVideoStreamToken(token) : null;
     if (!payload) {
+      console.warn("[video-stream] DENY 401: missing/invalid token", {
+        videoId: req.params.id,
+        part: req.params.part,
+        hasToken: !!token,
+      });
       res.status(401).end();
       return;
     }
@@ -323,6 +328,12 @@ router.get("/videos/:id/stream/:part", async (req, res) => {
       payload.videoId !== id ||
       payload.part !== part
     ) {
+      console.warn("[video-stream] DENY 403: token/route mismatch", {
+        routeId: id,
+        routePart: part,
+        tokenVideoId: payload.videoId,
+        tokenPart: payload.part,
+      });
       res.status(403).end();
       return;
     }
@@ -339,6 +350,11 @@ router.get("/videos/:id/stream/:part", async (req, res) => {
       .limit(1);
 
     if (!video || !video.isVisible) {
+      console.warn("[video-stream] DENY 404: video missing or hidden", {
+        videoId: id,
+        found: !!video,
+        isVisible: video?.isVisible ?? null,
+      });
       res.status(404).end();
       return;
     }
@@ -360,10 +376,21 @@ router.get("/videos/:id/stream/:part", async (req, res) => {
       const isVipUser = u?.accountType === "vip";
       const isSubscribed = !!u && u.subscriptionType !== "demo";
       if (accessType === "vip" && !isVipUser) {
+        console.warn("[video-stream] DENY 403: VIP video, user not VIP", {
+          videoId: id,
+          userId: payload.userId,
+          accountType: u?.accountType ?? null,
+        });
         res.status(403).end();
         return;
       }
       if (accessType === "normal" && !isVipUser && !isSubscribed) {
+        console.warn("[video-stream] DENY 403: not VIP and not subscribed", {
+          videoId: id,
+          userId: payload.userId,
+          accountType: u?.accountType ?? null,
+          subscriptionType: u?.subscriptionType ?? null,
+        });
         res.status(403).end();
         return;
       }
@@ -375,17 +402,32 @@ router.get("/videos/:id/stream/:part", async (req, res) => {
     });
     const target = partsList[part];
     if (!target) {
+      console.warn("[video-stream] DENY 404: part index out of range", {
+        videoId: id,
+        part,
+        partCount: partsList.length,
+      });
       res.status(404).end();
       return;
     }
     const fileId = extractDriveFileId(target.url);
     if (!fileId) {
+      console.warn("[video-stream] DENY 404: could not extract Drive file id", {
+        videoId: id,
+        part,
+      });
       res.status(404).end();
       return;
     }
 
     await streamDriveFile(req, res, fileId);
   } catch (error: unknown) {
+    console.error("[video-stream] ROUTE ERROR: stream handler threw", {
+      videoId: req.params.id,
+      part: req.params.part,
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     if (!res.headersSent) {
       res.status(500).json({
         message: error instanceof Error ? error.message : "Failed to stream video",
