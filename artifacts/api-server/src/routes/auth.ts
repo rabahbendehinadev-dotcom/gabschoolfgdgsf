@@ -6,6 +6,7 @@ import { hashPassword, comparePassword, generateToken, generateAdminToken } from
 import { applyVipIpPolicy, getClientIp, VIP_IP_LIMIT_MESSAGE } from "../lib/ipPolicy";
 import { deviceTypeFromUA } from "../lib/device";
 import { userAuth } from "../middlewares/auth";
+import { normalizePhone, INVALID_PHONE_MESSAGE } from "../lib/phone";
 
 import {
   RegisterBody,
@@ -131,11 +132,11 @@ router.post("/auth/register", async (req, res) => {
       subscriptionExpiresAt.setDate(subscriptionExpiresAt.getDate() + demoPlan.durationDays);
     }
 
-    const rawPhone = body.phone || "";
-    const digitsOnly = rawPhone.replace(/\D/g, "");
-    const normalizedPhone = digitsOnly.startsWith("0")
-      ? "213" + digitsOnly.slice(1)
-      : digitsOnly;
+    const normalizedPhone = normalizePhone(body.phone);
+    if (body.phone && !normalizedPhone) {
+      res.status(400).json({ message: INVALID_PHONE_MESSAGE });
+      return;
+    }
 
     const [user] = await db.insert(usersTable).values({
       username: body.username,
@@ -281,17 +282,11 @@ router.get("/auth/me", userAuth, async (req, res) => {
 router.patch("/auth/me/phone", userAuth, async (req, res) => {
   try {
     const body = UpdateMyPhoneBody.parse(req.body);
-    const digitsOnly = body.phone.replace(/\D/g, "");
-
-    // Algerian mobile numbers: 0[5/6/7]xxxxxxxx (local) or 213[5/6/7]xxxxxxxx (international).
-    const isLocal = /^0[567]\d{8}$/.test(digitsOnly);
-    const isIntl = /^213[567]\d{8}$/.test(digitsOnly);
-    if (!isLocal && !isIntl) {
-      res.status(400).json({ message: "رقم الهاتف غير صحيح. استعمل رقمًا جزائريًا مثل 0512345678 أو +213512345678" });
+    const normalizedPhone = normalizePhone(body.phone);
+    if (!normalizedPhone) {
+      res.status(400).json({ message: INVALID_PHONE_MESSAGE });
       return;
     }
-
-    const normalizedPhone = isLocal ? "213" + digitsOnly.slice(1) : digitsOnly;
 
     const [updated] = await db.update(usersTable)
       .set({ phone: normalizedPhone })

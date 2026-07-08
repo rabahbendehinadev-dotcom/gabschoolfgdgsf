@@ -1,9 +1,11 @@
 import { useEffect } from "react";
 import { useLocation } from "wouter";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Button, Input, Label, Card } from "@/components/ui";
+import { isValidPhoneNumber } from "react-phone-number-input";
+import { Button, Label, Card } from "@/components/ui";
+import { PhoneNumberInput } from "@/components/PhoneNumberInput";
 import { useUpdateMyPhone } from "@workspace/api-client-react/src/generated/api";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
@@ -14,10 +16,7 @@ const phoneSchema = z.object({
   phone: z
     .string()
     .min(1, "رقم الواتساب مطلوب")
-    .refine((value) => {
-      const digits = value.replace(/\D/g, "");
-      return /^0[567]\d{8}$/.test(digits) || /^213[567]\d{8}$/.test(digits);
-    }, "أدخل رقم واتساب جزائري صحيح، مثل: 0512345678 أو +213512345678"),
+    .refine((value) => isValidPhoneNumber(value), "أدخل رقم واتساب دولي صحيح مع رمز الدولة"),
 });
 
 type PhoneForm = z.infer<typeof phoneSchema>;
@@ -28,8 +27,9 @@ export function CompletePhone() {
   const { toast } = useToast();
   const updatePhoneMut = useUpdateMyPhone({ request: getAuthHeaders() });
 
-  const { register, handleSubmit, formState: { errors } } = useForm<PhoneForm>({
+  const { control, handleSubmit, formState: { errors } } = useForm<PhoneForm>({
     resolver: zodResolver(phoneSchema),
+    defaultValues: { phone: "" },
   });
 
   // Not logged in -> send to login. Already has a phone -> straight into the app.
@@ -82,16 +82,21 @@ export function CompletePhone() {
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
             <div className="space-y-2">
               <Label>رقم الواتساب</Label>
-              <Input
-                {...register("phone")}
-                placeholder="0512345678"
-                dir="ltr"
-                inputMode="tel"
-                className="text-left"
+              <Controller
+                name="phone"
+                control={control}
+                render={({ field }) => (
+                  <PhoneNumberInput
+                    id={field.name}
+                    value={field.value}
+                    onChange={field.onChange}
+                    placeholder="5X XX XX XX XX"
+                  />
+                )}
               />
               {errors.phone && <p className="text-sm text-destructive">{errors.phone.message}</p>}
               <p className="text-xs text-foreground/50">
-                الأرقام الجزائرية المدعومة: 05 / 06 / 07 أو +213
+                اختر دولتك وأدخل رقم واتساب صحيح — ندعم جميع الدول
               </p>
             </div>
 
