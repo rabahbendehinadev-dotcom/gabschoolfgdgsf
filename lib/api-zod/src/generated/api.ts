@@ -408,6 +408,7 @@ export const UpdateAdminUserBody = zod.object({
     .optional(),
   isActive: zod.boolean().optional(),
   subscriptionExpiresAt: zod.date().nullish(),
+  phone: zod.string().nullish(),
 });
 
 export const UpdateAdminUserResponse = zod.object({

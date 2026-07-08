@@ -11,6 +11,7 @@ import { hashPassword, comparePassword } from "../lib/auth";
 import { adminsTable } from "@workspace/db";
 import { createNotification, type AudienceType, type TargetType } from "../lib/notifications";
 import { sendPushToUsers } from "../lib/webPush";
+import { normalizePhone, INVALID_PHONE_MESSAGE } from "../lib/phone";
 import * as zod from "zod";
 import {
   UpdateAdminUserBody,
@@ -287,7 +288,18 @@ router.patch("/admin/users/:id", adminAuth, async (req, res) => {
     if (body.subscriptionExpiresAt !== undefined) {
       updateData.subscriptionExpiresAt = body.subscriptionExpiresAt ? new Date(body.subscriptionExpiresAt) : null;
     }
-    if ("phone" in body) updateData.phone = body.phone ?? null;
+    if ("phone" in body) {
+      if (body.phone) {
+        const normalizedPhone = normalizePhone(body.phone);
+        if (!normalizedPhone) {
+          res.status(400).json({ message: INVALID_PHONE_MESSAGE });
+          return;
+        }
+        updateData.phone = normalizedPhone;
+      } else {
+        updateData.phone = null;
+      }
+    }
 
     const [user] = await db.update(usersTable).set(updateData)
       .where(eq(usersTable.id, id)).returning();

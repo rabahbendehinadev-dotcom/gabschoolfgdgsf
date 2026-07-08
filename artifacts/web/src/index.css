@@ -136,4 +136,53 @@
   .cat-card:hover .cat-arrow-btn svg {
     transform: translateX(-3px);
   }
+
+  /* حقل رقم الهاتف الدولي — يطابق شكل حقل الإدخال المعتمد في الواجهة */
+  .app-phone-input .PhoneInput {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    height: 2.5rem;
+    width: 100%;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-input);
+    background: transparent;
+    padding: 0.25rem 0.75rem;
+    transition: box-shadow 0.15s ease, border-color 0.15s ease;
+  }
+  .app-phone-input .PhoneInput--focus {
+    outline: none;
+    box-shadow: 0 0 0 1px var(--color-ring);
+    border-color: var(--color-ring);
+  }
+  .app-phone-input .PhoneInputCountry {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex-shrink: 0;
+  }
+  .app-phone-input .PhoneInputCountryIcon {
+    width: 1.4em;
+    height: 1.05em;
+    box-shadow: none;
+  }
+  .app-phone-input .PhoneInputCountrySelectArrow {
+    color: var(--color-muted-foreground);
+    opacity: 1;
+  }
+  .app-phone-input .PhoneInputInput {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: var(--color-foreground);
+    font-size: 0.875rem;
+  }
+  .app-phone-input .PhoneInputInput::placeholder {
+    color: var(--color-muted-foreground);
+  }
+  .app-phone-input .PhoneInput--disabled {
+    opacity: 0.5;
+  }
 }

@@ -2012,6 +2012,9 @@ components:
           type: string
           format: date-time
           nullable: true
+        phone:
+          type: string
+          nullable: true
 
     AdminUser:
       type: object

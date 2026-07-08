@@ -382,6 +382,7 @@ export interface UpdateUserInput {
   subscriptionType?: UpdateUserInputSubscriptionType;
   isActive?: boolean;
   subscriptionExpiresAt?: string | null;
+  phone?: string | null;
 }
 
 export type AdminUserAccountType =

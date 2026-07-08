@@ -13,4 +13,5 @@ export interface UpdateUserInput {
   subscriptionType?: UpdateUserInputSubscriptionType;
   isActive?: boolean;
   subscriptionExpiresAt?: Date | null;
+  phone?: string | null;
 }

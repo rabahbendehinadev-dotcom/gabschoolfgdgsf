@@ -3,12 +3,17 @@ import { useGetAdminUsers, useUpdateAdminUser, useResetUserIp, useDeleteAdminUse
 import { AdminUser, UpdateUserInput, GetAdminUsersNotifications } from "@workspace/api-client-react/src/generated/api.schemas";
 import { useAuth } from "@/lib/auth";
 import { Card, Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label } from "@/components/ui";
+import { PhoneNumberInput } from "@/components/PhoneNumberInput";
 import { useToast } from "@/hooks/use-toast";
 import { Search, Edit, RefreshCw, ShieldOff, ShieldCheck, Trash2, MessageCircle, KeyRound, Eye, EyeOff, BellRing, BellOff, Clock, Send, Loader2 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 
 const API_BASE = "";
 
+// New phone numbers are already saved as full E.164 digits (with country
+// code) via libphonenumber-js. This fallback only exists so legacy
+// Algeria-only records (stored as local "0X..." or bare "213X...") still
+// produce a working wa.me link.
 function normalizeWhatsApp(phone: string): string {
   const digits = phone.replace(/\D/g, "");
   if (digits.startsWith("0")) return "213" + digits.slice(1);
@@ -481,14 +486,12 @@ export function AdminUsers() {
             </div>
             <div className="space-y-2">
               <Label>رقم الهاتف / واتساب</Label>
-              <Input
-                dir="ltr"
-                className="text-left"
-                placeholder="0551234567"
-                value={formData.phone ?? ""}
-                onChange={e => setFormData({ ...formData, phone: e.target.value || undefined })}
+              <PhoneNumberInput
+                value={formData.phone ?? undefined}
+                onChange={value => setFormData({ ...formData, phone: value || undefined })}
+                placeholder="5X XX XX XX XX"
               />
-              <p className="text-xs text-muted-foreground">مثال: 0551234567 أو 213551234567</p>
+              <p className="text-xs text-muted-foreground">اختر الدولة وأدخل رقمًا دوليًا صحيحًا</p>
             </div>
             <Button className="w-full mt-4" onClick={handleSave} disabled={updateMut.isPending}>
               حفظ التغييرات
