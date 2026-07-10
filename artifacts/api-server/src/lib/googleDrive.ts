@@ -108,7 +108,7 @@ export async function streamDriveFile(
   // whole file again (an endless loop). By clamping each request to a small
   // window and returning 206 + the real Content-Range, the player fetches the
   // video in fast, reliable chunks and can still seek anywhere.
-  const MAX_CHUNK = 2 * 1024 * 1024; // 2 MiB per response
+  const MAX_CHUNK = 8 * 1024 * 1024; // 8 MiB per response — larger chunks = fewer round-trips = less buffering stall
 
   const clientRange = req.headers.range;
   const match = clientRange ? /^bytes=(\d*)-(\d*)$/.exec(clientRange.trim()) : null;
@@ -181,7 +181,12 @@ export async function streamDriveFile(
     "Content-Type",
     upstreamType && upstreamType.startsWith("video/") ? upstreamType : "video/mp4",
   );
-  res.setHeader("Cache-Control", "no-store, private");
+  // Allow the BROWSER (and only the browser) to cache the video chunks it
+  // already downloaded. This means seeking backward and re-watching use the
+  // local disk cache instead of re-fetching from Drive through our proxy.
+  // "private" prevents CDN/shared caches from storing the byte range; the
+  // 1-hour TTL matches typical watch session length.
+  res.setHeader("Cache-Control", "private, max-age=3600");
   res.setHeader("Content-Disposition", "inline");
 
   if (!driveResp.body) {
