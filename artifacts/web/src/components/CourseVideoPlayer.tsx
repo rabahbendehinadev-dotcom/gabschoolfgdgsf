@@ -796,9 +796,7 @@ export function CourseVideoPlayer({
             <AlertTriangle className="mb-3 h-12 w-12 text-amber-400" />
             <p className="mb-1 text-lg font-bold text-white">تعذّر تشغيل الفيديو</p>
             <p className="mb-4 max-w-xs text-sm text-white/60">
-              {errorCode === 3 || errorCode === 4
-                ? "صيغة الفيديو غير مدعومة على هذا الجهاز. جرّب فتحه من متصفح آخر."
-                : "حدث خطأ أثناء تحميل الفيديو. حاول مرة أخرى."}
+              حدث خطأ أثناء تحميل الفيديو. حاول مرة أخرى.
             </p>
             <Button
               onClick={() => {
