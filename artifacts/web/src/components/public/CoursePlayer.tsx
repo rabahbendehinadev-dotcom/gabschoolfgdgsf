@@ -80,7 +80,7 @@ export function CoursePlayer({ lessons, accessInfo }: CoursePlayerProps) {
 
   /* ── جلب الفيديو الكامل (الأجزاء المتعددة + برنامج VIP) فقط عند فتح درس متاح ── */
   const shouldFetch = !!currentLesson && !currentLocked;
-  const { data: detailRaw, isLoading: detailLoading, error: detailError } = useGetVideo(
+  const { data: detailRaw, isLoading: detailLoading, error: detailError, refetch: refetchDetail } = useGetVideo(
     lessonId,
     {
       request: getAuthHeaders(),
@@ -172,6 +172,7 @@ export function CoursePlayer({ lessons, accessInfo }: CoursePlayerProps) {
               username={user?.username}
               email={user?.email}
               videoId={lessonId}
+              onRetry={() => { refetchDetail(); }}
             />
           </>
         ) : (

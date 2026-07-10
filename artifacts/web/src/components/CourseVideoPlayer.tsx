@@ -41,6 +41,8 @@ interface CourseVideoPlayerProps {
   username?: string;
   email?: string;
   onViolation?: (count: number) => void;
+  /** عند النقر على "إعادة المحاولة" — يُستخدم لتجديد رابط البثّ من الخادم */
+  onRetry?: () => void;
 }
 
 function formatTime(sec: number): string {
@@ -80,7 +82,7 @@ type PipVideo = HTMLVideoElement & {
 };
 
 export function CourseVideoPlayer({
-  src, poster, title, videoId, username, email, onViolation,
+  src, poster, title, videoId, username, email, onViolation, onRetry,
 }: CourseVideoPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -105,6 +107,7 @@ export function CourseVideoPlayer({
   const [brightness, setBrightness] = useState(1); // 1 = full, ↓ dims overlay
   const [pipSupported, setPipSupported] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  const [errorCode, setErrorCode] = useState<number | null>(null);
 
   // إيماءات: مؤشّر مؤقت يظهر عند التقديم/الترجيع/الصوت/الإضاءة
   const [gesture, setGesture] = useState<{ kind: "seek" | "vol" | "bright"; text: string; side?: "l" | "r" } | null>(null);
@@ -331,7 +334,7 @@ export function CourseVideoPlayer({
     const onPlaying = () => setWaiting(false);
     const onReady = () => setWaiting(false);
     const onEnded = () => { setPlaying(false); setControlsVisible(true); if (saveKey) { try { localStorage.removeItem(saveKey); } catch { /* */ } } };
-    const onError = () => { setWaiting(false); setLoadError(true); };
+    const onError = () => { setWaiting(false); setLoadError(true); setErrorCode(v.error?.code ?? null); };
     const onVol = () => { setVolume(v.volume); setMuted(v.muted); };
 
     v.addEventListener("loadedmetadata", onLoaded);
@@ -365,6 +368,7 @@ export function CourseVideoPlayer({
   /* ── إعادة الضبط عند تغيّر المصدر (دون إعادة تركيب العنصر → لا وميض) ── */
   useEffect(() => {
     setLoadError(false);
+    setErrorCode(null);
     setStarted(false);
     setWaiting(true);
     setCurrent(0);
@@ -791,9 +795,23 @@ export function CourseVideoPlayer({
           <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-black/90 px-6 text-center">
             <AlertTriangle className="mb-3 h-12 w-12 text-amber-400" />
             <p className="mb-1 text-lg font-bold text-white">تعذّر تشغيل الفيديو</p>
-            <p className="mb-4 max-w-xs text-sm text-white/60">حدث خطأ أثناء تحميل الفيديو. تحقق من اتصالك وحاول مرة أخرى.</p>
+            <p className="mb-4 max-w-xs text-sm text-white/60">
+              {errorCode === 3 || errorCode === 4
+                ? "صيغة الفيديو غير مدعومة على هذا الجهاز. جرّب فتحه من متصفح آخر."
+                : "حدث خطأ أثناء تحميل الفيديو. حاول مرة أخرى."}
+            </p>
             <Button
-              onClick={() => { setLoadError(false); setWaiting(true); videoRef.current?.load(); videoRef.current?.play().catch(() => {}); }}
+              onClick={() => {
+                setLoadError(false);
+                setErrorCode(null);
+                setWaiting(true);
+                if (onRetry) {
+                  onRetry();
+                } else {
+                  videoRef.current?.load();
+                  videoRef.current?.play().catch(() => {});
+                }
+              }}
               className="gap-2"
             >
               <RotateCw className="h-4 w-4" /> إعادة المحاولة
