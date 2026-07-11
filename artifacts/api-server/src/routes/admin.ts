@@ -2,7 +2,7 @@ import path from "path";
 import fs from "fs";
 import { Router, type IRouter } from "express";
 import multer from "multer";
-import { db, usersTable, videosTable, categoriesTable, playlistsTable, subscriptionPlansTable, visitLogsTable, activityLogsTable, notificationsTable, notificationRecipientsTable, pushSubscriptionsTable } from "@workspace/db";
+import { db, usersTable, videosTable, categoriesTable, playlistsTable, subscriptionPlansTable, visitLogsTable, activityLogsTable, notificationsTable, notificationRecipientsTable, pushSubscriptionsTable, adminPushSubscriptionsTable } from "@workspace/db";
 import { eq, sql, count, desc, asc, lt, and, gte, isNull, isNotNull, inArray, max } from "drizzle-orm";
 
 import { adminAuth } from "../middlewares/auth";
@@ -10,7 +10,8 @@ import { effectiveIpState } from "../lib/ipPolicy";
 import { hashPassword, comparePassword } from "../lib/auth";
 import { adminsTable } from "@workspace/db";
 import { createNotification, type AudienceType, type TargetType } from "../lib/notifications";
-import { sendPushToUsers } from "../lib/webPush";
+import { sendPushToUsers, getVapidPublicKey } from "../lib/webPush";
+import { sendPushToAdmins } from "../lib/adminWebPush";
 import { normalizePhone, INVALID_PHONE_MESSAGE } from "../lib/phone";
 import * as zod from "zod";
 import {
@@ -991,6 +992,67 @@ router.get("/admin/notifications", adminAuth, async (_req, res) => {
   } catch (error: unknown) {
     res.status(500).json({ message: error instanceof Error ? error.message : "فشل تحميل سجل الإشعارات" });
   }
+});
+
+// ── Admin push-notification subscription management ──────────────────────────
+// Admins subscribe their own devices to receive push alerts (new registrations,
+// etc.) without needing a user account.
+
+// GET /api/admin/push/vapid-key — public VAPID key for PushManager.subscribe()
+router.get("/admin/push/vapid-key", adminAuth, (_req, res) => {
+  const key = getVapidPublicKey();
+  if (!key) { res.status(503).json({ message: "Push notifications not configured on server" }); return; }
+  res.json({ publicKey: key });
+});
+
+// GET /api/admin/push/status — is THIS admin device subscribed?
+router.get("/admin/push/status", adminAuth, async (req, res) => {
+  try {
+    const adminId = req.admin!.id;
+    const subs = await db
+      .select({ id: adminPushSubscriptionsTable.id })
+      .from(adminPushSubscriptionsTable)
+      .where(and(eq(adminPushSubscriptionsTable.adminId, adminId), isNull(adminPushSubscriptionsTable.failedAt)));
+    res.json({ subscribed: subs.length > 0 });
+  } catch { res.status(500).json({ message: "Failed to check status" }); }
+});
+
+// POST /api/admin/push/subscribe — save (or refresh) an admin device subscription
+router.post("/admin/push/subscribe", adminAuth, async (req, res) => {
+  try {
+    const { endpoint, p256dh, auth } = req.body as { endpoint?: string; p256dh?: string; auth?: string };
+    if (!endpoint || !p256dh || !auth) { res.status(400).json({ message: "Invalid subscription payload" }); return; }
+    const adminId = req.admin!.id;
+    await db.insert(adminPushSubscriptionsTable)
+      .values({ adminId, endpoint, p256dh, auth, userAgent: req.headers["user-agent"] ?? null })
+      .onConflictDoUpdate({
+        target: adminPushSubscriptionsTable.endpoint,
+        set: { adminId, p256dh, auth, failedAt: null, userAgent: req.headers["user-agent"] ?? null },
+      });
+    res.json({ ok: true });
+  } catch { res.status(500).json({ message: "Failed to save subscription" }); }
+});
+
+// DELETE /api/admin/push/subscribe — remove an admin device subscription
+router.delete("/admin/push/subscribe", adminAuth, async (req, res) => {
+  try {
+    const { endpoint } = req.body as { endpoint?: string };
+    if (!endpoint) { res.status(400).json({ message: "Missing endpoint" }); return; }
+    await db.delete(adminPushSubscriptionsTable).where(eq(adminPushSubscriptionsTable.endpoint, endpoint));
+    res.json({ ok: true });
+  } catch { res.status(500).json({ message: "Failed to remove subscription" }); }
+});
+
+// POST /api/admin/push/test — send a test push to all subscribed admin devices
+router.post("/admin/push/test", adminAuth, async (_req, res) => {
+  try {
+    const result = await sendPushToAdmins({
+      title: "إشعار تجريبي للأدمن ✅",
+      body: "الإشعارات تعمل بشكل صحيح على جهازك.",
+      tag: "admin-self-test",
+    });
+    res.json(result);
+  } catch { res.status(500).json({ message: "Failed to send test push" }); }
 });
 
 export default router;
