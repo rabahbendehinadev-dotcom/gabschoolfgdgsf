@@ -228,7 +228,91 @@ export function AdminUsers() {
         </div>
       </div>
 
-      <Card className="border-white/5 overflow-hidden">
+      {/* ── Mobile card list (hidden on md+) ── */}
+      <div className="md:hidden space-y-3">
+        {filtered?.map(user => {
+          const phone = (user as typeof user & { phone?: string }).phone;
+          return (
+            <Card key={user.id} className={`border-white/5 p-4 space-y-3 ${!user.isActive ? "opacity-60" : ""}`}>
+              {/* Name + status */}
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="font-bold truncate">{user.username}</div>
+                  <div className="text-xs text-muted-foreground truncate">{user.email}</div>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {user.isActive
+                    ? <Badge className="bg-green-500/20 text-green-500 border-0 text-xs">نشط</Badge>
+                    : <Badge variant="destructive" className="text-xs">محظور</Badge>}
+                </div>
+              </div>
+
+              {/* Account + subscription */}
+              <div className="flex flex-wrap gap-2 items-center">
+                <Badge variant={user.accountType === "vip" ? "vip" : "secondary"} className="text-xs">{user.accountType}</Badge>
+                <span className="text-xs text-muted-foreground">{user.subscriptionType}</span>
+                {user.subscriptionExpiresAt && (
+                  <span className="text-xs text-muted-foreground">· {formatDate(user.subscriptionExpiresAt)}</span>
+                )}
+              </div>
+
+              {/* Phone */}
+              {phone ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-mono text-foreground/80 flex-1" dir="ltr">{phone}</span>
+                  <a href={`https://wa.me/${normalizeWhatsApp(phone)}`} target="_blank" rel="noopener noreferrer">
+                    <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-green-500/15 hover:bg-green-500/30 text-green-400 border border-green-500/20 transition-all">
+                      <MessageCircle className="w-4 h-4" />
+                    </span>
+                  </a>
+                </div>
+              ) : (
+                <div className="text-xs text-muted-foreground">لا يوجد رقم هاتف</div>
+              )}
+
+              {/* Date + push */}
+              <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                <span>{formatDate(user.createdAt)}</span>
+                {user.pushState === "enabled" && (
+                  <Badge className="bg-green-500/15 text-green-400 border-0 gap-1 text-xs"><BellRing className="w-3 h-3" /> إشعارات</Badge>
+                )}
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-1 pt-1 border-t border-white/5">
+                <Button variant="ghost" size="icon" title="تعديل" className="h-9 w-9" onClick={() => handleEdit(user)}>
+                  <Edit className="w-4 h-4" />
+                </Button>
+                <Button variant="ghost" size="icon" title="تغيير كلمة المرور" className="h-9 w-9" onClick={() => { setResetPwUser(user); setResetPwForm({ newPassword: "", confirmPassword: "" }); setResetPwError(""); setResetPwSuccess(""); setShowResetPw(false); setShowResetConfirm(false); }}>
+                  <KeyRound className="w-4 h-4 text-purple-400" />
+                </Button>
+                <Button variant="ghost" size="icon" title="تصفير IP" className="h-9 w-9" onClick={() => handleResetIp(user.id)} disabled={user.ipCount === 0 || loadingId === user.id}>
+                  <RefreshCw className="w-4 h-4 text-blue-400" />
+                </Button>
+                <Button variant="ghost" size="icon" title="إرسال إشعار تجريبي" className="h-9 w-9" onClick={() => handleTestPush(user)} disabled={testingId === user.id}>
+                  {testingId === user.id
+                    ? <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
+                    : <Send className="w-4 h-4 text-emerald-400" />}
+                </Button>
+                <Button variant="ghost" size="icon" title={user.isActive ? "حظر" : "رفع الحظر"} className="h-9 w-9" onClick={() => handleBlock(user)} disabled={loadingId === user.id}>
+                  {user.isActive
+                    ? <ShieldOff className="w-4 h-4 text-yellow-400" />
+                    : <ShieldCheck className="w-4 h-4 text-green-400" />}
+                </Button>
+                <Button variant="ghost" size="icon" title="حذف" className="h-9 w-9" onClick={() => handleDelete(user)} disabled={loadingId === user.id}>
+                  <Trash2 className="w-4 h-4 text-red-400" />
+                </Button>
+              </div>
+            </Card>
+          );
+        })}
+        {filtered?.length === 0 && (
+          <div className="text-center text-muted-foreground py-10 text-sm">لا يوجد مستخدمون</div>
+        )}
+      </div>
+
+      {/* ── Desktop table (hidden on mobile) ── */}
+      <Card className="border-white/5 overflow-hidden hidden md:block">
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-right">
             <thead className="text-xs text-muted-foreground bg-white/5 border-b border-white/10 uppercase">

@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { sendPushToAdmins } from "../lib/adminWebPush";
 import { db, usersTable, adminsTable, subscriptionPlansTable, activityLogsTable } from "@workspace/db";
 import { eq, and, gte } from "drizzle-orm";
 
@@ -151,6 +152,14 @@ router.post("/auth/register", async (req, res) => {
     const token = generateToken({ userId: user.id });
     const regIp = getClientIp(req);
     await logActivity(user.id, user.username, "user_registered", `New user registered: ${user.username} (${user.email})`, regIp, req.headers["user-agent"]);
+
+    // Best-effort: notify admin devices of the new registration
+    sendPushToAdmins({
+      title: "🆕 تسجيل جديد",
+      body: `${user.username} (${user.email}) — سجّل للتو في المنصة.`,
+      url: "/gab-ctrl-9x/users",
+      tag: `new-user-${user.id}`,
+    }).catch(() => {});
 
     res.status(201).json({
       token,
@@ -396,6 +405,14 @@ router.post("/auth/google", async (req, res) => {
       }).returning();
       user = created;
       await logActivity(user.id, user.username, "user_registered", `New user via Google: ${user.username} (${user.email})`, clientIp, userAgent);
+
+      // Best-effort: notify admin devices of the new Google registration
+      sendPushToAdmins({
+        title: "🆕 تسجيل جديد (Google)",
+        body: `${user.username} (${user.email}) — سجّل عبر Google.`,
+        url: "/gab-ctrl-9x/users",
+        tag: `new-user-${user.id}`,
+      }).catch(() => {});
     }
 
     const token = generateToken({ userId: user.id });
