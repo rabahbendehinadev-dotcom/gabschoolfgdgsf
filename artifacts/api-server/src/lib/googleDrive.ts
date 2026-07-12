@@ -35,8 +35,11 @@ async function fetchAccessToken(): Promise<{ token: string; expiresAtMs: number 
     throw new Error("Google Drive connector is not available in this environment");
   }
 
+  // NOTE: no connector_names filter — in the development environment that
+  // filter returns 0 items for a production-scoped connection, so we list all
+  // connections and pick the Google Drive one ourselves.
   const resp = await fetch(
-    `https://${hostname}/api/v2/connection?include_secrets=true&connector_names=google-drive`,
+    `https://${hostname}/api/v2/connection?include_secrets=true`,
     { headers: { Accept: "application/json", X_REPLIT_TOKEN: xReplitToken } },
   );
   if (!resp.ok) {
@@ -50,10 +53,14 @@ async function fetchAccessToken(): Promise<{ token: string; expiresAtMs: number 
 
   const data = (await resp.json()) as {
     items?: Array<{
+      connector_name?: string;
       settings?: { access_token?: string; oauth?: { credentials?: DriveCredentials } };
     }>;
   };
-  const settings = data.items?.[0]?.settings;
+  const driveItem =
+    data.items?.find((item) => item.connector_name === "google-drive") ??
+    data.items?.[0];
+  const settings = driveItem?.settings;
   const creds = settings?.oauth?.credentials;
   const token = creds?.access_token || settings?.access_token;
   if (!token) {

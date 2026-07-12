@@ -712,14 +712,34 @@ router.post("/admin/videos/:id/migrate-storage", adminAuth, async (req, res) => 
       }
     } catch (copyErr) {
       // Roll back any partial copies so we never store a half-migrated state.
-      if (copied.length > 0) void deleteVideoObjects(copied);
+      // Guard: skip deletion if a concurrent migration already claimed the row
+      // (paths are deterministic, so we would be deleting the winner's files).
+      if (copied.length > 0) {
+        const [current] = await db
+          .select({ objectParts: videosTable.objectParts })
+          .from(videosTable)
+          .where(eq(videosTable.id, id))
+          .limit(1);
+        if (!current?.objectParts) void deleteVideoObjects(copied);
+      }
       throw copyErr;
     }
 
-    await db
+    // Conditional update closes the dual-admin race: only the first migration
+    // claims the row; a concurrent one gets 0 rows and returns 409.
+    const updated = await db
       .update(videosTable)
       .set({ objectParts: JSON.stringify(copied), migratedAt: new Date() })
-      .where(eq(videosTable.id, id));
+      .where(and(eq(videosTable.id, id), isNull(videosTable.objectParts)))
+      .returning({ id: videosTable.id });
+
+    if (updated.length === 0) {
+      // A concurrent migration already claimed the row. Do NOT delete: object
+      // paths are deterministic per video, so "our" copies are the same paths
+      // the winner recorded — deleting them would break the winner's playback.
+      res.status(409).json({ message: "Video already migrated" });
+      return;
+    }
 
     console.info("[video-storage] migrated video to App Storage", {
       videoId: id,
