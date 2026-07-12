@@ -5,7 +5,8 @@ import { optionalUserAuth, userAuth } from "../middlewares/auth";
 import { getClientIp } from "../lib/ipPolicy";
 import { deviceTypeFromUA } from "../lib/device";
 import { generateVideoStreamToken, verifyVideoStreamToken } from "../lib/auth";
-import { extractDriveFileId, streamDriveFile } from "../lib/googleDrive";
+import { extractDriveFileId, resolveVideoParts, streamDriveFile } from "../lib/googleDrive";
+import { getSignedVideoURL, parseObjectParts } from "../lib/videoStorage";
 
 const router: IRouter = Router();
 
@@ -41,31 +42,6 @@ async function logVideoActivity(opts: {
   } catch {
     /* best-effort: logging must never break the request */
   }
-}
-
-// Build the ordered list of playable parts for a video. driveParts (when present)
-// is a JSON string of [{label,url}]; otherwise we fall back to the single
-// driveEmbedUrl. The returned URLs are RAW Drive URLs used ONLY server-side to
-// resolve a file id — they are never sent to the browser.
-function resolveVideoParts(video: {
-  driveEmbedUrl: string;
-  driveParts: string | null;
-}): { label: string; url: string }[] {
-  if (video.driveParts) {
-    try {
-      const parsed = JSON.parse(video.driveParts) as Array<{ label?: string; url?: string }>;
-      const valid = (Array.isArray(parsed) ? parsed : []).filter(
-        (p) => p && typeof p.url === "string" && p.url.length > 0,
-      );
-      if (valid.length > 0) {
-        return valid.map((p, i) => ({ label: p.label || `الجزء ${i + 1}`, url: p.url as string }));
-      }
-    } catch {
-      /* malformed driveParts → fall back to the single embed url */
-    }
-  }
-  if (video.driveEmbedUrl) return [{ label: "الفيديو", url: video.driveEmbedUrl }];
-  return [];
 }
 
 router.get("/videos", optionalUserAuth, async (req, res) => {
@@ -143,6 +119,7 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
       isVisible: videosTable.isVisible,
       softwareLink: videosTable.softwareLink,
       driveParts: videosTable.driveParts,
+      objectParts: videosTable.objectParts,
       createdAt: videosTable.createdAt,
     })
     .from(videosTable)
@@ -205,20 +182,33 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
       }
     }
 
-    // Build same-origin, token-protected stream URLs — one per part. The raw
-    // Drive URLs never leave the server; the browser only ever sees these.
-    const partsList = resolveVideoParts({
-      driveEmbedUrl: video.driveEmbedUrl,
-      driveParts: video.driveParts,
-    });
-    const streamParts = partsList.map((p, i) => ({
-      label: p.label,
-      url: `/api/videos/${id}/stream/${i}?token=${generateVideoStreamToken({
-        userId: user?.id ?? 0,
-        videoId: id,
-        part: i,
-      })}`,
-    }));
+    // Migrated videos play DIRECTLY from App Storage via short-lived presigned
+    // URLs (no server hop → no buffering bottleneck). Unmigrated videos fall
+    // back to the same-origin, token-protected Drive proxy. Raw Drive URLs
+    // never leave the server either way.
+    const objectParts = parseObjectParts(video.objectParts);
+    let streamParts: { label: string; url: string }[];
+    if (objectParts) {
+      streamParts = await Promise.all(
+        objectParts.map(async (p) => ({
+          label: p.label,
+          url: await getSignedVideoURL(p.objectPath),
+        })),
+      );
+    } else {
+      const partsList = resolveVideoParts({
+        driveEmbedUrl: video.driveEmbedUrl,
+        driveParts: video.driveParts,
+      });
+      streamParts = partsList.map((p, i) => ({
+        label: p.label,
+        url: `/api/videos/${id}/stream/${i}?token=${generateVideoStreamToken({
+          userId: user?.id ?? 0,
+          videoId: id,
+          part: i,
+        })}`,
+      }));
+    }
 
     res.json({
       id: video.id,

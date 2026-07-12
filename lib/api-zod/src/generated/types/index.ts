@@ -57,6 +57,7 @@ export * from "./googleLoginInput";
 export * from "./healthStatus";
 export * from "./loginInput";
 export * from "./messageResponse";
+export * from "./migrateVideoStorageResponse";
 export * from "./notificationItem";
 export * from "./notificationListResponse";
 export * from "./playlist";

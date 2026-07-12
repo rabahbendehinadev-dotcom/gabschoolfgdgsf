@@ -76,6 +76,31 @@ export async function getDriveAccessToken(): Promise<string> {
   return cached.token;
 }
 
+// Build the ordered list of playable parts for a video. driveParts (when
+// present) is a JSON string of [{label,url}]; otherwise we fall back to the
+// single driveEmbedUrl. The returned URLs are RAW Drive URLs used ONLY
+// server-side to resolve a file id — they are never sent to the browser.
+export function resolveVideoParts(video: {
+  driveEmbedUrl: string;
+  driveParts: string | null;
+}): { label: string; url: string }[] {
+  if (video.driveParts) {
+    try {
+      const parsed = JSON.parse(video.driveParts) as Array<{ label?: string; url?: string }>;
+      const valid = (Array.isArray(parsed) ? parsed : []).filter(
+        (p) => p && typeof p.url === "string" && p.url.length > 0,
+      );
+      if (valid.length > 0) {
+        return valid.map((p, i) => ({ label: p.label || `الجزء ${i + 1}`, url: p.url as string }));
+      }
+    } catch {
+      /* malformed driveParts → fall back to the single embed url */
+    }
+  }
+  if (video.driveEmbedUrl) return [{ label: "الفيديو", url: video.driveEmbedUrl }];
+  return [];
+}
+
 // Extract a Drive file id from any stored Drive URL form, e.g.:
 //   https://drive.google.com/file/d/FILE_ID/preview
 //   https://drive.google.com/open?id=FILE_ID

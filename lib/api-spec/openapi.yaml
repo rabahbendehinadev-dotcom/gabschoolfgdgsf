@@ -580,6 +580,27 @@ paths:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
 
+  /admin/videos/{id}/migrate-storage:
+    post:
+      operationId: migrateVideoStorage
+      tags: [admin]
+      summary: Copy video bytes from Google Drive to App Storage (one-time)
+      security:
+        - adminAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Video migrated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MigrateVideoStorageResponse"
+
   /admin/videos/reorder:
     post:
       operationId: reorderVideos
@@ -1606,6 +1627,20 @@ components:
         - sortOrder
         - createdAt
 
+    MigrateVideoStorageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        parts:
+          type: integer
+        totalBytes:
+          type: integer
+      required:
+        - message
+        - parts
+        - totalBytes
+
     AdminVideo:
       type: object
       properties:
@@ -1643,6 +1678,10 @@ components:
           nullable: true
         softwareLink:
           type: string
+          nullable: true
+        migratedAt:
+          type: string
+          format: date-time
           nullable: true
         createdAt:
           type: string

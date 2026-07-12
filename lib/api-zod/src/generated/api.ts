@@ -489,6 +489,7 @@ export const GetAdminVideosResponseItem = zod.object({
   sortOrder: zod.number(),
   driveParts: zod.string().nullish(),
   softwareLink: zod.string().nullish(),
+  migratedAt: zod.date().nullish(),
   createdAt: zod.date(),
 });
 export const GetAdminVideosResponse = zod.array(GetAdminVideosResponseItem);
@@ -545,6 +546,7 @@ export const UpdateVideoResponse = zod.object({
   sortOrder: zod.number(),
   driveParts: zod.string().nullish(),
   softwareLink: zod.string().nullish(),
+  migratedAt: zod.date().nullish(),
   createdAt: zod.date(),
 });
 
@@ -557,6 +559,19 @@ export const DeleteVideoParams = zod.object({
 
 export const DeleteVideoResponse = zod.object({
   message: zod.string(),
+});
+
+/**
+ * @summary Copy video bytes from Google Drive to App Storage (one-time)
+ */
+export const MigrateVideoStorageParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const MigrateVideoStorageResponse = zod.object({
+  message: zod.string(),
+  parts: zod.number(),
+  totalBytes: zod.number(),
 });
 
 /**

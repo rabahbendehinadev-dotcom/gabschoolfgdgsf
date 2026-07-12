@@ -13,6 +13,14 @@ import { createNotification, type AudienceType, type TargetType } from "../lib/n
 import { sendPushToUsers, getVapidPublicKey } from "../lib/webPush";
 import { sendPushToAdmins } from "../lib/adminWebPush";
 import { normalizePhone, INVALID_PHONE_MESSAGE } from "../lib/phone";
+import { extractDriveFileId, resolveVideoParts } from "../lib/googleDrive";
+import {
+  buildVideoObjectPath,
+  copyDriveFileToStorage,
+  deleteVideoObjects,
+  parseObjectParts,
+  type ObjectPart,
+} from "../lib/videoStorage";
 import * as zod from "zod";
 import {
   UpdateAdminUserBody,
@@ -481,6 +489,7 @@ router.get("/admin/videos", adminAuth, async (_req, res) => {
       sortOrder: videosTable.sortOrder,
       driveParts: videosTable.driveParts,
       softwareLink: videosTable.softwareLink,
+      migratedAt: videosTable.migratedAt,
       createdAt: videosTable.createdAt,
     })
     .from(videosTable)
@@ -492,6 +501,7 @@ router.get("/admin/videos", adminAuth, async (_req, res) => {
       categoryName: v.categoryName || "",
       driveParts: v.driveParts ?? null,
       softwareLink: v.softwareLink ?? null,
+      migratedAt: v.migratedAt ? v.migratedAt.toISOString() : null,
       createdAt: v.createdAt.toISOString(),
     })));
   } catch (error: unknown) {
@@ -576,8 +586,36 @@ router.patch("/admin/videos/:id", adminAuth, async (req, res) => {
     if ("softwareLink" in body) updateData.softwareLink = body.softwareLink ?? null;
     if ("driveParts" in body) updateData.driveParts = body.driveParts ?? null;
 
+    // If the video source changed, the migrated App Storage copy is stale:
+    // clear the mapping (playback falls back to the Drive proxy) and clean up
+    // the old objects best-effort. Admin can re-run the migration afterwards.
+    let staleObjectParts: ObjectPart[] | null = null;
+    if (body.driveEmbedUrl !== undefined || "driveParts" in body) {
+      const [existing] = await db
+        .select({
+          driveEmbedUrl: videosTable.driveEmbedUrl,
+          driveParts: videosTable.driveParts,
+          objectParts: videosTable.objectParts,
+        })
+        .from(videosTable)
+        .where(eq(videosTable.id, id))
+        .limit(1);
+      if (existing?.objectParts) {
+        const sourceChanged =
+          (body.driveEmbedUrl !== undefined && body.driveEmbedUrl !== existing.driveEmbedUrl) ||
+          ("driveParts" in body && (body.driveParts ?? null) !== (existing.driveParts ?? null));
+        if (sourceChanged) {
+          staleObjectParts = parseObjectParts(existing.objectParts);
+          updateData.objectParts = null;
+          updateData.migratedAt = null;
+        }
+      }
+    }
+
     const [video] = await db.update(videosTable).set(updateData)
       .where(eq(videosTable.id, id)).returning();
+
+    if (staleObjectParts) void deleteVideoObjects(staleObjectParts);
 
     if (!video) {
       res.status(404).json({ message: "Video not found" });
@@ -604,10 +642,101 @@ router.patch("/admin/videos/:id", adminAuth, async (req, res) => {
 router.delete("/admin/videos/:id", adminAuth, async (req, res) => {
   try {
     const id = Number(req.params.id);
+    const [existing] = await db
+      .select({ objectParts: videosTable.objectParts })
+      .from(videosTable)
+      .where(eq(videosTable.id, id))
+      .limit(1);
     await db.delete(videosTable).where(eq(videosTable.id, id));
+    const parts = parseObjectParts(existing?.objectParts);
+    if (parts) void deleteVideoObjects(parts);
     res.json({ message: "Video deleted successfully" });
   } catch (error: unknown) {
     res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" || "Failed to delete video" });
+  }
+});
+
+// One-time, synchronous Drive → App Storage copy for a single video. After
+// this succeeds, playback switches to direct presigned GCS URLs (no server
+// hop) which permanently fixes the buffering caused by proxying Drive bytes.
+// Deliberately ONE video per request: copies are large and must finish within
+// the request lifecycle (autoscale throttles background work).
+router.post("/admin/videos/:id/migrate-storage", adminAuth, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const [video] = await db
+      .select({
+        id: videosTable.id,
+        title: videosTable.title,
+        driveEmbedUrl: videosTable.driveEmbedUrl,
+        driveParts: videosTable.driveParts,
+        objectParts: videosTable.objectParts,
+      })
+      .from(videosTable)
+      .where(eq(videosTable.id, id))
+      .limit(1);
+
+    if (!video) {
+      res.status(404).json({ message: "Video not found" });
+      return;
+    }
+    if (video.objectParts) {
+      res.status(409).json({ message: "Video already migrated" });
+      return;
+    }
+
+    const partsList = resolveVideoParts({
+      driveEmbedUrl: video.driveEmbedUrl,
+      driveParts: video.driveParts,
+    });
+    if (partsList.length === 0) {
+      res.status(400).json({ message: "Video has no playable parts" });
+      return;
+    }
+
+    const copied: ObjectPart[] = [];
+    let totalBytes = 0;
+    try {
+      for (let i = 0; i < partsList.length; i++) {
+        const fileId = extractDriveFileId(partsList[i].url);
+        if (!fileId) {
+          throw new Error(`Part ${i + 1}: could not extract Drive file id`);
+        }
+        const destPath = buildVideoObjectPath(id, i);
+        const result = await copyDriveFileToStorage(fileId, destPath);
+        if (result.bytes === 0) {
+          throw new Error(`Part ${i + 1}: copied 0 bytes`);
+        }
+        copied.push({ label: partsList[i].label, objectPath: result.objectPath });
+        totalBytes += result.bytes;
+      }
+    } catch (copyErr) {
+      // Roll back any partial copies so we never store a half-migrated state.
+      if (copied.length > 0) void deleteVideoObjects(copied);
+      throw copyErr;
+    }
+
+    await db
+      .update(videosTable)
+      .set({ objectParts: JSON.stringify(copied), migratedAt: new Date() })
+      .where(eq(videosTable.id, id));
+
+    console.info("[video-storage] migrated video to App Storage", {
+      videoId: id,
+      parts: copied.length,
+      totalBytes,
+    });
+    res.json({
+      message: "Video migrated to App Storage",
+      parts: copied.length,
+      totalBytes,
+    });
+  } catch (error: unknown) {
+    console.error("[video-storage] migration failed", {
+      videoId: req.params.id,
+      message: error instanceof Error ? error.message : String(error),
+    });
+    res.status(500).json({ message: error instanceof Error ? error.message : "Failed to migrate video" });
   }
 });
 

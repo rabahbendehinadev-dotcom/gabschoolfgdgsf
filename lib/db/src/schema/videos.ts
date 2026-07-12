@@ -18,6 +18,11 @@ export const videosTable = pgTable("videos", {
   isVisible: boolean("is_visible").notNull().default(true),
   softwareLink: text("software_link"),
   driveParts: text("drive_parts"),
+  // JSON [{label, objectPath}] — set once the video bytes are copied to App
+  // Storage. When present, playback uses direct presigned GCS URLs instead of
+  // proxying Drive bytes through this server (fixes buffering at scale).
+  objectParts: text("object_parts"),
+  migratedAt: timestamp("migrated_at"),
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });

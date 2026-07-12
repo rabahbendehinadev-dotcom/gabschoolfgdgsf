@@ -49,6 +49,7 @@ import type {
   HealthStatus,
   LoginInput,
   MessageResponse,
+  MigrateVideoStorageResponse,
   NotificationListResponse,
   Playlist,
   PushStatusInput,
@@ -2245,6 +2246,93 @@ export const useDeleteVideo = <
   TContext
 > => {
   return useMutation(getDeleteVideoMutationOptions(options));
+};
+
+/**
+ * @summary Copy video bytes from Google Drive to App Storage (one-time)
+ */
+export const getMigrateVideoStorageUrl = (id: number) => {
+  return `/api/admin/videos/${id}/migrate-storage`;
+};
+
+export const migrateVideoStorage = async (
+  id: number,
+  options?: RequestInit,
+): Promise<MigrateVideoStorageResponse> => {
+  return customFetch<MigrateVideoStorageResponse>(
+    getMigrateVideoStorageUrl(id),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
+};
+
+export const getMigrateVideoStorageMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof migrateVideoStorage>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof migrateVideoStorage>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["migrateVideoStorage"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof migrateVideoStorage>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return migrateVideoStorage(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type MigrateVideoStorageMutationResult = NonNullable<
+  Awaited<ReturnType<typeof migrateVideoStorage>>
+>;
+
+export type MigrateVideoStorageMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Copy video bytes from Google Drive to App Storage (one-time)
+ */
+export const useMigrateVideoStorage = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof migrateVideoStorage>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof migrateVideoStorage>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getMigrateVideoStorageMutationOptions(options));
 };
 
 /**
