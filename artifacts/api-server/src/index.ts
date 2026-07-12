@@ -1,8 +1,11 @@
 import app from "./app";
-import { db, adminsTable, categoriesTable, subscriptionPlansTable } from "@workspace/db";
+import { db, adminsTable, categoriesTable, subscriptionPlansTable, videosTable } from "@workspace/db";
 import bcrypt from "bcryptjs";
-import { sql, eq } from "drizzle-orm";
+import { sql, eq, isNull, and } from "drizzle-orm";
 import { startIpResetScheduler } from "./lib/ipResetScheduler";
+import { copyDriveFileToStorage, buildVideoObjectPath, deleteVideoObjects } from "./lib/videoStorage";
+import { resolveVideoParts, extractDriveFileId } from "./lib/googleDrive";
+import type { ObjectPart } from "./lib/videoStorage";
 
 const rawPort = process.env["PORT"];
 
@@ -206,9 +209,95 @@ async function ensureSeed() {
   }
 }
 
+/* ════════════════════════════════════════════════════════════════════════
+   ترحيل تلقائي في الخلفية — ينقل كل الفيديوهات من Drive إلى App Storage
+   عند كل إعادة تشغيل للسيرفر. لا يعطّل أي طلبات جارية.
+   ════════════════════════════════════════════════════════════════════════ */
+async function runAutoStorageMigration(): Promise<void> {
+  try {
+    const unmigrated = await db
+      .select({
+        id: videosTable.id,
+        title: videosTable.title,
+        driveEmbedUrl: videosTable.driveEmbedUrl,
+        driveParts: videosTable.driveParts,
+      })
+      .from(videosTable)
+      .where(isNull(videosTable.objectParts));
+
+    if (unmigrated.length === 0) {
+      console.log("[auto-migrate] All videos already on App Storage — nothing to do.");
+      return;
+    }
+
+    console.log(`[auto-migrate] Starting background migration of ${unmigrated.length} video(s) to App Storage...`);
+
+    for (const video of unmigrated) {
+      try {
+        const partsList = resolveVideoParts({
+          driveEmbedUrl: video.driveEmbedUrl,
+          driveParts: video.driveParts,
+        });
+        if (partsList.length === 0) {
+          console.warn(`[auto-migrate] Video ${video.id} has no drive parts — skipping.`);
+          continue;
+        }
+
+        const copied: ObjectPart[] = [];
+        let totalBytes = 0;
+
+        try {
+          for (let i = 0; i < partsList.length; i++) {
+            const fileId = extractDriveFileId(partsList[i].url);
+            if (!fileId) throw new Error(`Part ${i + 1}: cannot extract Drive file id`);
+            const destPath = buildVideoObjectPath(video.id, i);
+            const result = await copyDriveFileToStorage(fileId, destPath);
+            if (result.bytes === 0) throw new Error(`Part ${i + 1}: copied 0 bytes`);
+            copied.push({ label: partsList[i].label, objectPath: result.objectPath });
+            totalBytes += result.bytes;
+          }
+        } catch (copyErr) {
+          // Rollback only if this request actually wrote anything
+          if (copied.length > 0) {
+            const [current] = await db
+              .select({ objectParts: videosTable.objectParts })
+              .from(videosTable)
+              .where(eq(videosTable.id, video.id))
+              .limit(1);
+            if (!current?.objectParts) void deleteVideoObjects(copied);
+          }
+          throw copyErr;
+        }
+
+        // Conditional update — safe if admin UI raced us
+        const updated = await db
+          .update(videosTable)
+          .set({ objectParts: JSON.stringify(copied), migratedAt: new Date() })
+          .where(and(eq(videosTable.id, video.id), isNull(videosTable.objectParts)))
+          .returning({ id: videosTable.id });
+
+        if (updated.length > 0) {
+          const mb = Math.round(totalBytes / 1024 / 1024);
+          console.log(`[auto-migrate] ✓ Video ${video.id} "${video.title.slice(0, 40)}" — ${mb} MB`);
+        } else {
+          console.log(`[auto-migrate] Video ${video.id} already claimed by concurrent migration — skipping.`);
+        }
+      } catch (err) {
+        console.error(`[auto-migrate] ✗ Video ${video.id} failed — will retry on next restart:`, err instanceof Error ? err.message : err);
+      }
+    }
+
+    console.log("[auto-migrate] Background migration complete.");
+  } catch (err) {
+    console.error("[auto-migrate] Fatal error in background migration:", err);
+  }
+}
+
 runMigrations().then(() => ensureSeed()).then(() => {
   startIpResetScheduler();
   app.listen(port, () => {
     console.log(`Server listening on port ${port}`);
+    // نبدأ الترحيل في الخلفية مباشرة بعد تشغيل السيرفر — لا ينتظر ولا يعطّل
+    void runAutoStorageMigration();
   });
 });
