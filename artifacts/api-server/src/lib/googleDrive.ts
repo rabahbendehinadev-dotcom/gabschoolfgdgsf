@@ -131,8 +131,8 @@ export function extractDriveFileId(url: string): string | null {
 // Entries are consumed on hit or expire after PREFETCH_TTL_MS (3 min).
 // ─────────────────────────────────────────────────────────────────────────────
 
-const MAX_CHUNK = 8 * 1024 * 1024; // 8 MiB per chunk
-const MAX_PREFETCH_ENTRIES = 15;
+const MAX_CHUNK = 32 * 1024 * 1024; // 32 MiB per chunk — covers ~2 min of video at 2Mbps
+const MAX_PREFETCH_ENTRIES = 6;
 const PREFETCH_TTL_MS = 3 * 60_000;
 
 interface PrefetchEntry {
