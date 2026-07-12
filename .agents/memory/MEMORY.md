@@ -30,3 +30,4 @@
 - [Private Drive video streaming](drive-video-streaming.md) — server proxies private Drive bytes via OAuth connector + tokenized same-origin streamParts (no Google UI); force video/mp4 (octet-stream breaks iPhone Safari); public schema must never leak Drive URLs.
 - [Screenshot harness can't play video](screenshot-no-video.md) — app_preview never loads <video> (sandboxed, no net) → always shows error/poster; verify playback via Playwright testing skill, not screenshots.
 - [Intl phone country picker](intl-phone-native-select.md) — react-phone-number-input's picker is a native `<select>` overlay, not a searchable combobox; use select_option by label/ISO code in tests, not typed search.
+- [Drive proxy pre-fetch cache](drive-prefetch-cache.md) — 8MB chunks = ~1min play then freeze; prefetchMap eliminates Drive latency at chunk boundaries for unmigrated videos.
