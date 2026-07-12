@@ -155,14 +155,23 @@ async function ensureSeed() {
       console.log("[seed] Admin credentials migrated to new account (username: rabah)");
     }
 
-    // Always ensure admin exists
+    // Always ensure admin exists — and always sync the password hash so a
+    // forced redeploy can recover a lost/changed password.
+    const adminHash = await bcrypt.hash("Fz8hxNc2#Mtq8Bx!", 10);
     if (admins.length === 0) {
-      const adminPassword = await bcrypt.hash("Fz8hxNc2#Mtq8Bx!", 10);
       await db.insert(adminsTable).values({
         username: "rabah",
-        passwordHash: adminPassword,
+        passwordHash: adminHash,
       }).onConflictDoNothing();
       console.log("[seed] Admin created (username: rabah)");
+    } else {
+      const existing = admins.find(a => a.username === "rabah");
+      if (existing) {
+        await db.update(adminsTable)
+          .set({ passwordHash: adminHash })
+          .where(eq(adminsTable.id, existing.id));
+        console.log("[seed] Admin password synced (username: rabah)");
+      }
     }
 
     // Always ensure categories exist (idempotent via onConflictDoNothing)
