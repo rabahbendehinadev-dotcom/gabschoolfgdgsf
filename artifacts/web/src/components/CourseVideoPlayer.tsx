@@ -6,6 +6,7 @@ import {
   PictureInPicture2, RotateCcw, RotateCw, Loader2, ShieldAlert, ShieldCheck,
   AlertTriangle, X, Sun, Check,
 } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
 import { Button } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
@@ -128,7 +129,7 @@ export function CourseVideoPlayer({
 
   /* ── دوران العلامة المائية ── */
   useEffect(() => {
-    const id = setInterval(() => setWmIndex(i => (i + 1) % WATERMARK_POSITIONS.length), 4500);
+    const id = setInterval(() => setWmIndex(i => (i + 1) % WATERMARK_POSITIONS.length), 6000);
     return () => clearInterval(id);
   }, []);
 
@@ -651,14 +652,48 @@ export function CourseVideoPlayer({
         )}
 
         {/* العلامة المائية المتحرّكة */}
-        <div className="pointer-events-none absolute z-20 transition-all duration-1000" style={{ top: wmPos.top, left: wmPos.left }}>
-          <div className="whitespace-nowrap text-xs font-bold text-white/25 md:text-sm" style={{ transform: "rotate(-14deg)", textShadow: "0 0 8px rgba(0,0,0,.9)" }}>
-            {watermarkLabel}
-          </div>
-          <div className="mt-0.5 whitespace-nowrap text-[9px] font-bold text-white/20 md:text-xs" style={{ transform: "rotate(-14deg)", textShadow: "0 0 8px rgba(0,0,0,.9)" }}>
-            محمي بمنصة GAB
-          </div>
-        </div>
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={wmIndex}
+            className="pointer-events-none absolute z-20"
+            style={{ top: wmPos.top, left: wmPos.left }}
+            initial={{ opacity: 0, scale: 0.85 }}
+            animate={{
+              opacity: 1,
+              scale: 1,
+              y: [0, -6, 0, 6, 0],
+              transition: {
+                opacity: { duration: 0.7, ease: "easeIn" },
+                scale:   { duration: 0.7, ease: "easeOut" },
+                y: { duration: 5, repeat: Infinity, ease: "easeInOut", repeatType: "loop" },
+              },
+            }}
+            exit={{ opacity: 0, scale: 0.85, transition: { duration: 0.5 } }}
+          >
+            <div
+              className="whitespace-nowrap text-xs font-bold md:text-sm"
+              style={{
+                transform: "rotate(-14deg)",
+                color: "rgba(255,255,255,0.42)",
+                textShadow: "0 1px 12px rgba(0,0,0,1), 0 0 3px rgba(255,255,255,0.15)",
+                letterSpacing: "0.03em",
+              }}
+            >
+              {watermarkLabel}
+            </div>
+            <div
+              className="mt-0.5 whitespace-nowrap text-[9px] font-semibold md:text-xs"
+              style={{
+                transform: "rotate(-14deg)",
+                color: "rgba(255,255,255,0.28)",
+                textShadow: "0 1px 10px rgba(0,0,0,1)",
+                letterSpacing: "0.06em",
+              }}
+            >
+              GAB SCHOOL • محمي
+            </div>
+          </motion.div>
+        </AnimatePresence>
 
         {/* شريط الحماية العلوي */}
         <div
