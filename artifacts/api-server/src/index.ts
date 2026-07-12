@@ -215,6 +215,7 @@ async function ensureSeed() {
    ════════════════════════════════════════════════════════════════════════ */
 async function runAutoStorageMigration(): Promise<void> {
   try {
+    // Sort: most-parts videos first — they buffer the most and need migration urgently
     const unmigrated = await db
       .select({
         id: videosTable.id,
@@ -223,7 +224,11 @@ async function runAutoStorageMigration(): Promise<void> {
         driveParts: videosTable.driveParts,
       })
       .from(videosTable)
-      .where(isNull(videosTable.objectParts));
+      .where(isNull(videosTable.objectParts))
+      .orderBy(
+        sql`CASE WHEN drive_parts IS NOT NULL THEN jsonb_array_length(drive_parts::jsonb) ELSE 1 END DESC`,
+        videosTable.id,
+      );
 
     if (unmigrated.length === 0) {
       console.log("[auto-migrate] All videos already on App Storage — nothing to do.");
