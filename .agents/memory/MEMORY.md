@@ -1,5 +1,8 @@
 # Memory Index
 
+- [GCS video migration](gcs-video-migration.md) — videos stream directly from presigned storage.googleapis.com URLs; Drive IDs/objectPaths never reach client; deterministic paths ⇒ race losers must not delete.
+- [Connector lookup dev filter](connector-lookup-dev-filter.md) — connectors v2 API with connector_names filter returns 0 items in dev for prod-scoped connections; list all + filter client-side.
+
 - [Accent theming via --accent + color-mix](accent-theming-css-var.md) — per-record dynamic colors & hover states; sanitize the color; Wouter Link focus-ring targets the anchor, not the inner card.
 - [Shared presigned-upload endpoint](shared-upload-endpoint.md) — upload-URL route is intentionally unauthenticated; regular users upload subscription payment proofs through it, so don't lock it behind admin auth.
 - [Pre-existing typecheck errors](preexisting-typecheck.md) — api-server + web have baseline typecheck failures unrelated to most work; confirm your own edited lines are clean instead of expecting green.
