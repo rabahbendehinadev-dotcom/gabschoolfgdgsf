@@ -112,6 +112,7 @@ export function CourseVideoPlayer({
   const [pipSupported, setPipSupported] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [errorCode, setErrorCode] = useState<number | null>(null);
+  const [resumeFrom, setResumeFrom] = useState<number | null>(null); // موضع الاستئناف المحفوظ
 
   // إيماءات: مؤشّر مؤقت يظهر عند التقديم/الترجيع/الصوت/الإضاءة
   const [gesture, setGesture] = useState<{ kind: "seek" | "vol" | "bright"; text: string; side?: "l" | "r" } | null>(null);
@@ -312,12 +313,15 @@ export function CourseVideoPlayer({
       const vAR = v.videoWidth && v.videoHeight ? v.videoWidth / v.videoHeight : 16 / 9;
       const boxAR = 16 / 9;
       setFit(Math.abs(vAR - boxAR) / boxAR < 0.12 ? "cover" : "contain");
-      // استئناف آخر موضع مشاهدة
+      // استئناف آخر موضع مشاهدة — نعرض banner يتيح البداية من الأول
       if (saveKey) {
         try {
           const raw = localStorage.getItem(saveKey);
           const pos = raw ? Number(raw) : 0;
-          if (pos > 3 && v.duration && pos < v.duration - 5) v.currentTime = pos;
+          if (pos > 3 && v.duration && pos < v.duration - 5) {
+            v.currentTime = pos;
+            setResumeFrom(pos);
+          }
         } catch { /* */ }
       }
     };
@@ -395,6 +399,7 @@ export function CourseVideoPlayer({
     setWaiting(true);
     setSeeking(false);
     setSeekSpinner(false);
+    setResumeFrom(null);
     if (seekSpinnerTimer.current) { clearTimeout(seekSpinnerTimer.current); seekSpinnerTimer.current = null; }
     setCurrent(0);
     setBuffered(0);
@@ -402,6 +407,13 @@ export function CourseVideoPlayer({
     if (v) v.playbackRate = speed;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [src]);
+
+  /* ── إخفاء banner الاستئناف تلقائياً بعد 6 ثوان ── */
+  useEffect(() => {
+    if (resumeFrom === null) return;
+    const t = setTimeout(() => setResumeFrom(null), 6000);
+    return () => clearTimeout(t);
+  }, [resumeFrom]);
 
   /* ── مزامنة حالة الشاشة الكاملة ── */
   useEffect(() => {
@@ -633,6 +645,43 @@ export function CourseVideoPlayer({
           onPointerUp={onSurfaceUp}
           onPointerCancel={() => { dragRef.current = null; }}
         />
+
+        {/* banner استئناف الموضع — يظهر 6 ثوان عند الفتح من موضع محفوظ */}
+        <AnimatePresence>
+          {resumeFrom !== null && (
+            <motion.div
+              key="resume-banner"
+              initial={{ opacity: 0, y: -12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -12 }}
+              transition={{ duration: 0.25 }}
+              className="pointer-events-auto absolute inset-x-4 top-14 z-40 flex items-center justify-between gap-3 rounded-xl bg-black/75 px-4 py-2.5 backdrop-blur-md"
+            >
+              <span className="text-sm text-white/90">
+                استئناف من <span className="font-bold text-white">{formatTime(resumeFrom)}</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  const v = videoRef.current;
+                  if (v) v.currentTime = 0;
+                  setResumeFrom(null);
+                  if (saveKey) { try { localStorage.removeItem(saveKey); } catch { /* */ } }
+                }}
+                className="rounded-lg bg-white/20 px-3 py-1 text-xs font-semibold text-white hover:bg-white/30 active:scale-95"
+              >
+                من البداية
+              </button>
+              <button
+                type="button"
+                onClick={() => setResumeFrom(null)}
+                className="rounded-lg bg-white/10 px-3 py-1 text-xs font-semibold text-white hover:bg-white/20 active:scale-95"
+              >
+                متابعة
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* مؤشّر إيماءة مؤقت */}
         {gesture && (
