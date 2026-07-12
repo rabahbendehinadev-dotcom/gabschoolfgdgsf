@@ -91,6 +91,9 @@ export function CourseVideoPlayer({
 
   const [playing, setPlaying] = useState(false);
   const [waiting, setWaiting] = useState(true);
+  const [seeking, setSeeking] = useState(false);
+  const [seekSpinner, setSeekSpinner] = useState(false);
+  const seekSpinnerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [started, setStarted] = useState(false);
   const [duration, setDuration] = useState(0);
   const [current, setCurrent] = useState(0);
@@ -332,7 +335,21 @@ export function CourseVideoPlayer({
     const onPlay = () => { setPlaying(true); setStarted(true); setWaiting(false); showControls(); };
     const onPause = () => { setPlaying(false); setControlsVisible(true); };
     const onWaiting = () => setWaiting(true);
-    const onPlaying = () => setWaiting(false);
+    const clearSeek = () => {
+      setSeeking(false);
+      setSeekSpinner(false);
+      if (seekSpinnerTimer.current) { clearTimeout(seekSpinnerTimer.current); seekSpinnerTimer.current = null; }
+    };
+    const onSeeking = () => {
+      if (!started) return; // تجاهل seek التلقائي عند استئناف الموضع
+      setSeeking(true);
+      setSeekSpinner(false);
+      if (seekSpinnerTimer.current) clearTimeout(seekSpinnerTimer.current);
+      // نُظهر الـ spinner فقط إذا استمر التعليق أكثر من 700ms (شبكة بطيئة)
+      seekSpinnerTimer.current = setTimeout(() => setSeekSpinner(true), 700);
+    };
+    const onSeeked = () => { /* ننتظر playing قبل إخفاء شريط التحميل */ };
+    const onPlaying = () => { setWaiting(false); clearSeek(); };
     const onReady = () => setWaiting(false);
     const onEnded = () => { setPlaying(false); setControlsVisible(true); if (saveKey) { try { localStorage.removeItem(saveKey); } catch { /* */ } } };
     const onError = () => { setWaiting(false); setLoadError(true); setErrorCode(v.error?.code ?? null); };
@@ -344,6 +361,8 @@ export function CourseVideoPlayer({
     v.addEventListener("play", onPlay);
     v.addEventListener("pause", onPause);
     v.addEventListener("waiting", onWaiting);
+    v.addEventListener("seeking", onSeeking);
+    v.addEventListener("seeked", onSeeked);
     v.addEventListener("playing", onPlaying);
     v.addEventListener("loadeddata", onReady);
     v.addEventListener("canplay", onReady);
@@ -357,6 +376,8 @@ export function CourseVideoPlayer({
       v.removeEventListener("play", onPlay);
       v.removeEventListener("pause", onPause);
       v.removeEventListener("waiting", onWaiting);
+      v.removeEventListener("seeking", onSeeking);
+      v.removeEventListener("seeked", onSeeked);
       v.removeEventListener("playing", onPlaying);
       v.removeEventListener("loadeddata", onReady);
       v.removeEventListener("canplay", onReady);
@@ -372,6 +393,9 @@ export function CourseVideoPlayer({
     setErrorCode(null);
     setStarted(false);
     setWaiting(true);
+    setSeeking(false);
+    setSeekSpinner(false);
+    if (seekSpinnerTimer.current) { clearTimeout(seekSpinnerTimer.current); seekSpinnerTimer.current = null; }
     setCurrent(0);
     setBuffered(0);
     const v = videoRef.current;
@@ -630,8 +654,18 @@ export function CourseVideoPlayer({
           )}
         />
 
-        {/* مؤشّر التحميل */}
-        {waiting && !loadError && !videoDisabled && (
+        {/* شريط التحميل الرفيع عند التزريب (يظهر فوراً بدل الـ spinner) */}
+        {seeking && !seekSpinner && !loadError && !videoDisabled && (
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-30 h-[3px] overflow-hidden rounded-t-sm">
+            <div
+              className="h-full animate-[seekbar_1.2s_ease-in-out_infinite] bg-primary"
+              style={{ width: "40%" }}
+            />
+          </div>
+        )}
+
+        {/* مؤشّر التحميل الكبير: عند الفتح الأول أو إذا تجاوز التزريب 700ms */}
+        {((!seeking && waiting) || seekSpinner) && !loadError && !videoDisabled && (
           <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
             <Loader2 className="h-12 w-12 animate-spin text-white/90" />
           </div>
