@@ -23,5 +23,6 @@ export interface AdminVideo {
   sortOrder: number;
   driveParts?: string | null;
   softwareLink?: string | null;
+  migratedAt?: Date | null;
   createdAt: Date;
 }

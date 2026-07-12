@@ -8,12 +8,12 @@ import {
   useSortable, arrayMove
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useGetAdminVideos, useCreateVideo, useUpdateVideo, useDeleteVideo, useGetAdminCategories, useGetAdminPlaylists, useCreatePlaylist, useReorderVideos } from "@workspace/api-client-react/src/generated/api";
+import { useGetAdminVideos, useCreateVideo, useUpdateVideo, useDeleteVideo, useGetAdminCategories, useGetAdminPlaylists, useCreatePlaylist, useReorderVideos, useMigrateVideoStorage } from "@workspace/api-client-react/src/generated/api";
 import { AdminVideo, CreateVideoInput } from "@workspace/api-client-react/src/generated/api.schemas";
 import { useAuth } from "@/lib/auth";
 import { Card, Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label } from "@/components/ui";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Edit, Trash2, Upload, ImageIcon, X, Loader2, ListVideo, Layers, GripVertical, Save } from "lucide-react";
+import { Plus, Edit, Trash2, Upload, ImageIcon, X, Loader2, ListVideo, Layers, GripVertical, Save, Zap } from "lucide-react";
 
 interface DrivePart { label: string; url: string; }
 
@@ -22,10 +22,14 @@ function SortableVideoCard({
   video,
   onEdit,
   onDelete,
+  onMigrate,
+  isMigrating,
 }: {
   video: AdminVideo;
   onEdit: (v: AdminVideo) => void;
   onDelete: (id: number) => void;
+  onMigrate: (v: AdminVideo) => void;
+  isMigrating: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: video.id });
   const style = {
@@ -69,12 +73,29 @@ function SortableVideoCard({
             <Badge variant="outline" className="text-xs">{video.categoryName}</Badge>
             {video.accessType === "vip" && <Badge variant="vip" className="text-xs">VIP</Badge>}
             {video.accessType === "visitor" && <Badge variant="outline" className="text-xs border-green-500/40 text-green-400">مجاني</Badge>}
+            {video.migratedAt && (
+              <Badge variant="outline" className="text-xs border-amber-400/40 text-amber-300">
+                <Zap className="w-3 h-3 ml-0.5" /> تشغيل سريع
+              </Badge>
+            )}
           </div>
           <h3 className="font-bold line-clamp-1 mb-1">{video.title}</h3>
           <div className="mt-auto pt-4 flex gap-2 border-t border-white/5">
             <Button variant="secondary" className="flex-1 text-xs" onClick={() => onEdit(video)}>
               <Edit className="w-3 h-3 ml-1" /> تعديل
             </Button>
+            {!video.migratedAt && (
+              <Button
+                variant="outline"
+                size="icon"
+                className="border-amber-400/40 text-amber-300 hover:bg-amber-400/10"
+                title="تفعيل التشغيل السريع (نقل إلى التخزين السحابي)"
+                disabled={isMigrating}
+                onClick={() => onMigrate(video)}
+              >
+                {isMigrating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+              </Button>
+            )}
             <Button variant="destructive" size="icon" onClick={() => onDelete(video.id)}>
               <Trash2 className="w-4 h-4" />
             </Button>
@@ -100,6 +121,8 @@ export function AdminVideos() {
   const deleteMut = useDeleteVideo({ request: getAdminAuthHeaders() });
   const createPlaylistMut = useCreatePlaylist({ request: getAdminAuthHeaders() });
   const reorderMut = useReorderVideos({ request: getAdminAuthHeaders() });
+  const migrateMut = useMigrateVideoStorage({ request: getAdminAuthHeaders() });
+  const [migratingId, setMigratingId] = useState<number | null>(null);
 
   /* ── DnD state ── */
   const [orderedVideos, setOrderedVideos] = useState<AdminVideo[]>([]);
@@ -286,6 +309,26 @@ export function AdminVideos() {
     deleteMut.mutate({ id }, { onSuccess: () => { toast({ title: "تم الحذف" }); refetch(); } });
   };
 
+  const handleMigrate = (video: AdminVideo) => {
+    if (!confirm(`تفعيل التشغيل السريع لـ "${video.title}"؟\n\nسيتم نسخ الفيديو إلى التخزين السحابي مرة واحدة (قد يستغرق دقيقة أو أكثر حسب حجم الفيديو). بعدها يشتغل الفيديو مباشرة من سيرفرات Google بدون تقطيع.`)) return;
+    setMigratingId(video.id);
+    migrateMut.mutate(
+      { id: video.id },
+      {
+        onSuccess: (data) => {
+          const mb = Math.round(data.totalBytes / (1024 * 1024));
+          toast({ title: `⚡ تم تفعيل التشغيل السريع (${data.parts} ${data.parts === 1 ? "ملف" : "ملفات"} — ${mb} MB)`, className: "bg-green-600 text-white border-none" });
+          refetch();
+        },
+        onError: (err: unknown) => {
+          const msg = err instanceof Error ? err.message : "";
+          toast({ variant: "destructive", title: "فشل النقل إلى التخزين السحابي", description: msg || "حاول مرة أخرى" });
+        },
+        onSettled: () => setMigratingId(null),
+      }
+    );
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -349,6 +392,8 @@ export function AdminVideos() {
                 video={v}
                 onEdit={handleOpen}
                 onDelete={handleDelete}
+                onMigrate={handleMigrate}
+                isMigrating={migratingId === v.id}
               />
             ))}
           </div>

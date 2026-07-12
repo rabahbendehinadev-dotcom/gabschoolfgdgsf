@@ -160,6 +160,12 @@ export interface Video {
   createdAt: string;
 }
 
+export interface MigrateVideoStorageResponse {
+  message: string;
+  parts: number;
+  totalBytes: number;
+}
+
 export type AdminVideoAccessType =
   (typeof AdminVideoAccessType)[keyof typeof AdminVideoAccessType];
 
@@ -185,6 +191,7 @@ export interface AdminVideo {
   sortOrder: number;
   driveParts?: string | null;
   softwareLink?: string | null;
+  migratedAt?: string | null;
   createdAt: string;
 }
 
