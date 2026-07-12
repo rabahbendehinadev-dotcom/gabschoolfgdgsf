@@ -187,28 +187,31 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
     // back to the same-origin, token-protected Drive proxy. Raw Drive URLs
     // never leave the server either way.
     const objectParts = parseObjectParts(video.objectParts);
+    const partsList = resolveVideoParts({
+      driveEmbedUrl: video.driveEmbedUrl,
+      driveParts: video.driveParts,
+    });
     let streamParts: { label: string; url: string }[];
-    if (objectParts) {
-      streamParts = await Promise.all(
-        objectParts.map(async (p) => ({
+    // Build streamParts from drive parts list (authoritative source for labels/count).
+    // For each part: use GCS presigned URL if migrated, Drive proxy token otherwise.
+    // This handles the mismatch case where objectParts count < driveParts count
+    // (e.g., a new drive part was added after migration completed).
+    streamParts = await Promise.all(
+      partsList.map(async (p, i) => {
+        const objPart = objectParts?.[i];
+        if (objPart) {
+          return { label: p.label, url: await getSignedVideoURL(objPart.objectPath) };
+        }
+        return {
           label: p.label,
-          url: await getSignedVideoURL(p.objectPath),
-        })),
-      );
-    } else {
-      const partsList = resolveVideoParts({
-        driveEmbedUrl: video.driveEmbedUrl,
-        driveParts: video.driveParts,
-      });
-      streamParts = partsList.map((p, i) => ({
-        label: p.label,
-        url: `/api/videos/${id}/stream/${i}?token=${generateVideoStreamToken({
-          userId: user?.id ?? 0,
-          videoId: id,
-          part: i,
-        })}`,
-      }));
-    }
+          url: `/api/videos/${id}/stream/${i}?token=${generateVideoStreamToken({
+            userId: user?.id ?? 0,
+            videoId: id,
+            part: i,
+          })}`,
+        };
+      }),
+    );
 
     res.json({
       id: video.id,

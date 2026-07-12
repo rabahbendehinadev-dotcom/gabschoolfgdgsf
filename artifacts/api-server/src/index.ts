@@ -215,6 +215,16 @@ async function ensureSeed() {
    ════════════════════════════════════════════════════════════════════════ */
 async function runAutoStorageMigration(): Promise<void> {
   try {
+    // Reset any partially-migrated videos where objectParts count < driveParts count
+    // (happens when a new drive part is added after migration, or migration was interrupted).
+    await db.execute(sql`
+      UPDATE videos
+      SET object_parts = NULL, migrated_at = NULL
+      WHERE object_parts IS NOT NULL
+        AND drive_parts IS NOT NULL
+        AND jsonb_array_length(object_parts::jsonb) < jsonb_array_length(drive_parts::jsonb)
+    `);
+
     // Sort: most-parts videos first — they buffer the most and need migration urgently
     const unmigrated = await db
       .select({
