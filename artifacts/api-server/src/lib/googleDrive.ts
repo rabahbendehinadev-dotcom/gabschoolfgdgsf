@@ -1,6 +1,4 @@
 import type { Request, Response } from "express";
-import { Readable } from "node:stream";
-import type { ReadableStream as NodeWebReadableStream } from "node:stream/web";
 
 /* ════════════════════════════════════════════════════════════════════════
    Google Drive streaming (server-side, OAuth via Replit connector)
@@ -123,8 +121,85 @@ export function extractDriveFileId(url: string): string | null {
   return null;
 }
 
+// ─── Pre-fetch cache ─────────────────────────────────────────────────────────
+// When we serve chunk [start, end] we immediately kick off a background fetch
+// for chunk [end+1, end+1+MAX_CHUNK]. By the time the browser finishes playing
+// the current chunk and asks for the next one, it's already buffered in RAM →
+// zero Drive round-trip latency → no "plays one minute then freezes" pause.
+//
+// Memory: MAX_PREFETCH_ENTRIES × MAX_CHUNK = 15 × 8 MB = 120 MB worst-case.
+// Entries are consumed on hit or expire after PREFETCH_TTL_MS (3 min).
+// ─────────────────────────────────────────────────────────────────────────────
+
+const MAX_CHUNK = 8 * 1024 * 1024; // 8 MiB per chunk
+const MAX_PREFETCH_ENTRIES = 15;
+const PREFETCH_TTL_MS = 3 * 60_000;
+
+interface PrefetchEntry {
+  promise: Promise<PrefetchResult | null>;
+  born: number;
+  timer: ReturnType<typeof setTimeout>;
+}
+interface PrefetchResult {
+  status: number;
+  data: Buffer;
+  contentRange: string | null;
+  contentLength: string | null;
+  contentType: string | null;
+}
+
+const prefetchMap = new Map<string, PrefetchEntry>();
+
+function prefetchKey(fileId: string, start: number) {
+  return `${fileId}:${start}`;
+}
+
+function evictPrefetchEntry(key: string) {
+  const e = prefetchMap.get(key);
+  if (e) { clearTimeout(e.timer); prefetchMap.delete(key); }
+}
+
+async function fetchDriveRange(
+  token: string,
+  fileId: string,
+  driveRange: string,
+): Promise<PrefetchResult | null> {
+  try {
+    const resp = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true`,
+      { headers: { Authorization: `Bearer ${token}`, Range: driveRange } },
+    );
+    if (resp.status !== 200 && resp.status !== 206) return null;
+    const data = Buffer.from(await resp.arrayBuffer());
+    const upstreamType = resp.headers.get("content-type");
+    return {
+      status: resp.status,
+      data,
+      contentRange: resp.headers.get("content-range"),
+      contentLength: String(data.byteLength),
+      contentType: upstreamType && upstreamType.startsWith("video/") ? upstreamType : "video/mp4",
+    };
+  } catch {
+    return null;
+  }
+}
+
+function schedulePrefetch(token: string, fileId: string, nextStart: number): void {
+  // Don't over-fill the cache
+  if (prefetchMap.size >= MAX_PREFETCH_ENTRIES) return;
+  const key = prefetchKey(fileId, nextStart);
+  if (prefetchMap.has(key)) return; // already in flight
+
+  const nextEnd = nextStart + MAX_CHUNK - 1;
+  const driveRange = `bytes=${nextStart}-${nextEnd}`;
+  const promise = fetchDriveRange(token, fileId, driveRange);
+  const timer = setTimeout(() => prefetchMap.delete(key), PREFETCH_TTL_MS);
+  prefetchMap.set(key, { promise, born: Date.now(), timer });
+}
+
 // Pipe a Drive file's bytes to the client, honoring HTTP Range so the native
-// <video> element can seek. Mirrors Drive's 200/206 + Content-Range response.
+// <video> element can seek. Pre-fetches the next chunk while sending the
+// current one so sequential playback has zero gap between chunks.
 export async function streamDriveFile(
   req: Request,
   res: Response,
@@ -135,22 +210,23 @@ export async function streamDriveFile(
   // Cap every response to a bounded window. iPhone Safari (and other players)
   // routinely ask for the ENTIRE file in one Range (e.g. `bytes=0-` or
   // `bytes=0-<size-1>`). Piping a multi-hundred-MB response through the
-  // autoscale proxy over a mobile connection is terminated before it finishes,
-  // so the native <video> reports a generic playback error and then retries the
-  // whole file again (an endless loop). By clamping each request to a small
-  // window and returning 206 + the real Content-Range, the player fetches the
-  // video in fast, reliable chunks and can still seek anywhere.
-  const MAX_CHUNK = 8 * 1024 * 1024; // 8 MiB — ~12 s of video per chunk at 5 Mbps; reduces seek stalls
+  // autoscale proxy over a mobile connection is terminated before it finishes.
+  // By clamping each request to MAX_CHUNK and pre-fetching the next chunk in
+  // the background, sequential playback has no perceptible gap.
 
   const clientRange = req.headers.range;
   const match = clientRange ? /^bytes=(\d*)-(\d*)$/.exec(clientRange.trim()) : null;
+
+  // Suffix range (e.g. moov atom at EOF): small tail read, forward as-is.
+  const isSuffix = !!(match && match[1] === "" && match[2] !== "");
+
+  let start = 0;
   let driveRange: string;
-  if (match && match[1] === "" && match[2] !== "") {
-    // Suffix range (final N bytes, e.g. reading an MP4 `moov` atom at EOF):
-    // forward as-is — these are small tail reads, not the full-file problem.
-    driveRange = `bytes=-${match[2]}`;
+
+  if (isSuffix) {
+    driveRange = `bytes=-${match![2]}`;
   } else {
-    let start = match && match[1] ? parseInt(match[1], 10) : 0;
+    start = match && match[1] ? parseInt(match[1], 10) : 0;
     if (Number.isNaN(start) || start < 0) start = 0;
     let requestedEnd = match && match[2] ? parseInt(match[2], 10) : null;
     if (requestedEnd !== null && (Number.isNaN(requestedEnd) || requestedEnd < start)) {
@@ -161,85 +237,53 @@ export async function streamDriveFile(
     driveRange = `bytes=${start}-${end}`;
   }
 
-  const driveResp = await fetch(
-    `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true`,
-    { headers: { Authorization: `Bearer ${token}`, Range: driveRange } },
-  );
+  // ── Check pre-fetch cache ────────────────────────────────────────────────
+  const key = isSuffix ? null : prefetchKey(fileId, start);
+  const cached = key ? prefetchMap.get(key) : null;
+  let result: PrefetchResult | null = null;
 
-  if (driveResp.status !== 200 && driveResp.status !== 206) {
-    const errBody = await driveResp.text().catch(() => "");
-    // Surface the REAL reason: 401/403 = token/permission (Google API error),
-    // 404 = file not found / no access under this account's scope, else upstream.
+  if (cached) {
+    evictPrefetchEntry(key!); // consume immediately so another request doesn't race
+    result = await cached.promise;
+  }
+
+  if (!result) {
+    // Cache miss (seek, first request, or failed prefetch) — fetch live
+    result = await fetchDriveRange(token, fileId, driveRange);
+  }
+
+  if (!result) {
     console.error("[video-stream] DRIVE ERROR: files.get returned non-2xx", {
-      fileId,
-      driveStatus: driveResp.status,
-      clientRange: clientRange ?? null,
-      driveRange,
-      reason:
-        driveResp.status === 401
-          ? "TOKEN/AUTH"
-          : driveResp.status === 403
-            ? "PERMISSION/SCOPE"
-            : driveResp.status === 404
-              ? "FILE NOT FOUND / NOT ACCESSIBLE BY CONNECTED ACCOUNT"
-              : "UPSTREAM",
-      body: errBody.slice(0, 500),
+      fileId, clientRange: clientRange ?? null, driveRange,
     });
-    res.status(driveResp.status === 404 ? 404 : 502).end();
+    res.status(502).end();
     return;
+  }
+
+  // ── Kick off pre-fetch for the NEXT sequential chunk ────────────────────
+  if (!isSuffix) {
+    const nextStart = start + MAX_CHUNK;
+    // Run token refresh before background fetch so it doesn't race with expiry
+    getDriveAccessToken()
+      .then((tok) => schedulePrefetch(tok, fileId, nextStart))
+      .catch(() => { /* prefetch is best-effort */ });
   }
 
   console.info("[video-stream] OK: streaming Drive file", {
     fileId,
-    driveStatus: driveResp.status,
+    driveStatus: result.status,
     clientRange: clientRange ?? null,
     driveRange,
-    contentType: driveResp.headers.get("content-type"),
-    contentLength: driveResp.headers.get("content-length"),
-    contentRange: driveResp.headers.get("content-range"),
+    cached: !!cached,
+    bytes: result.data.byteLength,
   });
 
-  res.status(driveResp.status);
+  res.status(result.status);
   res.setHeader("Accept-Ranges", "bytes");
-  for (const h of ["content-length", "content-range"] as const) {
-    const v = driveResp.headers.get(h);
-    if (v) res.setHeader(h, v);
-  }
-  // Drive commonly serves private files as application/octet-stream, which
-  // iPhone Safari's <video> refuses to play. Only trust an explicit video/*
-  // type; otherwise force video/mp4 so the native player accepts the stream.
-  const upstreamType = driveResp.headers.get("content-type");
-  res.setHeader(
-    "Content-Type",
-    upstreamType && upstreamType.startsWith("video/") ? upstreamType : "video/mp4",
-  );
-  // Allow the BROWSER (and only the browser) to cache the video chunks it
-  // already downloaded. This means seeking backward and re-watching use the
-  // local disk cache instead of re-fetching from Drive through our proxy.
-  // "private" prevents CDN/shared caches from storing the byte range; the
-  // 1-hour TTL matches typical watch session length.
+  if (result.contentRange) res.setHeader("Content-Range", result.contentRange);
+  res.setHeader("Content-Length", result.contentLength!);
+  res.setHeader("Content-Type", result.contentType!);
   res.setHeader("Cache-Control", "private, max-age=3600");
   res.setHeader("Content-Disposition", "inline");
-
-  if (!driveResp.body) {
-    console.error("[video-stream] STREAM ERROR: Drive response had no body", {
-      fileId,
-      driveStatus: driveResp.status,
-    });
-    res.end();
-    return;
-  }
-
-  const nodeStream = Readable.fromWeb(driveResp.body as NodeWebReadableStream<Uint8Array>);
-  // Stop pulling bytes from Drive as soon as the client goes away (seek/close).
-  res.on("close", () => nodeStream.destroy());
-  nodeStream.on("error", (err: unknown) => {
-    console.error("[video-stream] STREAM ERROR: pipe from Drive failed", {
-      fileId,
-      message: err instanceof Error ? err.message : String(err),
-    });
-    if (!res.headersSent) res.status(502);
-    res.end();
-  });
-  nodeStream.pipe(res);
+  res.end(result.data);
 }
