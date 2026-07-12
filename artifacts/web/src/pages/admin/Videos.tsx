@@ -123,6 +123,8 @@ export function AdminVideos() {
   const reorderMut = useReorderVideos({ request: getAdminAuthHeaders() });
   const migrateMut = useMigrateVideoStorage({ request: getAdminAuthHeaders() });
   const [migratingId, setMigratingId] = useState<number | null>(null);
+  const [bulkMigrating, setBulkMigrating] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState<{done: number; total: number} | null>(null);
 
   /* ── DnD state ── */
   const [orderedVideos, setOrderedVideos] = useState<AdminVideo[]>([]);
@@ -309,6 +311,28 @@ export function AdminVideos() {
     deleteMut.mutate({ id }, { onSuccess: () => { toast({ title: "تم الحذف" }); refetch(); } });
   };
 
+  const handleBulkMigrate = async () => {
+    const unmigrated = (videos || []).filter(v => !v.migratedAt);
+    if (unmigrated.length === 0) { toast({ title: "كل الفيديوهات مرحّلة بالفعل ✓" }); return; }
+    if (!confirm(`ترحيل ${unmigrated.length} فيديو إلى التخزين السحابي (التشغيل السريع)؟\n\nسيتم النسخ تلقائياً واحداً تلو الآخر. لا تغلق الصفحة.`)) return;
+    setBulkMigrating(true);
+    setBulkProgress({ done: 0, total: unmigrated.length });
+    let done = 0;
+    for (const v of unmigrated) {
+      try {
+        await migrateMut.mutateAsync({ id: v.id });
+        done++;
+        setBulkProgress({ done, total: unmigrated.length });
+      } catch {
+        // نتابع بقية الفيديوهات حتى لو فشل واحد
+      }
+    }
+    setBulkMigrating(false);
+    setBulkProgress(null);
+    toast({ title: `⚡ تم ترحيل ${done}/${unmigrated.length} فيديو بنجاح`, className: "bg-green-600 text-white border-none" });
+    refetch();
+  };
+
   const handleMigrate = (video: AdminVideo) => {
     if (!confirm(`تفعيل التشغيل السريع لـ "${video.title}"؟\n\nسيتم نسخ الفيديو إلى التخزين السحابي مرة واحدة (قد يستغرق دقيقة أو أكثر حسب حجم الفيديو). بعدها يشتغل الفيديو مباشرة من سيرفرات Google بدون تقطيع.`)) return;
     setMigratingId(video.id);
@@ -332,14 +356,27 @@ export function AdminVideos() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center gap-3 flex-wrap">
         <div>
           <h1 className="text-3xl font-bold">إدارة الفيديوهات</h1>
           <p className="text-sm text-muted-foreground mt-1">اسحب الكروت لتغيير ترتيب الظهور للطلاب</p>
         </div>
-        <Button onClick={() => handleOpen()}>
-          <Plus className="w-4 h-4 ml-2" /> إضافة فيديو
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            className="gap-2 border-amber-500/40 text-amber-400 hover:bg-amber-500/10"
+            onClick={handleBulkMigrate}
+            disabled={bulkMigrating}
+          >
+            {bulkMigrating
+              ? <><Loader2 className="w-4 h-4 animate-spin" /> {bulkProgress ? `${bulkProgress.done}/${bulkProgress.total}` : "..."}</>
+              : <><Zap className="w-4 h-4" /> ترحيل الكل</>
+            }
+          </Button>
+          <Button onClick={() => handleOpen()}>
+            <Plus className="w-4 h-4 ml-2" /> إضافة فيديو
+          </Button>
+        </div>
       </div>
 
       {/* فلتر القسم لإعادة ترتيب الدروس داخل كل قسم */}

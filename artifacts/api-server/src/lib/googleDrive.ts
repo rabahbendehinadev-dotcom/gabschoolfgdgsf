@@ -140,7 +140,7 @@ export async function streamDriveFile(
   // whole file again (an endless loop). By clamping each request to a small
   // window and returning 206 + the real Content-Range, the player fetches the
   // video in fast, reliable chunks and can still seek anywhere.
-  const MAX_CHUNK = 4 * 1024 * 1024; // 4 MiB — halves round-trips vs 2 MiB; safe below proxy timeout
+  const MAX_CHUNK = 8 * 1024 * 1024; // 8 MiB — ~12 s of video per chunk at 5 Mbps; reduces seek stalls
 
   const clientRange = req.headers.range;
   const match = clientRange ? /^bytes=(\d*)-(\d*)$/.exec(clientRange.trim()) : null;
