@@ -178,6 +178,12 @@ export const GetVideosResponseItem = zod.object({
             .describe(
               "Same-origin, token-protected stream URL (e.g. \/api\/videos\/{id}\/stream\/{part}?token=...).",
             ),
+          hlsUrl: zod
+            .string()
+            .nullish()
+            .describe(
+              "Same-origin, token-protected HLS master playlist URL (adaptive bitrate). Present only for parts that have been transcoded; the MP4 `url` remains the fallback.",
+            ),
         })
         .describe(
           "A single playable part streamed securely from our server (no Drive link exposed).",
@@ -219,6 +225,12 @@ export const GetVideoResponse = zod.object({
             .string()
             .describe(
               "Same-origin, token-protected stream URL (e.g. \/api\/videos\/{id}\/stream\/{part}?token=...).",
+            ),
+          hlsUrl: zod
+            .string()
+            .nullish()
+            .describe(
+              "Same-origin, token-protected HLS master playlist URL (adaptive bitrate). Present only for parts that have been transcoded; the MP4 `url` remains the fallback.",
             ),
         })
         .describe(

@@ -7,6 +7,7 @@ import {
   AlertTriangle, X, Sun, Check,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
+import type HlsType from "hls.js";
 import { Button } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
@@ -35,6 +36,8 @@ type Fit = "cover" | "contain";
 interface CourseVideoPlayerProps {
   /** رابط بثّ آمن من خادم المنصة (mp4) — ليس رابط Google Drive. */
   src: string;
+  /** رابط قائمة HLS الرئيسية (بثّ تكيّفي) — إن توفّر يُفضَّل على mp4، مع بقاء mp4 احتياطاً. */
+  hlsSrc?: string | null;
   poster?: string | null;
   title?: string;
   /** معرّف الدرس — لحفظ موضع المشاهدة وتسجيل المخالفات. */
@@ -45,6 +48,8 @@ interface CourseVideoPlayerProps {
   /** عند النقر على "إعادة المحاولة" — يُستخدم لتجديد رابط البثّ من الخادم */
   onRetry?: () => void;
 }
+
+const HLS_MIME = "application/vnd.apple.mpegurl";
 
 function formatTime(sec: number): string {
   if (!Number.isFinite(sec) || sec < 0) sec = 0;
@@ -83,11 +88,27 @@ type PipVideo = HTMLVideoElement & {
 };
 
 export function CourseVideoPlayer({
-  src, poster, title, videoId, username, email, onViolation, onRetry,
+  src, hlsSrc, poster, title, videoId, username, email, onViolation, onRetry,
 }: CourseVideoPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
+
+  /* ── HLS: تفضيل البثّ التكيّفي إن توفّر، مع الرجوع التلقائي إلى mp4 عند أي فشل ── */
+  const [hlsFailed, setHlsFailed] = useState(false);
+  const useHls = !!hlsSrc && !hlsFailed;
+  const usingHlsRef = useRef(false); // يقرأه مستمع onError للتمييز بين فشل HLS وفشل mp4
+  usingHlsRef.current = useHls;
+  /* مفاتيح مستقرة بدون token/توقيع: إعادة جلب /videos/:id (مثلاً عند العودة إلى
+     التبويب) تمنح روابط جديدة لنفس الفيديو — يجب ألا تفكّك التشغيل الجاري. */
+  const hlsKey = hlsSrc ? hlsSrc.split("?")[0] : null;
+  const srcKey = src ? src.split("?")[0] : "";
+  const hlsSrcRef = useRef<string | null>(hlsSrc ?? null);
+  hlsSrcRef.current = hlsSrc ?? null;
+  const srcRef = useRef(src);
+  srcRef.current = src;
+  // المصدر الفعّال — يُدار عبر useEffect (وليس خاصية src في JSX) لأن hls.js يربط MediaSource بنفسه
+  const effectiveKey = useHls ? (hlsKey as string) : srcKey;
 
   const [playing, setPlaying] = useState(false);
   const [waiting, setWaiting] = useState(true);
@@ -339,7 +360,11 @@ export function CourseVideoPlayer({
     const onPlaying = () => { setWaiting(false); clearSeek(); };
     const onReady = () => setWaiting(false);
     const onEnded = () => { setPlaying(false); setControlsVisible(true); };
-    const onError = () => { setWaiting(false); setLoadError(true); setErrorCode(v.error?.code ?? null); };
+    const onError = () => {
+      // فشل HLS الأصلي (iOS) → لا نُظهر خطأ بل نرجع تلقائياً إلى mp4
+      if (usingHlsRef.current) { setHlsFailed(true); return; }
+      setWaiting(false); setLoadError(true); setErrorCode(v.error?.code ?? null);
+    };
     const onVol = () => { setVolume(v.volume); setMuted(v.muted); };
 
     v.addEventListener("loadedmetadata", onLoaded);
@@ -388,7 +413,80 @@ export function CourseVideoPlayer({
     const v = videoRef.current;
     if (v) v.playbackRate = speed;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [src]);
+  }, [effectiveKey]);
+
+  /* ── إعادة السماح بتجربة HLS عند تغيّر رابط الـ HLS نفسه (جزء جديد — لا مجرد token مجدَّد) ── */
+  useEffect(() => { setHlsFailed(false); }, [hlsKey]);
+
+  /* ── ربط المصدر: hls.js (MSE) ← HLS أصلي (iOS Safari) ← mp4 احتياطاً ──
+     يُدار src هنا وليس في JSX لأن hls.js يربط MediaSource بنفسه. أي فشل
+     نهائي في مسار HLS يستدعي setHlsFailed → يعيد هذا التأثير الربط على mp4. */
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    let cancelled = false;
+    let hls: HlsType | null = null;
+
+    if (!useHls) {
+      v.src = srcRef.current;
+      return () => { v.removeAttribute("src"); };
+    }
+
+    (async () => {
+      try {
+        const HlsCtor = (await import("hls.js")).default;
+        if (cancelled || !videoRef.current) return;
+        if (HlsCtor.isSupported()) {
+          hls = new HlsCtor({
+            // تخزين مؤقت أمامي سخي (دقيقة) لتفادي التقطّع على الشبكات البطيئة
+            maxBufferLength: 60,
+            maxMaxBufferLength: 120,
+            backBufferLength: 30,
+            // لا تحمّل جودة أعلى من حجم المشغّل الفعلي (يراعي devicePixelRatio)
+            capLevelToPlayerSize: true,
+          });
+          let netRetried = false;
+          let mediaRecovered = false;
+          hls.on(HlsCtor.Events.ERROR, (_evt, data) => {
+            if (!data.fatal || !hls) return;
+            // متصفح بلا دعم H.264 عبر MSE: لا جدوى من recoverMediaError — ارجع فوراً إلى mp4
+            if (data.details === HlsCtor.ErrorDetails.MANIFEST_INCOMPATIBLE_CODECS_ERROR) {
+              hls.destroy(); hls = null;
+              setHlsFailed(true);
+              return;
+            }
+            if (data.type === HlsCtor.ErrorTypes.NETWORK_ERROR && !netRetried) {
+              netRetried = true; hls.startLoad(); return; // محاولة واحدة لاستئناف التحميل
+            }
+            if (data.type === HlsCtor.ErrorTypes.MEDIA_ERROR && !mediaRecovered) {
+              mediaRecovered = true; hls.recoverMediaError(); return;
+            }
+            hls.destroy(); hls = null;
+            setHlsFailed(true); // الرجوع النهائي إلى mp4
+          });
+          hls.on(HlsCtor.Events.LEVEL_SWITCHED, (_evt, data) => {
+            const h = hls?.levels?.[data.level]?.height;
+            if (h) setQuality(qualityLabel(h));
+          });
+          hls.loadSource(hlsSrcRef.current as string);
+          hls.attachMedia(v);
+        } else if (v.canPlayType(HLS_MIME)) {
+          v.src = hlsSrcRef.current as string; // iOS Safari: دعم HLS أصلي بدون MSE
+        } else {
+          setHlsFailed(true);
+        }
+      } catch {
+        if (!cancelled) setHlsFailed(true); // تعذّر تحميل hls.js نفسه → mp4
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (hls) { hls.destroy(); hls = null; }
+      else v.removeAttribute("src");
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [useHls, hlsKey, srcKey]);
 
   /* ── مزامنة حالة الشاشة الكاملة ── */
   useEffect(() => {
@@ -599,7 +697,6 @@ export function CourseVideoPlayer({
         {/* الفيديو */}
         <video
           ref={videoRef}
-          src={src}
           poster={poster || undefined}
           playsInline
           webkit-playsinline="true"

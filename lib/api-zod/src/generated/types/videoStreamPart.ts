@@ -13,4 +13,6 @@ export interface VideoStreamPart {
   label: string;
   /** Same-origin, token-protected stream URL (e.g. /api/videos/{id}/stream/{part}?token=...). */
   url: string;
+  /** Same-origin, token-protected HLS master playlist URL (adaptive bitrate). Present only for parts that have been transcoded; the MP4 `url` remains the fallback. */
+  hlsUrl?: string | null;
 }
