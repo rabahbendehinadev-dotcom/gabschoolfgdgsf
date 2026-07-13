@@ -22,6 +22,13 @@ export const videosTable = pgTable("videos", {
   // Storage. When present, playback uses direct presigned GCS URLs instead of
   // proxying Drive bytes through this server (fixes buffering at scale).
   objectParts: text("object_parts"),
+  // JSON per-part HLS metadata — set once the part has been transcoded to an
+  // adaptive HLS ladder stored under .private/hls/{id}/part-{i}/ in App
+  // Storage: [{ renditions: [{ name, height, bandwidth, segments: [{ file,
+  // duration }] }] }]. When present, the player streams HLS (continuous
+  // buffering + instant seek + auto quality on slow connections); the MP4
+  // presigned URL remains as fallback.
+  hlsParts: text("hls_parts"),
   migratedAt: timestamp("migrated_at"),
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),

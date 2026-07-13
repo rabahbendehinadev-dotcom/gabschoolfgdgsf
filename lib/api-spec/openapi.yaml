@@ -1575,6 +1575,10 @@ components:
         url:
           type: string
           description: Same-origin, token-protected stream URL (e.g. /api/videos/{id}/stream/{part}?token=...).
+        hlsUrl:
+          type: string
+          nullable: true
+          description: Same-origin, token-protected HLS master playlist URL (adaptive bitrate). Present only for parts that have been transcoded; the MP4 `url` remains the fallback.
       required:
         - label
         - url

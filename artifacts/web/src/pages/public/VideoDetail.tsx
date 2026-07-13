@@ -172,6 +172,7 @@ export function VideoDetail() {
                 <CourseVideoPlayer
                   key={`${id}-${selectedPartIndex}`}
                   src={activeVideoUrl}
+                  hlsSrc={parts[selectedPartIndex]?.hlsUrl ?? null}
                   poster={video.thumbnailUrl}
                   title={video.title}
                   username={user?.username}

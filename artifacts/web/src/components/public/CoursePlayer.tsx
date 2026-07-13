@@ -167,6 +167,7 @@ export function CoursePlayer({ lessons, accessInfo }: CoursePlayerProps) {
             <CourseVideoPlayer
               key={`${lessonId}-${selectedPartIndex}`}
               src={activeUrl}
+              hlsSrc={parts[selectedPartIndex]?.hlsUrl ?? null}
               poster={currentLesson?.thumbnailUrl}
               title={currentLesson?.title}
               username={user?.username}

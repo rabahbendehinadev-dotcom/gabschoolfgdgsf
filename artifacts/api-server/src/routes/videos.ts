@@ -7,6 +7,7 @@ import { deviceTypeFromUA } from "../lib/device";
 import { generateVideoStreamToken, verifyVideoStreamToken } from "../lib/auth";
 import { extractDriveFileId, resolveVideoParts, streamDriveFile } from "../lib/googleDrive";
 import { getSignedVideoURL, parseObjectParts } from "../lib/videoStorage";
+import { parseHlsParts, buildMasterPlaylist, renderMediaPlaylist } from "../lib/hlsStorage";
 
 const router: IRouter = Router();
 
@@ -120,6 +121,7 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
       softwareLink: videosTable.softwareLink,
       driveParts: videosTable.driveParts,
       objectParts: videosTable.objectParts,
+      hlsParts: videosTable.hlsParts,
       createdAt: videosTable.createdAt,
     })
     .from(videosTable)
@@ -187,20 +189,31 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
     // back to the same-origin, token-protected Drive proxy. Raw Drive URLs
     // never leave the server either way.
     const objectParts = parseObjectParts(video.objectParts);
+    const hlsParts = parseHlsParts(video.hlsParts);
     const partsList = resolveVideoParts({
       driveEmbedUrl: video.driveEmbedUrl,
       driveParts: video.driveParts,
     });
-    let streamParts: { label: string; url: string }[];
+    let streamParts: { label: string; url: string; hlsUrl?: string }[];
     // Build streamParts from drive parts list (authoritative source for labels/count).
     // For each part: use GCS presigned URL if migrated, Drive proxy token otherwise.
     // This handles the mismatch case where objectParts count < driveParts count
     // (e.g., a new drive part was added after migration completed).
+    // Parts that have been transcoded additionally expose an HLS master
+    // playlist URL (adaptive bitrate → no stalls / instant seek on slow
+    // connections); the MP4 `url` stays as the player's fallback.
     streamParts = await Promise.all(
       partsList.map(async (p, i) => {
+        const hlsUrl = hlsParts?.[i]
+          ? `/api/videos/${id}/hls/${i}/master.m3u8?token=${generateVideoStreamToken({
+              userId: user?.id ?? 0,
+              videoId: id,
+              part: i,
+            })}`
+          : undefined;
         const objPart = objectParts?.[i];
         if (objPart) {
-          return { label: p.label, url: await getSignedVideoURL(objPart.objectPath) };
+          return { label: p.label, url: await getSignedVideoURL(objPart.objectPath), hlsUrl };
         }
         return {
           label: p.label,
@@ -209,6 +222,7 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
             videoId: id,
             part: i,
           })}`,
+          hlsUrl,
         };
       }),
     );
@@ -294,100 +308,128 @@ router.post("/videos/:id/security-event", optionalUserAuth, async (req, res) => 
   }
 });
 
-// Token-protected, same-origin video stream. The native <video> element cannot
-// send Authorization headers, so the player passes a short-lived signed token in
-// the query string. We re-verify ENTITLEMENT here on every request (never trust
-// the token alone) and pipe the private Drive bytes through our own server.
-router.get("/videos/:id/stream/:part", async (req, res) => {
-  try {
-    const token = typeof req.query.token === "string" ? req.query.token : null;
-    const payload = token ? verifyVideoStreamToken(token) : null;
-    if (!payload) {
-      console.warn("[video-stream] DENY 401: missing/invalid token", {
-        videoId: req.params.id,
-        part: req.params.part,
-        hasToken: !!token,
-      });
-      res.status(401).end();
-      return;
-    }
+/* ── Shared gate for the byte/playlist routes ─────────────────────────────
+   The native <video> element (and hls.js playlist fetches) cannot send
+   Authorization headers, so these routes take a short-lived signed token in
+   the query string. The token alone is NEVER trusted: on every request we
+   re-verify that it matches the route, that the video is visible, and that
+   the token's user is STILL entitled (live DB lookup, so revoked/downgraded
+   accounts immediately lose access). Returns the video row, or null after
+   having already sent the 401/403/404 response. */
+async function authorizeStreamRequest(
+  req: Parameters<Parameters<IRouter["get"]>[1]>[0],
+  res: Parameters<Parameters<IRouter["get"]>[1]>[1],
+  logTag: string,
+): Promise<{
+  id: number;
+  part: number;
+  video: {
+    isVisible: boolean;
+    accessType: string;
+    driveEmbedUrl: string;
+    driveParts: string | null;
+    hlsParts: string | null;
+  };
+} | null> {
+  const token = typeof req.query.token === "string" ? req.query.token : null;
+  const payload = token ? verifyVideoStreamToken(token) : null;
+  if (!payload) {
+    console.warn(`[${logTag}] DENY 401: missing/invalid token`, {
+      videoId: req.params.id,
+      part: req.params.part,
+      hasToken: !!token,
+    });
+    res.status(401).end();
+    return null;
+  }
 
-    const id = Number(req.params.id);
-    const part = Number(req.params.part);
-    if (
-      !Number.isInteger(id) ||
-      !Number.isInteger(part) ||
-      part < 0 ||
-      payload.videoId !== id ||
-      payload.part !== part
-    ) {
-      console.warn("[video-stream] DENY 403: token/route mismatch", {
-        routeId: id,
-        routePart: part,
-        tokenVideoId: payload.videoId,
-        tokenPart: payload.part,
+  const id = Number(req.params.id);
+  const part = Number(req.params.part);
+  if (
+    !Number.isInteger(id) ||
+    !Number.isInteger(part) ||
+    part < 0 ||
+    payload.videoId !== id ||
+    payload.part !== part
+  ) {
+    console.warn(`[${logTag}] DENY 403: token/route mismatch`, {
+      routeId: id,
+      routePart: part,
+      tokenVideoId: payload.videoId,
+      tokenPart: payload.part,
+    });
+    res.status(403).end();
+    return null;
+  }
+
+  const [video] = await db
+    .select({
+      isVisible: videosTable.isVisible,
+      accessType: videosTable.accessType,
+      driveEmbedUrl: videosTable.driveEmbedUrl,
+      driveParts: videosTable.driveParts,
+      hlsParts: videosTable.hlsParts,
+    })
+    .from(videosTable)
+    .where(eq(videosTable.id, id))
+    .limit(1);
+
+  if (!video || !video.isVisible) {
+    console.warn(`[${logTag}] DENY 404: video missing or hidden`, {
+      videoId: id,
+      found: !!video,
+      isVisible: video?.isVisible ?? null,
+    });
+    res.status(404).end();
+    return null;
+  }
+
+  // Fresh entitlement re-check, mirroring GET /videos/:id.
+  const accessType = video.accessType || "normal";
+  if (accessType === "vip" || accessType === "normal") {
+    const [u] = payload.userId
+      ? await db
+          .select({
+            accountType: usersTable.accountType,
+            subscriptionType: usersTable.subscriptionType,
+          })
+          .from(usersTable)
+          .where(eq(usersTable.id, payload.userId))
+          .limit(1)
+      : [undefined];
+    const isVipUser = u?.accountType === "vip";
+    const isSubscribed = !!u && u.subscriptionType !== "demo";
+    if (accessType === "vip" && !isVipUser) {
+      console.warn(`[${logTag}] DENY 403: VIP video, user not VIP`, {
+        videoId: id,
+        userId: payload.userId,
+        accountType: u?.accountType ?? null,
       });
       res.status(403).end();
-      return;
+      return null;
     }
-
-    const [video] = await db
-      .select({
-        isVisible: videosTable.isVisible,
-        accessType: videosTable.accessType,
-        driveEmbedUrl: videosTable.driveEmbedUrl,
-        driveParts: videosTable.driveParts,
-      })
-      .from(videosTable)
-      .where(eq(videosTable.id, id))
-      .limit(1);
-
-    if (!video || !video.isVisible) {
-      console.warn("[video-stream] DENY 404: video missing or hidden", {
+    if (accessType === "normal" && !isVipUser && !isSubscribed) {
+      console.warn(`[${logTag}] DENY 403: not VIP and not subscribed`, {
         videoId: id,
-        found: !!video,
-        isVisible: video?.isVisible ?? null,
+        userId: payload.userId,
+        accountType: u?.accountType ?? null,
+        subscriptionType: u?.subscriptionType ?? null,
       });
-      res.status(404).end();
-      return;
+      res.status(403).end();
+      return null;
     }
+  }
 
-    // Fresh entitlement re-check, mirroring GET /videos/:id. The token's userId
-    // is looked up live so revoked/downgraded accounts immediately lose access.
-    const accessType = video.accessType || "normal";
-    if (accessType === "vip" || accessType === "normal") {
-      const [u] = payload.userId
-        ? await db
-            .select({
-              accountType: usersTable.accountType,
-              subscriptionType: usersTable.subscriptionType,
-            })
-            .from(usersTable)
-            .where(eq(usersTable.id, payload.userId))
-            .limit(1)
-        : [undefined];
-      const isVipUser = u?.accountType === "vip";
-      const isSubscribed = !!u && u.subscriptionType !== "demo";
-      if (accessType === "vip" && !isVipUser) {
-        console.warn("[video-stream] DENY 403: VIP video, user not VIP", {
-          videoId: id,
-          userId: payload.userId,
-          accountType: u?.accountType ?? null,
-        });
-        res.status(403).end();
-        return;
-      }
-      if (accessType === "normal" && !isVipUser && !isSubscribed) {
-        console.warn("[video-stream] DENY 403: not VIP and not subscribed", {
-          videoId: id,
-          userId: payload.userId,
-          accountType: u?.accountType ?? null,
-          subscriptionType: u?.subscriptionType ?? null,
-        });
-        res.status(403).end();
-        return;
-      }
-    }
+  return { id, part, video };
+}
+
+// Token-protected, same-origin video stream (Drive proxy fallback for
+// unmigrated videos).
+router.get("/videos/:id/stream/:part", async (req, res) => {
+  try {
+    const auth = await authorizeStreamRequest(req, res, "video-stream");
+    if (!auth) return;
+    const { id, part, video } = auth;
 
     const partsList = resolveVideoParts({
       driveEmbedUrl: video.driveEmbedUrl,
@@ -428,6 +470,89 @@ router.get("/videos/:id/stream/:part", async (req, res) => {
     } else {
       res.end();
     }
+  }
+});
+
+/* ── HLS playlists (adaptive streaming for transcoded videos) ─────────────
+   Same security gate as the byte routes. The master playlist references the
+   media playlists RELATIVELY (same-origin, token re-attached); the media
+   playlists embed short-lived presigned GCS segment URLs, so the actual
+   video bytes stream directly from storage.googleapis.com with zero server
+   involvement — the server only ever hands out small text playlists. */
+
+const HLS_PLAYLIST_HEADERS = {
+  "Content-Type": "application/vnd.apple.mpegurl",
+  // Private (token-gated) but briefly cacheable by the browser itself so
+  // hls.js level switches don't re-hit the server needlessly.
+  "Cache-Control": "private, max-age=300",
+} as const;
+
+router.get("/videos/:id/hls/:part/master.m3u8", async (req, res) => {
+  try {
+    const auth = await authorizeStreamRequest(req, res, "video-hls");
+    if (!auth) return;
+    const { id, part, video } = auth;
+
+    const hlsParts = parseHlsParts(video.hlsParts);
+    const hlsPart = hlsParts?.[part];
+    if (!hlsPart) {
+      console.warn("[video-hls] DENY 404: no HLS ladder for part", { videoId: id, part });
+      res.status(404).end();
+      return;
+    }
+
+    const token = req.query.token as string; // validated by authorizeStreamRequest
+    res.set(HLS_PLAYLIST_HEADERS).send(buildMasterPlaylist(hlsPart, token));
+  } catch (error: unknown) {
+    console.error("[video-hls] ROUTE ERROR: master playlist threw", {
+      videoId: req.params.id,
+      part: req.params.part,
+      message: error instanceof Error ? error.message : String(error),
+    });
+    if (!res.headersSent) res.status(500).end();
+    else res.end();
+  }
+});
+
+router.get("/videos/:id/hls/:part/:rendition.m3u8", async (req, res) => {
+  try {
+    const auth = await authorizeStreamRequest(req, res, "video-hls");
+    if (!auth) return;
+    const { id, part, video } = auth;
+
+    const hlsParts = parseHlsParts(video.hlsParts);
+    const hlsPart = hlsParts?.[part];
+    const rendition = String(req.params.rendition);
+    if (!hlsPart || !hlsPart.renditions.some((r) => r.name === rendition)) {
+      console.warn("[video-hls] DENY 404: unknown rendition", {
+        videoId: id,
+        part,
+        rendition,
+      });
+      res.status(404).end();
+      return;
+    }
+
+    const playlist = await renderMediaPlaylist(id, part, rendition);
+    if (!playlist) {
+      console.warn("[video-hls] DENY 404: skeleton playlist missing in storage", {
+        videoId: id,
+        part,
+        rendition,
+      });
+      res.status(404).end();
+      return;
+    }
+    res.set(HLS_PLAYLIST_HEADERS).send(playlist);
+  } catch (error: unknown) {
+    console.error("[video-hls] ROUTE ERROR: media playlist threw", {
+      videoId: req.params.id,
+      part: req.params.part,
+      rendition: req.params.rendition,
+      message: error instanceof Error ? error.message : String(error),
+    });
+    if (!res.headersSent) res.status(500).end();
+    else res.end();
   }
 });
 

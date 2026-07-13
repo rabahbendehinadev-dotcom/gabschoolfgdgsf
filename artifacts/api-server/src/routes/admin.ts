@@ -21,6 +21,7 @@ import {
   parseObjectParts,
   type ObjectPart,
 } from "../lib/videoStorage";
+import { normalizeHlsPartsInput, deleteHlsObjects, invalidateRenderedPlaylists } from "../lib/hlsStorage";
 import * as zod from "zod";
 import {
   UpdateAdminUserBody,
@@ -586,21 +587,24 @@ router.patch("/admin/videos/:id", adminAuth, async (req, res) => {
     if ("softwareLink" in body) updateData.softwareLink = body.softwareLink ?? null;
     if ("driveParts" in body) updateData.driveParts = body.driveParts ?? null;
 
-    // If the video source changed, the migrated App Storage copy is stale:
-    // clear the mapping (playback falls back to the Drive proxy) and clean up
-    // the old objects best-effort. Admin can re-run the migration afterwards.
+    // If the video source changed, the migrated App Storage copy AND the HLS
+    // ladder are stale: clear both mappings (playback falls back to the Drive
+    // proxy) and clean up the old objects best-effort. Admin can re-run the
+    // migration/transcode afterwards.
     let staleObjectParts: ObjectPart[] | null = null;
+    let staleHls = false;
     if (body.driveEmbedUrl !== undefined || "driveParts" in body) {
       const [existing] = await db
         .select({
           driveEmbedUrl: videosTable.driveEmbedUrl,
           driveParts: videosTable.driveParts,
           objectParts: videosTable.objectParts,
+          hlsParts: videosTable.hlsParts,
         })
         .from(videosTable)
         .where(eq(videosTable.id, id))
         .limit(1);
-      if (existing?.objectParts) {
+      if (existing?.objectParts || existing?.hlsParts) {
         const sourceChanged =
           (body.driveEmbedUrl !== undefined && body.driveEmbedUrl !== existing.driveEmbedUrl) ||
           ("driveParts" in body && (body.driveParts ?? null) !== (existing.driveParts ?? null));
@@ -608,6 +612,10 @@ router.patch("/admin/videos/:id", adminAuth, async (req, res) => {
           staleObjectParts = parseObjectParts(existing.objectParts);
           updateData.objectParts = null;
           updateData.migratedAt = null;
+          if (existing.hlsParts) {
+            staleHls = true;
+            updateData.hlsParts = null;
+          }
         }
       }
     }
@@ -616,6 +624,7 @@ router.patch("/admin/videos/:id", adminAuth, async (req, res) => {
       .where(eq(videosTable.id, id)).returning();
 
     if (staleObjectParts) void deleteVideoObjects(staleObjectParts);
+    if (staleHls) void deleteHlsObjects(id);
 
     if (!video) {
       res.status(404).json({ message: "Video not found" });
@@ -643,13 +652,14 @@ router.delete("/admin/videos/:id", adminAuth, async (req, res) => {
   try {
     const id = Number(req.params.id);
     const [existing] = await db
-      .select({ objectParts: videosTable.objectParts })
+      .select({ objectParts: videosTable.objectParts, hlsParts: videosTable.hlsParts })
       .from(videosTable)
       .where(eq(videosTable.id, id))
       .limit(1);
     await db.delete(videosTable).where(eq(videosTable.id, id));
     const parts = parseObjectParts(existing?.objectParts);
     if (parts) void deleteVideoObjects(parts);
+    if (existing?.hlsParts) void deleteHlsObjects(id);
     res.json({ message: "Video deleted successfully" });
   } catch (error: unknown) {
     res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" || "Failed to delete video" });
@@ -766,6 +776,54 @@ router.post("/admin/videos/:id/migrate-storage", adminAuth, async (req, res) => 
       message: error instanceof Error ? error.message : String(error),
     });
     res.status(500).json({ message: error instanceof Error ? error.message : "Failed to migrate video" });
+  }
+});
+
+// Record the HLS ladder metadata for a video after its parts were transcoded
+// and uploaded to App Storage (done by an offline batch script — transcoding
+// is far too CPU-heavy for the autoscale request lifecycle). Only lightweight
+// rendition metadata is stored; the per-segment detail lives in the skeleton
+// playlists next to the segments in App Storage. Passing null clears the flag
+// (playback falls back to MP4).
+router.put("/admin/videos/:id/hls-parts", adminAuth, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      res.status(400).json({ message: "Invalid video id" });
+      return;
+    }
+    const body = req.body as { hlsParts?: unknown };
+
+    let normalized: string | null = null;
+    if (body.hlsParts !== null && body.hlsParts !== undefined) {
+      normalized = normalizeHlsPartsInput(body.hlsParts);
+      if (!normalized) {
+        res.status(400).json({
+          message:
+            "Invalid hlsParts payload: expected [{ renditions: [{ name, width, height, bandwidth, codecs? }] }, ...]",
+        });
+        return;
+      }
+    }
+
+    const updated = await db
+      .update(videosTable)
+      .set({ hlsParts: normalized })
+      .where(eq(videosTable.id, id))
+      .returning({ id: videosTable.id });
+
+    if (updated.length === 0) {
+      res.status(404).json({ message: "Video not found" });
+      return;
+    }
+
+    invalidateRenderedPlaylists(id);
+    console.info("[video-hls] hls-parts updated", { videoId: id, cleared: !normalized });
+    res.json({ message: normalized ? "HLS parts recorded" : "HLS parts cleared" });
+  } catch (error: unknown) {
+    res.status(500).json({
+      message: error instanceof Error ? error.message : "Failed to update HLS parts",
+    });
   }
 });
 
