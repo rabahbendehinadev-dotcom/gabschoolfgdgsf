@@ -217,6 +217,8 @@ export interface CreateVideoInput {
   isVisible?: boolean;
   playlistId?: number | null;
   partNumber?: number | null;
+  driveParts?: string | null;
+  softwareLink?: string | null;
 }
 
 export type UpdateVideoInputAccessType =
@@ -239,6 +241,8 @@ export interface UpdateVideoInput {
   isVisible?: boolean;
   playlistId?: number | null;
   partNumber?: number | null;
+  driveParts?: string | null;
+  softwareLink?: string | null;
 }
 
 export type ReorderVideosInputItemsItem = {
