@@ -21,12 +21,26 @@ import { cn } from "@/lib/utils";
 const SECURITY_WARNING_TEXT =
   "هذا المحتوى محمي ومخصص لحسابك فقط. أي محاولة تصوير أو مشاركة قد تؤدي إلى إيقاف حسابك.";
 
-const WATERMARK_POSITIONS = [
-  { top: "12%", left: "10%" }, { top: "12%", left: "62%" },
-  { top: "42%", left: "22%" }, { top: "42%", left: "56%" },
-  { top: "72%", left: "12%" }, { top: "70%", left: "66%" },
-  { top: "55%", left: "40%" }, { top: "26%", left: "38%" },
-];
+/* ── علامة مائية بمواقع عشوائية: يصعب قصّها أو تغطيتها لأنها لا تثبت في مكان ──
+   المواقع تُولَّد عشوائياً ضمن حدود آمنة (لا تغطي أزرار التحكم أعلى/أسفل الشاشة). */
+interface WmPos { top: number; left: number; rot: number }
+function randWmPos(): WmPos {
+  return {
+    top: 8 + Math.random() * 64,   // 8% .. 72%
+    left: 4 + Math.random() * 56,  // 4% .. 60%
+    rot: -18 + Math.random() * 26, // -18deg .. +8deg
+  };
+}
+/* موقع ثانٍ بعيد عن الأول (مسافة لا تقل عن ~25% قطرياً) */
+function randWmPosAway(other: WmPos): WmPos {
+  for (let i = 0; i < 8; i++) {
+    const p = randWmPos();
+    const d = Math.hypot(p.top - other.top, p.left - other.left);
+    if (d > 25) return p;
+  }
+  return randWmPos();
+}
+const WM_INTERVAL_MS = 5000;
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
@@ -44,6 +58,8 @@ interface CourseVideoPlayerProps {
   videoId?: number;
   username?: string;
   email?: string;
+  /** معرّف المستخدم — يظهر في العلامة المائية لتتبّع مصدر أي تسريب. */
+  userId?: number;
   onViolation?: (count: number) => void;
   /** عند النقر على "إعادة المحاولة" — يُستخدم لتجديد رابط البثّ من الخادم */
   onRetry?: () => void;
@@ -107,7 +123,7 @@ type PipVideo = HTMLVideoElement & {
 };
 
 export function CourseVideoPlayer({
-  src, hlsSrc, poster, title, videoId, username, email, onViolation, onRetry,
+  src, hlsSrc, poster, title, videoId, username, email, userId, onViolation, onRetry,
 }: CourseVideoPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -157,7 +173,9 @@ export function CourseVideoPlayer({
   // إيماءات: مؤشّر مؤقت يظهر عند التقديم/الترجيع/الصوت/الإضاءة
   const [gesture, setGesture] = useState<{ kind: "seek" | "vol" | "bright"; text: string; side?: "l" | "r" } | null>(null);
 
-  const [wmIndex, setWmIndex] = useState(0);
+  const [wmMain, setWmMain] = useState<WmPos>(() => randWmPos());
+  const [wmSub, setWmSub] = useState<WmPos>(() => randWmPos());
+  const [wmTick, setWmTick] = useState(0);
   const [warning, setWarning] = useState<Warning>(null);
   const [videoDisabled, setVideoDisabled] = useState(false);
 
@@ -167,12 +185,17 @@ export function CourseVideoPlayer({
   const violationsRef = useRef(0);
   const reportedRef = useRef<Set<string>>(new Set());
   const lastTapRef = useRef<{ t: number; x: number } | null>(null);
-  const watermarkLabel = username || email || "محمي";
-  const wmPos = WATERMARK_POSITIONS[wmIndex % WATERMARK_POSITIONS.length];
+  const wmName = username || "مستخدم محمي";
+  const wmIdLabel = userId ? `ID: ${userId}` : null;
 
-  /* ── دوران العلامة المائية ── */
+  /* ── دوران العلامة المائية: موقع عشوائي جديد كل عدة ثوانٍ (يصعب توقّعه أو قصّه) ── */
   useEffect(() => {
-    const id = setInterval(() => setWmIndex(i => (i + 1) % WATERMARK_POSITIONS.length), 6000);
+    const id = setInterval(() => {
+      const main = randWmPos();
+      setWmMain(main);
+      setWmSub(randWmPosAway(main));
+      setWmTick(t => t + 1);
+    }, WM_INTERVAL_MS);
     return () => clearInterval(id);
   }, []);
 
@@ -583,6 +606,30 @@ export function CourseVideoPlayer({
     const onCopy = (e: Event) => { e.preventDefault(); reportSecurity("copy_link_attempt", "copy"); };
     const onDrag = (e: Event) => e.preventDefault();
 
+    /* اعتراض تسجيل الشاشة عبر المتصفح (getDisplayMedia) ما دام المشغّل مفتوحاً:
+       يُسجَّل الحدث في سجل النشاط ويُرفَض الالتقاط. (تسجيل الشاشة على مستوى نظام
+       التشغيل لا يمكن للمتصفح رصده — العلامة المائية هي خط الدفاع هناك.) */
+    const md: MediaDevices | undefined = navigator.mediaDevices;
+    const origGdm = md && typeof md.getDisplayMedia === "function" ? md.getDisplayMedia.bind(md) : null;
+    if (md && origGdm) {
+      md.getDisplayMedia = (async () => {
+        reportSecurity("screen_capture_attempt", "getDisplayMedia");
+        handleSuspicious();
+        throw new DOMException("التقاط الشاشة غير مسموح أثناء عرض محتوى محمي", "NotAllowedError");
+      }) as MediaDevices["getDisplayMedia"];
+    }
+
+    /* إخفاء الصفحة أثناء التشغيل (تبديل تطبيق/تبويب) → إيقاف مؤقت للفيديو
+       — باستثناء وضع صورة-داخل-صورة (PiP) حيث يُقصَد إخفاء التبويب مع استمرار التشغيل */
+    const onVis = () => {
+      const v = videoRef.current as (HTMLVideoElement & { webkitPresentationMode?: string }) | null;
+      const inPip =
+        document.pictureInPictureElement === v ||
+        v?.webkitPresentationMode === "picture-in-picture";
+      if (document.hidden && !inPip) v?.pause();
+    };
+    document.addEventListener("visibilitychange", onVis);
+
     document.addEventListener("keydown", handleKeydown);
     document.addEventListener("keyup", handleKeyup);
     if (c) {
@@ -592,6 +639,8 @@ export function CourseVideoPlayer({
       c.addEventListener("dragstart", onDrag);
     }
     return () => {
+      if (md && origGdm) md.getDisplayMedia = origGdm;
+      document.removeEventListener("visibilitychange", onVis);
       document.removeEventListener("keydown", handleKeydown);
       document.removeEventListener("keyup", handleKeyup);
       if (c) {
@@ -822,49 +871,81 @@ export function CourseVideoPlayer({
           </button>
         )}
 
-        {/* العلامة المائية المتحرّكة */}
+        {/* العلامة المائية الرئيسية — اسم + بريد + ID بلون قوي، موقع عشوائي كل عدة ثوانٍ */}
         <AnimatePresence mode="wait">
           <motion.div
-            key={wmIndex}
+            key={wmTick}
             className="pointer-events-none absolute z-20"
-            style={{ top: wmPos.top, left: wmPos.left }}
-            initial={{ opacity: 0, scale: 0.85 }}
+            style={{ top: `${wmMain.top}%`, left: `${wmMain.left}%` }}
+            initial={{ opacity: 0, scale: 0.9 }}
             animate={{
               opacity: 1,
               scale: 1,
-              y: [0, -6, 0, 6, 0],
+              y: [0, -5, 0, 5, 0],
               transition: {
-                opacity: { duration: 0.7, ease: "easeIn" },
-                scale:   { duration: 0.7, ease: "easeOut" },
+                opacity: { duration: 0.5, ease: "easeIn" },
+                scale:   { duration: 0.5, ease: "easeOut" },
                 y: { duration: 5, repeat: Infinity, ease: "easeInOut", repeatType: "loop" },
               },
             }}
-            exit={{ opacity: 0, scale: 0.85, transition: { duration: 0.5 } }}
+            exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.35 } }}
           >
-            <div
-              className="whitespace-nowrap text-xs font-bold md:text-sm"
-              style={{
-                transform: "rotate(-14deg)",
-                color: "rgba(255,255,255,0.42)",
-                textShadow: "0 1px 12px rgba(0,0,0,1), 0 0 3px rgba(255,255,255,0.15)",
-                letterSpacing: "0.03em",
-              }}
-            >
-              {watermarkLabel}
-            </div>
-            <div
-              className="mt-0.5 whitespace-nowrap text-[9px] font-semibold md:text-xs"
-              style={{
-                transform: "rotate(-14deg)",
-                color: "rgba(255,255,255,0.28)",
-                textShadow: "0 1px 10px rgba(0,0,0,1)",
-                letterSpacing: "0.06em",
-              }}
-            >
-              GAB SCHOOL • محمي
+            <div style={{ transform: `rotate(${wmMain.rot}deg)` }} className="text-start">
+              <div
+                className="whitespace-nowrap text-sm font-extrabold md:text-xl"
+                style={{
+                  color: "rgba(255,255,255,0.92)",
+                  textShadow: "0 1px 3px rgba(0,0,0,0.95), 0 0 14px rgba(0,0,0,0.85)",
+                  letterSpacing: "0.02em",
+                }}
+              >
+                {wmName}
+              </div>
+              {email && (
+                <div
+                  className="mt-0.5 whitespace-nowrap text-[11px] font-bold md:text-base"
+                  style={{
+                    color: "rgba(251,191,36,0.9)",
+                    textShadow: "0 1px 3px rgba(0,0,0,0.95), 0 0 12px rgba(0,0,0,0.85)",
+                    letterSpacing: "0.02em",
+                    direction: "ltr",
+                  }}
+                >
+                  {email}
+                </div>
+              )}
+              <div
+                className="mt-0.5 whitespace-nowrap text-[10px] font-bold md:text-sm"
+                style={{
+                  color: "rgba(255,255,255,0.75)",
+                  textShadow: "0 1px 3px rgba(0,0,0,0.95), 0 0 10px rgba(0,0,0,0.85)",
+                  letterSpacing: "0.05em",
+                }}
+              >
+                {wmIdLabel ? `${wmIdLabel} • ` : ""}GAB SCHOOL • محمي
+              </div>
             </div>
           </motion.div>
         </AnimatePresence>
+
+        {/* علامة مائية ثانوية خفيفة — موقع عشوائي آخر بعيد عن الرئيسية (تصعّب التغطية دون حجب الفيديو) */}
+        <div
+          className="pointer-events-none absolute z-20 transition-all duration-1000 ease-in-out"
+          style={{ top: `${wmSub.top}%`, left: `${wmSub.left}%` }}
+        >
+          <div
+            className="whitespace-nowrap text-[10px] font-bold md:text-xs"
+            style={{
+              transform: `rotate(${wmSub.rot}deg)`,
+              color: "rgba(255,255,255,0.22)",
+              textShadow: "0 0 8px rgba(0,0,0,0.7)",
+              letterSpacing: "0.04em",
+              direction: "ltr",
+            }}
+          >
+            {wmName}{wmIdLabel ? ` • ${wmIdLabel}` : ""}{email ? ` • ${email}` : ""}
+          </div>
+        </div>
 
         {/* شريط الحماية العلوي */}
         <div

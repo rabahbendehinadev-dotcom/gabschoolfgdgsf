@@ -145,6 +145,7 @@ export function VideoDetail() {
                   title={video.title}
                   username={user?.username}
                   email={user?.email}
+                  userId={user?.id}
                   videoId={id}
                 />
               </div>

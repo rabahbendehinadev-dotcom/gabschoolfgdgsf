@@ -35,6 +35,7 @@ const ACTION_LABELS: Record<string, { label: string; color: string }> = {
   external_open_attempt: { label: "محاولة فتح رابط خارجي", color: "bg-red-600/25 text-red-300" },
   copy_link_attempt: { label: "محاولة نسخ الرابط", color: "bg-orange-500/20 text-orange-400" },
   devtools_attempt: { label: "محاولة فتح أدوات المطور", color: "bg-rose-500/20 text-rose-400" },
+  screen_capture_attempt: { label: "محاولة تسجيل الشاشة", color: "bg-red-600/25 text-red-300" },
   locked_video_attempt: { label: "مشاهدة فيديو غير مفعّل", color: "bg-amber-500/20 text-amber-400" },
   frequent_ip_change: { label: "تغيّر متكرر لعنوان IP", color: "bg-fuchsia-500/20 text-fuchsia-400" },
   frequent_device_change: { label: "تغيّر متكرر للأجهزة", color: "bg-violet-500/20 text-violet-400" },

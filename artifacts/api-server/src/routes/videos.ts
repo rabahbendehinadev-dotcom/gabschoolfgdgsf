@@ -17,6 +17,7 @@ const SECURITY_EVENTS = new Set([
   "external_open_attempt",
   "copy_link_attempt",
   "devtools_attempt",
+  "screen_capture_attempt",
 ]);
 
 // Best-effort insert of a video-related activity log row. Never throws.

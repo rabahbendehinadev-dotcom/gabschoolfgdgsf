@@ -19,5 +19,3 @@ Always call `isActiveVip(user)` from `artifacts/api-server/src/lib/vipUtils.ts` 
 ## Frontend UserProfile type
 `subscriptionIsExpired?: boolean` is in `lib/api-client-react/src/generated/api.schemas.ts`. After editing that file, run `tsc -b lib/api-client-react --force` to regenerate `dist/*.d.ts` (the web package reads the compiled output, not the source).
 
-## Test user
-Dev DB user id=21: `subscriptionType=monthly`, `subscriptionStartedAt=2026-05-05`, `subscriptionExpiresAt=2026-06-05` — confirms as `isExpired=true` via `/api/admin/users/expired`.

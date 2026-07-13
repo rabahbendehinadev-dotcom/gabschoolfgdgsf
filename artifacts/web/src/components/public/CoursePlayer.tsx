@@ -172,6 +172,7 @@ export function CoursePlayer({ lessons, accessInfo }: CoursePlayerProps) {
               title={currentLesson?.title}
               username={user?.username}
               email={user?.email}
+              userId={user?.id}
               videoId={lessonId}
               onRetry={() => { refetchDetail(); }}
             />
