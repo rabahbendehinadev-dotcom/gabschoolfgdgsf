@@ -223,6 +223,7 @@ async function likedPostIds(viewer: Viewer, postIds: number[]): Promise<Set<numb
 
 // Stream a private object with HTTP Range support (needed for <video> seeking).
 async function streamObject(req: Request, res: Response, objectPath: string): Promise<void> {
+  console.log(`[streamObject] objectPath=${objectPath} range=${req.headers.range || "none"}`);
   const file = await objectStorageService.getObjectEntityFile(objectPath);
   const [metadata] = await file.getMetadata();
   const size = Number(metadata.size || 0);
@@ -421,6 +422,7 @@ router.post("/community/posts", userAuth, async (req, res) => {
 
     const parsed = CreateCommunityPostBody.safeParse(req.body);
     if (!parsed.success) {
+      console.error("[post-create] invalid body:", parsed.error.issues);
       res.status(400).json({ message: "بيانات المنشور غير صالحة" });
       return;
     }
@@ -428,6 +430,8 @@ router.post("/community/posts", userAuth, async (req, res) => {
     const { postType } = parsed.data;
     const content = parsed.data.content?.trim() || null;
     const media = parsed.data.media ?? [];
+
+    console.log(`[post-create] user=${req.user!.id} postType=${postType} mediaCount=${media.length} content=${content ? "yes" : "no"}`);
 
     if (postType === "text" && !content) {
       res.status(400).json({ message: "لا يمكن نشر منشور نصي فارغ" });
@@ -459,6 +463,7 @@ router.post("/community/posts", userAuth, async (req, res) => {
       const m = media[idx];
       const wantVideo = m.mediaType === "video";
       const preview = m.previewObjectPath?.trim();
+      console.log(`[post-create] media[${idx}] objectPath=${m.objectPath} previewObjectPath=${preview}`);
       if (!preview) {
         res.status(400).json({ message: "ينقص معاينة الوسائط" });
         return;
@@ -472,11 +477,14 @@ router.post("/community/posts", userAuth, async (req, res) => {
       try {
         previewMeta = await objectMeta(preview);
         originalMeta = await objectMeta(m.objectPath);
-      } catch {
+        console.log(`[post-create] media[${idx}] objectMeta OK: original=${originalMeta.contentType}/${originalMeta.size} preview=${previewMeta.contentType}/${previewMeta.size}`);
+      } catch (metaErr) {
+        console.error(`[post-create] media[${idx}] objectMeta FAILED objectPath=${m.objectPath} previewPath=${preview}:`, metaErr);
         res.status(400).json({ message: "تعذّر التحقق من ملفات الوسائط" });
         return;
       }
       if (!previewMeta.contentType.startsWith("image/") || previewMeta.size > PREVIEW_MAX_BYTES) {
+        console.error(`[post-create] media[${idx}] preview content-type/size invalid: ${previewMeta.contentType} ${previewMeta.size}`);
         res.status(400).json({ message: "معاينة الوسائط يجب أن تكون صورة مصغّرة" });
         return;
       }
@@ -485,6 +493,7 @@ router.post("/community/posts", userAuth, async (req, res) => {
         return;
       }
       if (!wantVideo && !originalMeta.contentType.startsWith("image/")) {
+        console.error(`[post-create] media[${idx}] image content-type invalid: ${originalMeta.contentType}`);
         res.status(400).json({ message: "نوع ملف الصورة غير صالح" });
         return;
       }
@@ -502,21 +511,29 @@ router.post("/community/posts", userAuth, async (req, res) => {
       });
     }
 
-    const [created] = await db
-      .insert(communityPostsTable)
-      .values({
-        authorUserId: req.user!.id,
-        content,
-        postType,
-        isVipLocked: false,
-      })
-      .returning();
+    // Wrap post + media insert in a transaction so a media-insert failure
+    // can never leave an orphan post with no media in the feed.
+    const created = await db.transaction(async (tx) => {
+      const [newPost] = await tx
+        .insert(communityPostsTable)
+        .values({
+          authorUserId: req.user!.id,
+          content,
+          postType,
+          isVipLocked: false,
+        })
+        .returning();
 
-    if (mediaToInsert.length > 0) {
-      await db
-        .insert(communityPostMediaTable)
-        .values(mediaToInsert.map((m) => ({ ...m, postId: created.id })));
-    }
+      if (mediaToInsert.length > 0) {
+        await tx
+          .insert(communityPostMediaTable)
+          .values(mediaToInsert.map((m) => ({ ...m, postId: newPost.id })));
+      }
+
+      return newPost;
+    });
+
+    console.log(`[post-create] created post id=${created.id} with ${mediaToInsert.length} media item(s)`);
 
     // A new VIP post is broadcast to everyone (except the author). Notifications
     // must never break post creation, so failures are swallowed.
@@ -540,8 +557,11 @@ router.post("/community/posts", userAuth, async (req, res) => {
 
     const post = await getVisiblePostRow(created.id);
     const mediaMap = await loadMediaFor([created.id]);
-    res.status(201).json(serializePost(post!, mediaMap.get(created.id) ?? [], req.user, false));
+    const serialized = serializePost(post!, mediaMap.get(created.id) ?? [], req.user, false);
+    console.log(`[post-create] response media count=${serialized.media?.length ?? 0}`);
+    res.status(201).json(serialized);
   } catch (error: unknown) {
+    console.error("[post-create] unhandled error:", error);
     res.status(500).json({ message: error instanceof Error ? error.message : "Failed to create post" });
   }
 });
@@ -960,6 +980,7 @@ router.get("/community/media/:id", async (req, res) => {
 
     const payload = verifyMediaToken(token);
     if (!payload || payload.mediaId !== mediaId || payload.variant !== variant) {
+      console.warn(`[media-stream] 401 mediaId=${mediaId} variant=${variant} tokenOk=${!!payload}`);
       res.status(401).json({ message: "Unauthorized media request" });
       return;
     }
@@ -970,12 +991,14 @@ router.get("/community/media/:id", async (req, res) => {
       .where(eq(communityPostMediaTable.id, mediaId))
       .limit(1);
     if (!media) {
+      console.warn(`[media-stream] 404 no DB row mediaId=${mediaId}`);
       res.status(404).json({ message: "Media not found" });
       return;
     }
 
     const post = await getVisiblePostRow(media.postId);
     if (!post) {
+      console.warn(`[media-stream] 404 post not visible postId=${media.postId} mediaId=${mediaId}`);
       res.status(404).json({ message: "Media not found" });
       return;
     }
@@ -992,19 +1015,23 @@ router.get("/community/media/:id", async (req, res) => {
           user?.subscriptionExpiresAt && new Date(user.subscriptionExpiresAt) < new Date();
         const entitled = !!user && user.isActive && user.accountType === "vip" && !expired;
         if (!entitled) {
+          console.warn(`[media-stream] 403 VIP-locked mediaId=${mediaId} userId=${payload.userId}`);
           res.status(403).json({ message: "هذا المحتوى متاح لأعضاء VIP فقط" });
           return;
         }
       }
+      console.log(`[media-stream] streaming full mediaId=${mediaId} objectPath=${media.objectPath}`);
       await streamObject(req, res, media.objectPath);
       return;
     }
 
     // preview variant — safe low-res image / video thumbnail for everyone
     if (!media.previewObjectPath) {
+      console.warn(`[media-stream] 404 no previewObjectPath mediaId=${mediaId}`);
       res.status(404).json({ message: "Preview not available" });
       return;
     }
+    console.log(`[media-stream] streaming preview mediaId=${mediaId} previewObjectPath=${media.previewObjectPath}`);
     await streamObject(req, res, media.previewObjectPath);
   } catch (error: unknown) {
     if (error instanceof ObjectNotFoundError) {
