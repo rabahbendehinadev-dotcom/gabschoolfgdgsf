@@ -406,22 +406,29 @@ router.get("/admin/subscriptions", adminAuth, async (_req, res) => {
 router.get("/admin/users/expired", adminAuth, async (_req, res) => {
   try {
     const now = new Date();
+    const soon = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
     const users = await db.select().from(usersTable)
-      .where(and(
-        inArray(usersTable.subscriptionType, ["monthly", "annual"]),
-        isNotNull(usersTable.subscriptionExpiresAt),
-        lt(usersTable.subscriptionExpiresAt, now),
-      ))
+      .where(inArray(usersTable.subscriptionType, ["monthly", "annual"]))
       .orderBy(desc(usersTable.subscriptionExpiresAt));
-    res.json(users.map(u => ({
-      id: u.id,
-      username: u.username,
-      email: u.email,
-      phone: u.phone ?? null,
-      subscriptionType: u.subscriptionType,
-      subscriptionExpiresAt: u.subscriptionExpiresAt!.toISOString(),
-      driveRevokedAt: u.driveRevokedAt?.toISOString() ?? null,
-    })));
+    res.json(users.map(u => {
+      const exp = u.subscriptionExpiresAt;
+      const isExpired = exp !== null && exp < now;
+      const isExpiringSoon = exp !== null && exp >= now && exp <= soon;
+      const isNoExpiry = exp === null;
+      return {
+        id: u.id,
+        username: u.username,
+        email: u.email,
+        phone: u.phone ?? null,
+        subscriptionType: u.subscriptionType,
+        accountType: u.accountType,
+        subscriptionExpiresAt: exp?.toISOString() ?? null,
+        driveRevokedAt: u.driveRevokedAt?.toISOString() ?? null,
+        isExpired,
+        isExpiringSoon,
+        isNoExpiry,
+      };
+    }));
   } catch (error: unknown) {
     res.status(500).json({ message: error instanceof Error ? error.message : "Failed to fetch expired users" });
   }
