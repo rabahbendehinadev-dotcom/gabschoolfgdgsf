@@ -407,7 +407,11 @@ router.get("/admin/users/expired", adminAuth, async (_req, res) => {
   try {
     const now = new Date();
     const users = await db.select().from(usersTable)
-      .where(and(isNotNull(usersTable.subscriptionExpiresAt), lt(usersTable.subscriptionExpiresAt, now)))
+      .where(and(
+        inArray(usersTable.subscriptionType, ["monthly", "annual"]),
+        isNotNull(usersTable.subscriptionExpiresAt),
+        lt(usersTable.subscriptionExpiresAt, now),
+      ))
       .orderBy(desc(usersTable.subscriptionExpiresAt));
     res.json(users.map(u => ({
       id: u.id,
@@ -428,7 +432,12 @@ router.post("/admin/users/revoke-drive-all", adminAuth, async (req, res) => {
     const now = new Date();
     const expired = await db.select({ id: usersTable.id, username: usersTable.username })
       .from(usersTable)
-      .where(and(isNotNull(usersTable.subscriptionExpiresAt), lt(usersTable.subscriptionExpiresAt, now), isNull(usersTable.driveRevokedAt)));
+      .where(and(
+        inArray(usersTable.subscriptionType, ["monthly", "annual"]),
+        isNotNull(usersTable.subscriptionExpiresAt),
+        lt(usersTable.subscriptionExpiresAt, now),
+        isNull(usersTable.driveRevokedAt),
+      ));
     if (expired.length === 0) {
       res.json({ revoked: 0 });
       return;
