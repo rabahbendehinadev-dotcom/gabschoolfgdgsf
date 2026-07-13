@@ -13,7 +13,7 @@ import { createNotification, type AudienceType, type TargetType } from "../lib/n
 import { sendPushToUsers, getVapidPublicKey } from "../lib/webPush";
 import { sendPushToAdmins } from "../lib/adminWebPush";
 import { normalizePhone, INVALID_PHONE_MESSAGE } from "../lib/phone";
-import { extractDriveFileId, resolveVideoParts } from "../lib/googleDrive";
+import { extractDriveFileId, isFolderDriveUrl, resolveVideoParts } from "../lib/googleDrive";
 import {
   buildVideoObjectPath,
   copyDriveFileToStorage,
@@ -717,9 +717,17 @@ router.post("/admin/videos/:id/migrate-storage", adminAuth, async (req, res) => 
     let totalBytes = 0;
     try {
       for (let i = 0; i < partsList.length; i++) {
-        const fileId = extractDriveFileId(partsList[i].url);
+        const partUrl = partsList[i].url;
+        if (isFolderDriveUrl(partUrl)) {
+          throw new Error(
+            `الجزء ${i + 1}: رابط مجلد Google Drive وليس ملف فيديو — لا يمكن نقل مجلد.\n` +
+            `الرابط الخاطئ: ${partUrl}\n` +
+            `الحل: افتح المجلد → اختر ملف الفيديو → انسخ رابط الملف (file/d/...) وحدّث الفيديو.`,
+          );
+        }
+        const fileId = extractDriveFileId(partUrl);
         if (!fileId) {
-          throw new Error(`Part ${i + 1}: could not extract Drive file id`);
+          throw new Error(`الجزء ${i + 1}: لم يتم التعرف على صيغة رابط Google Drive.\nالرابط: ${partUrl}`);
         }
         const destPath = buildVideoObjectPath(id, i);
         const result = await copyDriveFileToStorage(fileId, destPath);
