@@ -69,6 +69,7 @@ export interface UserProfile {
   subscriptionIsExpired?: boolean;
   isActive: boolean;
   phone?: string | null;
+  profileImageUrl?: string | null;
   createdAt: string;
 }
 
@@ -218,8 +219,6 @@ export interface CreateVideoInput {
   isVisible?: boolean;
   playlistId?: number | null;
   partNumber?: number | null;
-  driveParts?: string | null;
-  softwareLink?: string | null;
 }
 
 export type UpdateVideoInputAccessType =
@@ -242,8 +241,6 @@ export interface UpdateVideoInput {
   isVisible?: boolean;
   playlistId?: number | null;
   partNumber?: number | null;
-  driveParts?: string | null;
-  softwareLink?: string | null;
 }
 
 export type ReorderVideosInputItemsItem = {
@@ -493,6 +490,7 @@ export interface CommunityAuthor {
   id: number;
   username: string;
   accountType: CommunityAuthorAccountType;
+  profileImageUrl?: string | null;
 }
 
 export type CommunityMediaItemMediaType =
@@ -556,6 +554,7 @@ export interface CommunitySummary {
   isAuthenticated: boolean;
   isVip: boolean;
   canPost: boolean;
+  hasProfilePicture: boolean;
 }
 
 export type CommunityMediaInputMediaType =
@@ -764,6 +763,18 @@ export const GetAdminUsersNotifications = {
 export type GetCommunityFeedParams = {
   cursor?: number;
   limit?: number;
+};
+
+export type UpdateMyAvatarBody = {
+  objectPath: string;
+};
+
+export type ReportCommunityPostBody = {
+  reason?: string;
+};
+
+export type ReportCommunityCommentBody = {
+  reason?: string;
 };
 
 export type GetNotificationsParams = {

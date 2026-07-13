@@ -11,4 +11,5 @@ export interface CommunityAuthor {
   id: number;
   username: string;
   accountType: CommunityAuthorAccountType;
+  profileImageUrl?: string | null;
 }

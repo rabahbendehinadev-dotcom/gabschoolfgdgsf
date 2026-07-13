@@ -6,6 +6,7 @@ import {
   communityPostLikesTable,
   communityCommentsTable,
   communityPostViewsTable,
+  communityReportsTable,
   usersTable,
 } from "@workspace/db";
 import { eq, and, desc, asc, inArray, count, gte } from "drizzle-orm";
@@ -42,11 +43,13 @@ function authorPayload(row: {
   authorUserId: number;
   authorUsername: string | null;
   authorAccountType: string | null;
+  authorProfileImage?: string | null;
 }) {
   return {
     id: row.authorUserId,
     username: row.authorUsername || "عضو",
     accountType: row.authorAccountType === "vip" ? "vip" : "normal",
+    profileImageUrl: row.authorProfileImage ? `/api/users/${row.authorUserId}/avatar` : null,
   };
 }
 
@@ -85,6 +88,7 @@ function serializeMedia(media: MediaRow, viewerUserId: number, entitled: boolean
 type PostRow = typeof communityPostsTable.$inferSelect & {
   authorUsername: string | null;
   authorAccountType: string | null;
+  authorProfileImage: string | null;
 };
 
 function serializePost(
@@ -175,6 +179,7 @@ async function getVisiblePostRow(id: number): Promise<PostRow | undefined> {
       updatedAt: communityPostsTable.updatedAt,
       authorUsername: usersTable.username,
       authorAccountType: usersTable.accountType,
+      authorProfileImage: usersTable.profileImage,
     })
     .from(communityPostsTable)
     .leftJoin(usersTable, eq(communityPostsTable.authorUserId, usersTable.id))
@@ -324,7 +329,8 @@ router.get("/community/summary", optionalUserAuth, async (req, res) => {
       coverImageUrl: null,
       isAuthenticated: !!req.user,
       isVip: isActiveVip(req.user),
-      canPost: isActiveVip(req.user),
+      canPost: !!req.user,
+      hasProfilePicture: !!(req.user?.profileImage),
     });
   } catch (error: unknown) {
     res.status(500).json({ message: error instanceof Error ? error.message : "Failed to load summary" });
@@ -355,6 +361,7 @@ router.get("/community/posts", optionalUserAuth, async (req, res) => {
         updatedAt: communityPostsTable.updatedAt,
         authorUsername: usersTable.username,
         authorAccountType: usersTable.accountType,
+        authorProfileImage: usersTable.profileImage,
       })
       .from(communityPostsTable)
       .leftJoin(usersTable, eq(communityPostsTable.authorUserId, usersTable.id))
@@ -404,11 +411,11 @@ router.get("/community/posts/:id", optionalUserAuth, async (req, res) => {
   }
 });
 
-// POST /community/posts  (VIP only)
+// POST /community/posts  (all authenticated users; requires profile picture)
 router.post("/community/posts", userAuth, async (req, res) => {
   try {
-    if (!isActiveVip(req.user)) {
-      res.status(403).json({ message: "النشر متاح لأعضاء VIP فقط" });
+    if (!req.user!.profileImage) {
+      res.status(403).json({ message: "يجب إضافة صورة شخصية قبل النشر", code: "PROFILE_PICTURE_REQUIRED" });
       return;
     }
 
@@ -501,7 +508,7 @@ router.post("/community/posts", userAuth, async (req, res) => {
         authorUserId: req.user!.id,
         content,
         postType,
-        isVipLocked: true,
+        isVipLocked: false,
       })
       .returning();
 
@@ -704,6 +711,7 @@ router.get("/community/posts/:id/comments", optionalUserAuth, async (req, res) =
         createdAt: communityCommentsTable.createdAt,
         authorUsername: usersTable.username,
         authorAccountType: usersTable.accountType,
+        authorProfileImage: usersTable.profileImage,
       })
       .from(communityCommentsTable)
       .leftJoin(usersTable, eq(communityCommentsTable.userId, usersTable.id))
@@ -725,6 +733,7 @@ router.get("/community/posts/:id/comments", optionalUserAuth, async (req, res) =
         authorUserId: r.userId,
         authorUsername: r.authorUsername,
         authorAccountType: r.authorAccountType,
+        authorProfileImage: r.authorProfileImage,
       }),
       body: r.body,
       canDelete: !!viewerId && viewerId === r.userId,
@@ -753,6 +762,7 @@ router.get("/community/posts/:id/comments", optionalUserAuth, async (req, res) =
             authorUserId: rep.userId,
             authorUsername: rep.authorUsername,
             authorAccountType: rep.authorAccountType,
+            authorProfileImage: rep.authorProfileImage,
           }),
           body: rep.body,
           canDelete: !!viewerId && viewerId === rep.userId,
@@ -769,6 +779,10 @@ router.get("/community/posts/:id/comments", optionalUserAuth, async (req, res) =
 router.post("/community/posts/:id/comments", userAuth, async (req, res) => {
   try {
     const id = Number(req.params.id);
+    if (!req.user!.profileImage) {
+      res.status(403).json({ message: "يجب إضافة صورة شخصية قبل التعليق", code: "PROFILE_PICTURE_REQUIRED" });
+      return;
+    }
     const post = await getVisiblePostRow(id);
     if (!post) {
       res.status(404).json({ message: "Post not found" });
@@ -850,6 +864,7 @@ router.post("/community/posts/:id/comments", userAuth, async (req, res) => {
         id: req.user!.id,
         username: req.user!.username,
         accountType: req.user!.accountType === "vip" ? "vip" : "normal",
+        profileImageUrl: req.user!.profileImage ? `/api/users/${req.user!.id}/avatar` : null,
       },
       body: created.body,
       canDelete: true,
@@ -884,6 +899,54 @@ router.delete("/community/comments/:id", userAuth, async (req, res) => {
     res.json({ message: "تم حذف التعليق" });
   } catch (error: unknown) {
     res.status(500).json({ message: error instanceof Error ? error.message : "Failed to delete comment" });
+  }
+});
+
+// POST /community/posts/:id/report
+router.post("/community/posts/:id/report", userAuth, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const post = await getVisiblePostRow(id);
+    if (!post) {
+      res.status(404).json({ message: "المنشور غير موجود" });
+      return;
+    }
+    const reason = typeof req.body.reason === "string" ? req.body.reason.trim().slice(0, 500) : null;
+    await db.insert(communityReportsTable).values({
+      postId: id,
+      reporterId: req.user!.id,
+      reason,
+      status: "pending",
+    }).onConflictDoNothing();
+    res.json({ message: "تم إرسال التبليغ، شكراً لمساعدتنا في الحفاظ على المجتمع" });
+  } catch (err: unknown) {
+    res.status(500).json({ message: err instanceof Error ? err.message : "Failed to report post" });
+  }
+});
+
+// POST /community/comments/:id/report
+router.post("/community/comments/:id/report", userAuth, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const [comment] = await db
+      .select({ id: communityCommentsTable.id, isVisible: communityCommentsTable.isVisible, isHidden: communityCommentsTable.isHidden })
+      .from(communityCommentsTable)
+      .where(eq(communityCommentsTable.id, id))
+      .limit(1);
+    if (!comment || !comment.isVisible || comment.isHidden) {
+      res.status(404).json({ message: "التعليق غير موجود" });
+      return;
+    }
+    const reason = typeof req.body.reason === "string" ? req.body.reason.trim().slice(0, 500) : null;
+    await db.insert(communityReportsTable).values({
+      commentId: id,
+      reporterId: req.user!.id,
+      reason,
+      status: "pending",
+    }).onConflictDoNothing();
+    res.json({ message: "تم إرسال التبليغ، شكراً لمساعدتنا في الحفاظ على المجتمع" });
+  } catch (err: unknown) {
+    res.status(500).json({ message: err instanceof Error ? err.message : "Failed to report comment" });
   }
 });
 

@@ -47,8 +47,10 @@ export const LoginResponse = zod.object({
     accountType: zod.enum(["vip", "normal"]),
     subscriptionType: zod.enum(["demo", "monthly", "annual", "lifetime"]),
     subscriptionExpiresAt: zod.date().nullish(),
+    subscriptionIsExpired: zod.boolean().optional(),
     isActive: zod.boolean(),
     phone: zod.string().nullish(),
+    profileImageUrl: zod.string().nullish(),
     createdAt: zod.date(),
   }),
 });
@@ -69,8 +71,10 @@ export const GoogleLoginResponse = zod.object({
     accountType: zod.enum(["vip", "normal"]),
     subscriptionType: zod.enum(["demo", "monthly", "annual", "lifetime"]),
     subscriptionExpiresAt: zod.date().nullish(),
+    subscriptionIsExpired: zod.boolean().optional(),
     isActive: zod.boolean(),
     phone: zod.string().nullish(),
+    profileImageUrl: zod.string().nullish(),
     createdAt: zod.date(),
   }),
 });
@@ -101,8 +105,10 @@ export const GetMeResponse = zod.object({
   accountType: zod.enum(["vip", "normal"]),
   subscriptionType: zod.enum(["demo", "monthly", "annual", "lifetime"]),
   subscriptionExpiresAt: zod.date().nullish(),
+  subscriptionIsExpired: zod.boolean().optional(),
   isActive: zod.boolean(),
   phone: zod.string().nullish(),
+  profileImageUrl: zod.string().nullish(),
   createdAt: zod.date(),
 });
 
@@ -143,8 +149,10 @@ export const UpdateMyPhoneResponse = zod.object({
   accountType: zod.enum(["vip", "normal"]),
   subscriptionType: zod.enum(["demo", "monthly", "annual", "lifetime"]),
   subscriptionExpiresAt: zod.date().nullish(),
+  subscriptionIsExpired: zod.boolean().optional(),
   isActive: zod.boolean(),
   phone: zod.string().nullish(),
+  profileImageUrl: zod.string().nullish(),
   createdAt: zod.date(),
 });
 
@@ -419,7 +427,6 @@ export const UpdateAdminUserBody = zod.object({
     .enum(["demo", "monthly", "annual", "lifetime"])
     .optional(),
   isActive: zod.boolean().optional(),
-  subscriptionStartedAt: zod.date().nullish(),
   subscriptionExpiresAt: zod.date().nullish(),
   phone: zod.string().nullish(),
 });
@@ -521,8 +528,6 @@ export const CreateVideoBody = zod.object({
   isVisible: zod.boolean().optional(),
   playlistId: zod.number().nullish(),
   partNumber: zod.number().nullish(),
-  driveParts: zod.string().nullish(),
-  softwareLink: zod.string().nullish(),
 });
 
 /**
@@ -543,8 +548,6 @@ export const UpdateVideoBody = zod.object({
   isVisible: zod.boolean().optional(),
   playlistId: zod.number().nullish(),
   partNumber: zod.number().nullish(),
-  driveParts: zod.string().nullish(),
-  softwareLink: zod.string().nullish(),
 });
 
 export const UpdateVideoResponse = zod.object({
@@ -850,6 +853,7 @@ export const GetCommunitySummaryResponse = zod.object({
   isAuthenticated: zod.boolean(),
   isVip: zod.boolean(),
   canPost: zod.boolean(),
+  hasProfilePicture: zod.boolean(),
 });
 
 /**
@@ -868,6 +872,7 @@ export const GetCommunityFeedResponse = zod.object({
         id: zod.number(),
         username: zod.string(),
         accountType: zod.enum(["vip", "normal"]),
+        profileImageUrl: zod.string().nullish(),
       }),
       content: zod.string().nullish(),
       postType: zod.enum(["text", "image", "gallery", "video"]),
@@ -936,6 +941,7 @@ export const GetCommunityPostResponse = zod.object({
     id: zod.number(),
     username: zod.string(),
     accountType: zod.enum(["vip", "normal"]),
+    profileImageUrl: zod.string().nullish(),
   }),
   content: zod.string().nullish(),
   postType: zod.enum(["text", "image", "gallery", "video"]),
@@ -981,6 +987,7 @@ export const UpdateCommunityPostResponse = zod.object({
     id: zod.number(),
     username: zod.string(),
     accountType: zod.enum(["vip", "normal"]),
+    profileImageUrl: zod.string().nullish(),
   }),
   content: zod.string().nullish(),
   postType: zod.enum(["text", "image", "gallery", "video"]),
@@ -1072,6 +1079,7 @@ export const GetCommunityCommentsResponse = zod.object({
         id: zod.number(),
         username: zod.string(),
         accountType: zod.enum(["vip", "normal"]),
+        profileImageUrl: zod.string().nullish(),
       }),
       body: zod.string(),
       parentId: zod.number().nullish(),
@@ -1086,6 +1094,7 @@ export const GetCommunityCommentsResponse = zod.object({
             id: zod.number(),
             username: zod.string(),
             accountType: zod.enum(["vip", "normal"]),
+            profileImageUrl: zod.string().nullish(),
           }),
           body: zod.string(),
           canDelete: zod.boolean(),
@@ -1116,6 +1125,47 @@ export const DeleteCommunityCommentParams = zod.object({
 });
 
 export const DeleteCommunityCommentResponse = zod.object({
+  message: zod.string(),
+});
+
+/**
+ * @summary Set/update current user's profile picture
+ */
+export const UpdateMyAvatarBody = zod.object({
+  objectPath: zod.string(),
+});
+
+export const UpdateMyAvatarResponse = zod.object({
+  message: zod.string(),
+});
+
+/**
+ * @summary Report a post
+ */
+export const ReportCommunityPostParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ReportCommunityPostBody = zod.object({
+  reason: zod.string().optional(),
+});
+
+export const ReportCommunityPostResponse = zod.object({
+  message: zod.string(),
+});
+
+/**
+ * @summary Report a comment
+ */
+export const ReportCommunityCommentParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ReportCommunityCommentBody = zod.object({
+  reason: zod.string().optional(),
+});
+
+export const ReportCommunityCommentResponse = zod.object({
   message: zod.string(),
 });
 

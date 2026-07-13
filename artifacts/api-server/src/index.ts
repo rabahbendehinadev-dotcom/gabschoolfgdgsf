@@ -137,6 +137,22 @@ async function runMigrations() {
         AND NOT EXISTS (SELECT 1 FROM categories WHERE sort_order <> 0)
     `);
 
+    // Community reports table
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS community_reports (
+        id SERIAL PRIMARY KEY,
+        post_id INTEGER REFERENCES community_posts(id) ON DELETE CASCADE,
+        comment_id INTEGER REFERENCES community_comments(id) ON DELETE CASCADE,
+        reporter_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        reason TEXT,
+        status VARCHAR(20) NOT NULL DEFAULT 'pending',
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS community_reports_post_idx ON community_reports(post_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS community_reports_comment_idx ON community_reports(comment_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS community_reports_status_idx ON community_reports(status)`);
+
     console.log("[migrations] Schema up to date.");
   } catch (err) {
     console.error("[migrations] Migration error:", err);

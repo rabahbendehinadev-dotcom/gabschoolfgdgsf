@@ -28,7 +28,16 @@ function timeAgo(iso: string): string {
   return `قبل ${d} ي`;
 }
 
-function Avatar({ name, vip }: { name: string; vip: boolean }) {
+function Avatar({ name, vip, imageUrl }: { name: string; vip: boolean; imageUrl?: string | null }) {
+  if (imageUrl) {
+    return (
+      <img
+        src={imageUrl}
+        alt={name}
+        className="h-9 w-9 shrink-0 rounded-full object-cover shadow-sm"
+      />
+    );
+  }
   return (
     <div
       className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white shadow-sm ${
@@ -60,7 +69,7 @@ function CommentBubble({
   const vip = author.accountType === "vip";
   return (
     <div className="flex gap-2.5">
-      <Avatar name={author.username} vip={vip} />
+      <Avatar name={author.username} vip={vip} imageUrl={author.profileImageUrl} />
       <div className="flex-1">
         <div className="rounded-2xl rounded-tr-sm bg-muted/70 px-3.5 py-2">
           <div className="flex items-center gap-1.5">
@@ -123,7 +132,14 @@ export function CommentsSection({
         invalidate();
         onCountChange?.(1);
       },
-      onError: () => toast({ title: "تعذّر إرسال التعليق", variant: "destructive" }),
+      onError: (err: unknown) => {
+        const msg = (err as { response?: { data?: { code?: string } } })?.response?.data?.code;
+        if (msg === "PROFILE_PICTURE_REQUIRED") {
+          toast({ title: "يجب إضافة صورة شخصية أولاً للتعليق", variant: "destructive" });
+        } else {
+          toast({ title: "تعذّر إرسال التعليق", variant: "destructive" });
+        }
+      },
     },
   });
 
@@ -167,7 +183,7 @@ export function CommentsSection({
       {/* New comment */}
       {user ? (
         <div className="flex items-end gap-2">
-          <Avatar name={user.username} vip={user.accountType === "vip"} />
+          <Avatar name={user.username} vip={user.accountType === "vip"} imageUrl={user.profileImageUrl} />
           <div className="flex flex-1 items-end gap-2 rounded-2xl border border-border bg-background px-3 py-1.5 focus-within:border-primary/50">
             <textarea
               value={body}

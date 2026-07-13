@@ -1134,6 +1134,92 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /users/me/avatar:
+    patch:
+      operationId: updateMyAvatar
+      tags: [users]
+      summary: Set/update current user's profile picture
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                objectPath:
+                  type: string
+              required:
+                - objectPath
+      responses:
+        "200":
+          description: Avatar updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /community/posts/{id}/report:
+    post:
+      operationId: reportCommunityPost
+      tags: [community]
+      summary: Report a post
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        "200":
+          description: Reported
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /community/comments/{id}/report:
+    post:
+      operationId: reportCommunityComment
+      tags: [community]
+      summary: Report a comment
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        "200":
+          description: Reported
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
   /notifications:
     get:
       operationId: getNotifications
@@ -1537,9 +1623,14 @@ components:
           type: string
           format: date-time
           nullable: true
+        subscriptionIsExpired:
+          type: boolean
         isActive:
           type: boolean
         phone:
+          type: string
+          nullable: true
+        profileImageUrl:
           type: string
           nullable: true
         createdAt:
@@ -2186,6 +2277,9 @@ components:
         accountType:
           type: string
           enum: [vip, normal]
+        profileImageUrl:
+          type: string
+          nullable: true
       required:
         - id
         - username
@@ -2310,6 +2404,8 @@ components:
           type: boolean
         canPost:
           type: boolean
+        hasProfilePicture:
+          type: boolean
       required:
         - memberCount
         - todayPostsCount
@@ -2317,6 +2413,7 @@ components:
         - isAuthenticated
         - isVip
         - canPost
+        - hasProfilePicture
 
     CommunityMediaInput:
       type: object

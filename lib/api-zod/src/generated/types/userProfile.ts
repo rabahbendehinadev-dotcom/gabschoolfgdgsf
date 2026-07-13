@@ -15,7 +15,9 @@ export interface UserProfile {
   accountType: UserProfileAccountType;
   subscriptionType: UserProfileSubscriptionType;
   subscriptionExpiresAt?: Date | null;
+  subscriptionIsExpired?: boolean;
   isActive: boolean;
   phone?: string | null;
+  profileImageUrl?: string | null;
   createdAt: Date;
 }

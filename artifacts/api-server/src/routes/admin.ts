@@ -2,8 +2,8 @@ import path from "path";
 import fs from "fs";
 import { Router, type IRouter } from "express";
 import multer from "multer";
-import { db, usersTable, videosTable, categoriesTable, playlistsTable, subscriptionPlansTable, visitLogsTable, activityLogsTable, notificationsTable, notificationRecipientsTable, pushSubscriptionsTable, adminPushSubscriptionsTable } from "@workspace/db";
-import { eq, sql, count, desc, asc, lt, and, gte, isNull, isNotNull, inArray, max } from "drizzle-orm";
+import { db, usersTable, videosTable, categoriesTable, playlistsTable, subscriptionPlansTable, visitLogsTable, activityLogsTable, notificationsTable, notificationRecipientsTable, pushSubscriptionsTable, adminPushSubscriptionsTable, communityPostsTable, communityCommentsTable, communityReportsTable } from "@workspace/db";
+import { eq, sql, count, desc, asc, lt, and, gte, isNull, isNotNull, inArray, max, ilike, or } from "drizzle-orm";
 
 import { adminAuth } from "../middlewares/auth";
 import { effectiveIpState } from "../lib/ipPolicy";
@@ -1376,6 +1376,200 @@ router.delete("/admin/push/subscribe", adminAuth, async (req, res) => {
     await db.delete(adminPushSubscriptionsTable).where(eq(adminPushSubscriptionsTable.endpoint, endpoint));
     res.json({ ok: true });
   } catch { res.status(500).json({ message: "Failed to remove subscription" }); }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Community Moderation Routes
+// ─────────────────────────────────────────────────────────────────────────────
+
+// GET /admin/community/posts?search=&page=&limit=
+router.get("/admin/community/posts", adminAuth, async (req, res) => {
+  try {
+    const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 50);
+    const page = Math.max(Number(req.query.page) || 1, 1);
+    const offset = (page - 1) * limit;
+    const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
+
+    const whereClause = search
+      ? or(
+          ilike(communityPostsTable.content, `%${search}%`),
+          ilike(usersTable.username, `%${search}%`),
+          ilike(usersTable.email, `%${search}%`),
+        )
+      : undefined;
+
+    const rows = await db
+      .select({
+        id: communityPostsTable.id,
+        content: communityPostsTable.content,
+        postType: communityPostsTable.postType,
+        isVisible: communityPostsTable.isVisible,
+        isHidden: communityPostsTable.isHidden,
+        isPinned: communityPostsTable.isPinned,
+        isFeatured: communityPostsTable.isFeatured,
+        isVipLocked: communityPostsTable.isVipLocked,
+        likesCount: communityPostsTable.likesCount,
+        commentsCount: communityPostsTable.commentsCount,
+        viewsCount: communityPostsTable.viewsCount,
+        createdAt: communityPostsTable.createdAt,
+        authorUserId: communityPostsTable.authorUserId,
+        authorUsername: usersTable.username,
+        authorEmail: usersTable.email,
+        authorProfileImage: usersTable.profileImage,
+      })
+      .from(communityPostsTable)
+      .leftJoin(usersTable, eq(communityPostsTable.authorUserId, usersTable.id))
+      .where(whereClause)
+      .orderBy(desc(communityPostsTable.createdAt))
+      .limit(limit + 1)
+      .offset(offset);
+
+    const hasMore = rows.length > limit;
+    res.json({
+      posts: rows.slice(0, limit).map((p) => ({
+        ...p,
+        authorProfileImageUrl: p.authorProfileImage ? `/api/users/${p.authorUserId}/avatar` : null,
+        createdAt: p.createdAt.toISOString(),
+      })),
+      hasMore,
+      page,
+      limit,
+    });
+  } catch (err: unknown) {
+    res.status(500).json({ message: err instanceof Error ? err.message : "Failed to list community posts" });
+  }
+});
+
+// PATCH /admin/community/posts/:id — moderate (hide/show/pin/unpin)
+router.patch("/admin/community/posts/:id", adminAuth, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const { isHidden, isPinned, isFeatured, isVipLocked } = req.body as {
+      isHidden?: boolean;
+      isPinned?: boolean;
+      isFeatured?: boolean;
+      isVipLocked?: boolean;
+    };
+
+    const [existing] = await db
+      .select({ id: communityPostsTable.id, isHidden: communityPostsTable.isHidden, isPinned: communityPostsTable.isPinned })
+      .from(communityPostsTable)
+      .where(eq(communityPostsTable.id, id))
+      .limit(1);
+
+    if (!existing) {
+      res.status(404).json({ message: "Post not found" });
+      return;
+    }
+
+    const updates: Record<string, boolean> = {};
+    if (typeof isHidden === "boolean") updates.isHidden = isHidden;
+    if (typeof isPinned === "boolean") updates.isPinned = isPinned;
+    if (typeof isFeatured === "boolean") updates.isFeatured = isFeatured;
+    if (typeof isVipLocked === "boolean") updates.isVipLocked = isVipLocked;
+
+    await db.update(communityPostsTable).set(updates).where(eq(communityPostsTable.id, id));
+
+    // Log admin action
+    const adminName = req.admin?.username || "admin";
+    const action = isHidden === true
+      ? "community_post_hide"
+      : isHidden === false
+      ? "community_post_show"
+      : isPinned === true
+      ? "community_post_pin"
+      : isPinned === false
+      ? "community_post_unpin"
+      : "community_post_update";
+    await logActivity(null, adminName, action, `Post #${id}`);
+
+    res.json({ message: "تم تحديث المنشور", id });
+  } catch (err: unknown) {
+    res.status(500).json({ message: err instanceof Error ? err.message : "Failed to update post" });
+  }
+});
+
+// DELETE /admin/community/posts/:id — hard delete
+router.delete("/admin/community/posts/:id", adminAuth, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    await db.delete(communityPostsTable).where(eq(communityPostsTable.id, id));
+    const adminName = req.admin?.username || "admin";
+    await logActivity(null, adminName, "community_post_delete", `Post #${id} deleted by admin`);
+    res.json({ message: "تم حذف المنشور" });
+  } catch (err: unknown) {
+    res.status(500).json({ message: err instanceof Error ? err.message : "Failed to delete post" });
+  }
+});
+
+// DELETE /admin/community/comments/:id — hard delete
+router.delete("/admin/community/comments/:id", adminAuth, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    await db.delete(communityCommentsTable).where(eq(communityCommentsTable.id, id));
+    const adminName = req.admin?.username || "admin";
+    await logActivity(null, adminName, "community_comment_delete", `Comment #${id} deleted by admin`);
+    res.json({ message: "تم حذف التعليق" });
+  } catch (err: unknown) {
+    res.status(500).json({ message: err instanceof Error ? err.message : "Failed to delete comment" });
+  }
+});
+
+// GET /admin/community/reports
+router.get("/admin/community/reports", adminAuth, async (req, res) => {
+  try {
+    const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
+    const page = Math.max(Number(req.query.page) || 1, 1);
+    const offset = (page - 1) * limit;
+    const status = typeof req.query.status === "string" ? req.query.status : "pending";
+
+    const rows = await db
+      .select({
+        id: communityReportsTable.id,
+        postId: communityReportsTable.postId,
+        commentId: communityReportsTable.commentId,
+        reason: communityReportsTable.reason,
+        status: communityReportsTable.status,
+        createdAt: communityReportsTable.createdAt,
+        reporterUsername: usersTable.username,
+        reporterEmail: usersTable.email,
+      })
+      .from(communityReportsTable)
+      .leftJoin(usersTable, eq(communityReportsTable.reporterId, usersTable.id))
+      .where(eq(communityReportsTable.status, status))
+      .orderBy(desc(communityReportsTable.createdAt))
+      .limit(limit + 1)
+      .offset(offset);
+
+    const hasMore = rows.length > limit;
+    res.json({
+      reports: rows.slice(0, limit).map((r) => ({
+        ...r,
+        createdAt: r.createdAt.toISOString(),
+      })),
+      hasMore,
+      page,
+      limit,
+    });
+  } catch (err: unknown) {
+    res.status(500).json({ message: err instanceof Error ? err.message : "Failed to list reports" });
+  }
+});
+
+// PATCH /admin/community/reports/:id — resolve or dismiss
+router.patch("/admin/community/reports/:id", adminAuth, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const { status } = req.body as { status: string };
+    if (!["resolved", "dismissed"].includes(status)) {
+      res.status(400).json({ message: "status يجب أن يكون resolved أو dismissed" });
+      return;
+    }
+    await db.update(communityReportsTable).set({ status }).where(eq(communityReportsTable.id, id));
+    res.json({ message: "تم تحديث التبليغ", id });
+  } catch (err: unknown) {
+    res.status(500).json({ message: err instanceof Error ? err.message : "Failed to update report" });
+  }
 });
 
 // POST /api/admin/push/test — send a test push to all subscribed admin devices

@@ -17,6 +17,7 @@ declare global {
         ipAddress: string | null;
         isActive: boolean;
         phone: string | null;
+        profileImage: string | null;
       };
       admin?: {
         id: number;
@@ -86,6 +87,7 @@ async function authenticateUser(
     ipAddress: user.ipAddress || clientIp,
     isActive: user.isActive,
     phone: user.phone ?? null,
+    profileImage: user.profileImage ?? null,
   };
   req.userCreatedAt = user.createdAt;
 
@@ -140,6 +142,7 @@ export async function userAuthAllowExpired(req: Request, res: Response, next: Ne
     ipAddress: user.ipAddress || clientIp,
     isActive: user.isActive,
     phone: user.phone ?? null,
+    profileImage: user.profileImage ?? null,
   };
   req.userCreatedAt = user.createdAt;
   next();
@@ -166,6 +169,7 @@ export async function optionalUserAuth(req: Request, _res: Response, next: NextF
       ipAddress: user.ipAddress,
       isActive: user.isActive,
       phone: user.phone ?? null,
+      profileImage: user.profileImage ?? null,
     };
     req.userCreatedAt = user.createdAt;
   }
