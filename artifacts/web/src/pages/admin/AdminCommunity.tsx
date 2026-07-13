@@ -152,7 +152,7 @@ export function AdminCommunity() {
         <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center shrink-0">
           <MessageSquare className="w-5 h-5 text-orange-600" />
         </div>
-        <h2 className="text-2xl font-extrabold text-gray-900">إدارة المجتمع</h2>
+        <h2 className="text-2xl font-extrabold text-gray-900">إدارة Community GAB</h2>
       </div>
 
       {/* Tabs */}

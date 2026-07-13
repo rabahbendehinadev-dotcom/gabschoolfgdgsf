@@ -26,7 +26,7 @@ export function BottomNav() {
   const items = [
     { label: "الرئيسية", icon: Home, href: "/", match: (l: string) => l === "/" },
     { label: "الدورات", icon: GraduationCap, href: "/videos", match: (l: string) => l === "/videos" || l.startsWith("/videos/") },
-    { label: "المجتمع", icon: Users, href: "/community", match: (l: string) => l === "/community" || l.startsWith("/community/") },
+    { label: "Community", icon: Users, href: "/community", match: (l: string) => l === "/community" || l.startsWith("/community/") },
     { label: "الإشعارات", icon: Bell, href: "/notifications", match: (l: string) => l.startsWith("/notifications") },
     { label: "حسابي", icon: User, href: user ? "/dashboard" : "/login", match: (l: string) => l === "/dashboard" },
   ];

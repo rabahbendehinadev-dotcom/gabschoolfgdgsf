@@ -127,7 +127,7 @@ export function ProfilePictureModal({
 
         <div className="flex flex-col items-center gap-5 py-2">
           <p className="text-center text-sm text-muted-foreground leading-relaxed">
-            يجب إضافة صورة شخصية قبل النشر أو التعليق في المجتمع.
+            يجب إضافة صورة شخصية قبل النشر أو التعليق في Community GAB.
           </p>
 
           <button

@@ -113,7 +113,7 @@ const NAV = [
   { name: "الاشتراكات",        path: "/gab-ctrl-9x/subscriptions",        icon: BadgeCheck },
   { name: "تنبيهات الاشتراك", path: "/gab-ctrl-9x/subscription-alerts", icon: AlertTriangle },
   { name: "إرسال إشعار",       path: "/gab-ctrl-9x/send-notification",   icon: Megaphone },
-  { name: "إدارة المجتمع",     path: "/gab-ctrl-9x/community",         icon: Users },
+  { name: "Community GAB",     path: "/gab-ctrl-9x/community",         icon: Users },
   { name: "سجل النشاطات",      path: "/gab-ctrl-9x/activity-log",      icon: Activity },
   { name: "طلبات الدفع",       path: "/gab-ctrl-9x/payments",          icon: Banknote },
   { name: "تغيير كلمة المرور", path: "/gab-ctrl-9x/change-password",   icon: KeyRound },

@@ -150,7 +150,7 @@ export function CreatePostDialog({
             value={content}
             onChange={(e) => setContent(e.target.value)}
             rows={4}
-            placeholder="شارك خبرتك، سؤالاً، أو إنجازاً مع المجتمع…"
+            placeholder="شارك خبرتك، سؤالاً، أو إنجازاً مع Community GAB…"
             className="flex-1 resize-none rounded-2xl border-border text-[15px]"
             autoFocus
           />
