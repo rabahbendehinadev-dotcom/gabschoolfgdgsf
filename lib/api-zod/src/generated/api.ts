@@ -419,6 +419,7 @@ export const UpdateAdminUserBody = zod.object({
     .enum(["demo", "monthly", "annual", "lifetime"])
     .optional(),
   isActive: zod.boolean().optional(),
+  subscriptionStartedAt: zod.date().nullish(),
   subscriptionExpiresAt: zod.date().nullish(),
   phone: zod.string().nullish(),
 });

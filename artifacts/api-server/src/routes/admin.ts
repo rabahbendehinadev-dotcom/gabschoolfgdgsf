@@ -293,8 +293,14 @@ router.patch("/admin/users/:id", adminAuth, async (req, res) => {
           updateData.subscriptionExpiresAt = null;
         }
       }
+      if (!body.subscriptionStartedAt) {
+        updateData.subscriptionStartedAt = new Date();
+      }
     }
     if (body.isActive !== undefined) updateData.isActive = body.isActive;
+    if (body.subscriptionStartedAt !== undefined) {
+      updateData.subscriptionStartedAt = body.subscriptionStartedAt ? new Date(body.subscriptionStartedAt) : null;
+    }
     if (body.subscriptionExpiresAt !== undefined) {
       updateData.subscriptionExpiresAt = body.subscriptionExpiresAt ? new Date(body.subscriptionExpiresAt) : null;
     }
@@ -406,15 +412,19 @@ router.get("/admin/subscriptions", adminAuth, async (_req, res) => {
 router.get("/admin/users/expired", adminAuth, async (_req, res) => {
   try {
     const now = new Date();
-    const soon = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const MS_PER_DAY = 24 * 60 * 60 * 1000;
     const users = await db.select().from(usersTable)
       .where(inArray(usersTable.subscriptionType, ["monthly", "annual"]))
       .orderBy(desc(usersTable.subscriptionExpiresAt));
     res.json(users.map(u => {
       const exp = u.subscriptionExpiresAt;
+      const started = u.subscriptionStartedAt;
       const isExpired = exp !== null && exp < now;
-      const isExpiringSoon = exp !== null && exp >= now && exp <= soon;
-      const isNoExpiry = exp === null;
+      const daysLeft = exp !== null ? Math.ceil((exp.getTime() - now.getTime()) / MS_PER_DAY) : null;
+      const daysSinceExpiry = isExpired && exp !== null ? Math.floor((now.getTime() - exp.getTime()) / MS_PER_DAY) : null;
+      // expiring-soon threshold: 7d for monthly, 30d for annual
+      const soonThreshold = u.subscriptionType === "annual" ? 30 : 7;
+      const isExpiringSoon = exp !== null && !isExpired && daysLeft !== null && daysLeft <= soonThreshold;
       return {
         id: u.id,
         username: u.username,
@@ -422,11 +432,14 @@ router.get("/admin/users/expired", adminAuth, async (_req, res) => {
         phone: u.phone ?? null,
         subscriptionType: u.subscriptionType,
         accountType: u.accountType,
+        subscriptionStartedAt: started?.toISOString() ?? null,
         subscriptionExpiresAt: exp?.toISOString() ?? null,
         driveRevokedAt: u.driveRevokedAt?.toISOString() ?? null,
         isExpired,
         isExpiringSoon,
-        isNoExpiry,
+        isNoExpiry: exp === null,
+        daysLeft,
+        daysSinceExpiry,
       };
     }));
   } catch (error: unknown) {

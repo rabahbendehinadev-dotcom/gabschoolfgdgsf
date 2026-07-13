@@ -12,6 +12,7 @@ export const usersTable = pgTable("users", {
   profileImage: text("profile_image"),
   accountType: varchar("account_type", { length: 20 }).notNull().default("normal"),
   subscriptionType: varchar("subscription_type", { length: 20 }).notNull().default("demo"),
+  subscriptionStartedAt: timestamp("subscription_started_at"),
   subscriptionExpiresAt: timestamp("subscription_expires_at"),
   ipAddress: varchar("ip_address", { length: 45 }),
   ipAddress2: varchar("ip_address_2", { length: 45 }),
