@@ -417,14 +417,39 @@ router.get("/admin/users/expired", adminAuth, async (_req, res) => {
       .where(inArray(usersTable.subscriptionType, ["monthly", "annual"]))
       .orderBy(desc(usersTable.subscriptionExpiresAt));
     res.json(users.map(u => {
-      const exp = u.subscriptionExpiresAt;
-      const started = u.subscriptionStartedAt;
-      const isExpired = exp !== null && exp < now;
-      const daysLeft = exp !== null ? Math.ceil((exp.getTime() - now.getTime()) / MS_PER_DAY) : null;
-      const daysSinceExpiry = isExpired && exp !== null ? Math.floor((now.getTime() - exp.getTime()) / MS_PER_DAY) : null;
-      // expiring-soon threshold: 7d for monthly, 30d for annual
+      const durationDays = u.subscriptionType === "annual" ? 365 : 30;
+
+      // Derive effective dates: fill the missing one from the other
+      let effectiveExpires: Date | null = null;
+      let effectiveStarted: Date | null = null;
+      let startDerived = false;
+      let endDerived = false;
+
+      if (u.subscriptionExpiresAt && u.subscriptionStartedAt) {
+        effectiveExpires = u.subscriptionExpiresAt;
+        effectiveStarted = u.subscriptionStartedAt;
+      } else if (u.subscriptionExpiresAt) {
+        effectiveExpires = u.subscriptionExpiresAt;
+        effectiveStarted = new Date(effectiveExpires.getTime() - durationDays * MS_PER_DAY);
+        startDerived = true;
+      } else if (u.subscriptionStartedAt) {
+        effectiveStarted = u.subscriptionStartedAt;
+        effectiveExpires = new Date(effectiveStarted.getTime() + durationDays * MS_PER_DAY);
+        endDerived = true;
+      }
+      // else both null → isMissingData = true
+
+      const isMissingData = effectiveExpires === null;
+      const isExpired = !isMissingData && effectiveExpires! < now;
+      const daysLeft = effectiveExpires !== null
+        ? Math.ceil((effectiveExpires.getTime() - now.getTime()) / MS_PER_DAY)
+        : null;
+      const daysSinceExpiry = isExpired && effectiveExpires !== null
+        ? Math.floor((now.getTime() - effectiveExpires.getTime()) / MS_PER_DAY)
+        : null;
       const soonThreshold = u.subscriptionType === "annual" ? 30 : 7;
-      const isExpiringSoon = exp !== null && !isExpired && daysLeft !== null && daysLeft <= soonThreshold;
+      const isExpiringSoon = !isMissingData && !isExpired && daysLeft !== null && daysLeft <= soonThreshold;
+
       return {
         id: u.id,
         username: u.username,
@@ -432,12 +457,14 @@ router.get("/admin/users/expired", adminAuth, async (_req, res) => {
         phone: u.phone ?? null,
         subscriptionType: u.subscriptionType,
         accountType: u.accountType,
-        subscriptionStartedAt: started?.toISOString() ?? null,
-        subscriptionExpiresAt: exp?.toISOString() ?? null,
+        subscriptionStartedAt: effectiveStarted?.toISOString() ?? null,
+        subscriptionExpiresAt: effectiveExpires?.toISOString() ?? null,
+        startDerived,
+        endDerived,
         driveRevokedAt: u.driveRevokedAt?.toISOString() ?? null,
+        isMissingData,
         isExpired,
         isExpiringSoon,
-        isNoExpiry: exp === null,
         daysLeft,
         daysSinceExpiry,
       };
