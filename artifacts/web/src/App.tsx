@@ -31,6 +31,7 @@ import { AdminActivityLog } from "@/pages/admin/ActivityLog";
 import { AdminPayments } from "@/pages/admin/Payments";
 import { AdminChangePassword } from "@/pages/admin/ChangePassword";
 import { AdminSendNotification } from "@/pages/admin/SendNotification";
+import { AdminSubscriptionAlerts } from "@/pages/admin/SubscriptionAlerts";
 import { NotificationGate } from "@/components/notifications/NotificationGate";
 import NotFound from "@/pages/not-found";
 
@@ -149,6 +150,9 @@ function Router() {
       </Route>
       <Route path="/gab-ctrl-9x/change-password">
         <AdminLayout><AdminChangePassword /></AdminLayout>
+      </Route>
+      <Route path="/gab-ctrl-9x/subscription-alerts">
+        <AdminLayout><AdminSubscriptionAlerts /></AdminLayout>
       </Route>
       <Route><PublicRoutes /></Route>
     </Switch>

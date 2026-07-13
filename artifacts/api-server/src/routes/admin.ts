@@ -403,6 +403,61 @@ router.get("/admin/subscriptions", adminAuth, async (_req, res) => {
   }
 });
 
+router.get("/admin/users/expired", adminAuth, async (_req, res) => {
+  try {
+    const now = new Date();
+    const users = await db.select().from(usersTable)
+      .where(and(isNotNull(usersTable.subscriptionExpiresAt), lt(usersTable.subscriptionExpiresAt, now)))
+      .orderBy(desc(usersTable.subscriptionExpiresAt));
+    res.json(users.map(u => ({
+      id: u.id,
+      username: u.username,
+      email: u.email,
+      phone: u.phone ?? null,
+      subscriptionType: u.subscriptionType,
+      subscriptionExpiresAt: u.subscriptionExpiresAt!.toISOString(),
+      driveRevokedAt: u.driveRevokedAt?.toISOString() ?? null,
+    })));
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Failed to fetch expired users" });
+  }
+});
+
+router.post("/admin/users/revoke-drive-all", adminAuth, async (req, res) => {
+  try {
+    const now = new Date();
+    const expired = await db.select({ id: usersTable.id, username: usersTable.username })
+      .from(usersTable)
+      .where(and(isNotNull(usersTable.subscriptionExpiresAt), lt(usersTable.subscriptionExpiresAt, now), isNull(usersTable.driveRevokedAt)));
+    if (expired.length === 0) {
+      res.json({ revoked: 0 });
+      return;
+    }
+    const ids = expired.map(u => u.id);
+    await db.update(usersTable).set({ driveRevokedAt: now }).where(inArray(usersTable.id, ids));
+    const adminName = req.admin!.username;
+    const names = expired.map(u => u.username).join(", ");
+    await logActivity(null, adminName, "drive_revoke_all", `إزالة صلاحيات Google Drive لـ ${expired.length} مستخدم منتهي الاشتراك: ${names}`);
+    res.json({ revoked: expired.length });
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Failed to revoke drive access" });
+  }
+});
+
+router.post("/admin/users/:id/revoke-drive", adminAuth, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, id)).limit(1);
+    if (!user) { res.status(404).json({ message: "User not found" }); return; }
+    const now = new Date();
+    await db.update(usersTable).set({ driveRevokedAt: now }).where(eq(usersTable.id, id));
+    await logActivity(id, user.username, "drive_revoke", `إزالة صلاحيات Google Drive للمستخدم: ${user.username} (${user.email}) — بواسطة ${req.admin!.username}`);
+    res.json({ driveRevokedAt: now.toISOString() });
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Failed to revoke drive access" });
+  }
+});
+
 router.get("/admin/activity-logs", adminAuth, async (req, res) => {
   try {
     const limit = Math.min(Number(req.query.limit) || 100, 500);
