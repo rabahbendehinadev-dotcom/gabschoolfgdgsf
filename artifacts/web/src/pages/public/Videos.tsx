@@ -132,6 +132,7 @@ export function Videos() {
                   title={freeVideo?.title}
                   username={user?.username}
                   email={user?.email}
+                  userId={user?.id}
                   videoId={freeVideo?.id}
                 />
               ) : (
