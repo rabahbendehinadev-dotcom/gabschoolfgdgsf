@@ -13,6 +13,7 @@ export * from "./communityPostMedia";
 export * from "./communityPostLikes";
 export * from "./communityComments";
 export * from "./communityPostViews";
+export * from "./communityReports";
 export * from "./notifications";
 export * from "./notificationRecipients";
 export * from "./pushSubscriptions";

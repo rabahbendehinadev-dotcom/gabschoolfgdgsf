@@ -32,6 +32,7 @@ function buildUserPayload(user: {
   subscriptionExpiresAt: Date | null | undefined;
   isActive: boolean;
   phone: string | null | undefined;
+  profileImage?: string | null;
   createdAt: Date;
 }) {
   const exp = user.subscriptionExpiresAt;
@@ -47,6 +48,7 @@ function buildUserPayload(user: {
     subscriptionIsExpired,
     isActive: user.isActive,
     phone: user.phone ?? null,
+    profileImageUrl: user.profileImage ? `/api/users/${user.id}/avatar` : null,
     createdAt: user.createdAt.toISOString(),
   };
 }

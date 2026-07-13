@@ -39,6 +39,13 @@ const ACTION_LABELS: Record<string, { label: string; color: string }> = {
   locked_video_attempt: { label: "مشاهدة فيديو غير مفعّل", color: "bg-amber-500/20 text-amber-400" },
   frequent_ip_change: { label: "تغيّر متكرر لعنوان IP", color: "bg-fuchsia-500/20 text-fuchsia-400" },
   frequent_device_change: { label: "تغيّر متكرر للأجهزة", color: "bg-violet-500/20 text-violet-400" },
+  community_post_hide: { label: "إخفاء منشور", color: "bg-slate-500/20 text-slate-300" },
+  community_post_show: { label: "إظهار منشور", color: "bg-green-500/20 text-green-400" },
+  community_post_pin: { label: "تثبيت منشور", color: "bg-blue-500/20 text-blue-400" },
+  community_post_unpin: { label: "إلغاء تثبيت منشور", color: "bg-blue-500/10 text-blue-300" },
+  community_post_update: { label: "تعديل منشور", color: "bg-yellow-500/20 text-yellow-400" },
+  community_post_delete: { label: "حذف منشور (أدمن)", color: "bg-red-600/25 text-red-300" },
+  community_comment_delete: { label: "حذف تعليق (أدمن)", color: "bg-red-500/20 text-red-400" },
 };
 
 const DEVICE_LABELS: Record<string, string> = {

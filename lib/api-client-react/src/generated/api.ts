@@ -59,12 +59,15 @@ import type {
   RegisterInput,
   ReorderCategoriesInput,
   ReorderVideosInput,
+  ReportCommunityCommentBody,
+  ReportCommunityPostBody,
   SendNotificationInput,
   SubscriptionPlan,
   TestPushResult,
   UnreadCountResponse,
   UpdateCategoryInput,
   UpdateCommunityPostInput,
+  UpdateMyAvatarBody,
   UpdatePhoneInput,
   UpdatePlanInput,
   UpdatePlaylistInput,
@@ -4364,6 +4367,267 @@ export const useDeleteCommunityComment = <
   TContext
 > => {
   return useMutation(getDeleteCommunityCommentMutationOptions(options));
+};
+
+/**
+ * @summary Set/update current user's profile picture
+ */
+export const getUpdateMyAvatarUrl = () => {
+  return `/api/users/me/avatar`;
+};
+
+export const updateMyAvatar = async (
+  updateMyAvatarBody: UpdateMyAvatarBody,
+  options?: RequestInit,
+): Promise<MessageResponse> => {
+  return customFetch<MessageResponse>(getUpdateMyAvatarUrl(), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateMyAvatarBody),
+  });
+};
+
+export const getUpdateMyAvatarMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateMyAvatar>>,
+    TError,
+    { data: BodyType<UpdateMyAvatarBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateMyAvatar>>,
+  TError,
+  { data: BodyType<UpdateMyAvatarBody> },
+  TContext
+> => {
+  const mutationKey = ["updateMyAvatar"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateMyAvatar>>,
+    { data: BodyType<UpdateMyAvatarBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateMyAvatar(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateMyAvatarMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateMyAvatar>>
+>;
+export type UpdateMyAvatarMutationBody = BodyType<UpdateMyAvatarBody>;
+export type UpdateMyAvatarMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Set/update current user's profile picture
+ */
+export const useUpdateMyAvatar = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateMyAvatar>>,
+    TError,
+    { data: BodyType<UpdateMyAvatarBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateMyAvatar>>,
+  TError,
+  { data: BodyType<UpdateMyAvatarBody> },
+  TContext
+> => {
+  return useMutation(getUpdateMyAvatarMutationOptions(options));
+};
+
+/**
+ * @summary Report a post
+ */
+export const getReportCommunityPostUrl = (id: number) => {
+  return `/api/community/posts/${id}/report`;
+};
+
+export const reportCommunityPost = async (
+  id: number,
+  reportCommunityPostBody?: ReportCommunityPostBody,
+  options?: RequestInit,
+): Promise<MessageResponse> => {
+  return customFetch<MessageResponse>(getReportCommunityPostUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(reportCommunityPostBody),
+  });
+};
+
+export const getReportCommunityPostMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reportCommunityPost>>,
+    TError,
+    { id: number; data: BodyType<ReportCommunityPostBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof reportCommunityPost>>,
+  TError,
+  { id: number; data: BodyType<ReportCommunityPostBody> },
+  TContext
+> => {
+  const mutationKey = ["reportCommunityPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof reportCommunityPost>>,
+    { id: number; data: BodyType<ReportCommunityPostBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return reportCommunityPost(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ReportCommunityPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof reportCommunityPost>>
+>;
+export type ReportCommunityPostMutationBody = BodyType<ReportCommunityPostBody>;
+export type ReportCommunityPostMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Report a post
+ */
+export const useReportCommunityPost = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reportCommunityPost>>,
+    TError,
+    { id: number; data: BodyType<ReportCommunityPostBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof reportCommunityPost>>,
+  TError,
+  { id: number; data: BodyType<ReportCommunityPostBody> },
+  TContext
+> => {
+  return useMutation(getReportCommunityPostMutationOptions(options));
+};
+
+/**
+ * @summary Report a comment
+ */
+export const getReportCommunityCommentUrl = (id: number) => {
+  return `/api/community/comments/${id}/report`;
+};
+
+export const reportCommunityComment = async (
+  id: number,
+  reportCommunityCommentBody?: ReportCommunityCommentBody,
+  options?: RequestInit,
+): Promise<MessageResponse> => {
+  return customFetch<MessageResponse>(getReportCommunityCommentUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(reportCommunityCommentBody),
+  });
+};
+
+export const getReportCommunityCommentMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reportCommunityComment>>,
+    TError,
+    { id: number; data: BodyType<ReportCommunityCommentBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof reportCommunityComment>>,
+  TError,
+  { id: number; data: BodyType<ReportCommunityCommentBody> },
+  TContext
+> => {
+  const mutationKey = ["reportCommunityComment"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof reportCommunityComment>>,
+    { id: number; data: BodyType<ReportCommunityCommentBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return reportCommunityComment(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ReportCommunityCommentMutationResult = NonNullable<
+  Awaited<ReturnType<typeof reportCommunityComment>>
+>;
+export type ReportCommunityCommentMutationBody =
+  BodyType<ReportCommunityCommentBody>;
+export type ReportCommunityCommentMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Report a comment
+ */
+export const useReportCommunityComment = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reportCommunityComment>>,
+    TError,
+    { id: number; data: BodyType<ReportCommunityCommentBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof reportCommunityComment>>,
+  TError,
+  { id: number; data: BodyType<ReportCommunityCommentBody> },
+  TContext
+> => {
+  return useMutation(getReportCommunityCommentMutationOptions(options));
 };
 
 /**

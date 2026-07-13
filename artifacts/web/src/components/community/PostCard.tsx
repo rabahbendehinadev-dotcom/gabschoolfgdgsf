@@ -35,6 +35,7 @@ import {
   Loader2,
   Pin,
   Star,
+  Flag,
 } from "lucide-react";
 
 function timeAgo(iso: string): string {
@@ -65,6 +66,10 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
   const [confirmDel, setConfirmDel] = useState(false);
 
   const vip = post.author.accountType === "vip";
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportReason, setReportReason] = useState("");
+  const [reportSent, setReportSent] = useState(false);
+  const [reporting, setReporting] = useState(false);
 
   const likeM = useLikeCommunityPost({ request: getAuthHeaders() });
   const unlikeM = useUnlikeCommunityPost({ request: getAuthHeaders() });
@@ -157,15 +162,23 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
       <Card className="overflow-hidden rounded-3xl border-border bg-white/90 shadow-[0_2px_16px_rgba(15,23,42,0.05)] backdrop-blur-xl">
         {/* Header */}
         <div className="flex items-center gap-3 p-4 pb-3">
-          <div
-            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-base font-bold text-white shadow-sm ${
-              vip
-                ? "bg-gradient-to-br from-amber-400 to-orange-500"
-                : "bg-gradient-to-br from-slate-400 to-slate-500"
-            }`}
-          >
-            {post.author.username.trim().charAt(0) || "؟"}
-          </div>
+          {post.author.profileImageUrl ? (
+            <img
+              src={post.author.profileImageUrl}
+              alt={post.author.username}
+              className="h-11 w-11 shrink-0 rounded-full object-cover shadow-sm"
+            />
+          ) : (
+            <div
+              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-base font-bold text-white shadow-sm ${
+                vip
+                  ? "bg-gradient-to-br from-amber-400 to-orange-500"
+                  : "bg-gradient-to-br from-slate-400 to-slate-500"
+              }`}
+            >
+              {post.author.username.trim().charAt(0) || "؟"}
+            </div>
+          )}
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
               <span className="truncate font-bold text-foreground">{post.author.username}</span>
@@ -190,7 +203,7 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
             </div>
           </div>
 
-          {post.canEdit && (
+          {user && (
             <div className="relative">
               <Button
                 variant="ghost"
@@ -207,31 +220,48 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.95 }}
-                    className="absolute left-0 top-9 z-30 w-40 overflow-hidden rounded-xl border border-border bg-white shadow-lg"
+                    className="absolute left-0 top-9 z-30 w-44 overflow-hidden rounded-xl border border-border bg-white shadow-lg"
                   >
-                    <button
-                      type="button"
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        setEditText(post.content || "");
-                        setEditOpen(true);
-                        setMenuOpen(false);
-                      }}
-                      className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-foreground hover:bg-muted"
-                    >
-                      <Pencil className="h-4 w-4" /> تعديل
-                    </button>
-                    <button
-                      type="button"
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        setConfirmDel(true);
-                        setMenuOpen(false);
-                      }}
-                      className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-destructive hover:bg-destructive/10"
-                    >
-                      <Trash2 className="h-4 w-4" /> حذف
-                    </button>
+                    {post.canEdit && (
+                      <>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            setEditText(post.content || "");
+                            setEditOpen(true);
+                            setMenuOpen(false);
+                          }}
+                          className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-foreground hover:bg-muted"
+                        >
+                          <Pencil className="h-4 w-4" /> تعديل
+                        </button>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            setConfirmDel(true);
+                            setMenuOpen(false);
+                          }}
+                          className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-destructive hover:bg-destructive/10"
+                        >
+                          <Trash2 className="h-4 w-4" /> حذف
+                        </button>
+                      </>
+                    )}
+                    {!post.canEdit && (
+                      <button
+                        type="button"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          setReportOpen(true);
+                          setMenuOpen(false);
+                        }}
+                        className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-muted-foreground hover:bg-muted"
+                      >
+                        <Flag className="h-4 w-4" /> إبلاغ
+                      </button>
+                    )}
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -331,6 +361,55 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
               حفظ
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Report dialog */}
+      <Dialog open={reportOpen} onOpenChange={(v) => { if (!reporting) { setReportOpen(v); if (!v) { setReportReason(""); setReportSent(false); } } }}>
+        <DialogContent className="rounded-3xl" dir="rtl">
+          <DialogHeader>
+            <DialogTitle>الإبلاغ عن المنشور</DialogTitle>
+          </DialogHeader>
+          {reportSent ? (
+            <p className="py-4 text-center text-sm font-semibold text-green-600">
+              تم إرسال بلاغك، شكراً لمساعدتنا ✓
+            </p>
+          ) : (
+            <>
+              <Textarea
+                value={reportReason}
+                onChange={(e) => setReportReason(e.target.value)}
+                rows={3}
+                className="resize-none rounded-2xl"
+                placeholder="سبب البلاغ (اختياري)…"
+              />
+              <DialogFooter className="gap-2">
+                <Button variant="ghost" onClick={() => setReportOpen(false)} disabled={reporting}>إلغاء</Button>
+                <Button
+                  variant="destructive"
+                  disabled={reporting}
+                  onClick={async () => {
+                    setReporting(true);
+                    try {
+                      const headers = getAuthHeaders();
+                      await fetch(`/api/community/posts/${post.id}/report`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", ...headers?.headers },
+                        body: JSON.stringify({ reason: reportReason }),
+                      });
+                      setReportSent(true);
+                      setTimeout(() => setReportOpen(false), 1500);
+                    } finally {
+                      setReporting(false);
+                    }
+                  }}
+                >
+                  {reporting && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
+                  إرسال البلاغ
+                </Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
 

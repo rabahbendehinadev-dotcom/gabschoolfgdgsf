@@ -14,4 +14,5 @@ export interface CommunitySummary {
   isAuthenticated: boolean;
   isVip: boolean;
   canPost: boolean;
+  hasProfilePicture: boolean;
 }
