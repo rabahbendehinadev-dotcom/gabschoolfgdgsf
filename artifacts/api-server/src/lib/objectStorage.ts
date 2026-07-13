@@ -167,11 +167,16 @@ export class ObjectStorageService {
       objectEntityDir = `${objectEntityDir}/`;
     }
 
-    // Convert gs:// dir to a URL pathname for comparison.
-    // e.g. "gs://bucket/private/" → "/bucket/private/"
+    // Normalise objectEntityDir to a URL-pathname form (must start with "/")
+    // so it can be compared against rawObjectPath (the URL's pathname).
+    //   "gs://bucket/private/"  → "/bucket/private/"
+    //   "bucket/private/"       → "/bucket/private/"
+    //   "/bucket/private/"      → "/bucket/private/"  (unchanged)
     let dirPathname = objectEntityDir;
     if (dirPathname.startsWith("gs://")) {
       dirPathname = "/" + dirPathname.slice("gs://".length);
+    } else if (!dirPathname.startsWith("/")) {
+      dirPathname = "/" + dirPathname;
     }
 
     if (!rawObjectPath.startsWith(dirPathname)) {
