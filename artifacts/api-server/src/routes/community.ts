@@ -18,26 +18,12 @@ import {
   UpdateCommunityPostBody,
   CreateCommunityCommentBody,
 } from "@workspace/api-zod";
+import { isActiveVip } from "../lib/vipUtils";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
 
 type Viewer = Request["user"] | undefined;
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-// A viewer counts as VIP for entitlement only if active AND not expired.
-// optionalUserAuth does NOT enforce expiry, so we must check it here.
-function isActiveVip(viewer: Viewer): boolean {
-  if (!viewer || !viewer.isActive) return false;
-  if (viewer.accountType !== "vip") return false;
-  if (viewer.subscriptionExpiresAt && new Date(viewer.subscriptionExpiresAt) < new Date()) {
-    return false;
-  }
-  return true;
-}
 
 // Short single-line preview of user text for a notification body.
 function snippet(text: string, max = 120): string {

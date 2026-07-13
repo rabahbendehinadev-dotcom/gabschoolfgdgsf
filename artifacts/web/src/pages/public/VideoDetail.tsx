@@ -160,7 +160,7 @@ export function VideoDetail() {
             )}
 
             {/* VIP Software Download */}
-            {user?.accountType === "vip" && video.softwareLink && (
+            {user?.accountType === "vip" && !user.subscriptionIsExpired && (!user.subscriptionExpiresAt || new Date(user.subscriptionExpiresAt) > new Date()) && video.softwareLink && (
               <div className="mb-8">
                 <a
                   href={video.softwareLink}

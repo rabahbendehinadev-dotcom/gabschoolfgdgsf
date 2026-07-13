@@ -22,6 +22,35 @@ import { OAuth2Client } from "google-auth-library";
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
 
+/** Canonical user payload sent on every auth response. */
+function buildUserPayload(user: {
+  id: number;
+  username: string;
+  email: string;
+  accountType: string;
+  subscriptionType: string;
+  subscriptionExpiresAt: Date | null | undefined;
+  isActive: boolean;
+  phone: string | null | undefined;
+  createdAt: Date;
+}) {
+  const exp = user.subscriptionExpiresAt;
+  const subscriptionIsExpired =
+    user.accountType === "vip" && !!exp && new Date(exp) < new Date();
+  return {
+    id: user.id,
+    username: user.username,
+    email: user.email,
+    accountType: user.accountType,
+    subscriptionType: user.subscriptionType,
+    subscriptionExpiresAt: exp?.toISOString() ?? null,
+    subscriptionIsExpired,
+    isActive: user.isActive,
+    phone: user.phone ?? null,
+    createdAt: user.createdAt.toISOString(),
+  };
+}
+
 function sanitizeUsername(base: string): string {
   let u = base.toLowerCase().replace(/[^a-z0-9_.]/g, "");
   if (u.length < 3) u = "user" + u;
@@ -163,17 +192,7 @@ router.post("/auth/register", async (req, res) => {
 
     res.status(201).json({
       token,
-      user: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        accountType: user.accountType,
-        subscriptionType: user.subscriptionType,
-        subscriptionExpiresAt: user.subscriptionExpiresAt?.toISOString() || null,
-        isActive: user.isActive,
-        phone: user.phone ?? null,
-        createdAt: user.createdAt.toISOString(),
-      },
+      user: buildUserPayload(user),
     });
   } catch (error: unknown) {
     res.status(400).json({ message: error instanceof Error ? error.message : "Unknown error" || "Registration failed" });
@@ -226,20 +245,7 @@ router.post("/auth/login", async (req, res) => {
     await detectSuspiciousAccess(user.id, user.username, clientIp, userAgent);
     await logActivity(user.id, user.username, "user_login", `Login from IP: ${clientIp}`, clientIp, userAgent);
 
-    res.json({
-      token,
-      user: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        accountType: user.accountType,
-        subscriptionType: user.subscriptionType,
-        subscriptionExpiresAt: user.subscriptionExpiresAt?.toISOString() || null,
-        isActive: user.isActive,
-        phone: user.phone ?? null,
-        createdAt: user.createdAt.toISOString(),
-      },
-    });
+    res.json({ token, user: buildUserPayload(user) });
   } catch (error: unknown) {
     res.status(400).json({ message: error instanceof Error ? error.message : "Unknown error" || "Login failed" });
   }
@@ -275,17 +281,7 @@ router.post("/auth/admin-login", async (req, res) => {
 
 router.get("/auth/me", userAuth, async (req, res) => {
   const user = req.user!;
-  res.json({
-    id: user.id,
-    username: user.username,
-    email: user.email,
-    accountType: user.accountType,
-    subscriptionType: user.subscriptionType,
-    subscriptionExpiresAt: user.subscriptionExpiresAt?.toISOString() || null,
-    isActive: user.isActive,
-    phone: user.phone ?? null,
-    createdAt: req.userCreatedAt?.toISOString() || new Date().toISOString(),
-  });
+  res.json(buildUserPayload({ ...user, createdAt: req.userCreatedAt ?? new Date() }));
 });
 
 router.patch("/auth/me/phone", userAuth, async (req, res) => {
@@ -302,17 +298,7 @@ router.patch("/auth/me/phone", userAuth, async (req, res) => {
       .where(eq(usersTable.id, req.user!.id))
       .returning();
 
-    res.json({
-      id: updated.id,
-      username: updated.username,
-      email: updated.email,
-      accountType: updated.accountType,
-      subscriptionType: updated.subscriptionType,
-      subscriptionExpiresAt: updated.subscriptionExpiresAt?.toISOString() || null,
-      isActive: updated.isActive,
-      phone: updated.phone ?? null,
-      createdAt: updated.createdAt.toISOString(),
-    });
+    res.json(buildUserPayload(updated));
   } catch (error: unknown) {
     res.status(400).json({ message: error instanceof Error ? error.message : "Failed to update phone" });
   }
@@ -417,20 +403,7 @@ router.post("/auth/google", async (req, res) => {
 
     const token = generateToken({ userId: user.id });
 
-    res.json({
-      token,
-      user: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        accountType: user.accountType,
-        subscriptionType: user.subscriptionType,
-        subscriptionExpiresAt: user.subscriptionExpiresAt?.toISOString() || null,
-        isActive: user.isActive,
-        phone: user.phone ?? null,
-        createdAt: user.createdAt.toISOString(),
-      },
-    });
+    res.json({ token, user: buildUserPayload(user) });
   } catch (error: unknown) {
     res.status(400).json({ message: error instanceof Error ? error.message : "Google login failed" });
   }

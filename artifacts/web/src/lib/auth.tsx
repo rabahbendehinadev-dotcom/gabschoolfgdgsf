@@ -73,6 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           prev?.subscriptionType !== fresh.subscriptionType ||
           prev?.isActive !== fresh.isActive ||
           prev?.subscriptionExpiresAt !== fresh.subscriptionExpiresAt ||
+          prev?.subscriptionIsExpired !== fresh.subscriptionIsExpired ||
           prev?.phone !== fresh.phone;
         if (!changed) return prev;
         localStorage.setItem("user", JSON.stringify(fresh));

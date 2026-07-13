@@ -68,7 +68,10 @@ export function Videos() {
 
   const isLoggedIn = !!user;
   const isDemo = user?.subscriptionType === "demo";
-  const isVipUser = user?.accountType === "vip";
+  const isVipUser =
+    user?.accountType === "vip" &&
+    !user.subscriptionIsExpired &&
+    (!user.subscriptionExpiresAt || new Date(user.subscriptionExpiresAt) > new Date());
   const isLocked = !isLoggedIn || isDemo;
 
   /* ── منطق وصول الفيديو (لم يتغير) ── */
