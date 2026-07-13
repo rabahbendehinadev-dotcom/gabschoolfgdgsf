@@ -167,11 +167,18 @@ export class ObjectStorageService {
       objectEntityDir = `${objectEntityDir}/`;
     }
 
-    if (!rawObjectPath.startsWith(objectEntityDir)) {
+    // Convert gs:// dir to a URL pathname for comparison.
+    // e.g. "gs://bucket/private/" → "/bucket/private/"
+    let dirPathname = objectEntityDir;
+    if (dirPathname.startsWith("gs://")) {
+      dirPathname = "/" + dirPathname.slice("gs://".length);
+    }
+
+    if (!rawObjectPath.startsWith(dirPathname)) {
       return rawObjectPath;
     }
 
-    const entityId = rawObjectPath.slice(objectEntityDir.length);
+    const entityId = rawObjectPath.slice(dirPathname.length);
     return `/objects/${entityId}`;
   }
 

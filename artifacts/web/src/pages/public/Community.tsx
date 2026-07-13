@@ -88,7 +88,7 @@ export function Community() {
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-3xl bg-white/20 backdrop-blur-md">
               <Users className="h-8 w-8 text-white" />
             </div>
-            <h1 className="font-display text-3xl font-extrabold text-white sm:text-4xl">مجتمع GAB</h1>
+            <h1 className="font-display text-3xl font-extrabold text-white sm:text-4xl">Community GAB</h1>
             <p className="mx-auto mt-2 max-w-md text-sm text-white/85 sm:text-base">
               مساحة أعضاء GAB لمشاركة الخبرات، الإنجازات، والنقاش حول إصلاح الهواتف وفكّ الشفرات.
             </p>
@@ -132,7 +132,7 @@ export function Community() {
                 </div>
               )}
               <span className="flex-1 text-muted-foreground">
-                {hasProfilePicture ? "شارك شيئاً مع المجتمع…" : "أضف صورة شخصية للنشر…"}
+                {hasProfilePicture ? "شارك شيئاً مع Community GAB…" : "أضف صورة شخصية للنشر…"}
               </span>
               <span className="flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-bold text-primary-foreground">
                 <PenSquare className="h-4 w-4" />
@@ -142,7 +142,7 @@ export function Community() {
           ) : user ? null : (
             <Link href="/login">
               <div className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-3xl border border-border bg-white/90 px-5 py-4 text-sm font-semibold text-muted-foreground shadow transition-shadow hover:shadow-md">
-                سجّل الدخول للمشاركة في المجتمع
+                سجّل الدخول للمشاركة في Community GAB
               </div>
             </Link>
           )}
@@ -171,7 +171,7 @@ export function Community() {
             <Users className="mx-auto mb-3 h-12 w-12 text-muted-foreground/40" />
             <p className="font-bold text-foreground">لا توجد منشورات بعد</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              {canPost ? "كن أول من يشارك في المجتمع!" : "عُد قريباً لمتابعة جديد المجتمع."}
+              {canPost ? "كن أول من يشارك في Community GAB!" : "عُد قريباً لمتابعة جديد Community GAB."}
             </p>
           </div>
         ) : (

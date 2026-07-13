@@ -234,7 +234,7 @@ export function AdminSendNotification() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">بدون</SelectItem>
-                <SelectItem value="community">صفحة المجتمع</SelectItem>
+                <SelectItem value="community">Community GAB</SelectItem>
                 <SelectItem value="lesson">درس محدد</SelectItem>
                 <SelectItem value="custom">رابط مخصص</SelectItem>
               </SelectContent>
