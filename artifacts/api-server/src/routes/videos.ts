@@ -7,7 +7,7 @@ import { deviceTypeFromUA } from "../lib/device";
 import { isActiveVip } from "../lib/vipUtils";
 import { generateVideoStreamToken, verifyVideoStreamToken } from "../lib/auth";
 import { extractDriveFileId, resolveVideoParts, streamDriveFile } from "../lib/googleDrive";
-import { getSignedVideoURL, parseObjectParts } from "../lib/videoStorage";
+import { streamGcsObjectToResponse, parseObjectParts } from "../lib/videoStorage";
 import { parseHlsParts, buildMasterPlaylist, renderMediaPlaylist } from "../lib/hlsStorage";
 
 const router: IRouter = Router();
@@ -198,36 +198,22 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
     });
     let streamParts: { label: string; url: string; hlsUrl?: string }[];
     // Build streamParts from drive parts list (authoritative source for labels/count).
-    // For each part: use GCS presigned URL if migrated, Drive proxy token otherwise.
-    // This handles the mismatch case where objectParts count < driveParts count
-    // (e.g., a new drive part was added after migration completed).
-    // Parts that have been transcoded additionally expose an HLS master
-    // playlist URL (adaptive bitrate → no stalls / instant seek on slow
-    // connections); the MP4 `url` stays as the player's fallback.
-    streamParts = await Promise.all(
-      partsList.map(async (p, i) => {
-        const hlsUrl = hlsParts?.[i]
-          ? `/api/videos/${id}/hls/${i}/master.m3u8?token=${generateVideoStreamToken({
-              userId: user?.id ?? 0,
-              videoId: id,
-              part: i,
-            })}`
-          : undefined;
-        const objPart = objectParts?.[i];
-        if (objPart) {
-          return { label: p.label, url: await getSignedVideoURL(objPart.objectPath), hlsUrl };
-        }
-        return {
-          label: p.label,
-          url: `/api/videos/${id}/stream/${i}?token=${generateVideoStreamToken({
-            userId: user?.id ?? 0,
-            videoId: id,
-            part: i,
-          })}`,
-          hlsUrl,
-        };
-      }),
-    );
+    // For each part: use server-proxied GCS stream if migrated (never a direct
+    // storage.googleapis.com URL — download managers intercept those), otherwise
+    // the same-origin Drive proxy token. HLS is preferred when available.
+    streamParts = partsList.map((p, i) => {
+      const token = generateVideoStreamToken({ userId: user?.id ?? 0, videoId: id, part: i });
+      const hlsUrl = hlsParts?.[i]
+        ? `/api/videos/${id}/hls/${i}/master.m3u8?token=${token}`
+        : undefined;
+      const objPart = objectParts?.[i];
+      // Both migrated (GCS) and unmigrated (Drive) parts go through same-origin
+      // server proxy so the browser never sees an external storage URL.
+      const url = objPart
+        ? `/api/videos/${id}/stream-object/${i}?token=${token}`
+        : `/api/videos/${id}/stream/${i}?token=${token}`;
+      return { label: p.label, url, hlsUrl };
+    });
 
     res.json({
       id: video.id,
@@ -331,6 +317,7 @@ async function authorizeStreamRequest(
     driveEmbedUrl: string;
     driveParts: string | null;
     hlsParts: string | null;
+    objectParts: string | null;
   };
 } | null> {
   const token = typeof req.query.token === "string" ? req.query.token : null;
@@ -371,6 +358,7 @@ async function authorizeStreamRequest(
       driveEmbedUrl: videosTable.driveEmbedUrl,
       driveParts: videosTable.driveParts,
       hlsParts: videosTable.hlsParts,
+      objectParts: videosTable.objectParts,
     })
     .from(videosTable)
     .where(eq(videosTable.id, id))
@@ -474,6 +462,37 @@ router.get("/videos/:id/stream/:part", async (req, res) => {
     } else {
       res.end();
     }
+  }
+});
+
+/* ── GCS object proxy (migrated videos) ──────────────────────────────────
+   Streams GCS bytes through the server so storage.googleapis.com URLs are
+   NEVER exposed to the browser (download-manager extensions cannot intercept
+   what they never see). Supports Range requests for native seeking.
+   Uses the same authorizeStreamRequest gate as the Drive proxy. ── */
+router.get("/videos/:id/stream-object/:part", async (req, res) => {
+  try {
+    const auth = await authorizeStreamRequest(req, res, "video-object");
+    if (!auth) return;
+    const { id, part, video } = auth;
+
+    const objectParts = parseObjectParts(video.objectParts);
+    const objPart = objectParts?.[part];
+    if (!objPart) {
+      console.warn("[video-object] DENY 404: no object part found", { videoId: id, part });
+      res.status(404).end();
+      return;
+    }
+
+    await streamGcsObjectToResponse(objPart.objectPath, req, res);
+  } catch (error: unknown) {
+    console.error("[video-object] ROUTE ERROR", {
+      videoId: req.params.id,
+      part: req.params.part,
+      message: error instanceof Error ? error.message : String(error),
+    });
+    if (!res.headersSent) res.status(500).end();
+    else res.end();
   }
 });
 

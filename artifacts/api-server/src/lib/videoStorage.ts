@@ -1,6 +1,7 @@
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import type { ReadableStream as NodeWebReadableStream } from "node:stream/web";
+import type { Request, Response } from "express";
 import {
   objectStorageClient,
   parseObjectPath,
@@ -87,6 +88,76 @@ export async function getSignedVideoURL(objectPath: string): Promise<string> {
     }
   }
   return url;
+}
+
+/* ── Server-side proxy stream from GCS (replaces direct presigned URLs) ───
+   Streams GCS bytes through the server so the browser never sees a
+   storage.googleapis.com URL — download-manager extensions cannot intercept
+   what they never see. Supports Range requests for seeking. ── */
+
+const GCS_PROXY_CHUNK = 8 * 1024 * 1024; // 8 MB per slice (mirrors Drive cap)
+
+export async function streamGcsObjectToResponse(
+  objectPath: string,
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const { bucketName, objectName } = parseObjectPath(objectPath);
+  const file = objectStorageClient.bucket(bucketName).file(objectName);
+
+  const [metadata] = await file.getMetadata();
+  const totalSize = Number(metadata.size ?? 0);
+  const contentType =
+    typeof metadata.contentType === "string" && metadata.contentType.startsWith("video/")
+      ? metadata.contentType
+      : "video/mp4";
+
+  const rangeHeader = req.headers.range;
+  const match = rangeHeader ? /^bytes=(\d*)-(\d*)$/.exec(rangeHeader.trim()) : null;
+
+  let start = 0;
+  let end = totalSize - 1;
+  let isRange = false;
+
+  if (match && totalSize > 0) {
+    isRange = true;
+    if (match[1] === "" && match[2]) {
+      // Suffix range e.g. bytes=-1024
+      start = Math.max(0, totalSize - parseInt(match[2], 10));
+      end = totalSize - 1;
+    } else {
+      start = match[1] ? parseInt(match[1], 10) : 0;
+      end = match[2] ? Math.min(parseInt(match[2], 10), totalSize - 1) : totalSize - 1;
+      // Cap chunk size so large open-ended requests (bytes=0-) don't OOM the server
+      if (end - start + 1 > GCS_PROXY_CHUNK) end = start + GCS_PROXY_CHUNK - 1;
+    }
+  }
+
+  const chunkSize = totalSize > 0 ? end - start + 1 : 0;
+
+  res.setHeader("Accept-Ranges", "bytes");
+  res.setHeader("Content-Type", contentType);
+  res.setHeader("Content-Disposition", "inline");
+  res.setHeader("Cache-Control", "private, max-age=3600");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  // Never let CDNs/proxies cache — the token already scopes this per-user
+  res.setHeader("Vary", "Range");
+  if (chunkSize > 0) res.setHeader("Content-Length", String(chunkSize));
+  if (isRange && totalSize > 0) {
+    res.setHeader("Content-Range", `bytes ${start}-${end}/${totalSize}`);
+    res.status(206);
+  } else {
+    res.status(200);
+  }
+
+  const readOpts = totalSize > 0 ? { start, end } : {};
+  const readStream = file.createReadStream(readOpts);
+  try {
+    await pipeline(readStream, res);
+  } catch {
+    // Client disconnected mid-stream — not a server error
+    if (!res.headersSent) res.status(500).end();
+  }
 }
 
 /* ── One-time Drive → App Storage copy (admin-triggered, synchronous) ───── */
