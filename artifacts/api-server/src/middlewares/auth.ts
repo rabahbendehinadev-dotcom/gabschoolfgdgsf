@@ -106,6 +106,45 @@ export function userAuthNoIpLimit(req: Request, res: Response, next: NextFunctio
   return authenticateUser(req, res, next, false);
 }
 
+/**
+ * Authenticated access that populates req.user even for expired subscriptions.
+ * Use ONLY for identity/profile endpoints (e.g. GET /auth/me) where the client
+ * needs to read subscriptionIsExpired to show a renewal prompt.
+ * Never use this to guard content that should be blocked for expired users.
+ */
+export async function userAuthAllowExpired(req: Request, res: Response, next: NextFunction) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith("Bearer ")) {
+    res.status(401).json({ message: "Authentication required" });
+    return;
+  }
+  const token = authHeader.substring(7);
+  const payload = verifyToken(token);
+  if (!payload) {
+    res.status(401).json({ message: "Invalid or expired token" });
+    return;
+  }
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, payload.userId)).limit(1);
+  if (!user || !user.isActive) {
+    res.status(401).json({ message: "Account not found or deactivated" });
+    return;
+  }
+  const clientIp = getClientIp(req);
+  req.user = {
+    id: user.id,
+    username: user.username,
+    email: user.email,
+    accountType: user.accountType,
+    subscriptionType: user.subscriptionType,
+    subscriptionExpiresAt: user.subscriptionExpiresAt,
+    ipAddress: user.ipAddress || clientIp,
+    isActive: user.isActive,
+    phone: user.phone ?? null,
+  };
+  req.userCreatedAt = user.createdAt;
+  next();
+}
+
 export async function optionalUserAuth(req: Request, _res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith("Bearer ")) {
