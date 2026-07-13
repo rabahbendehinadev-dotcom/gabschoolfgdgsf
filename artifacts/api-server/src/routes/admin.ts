@@ -663,6 +663,15 @@ router.delete("/admin/videos/:id", adminAuth, async (req, res) => {
 // the request lifecycle (autoscale throttles background work).
 router.post("/admin/videos/:id/migrate-storage", adminAuth, async (req, res) => {
   try {
+    // Dev shares the production App Storage bucket AND overlapping video ids.
+    // A dev-side migration would overwrite the exact objects production
+    // playback depends on (videos/{id}/part-{i}.mp4). Production only.
+    if (process.env.NODE_ENV !== "production") {
+      res.status(403).json({
+        message: "Migration is disabled in development (shared production bucket).",
+      });
+      return;
+    }
     const id = Number(req.params.id);
     const [video] = await db
       .select({

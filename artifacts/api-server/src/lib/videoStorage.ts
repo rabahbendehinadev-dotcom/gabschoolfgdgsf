@@ -141,7 +141,17 @@ export async function copyDriveFileToStorage(
 
 // Best-effort delete of migrated objects (used when a video is deleted or its
 // source URLs change). Failures are logged, never thrown.
+// SAFETY: no-op outside production. Dev shares the production bucket and its
+// video ids overlap production's — a dev-side delete at the deterministic
+// path videos/{id}/part-{i}.mp4 destroys objects production playback needs
+// (this exact bug wiped videos 10-12 in production).
 export async function deleteVideoObjects(parts: ObjectPart[]): Promise<void> {
+  if (process.env.NODE_ENV !== "production") {
+    console.warn(
+      `[video-storage] deleteVideoObjects skipped in dev (shared bucket protection) — ${parts.length} object(s) left in place.`,
+    );
+    return;
+  }
   for (const p of parts) {
     try {
       const { bucketName, objectName } = parseObjectPath(p.objectPath);
