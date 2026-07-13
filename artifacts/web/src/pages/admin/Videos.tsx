@@ -17,6 +17,22 @@ import { Plus, Edit, Trash2, Upload, ImageIcon, X, Loader2, ListVideo, Layers, G
 
 interface DrivePart { label: string; url: string; }
 
+/* تحقق من صحة رابط Google Drive — يعيد رسالة الخطأ أو null إذا كان الرابط صالحاً */
+function validateDriveUrl(url: string): string | null {
+  if (!url || !url.trim()) return null; // فارغ مقبول
+  if (!url.includes("drive.google.com") && !url.includes("docs.google.com")) {
+    return "يجب أن يكون رابط Google Drive صالحاً";
+  }
+  if (/\/folders\/[a-zA-Z0-9_-]{10,}/.test(url)) {
+    return "هذا رابط مجلد وليس ملف فيديو. افتح المجلد واختر الفيديو وانسخ رابطه المباشر (file/d/...)";
+  }
+  const hasId =
+    /\/d\/[a-zA-Z0-9_-]{10,}/.test(url) ||
+    /[?&]id=[a-zA-Z0-9_-]{10,}/.test(url);
+  if (!hasId) return "لم يتم التعرف على صيغة رابط Google Drive";
+  return null;
+}
+
 /* ── Sortable Video Card ──────────────────────────────── */
 function SortableVideoCard({
   video,
@@ -189,6 +205,7 @@ export function AdminVideos() {
   const [previewUrl, setPreviewUrl] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [driveParts, setDriveParts] = useState<DrivePart[]>([]);
+  const [driveUrlErrors, setDriveUrlErrors] = useState<Record<number | "single", string>>({});
   const [quickPlaylist, setQuickPlaylist] = useState(false);
   const [quickPlaylistTitle, setQuickPlaylistTitle] = useState("");
   const [quickPlaylistCategoryId, setQuickPlaylistCategoryId] = useState<number>(0);
@@ -254,6 +271,7 @@ export function AdminVideos() {
       setDriveParts([]);
       setPreviewUrl("");
     }
+    setDriveUrlErrors({});
     setIsOpen(true);
   };
 
@@ -293,6 +311,23 @@ export function AdminVideos() {
   };
 
   const handleSave = () => {
+    /* تحقق من صحة روابط Drive قبل الحفظ */
+    const newErrors: Record<number | "single", string> = {};
+    if (driveParts.length === 0) {
+      const err = validateDriveUrl(formData.driveEmbedUrl);
+      if (err) newErrors["single"] = err;
+    } else {
+      driveParts.forEach((p, i) => {
+        const err = validateDriveUrl(p.url);
+        if (err) newErrors[i] = err;
+      });
+    }
+    if (Object.keys(newErrors).length > 0) {
+      setDriveUrlErrors(newErrors);
+      toast({ variant: "destructive", title: "رابط Google Drive غير صالح", description: Object.values(newErrors)[0] });
+      return;
+    }
+    setDriveUrlErrors({});
     const drivePartsJson = driveParts.length > 0 ? JSON.stringify(driveParts) : null;
     const firstPartUrl = driveParts.length > 0 ? driveParts[0].url : formData.driveEmbedUrl;
     const finalForm = { ...formData, driveParts: drivePartsJson, driveEmbedUrl: firstPartUrl || formData.driveEmbedUrl };
@@ -529,21 +564,27 @@ export function AdminVideos() {
                   )}
                 </div>
                 {driveParts.length === 0 ? (
-                  <Input dir="ltr" className="text-left" placeholder="https://drive.google.com/..."
-                    value={formData.driveEmbedUrl}
-                    onChange={e => setFormData({ ...formData, driveEmbedUrl: e.target.value })}
-                  />
+                  <div className="space-y-1">
+                    <Input dir="ltr" className={`text-left ${driveUrlErrors["single"] ? "border-red-500/70" : ""}`} placeholder="https://drive.google.com/file/d/..."
+                      value={formData.driveEmbedUrl}
+                      onChange={e => { setFormData({ ...formData, driveEmbedUrl: e.target.value }); setDriveUrlErrors({}); }}
+                    />
+                    {driveUrlErrors["single"] && (
+                      <p className="text-xs text-red-400 leading-snug">{driveUrlErrors["single"]}</p>
+                    )}
+                  </div>
                 ) : (
                   <div className="space-y-2 p-3 rounded-xl border border-primary/20 bg-primary/5">
                     {driveParts.map((part, i) => (
-                      <div key={i} className="flex gap-2 items-center">
+                      <div key={i} className="space-y-1">
+                      <div className="flex gap-2 items-center">
                         <Input dir="rtl" className="w-28 shrink-0 text-sm" placeholder={`الجزء ${i + 1}`}
                           value={part.label}
                           onChange={e => setDriveParts(ps => ps.map((p, j) => j === i ? { ...p, label: e.target.value } : p))}
                         />
-                        <Input dir="ltr" className="flex-1 text-left text-sm" placeholder="https://drive.google.com/..."
+                        <Input dir="ltr" className={`flex-1 text-left text-sm ${driveUrlErrors[i] ? "border-red-500/70" : ""}`} placeholder="https://drive.google.com/file/d/..."
                           value={part.url}
-                          onChange={e => setDriveParts(ps => ps.map((p, j) => j === i ? { ...p, url: e.target.value } : p))}
+                          onChange={e => { setDriveParts(ps => ps.map((p, j) => j === i ? { ...p, url: e.target.value } : p)); setDriveUrlErrors(prev => { const n = { ...prev }; delete n[i]; return n; }); }}
                         />
                         <button type="button"
                           onClick={() => setDriveParts(ps => ps.filter((_, j) => j !== i))}
@@ -551,6 +592,10 @@ export function AdminVideos() {
                         >
                           <X className="w-4 h-4" />
                         </button>
+                      </div>
+                      {driveUrlErrors[i] && (
+                        <p className="text-xs text-red-400 leading-snug px-1">{driveUrlErrors[i]}</p>
+                      )}
                       </div>
                     ))}
                     <button type="button"

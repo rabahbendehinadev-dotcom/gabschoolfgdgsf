@@ -110,15 +110,27 @@ export function resolveVideoParts(video: {
 //   https://drive.google.com/file/d/FILE_ID/preview
 //   https://drive.google.com/open?id=FILE_ID
 //   https://drive.google.com/uc?id=FILE_ID&export=download
+//   https://drive.google.com/drive/folders/FOLDER_ID  ← folder (migration will fail)
 export function extractDriveFileId(url: string): string | null {
   if (!url) return null;
+  // /file/d/ID or bare /d/ID
   const byPath = url.match(/\/d\/([a-zA-Z0-9_-]{10,})/);
   if (byPath) return byPath[1];
+  // ?id=ID or &id=ID
   const byQuery = url.match(/[?&]id=([a-zA-Z0-9_-]{10,})/);
   if (byQuery) return byQuery[1];
+  // /folders/ID — we extract the id so the caller can give a folder-specific error
+  const byFolders = url.match(/\/folders\/([a-zA-Z0-9_-]{10,})/);
+  if (byFolders) return byFolders[1];
+  // bare 20+ char alphanumeric id
   const bare = url.trim();
   if (/^[a-zA-Z0-9_-]{20,}$/.test(bare)) return bare;
   return null;
+}
+
+/** Returns true when the URL is a Google Drive folder link (not a video file). */
+export function isFolderDriveUrl(url: string): boolean {
+  return Boolean(url && url.match(/\/folders\/[a-zA-Z0-9_-]{10,}/));
 }
 
 // ─── Pre-fetch cache ─────────────────────────────────────────────────────────
