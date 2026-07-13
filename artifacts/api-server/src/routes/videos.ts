@@ -4,6 +4,7 @@ import { eq, and, or, asc, sql, isNull } from "drizzle-orm";
 import { optionalUserAuth, userAuth } from "../middlewares/auth";
 import { getClientIp } from "../lib/ipPolicy";
 import { deviceTypeFromUA } from "../lib/device";
+import { isActiveVip } from "../lib/vipUtils";
 import { generateVideoStreamToken, verifyVideoStreamToken } from "../lib/auth";
 import { extractDriveFileId, resolveVideoParts, streamDriveFile } from "../lib/googleDrive";
 import { getSignedVideoURL, parseObjectParts } from "../lib/videoStorage";
@@ -135,7 +136,7 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
     }
 
     const accessType = video.accessType || "normal";
-    const isVipUser = user?.accountType === "vip";
+    const isVipUser = isActiveVip(user);
     const isSubscribed = user && user.subscriptionType !== "demo";
 
     // Log + deny when a user tries to open a video they are not entitled to.
@@ -392,12 +393,14 @@ async function authorizeStreamRequest(
           .select({
             accountType: usersTable.accountType,
             subscriptionType: usersTable.subscriptionType,
+            subscriptionExpiresAt: usersTable.subscriptionExpiresAt,
+            isActive: usersTable.isActive,
           })
           .from(usersTable)
           .where(eq(usersTable.id, payload.userId))
           .limit(1)
       : [undefined];
-    const isVipUser = u?.accountType === "vip";
+    const isVipUser = isActiveVip(u);
     const isSubscribed = !!u && u.subscriptionType !== "demo";
     if (accessType === "vip" && !isVipUser) {
       console.warn(`[${logTag}] DENY 403: VIP video, user not VIP`, {

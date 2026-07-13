@@ -66,6 +66,7 @@ export interface UserProfile {
   accountType: UserProfileAccountType;
   subscriptionType: UserProfileSubscriptionType;
   subscriptionExpiresAt?: string | null;
+  subscriptionIsExpired?: boolean;
   isActive: boolean;
   phone?: string | null;
   createdAt: string;

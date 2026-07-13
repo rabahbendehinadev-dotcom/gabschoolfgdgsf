@@ -31,3 +31,4 @@
 - [Screenshot harness can't play video](screenshot-no-video.md) — app_preview never loads <video> (sandboxed, no net) → always shows error/poster; verify playback via Playwright testing skill, not screenshots.
 - [Intl phone country picker](intl-phone-native-select.md) — react-phone-number-input's picker is a native `<select>` overlay, not a searchable combobox; use select_option by label/ISO code in tests, not typed search.
 - [Drive proxy pre-fetch cache](drive-prefetch-cache.md) — 8MB chunks = ~1min play then freeze; prefetchMap eliminates Drive latency at chunk boundaries for unmigrated videos.
+- [VIP expiry enforcement pattern](vip-expiry-enforcement.md) — always use isActiveVip() from vipUtils.ts; never compare accountType==="vip" directly; optionalUserAuth does NOT block expired users; NULL subscriptionExpiresAt treated as active (awaiting backfill).
