@@ -7,19 +7,17 @@ import { Camera, Loader2, CheckCircle } from "lucide-react";
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
 
 async function requestPresignedUrl(
-  token: string,
-  contentType: string,
+  file: File,
 ): Promise<{ uploadUrl: string; objectPath: string }> {
   const res = await fetch("/api/storage/uploads/request-url", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ contentType, folder: "avatars" }),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }),
   });
   if (!res.ok) throw new Error("تعذّر الحصول على رابط الرفع");
-  return res.json();
+  const data = await res.json();
+  // Storage route returns uploadURL (capital), normalize to uploadUrl
+  return { uploadUrl: data.uploadURL ?? data.uploadUrl, objectPath: data.objectPath };
 }
 
 async function uploadToGcs(uploadUrl: string, file: File): Promise<void> {
@@ -94,7 +92,7 @@ export function ProfilePictureModal({
     if (!file || !token) return;
     setUploading(true);
     try {
-      const { uploadUrl, objectPath } = await requestPresignedUrl(token, file.type);
+      const { uploadUrl, objectPath } = await requestPresignedUrl(file);
       await uploadToGcs(uploadUrl, file);
       await saveAvatar(token, objectPath);
 
