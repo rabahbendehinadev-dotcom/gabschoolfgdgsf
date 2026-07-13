@@ -61,6 +61,25 @@ function formatTime(sec: number): string {
   return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 }
 
+/* ── الحصول على نهاية نطاق البفر المتصل بالموضع الحالي ── */
+function maxBufferedEnd(v: HTMLVideoElement): number {
+  const b = v.buffered;
+  const t = v.currentTime;
+  for (let i = 0; i < b.length; i++) {
+    if (b.start(i) <= t + 0.5 && b.end(i) > t) return b.end(i);
+  }
+  return t;
+}
+
+/* هل الوقت المطلوب يقع داخل أيٍّ من النطاقات المحمّلة؟ */
+function isInAnyBufferedRange(b: TimeRanges, time: number): boolean {
+  const tol = 0.5;
+  for (let i = 0; i < b.length; i++) {
+    if (b.start(i) <= time + tol && b.end(i) >= time - tol) return true;
+  }
+  return false;
+}
+
 function qualityLabel(height: number): string {
   if (!height) return "تلقائي";
   if (height >= 2000) return "4K";
@@ -118,7 +137,8 @@ export function CourseVideoPlayer({
   const [started, setStarted] = useState(false);
   const [duration, setDuration] = useState(0);
   const [current, setCurrent] = useState(0);
-  const [buffered, setBuffered] = useState(0);
+  const [bufferedRanges, setBufferedRanges] = useState<Array<{ start: number; end: number }>>([]);
+  const [seekBlockedMsg, setSeekBlockedMsg] = useState(false);
   const [volume, setVolume] = useState(1);
   const [muted, setMuted] = useState(false);
   const [fit, setFit] = useState<Fit>("contain");
@@ -143,6 +163,7 @@ export function CourseVideoPlayer({
 
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const gestureTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const seekBlockedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const violationsRef = useRef(0);
   const reportedRef = useRef<Set<string>>(new Set());
   const lastTapRef = useRef<{ t: number; x: number } | null>(null);
@@ -229,16 +250,27 @@ export function CourseVideoPlayer({
   const seekBy = useCallback((delta: number) => {
     const v = videoRef.current;
     if (!v || !Number.isFinite(v.duration)) return;
-    v.currentTime = Math.min(Math.max(0, v.currentTime + delta), v.duration);
+    const target = Math.min(Math.max(0, v.currentTime + delta), v.duration);
+    seekTo(target, true);
     flashGesture({ kind: "seek", text: `${delta > 0 ? "+" : ""}${Math.round(delta)} ث`, side: delta > 0 ? "r" : "l" });
     showControls();
-  }, [flashGesture, showControls]);
+  }, [seekTo, flashGesture, showControls]);
 
-  const seekTo = useCallback((time: number) => {
+  /* fromUser=true → تحقّق من وجود البيانات في البفر قبل التنفيذ.
+     fromUser=false → استئناف الموضع المحفوظ والقفز الداخلي (لا قيد). */
+  const seekTo = useCallback((time: number, fromUser = false) => {
     const v = videoRef.current;
     if (!v || !Number.isFinite(v.duration)) return;
-    v.currentTime = Math.min(Math.max(0, time), v.duration);
-    setCurrent(v.currentTime);
+    const clamped = Math.min(Math.max(0, time), v.duration);
+    if (fromUser && v.buffered.length > 0 && !isInAnyBufferedRange(v.buffered, clamped)) {
+      /* الجزء المطلوب غير محمَّل — أظهر رسالة ولا تغيّر الموضع */
+      setSeekBlockedMsg(true);
+      if (seekBlockedTimer.current) clearTimeout(seekBlockedTimer.current);
+      seekBlockedTimer.current = setTimeout(() => setSeekBlockedMsg(false), 2800);
+      return;
+    }
+    v.currentTime = clamped;
+    setCurrent(clamped);
   }, []);
 
   const setVol = useCallback((val: number) => {
@@ -337,7 +369,10 @@ export function CourseVideoPlayer({
     };
     const onProgress = () => {
       try {
-        if (v.buffered.length) setBuffered(v.buffered.end(v.buffered.length - 1));
+        const b = v.buffered;
+        const ranges: Array<{ start: number; end: number }> = [];
+        for (let i = 0; i < b.length; i++) ranges.push({ start: b.start(i), end: b.end(i) });
+        setBufferedRanges(ranges);
       } catch { /* */ }
     };
     const onPlay = () => { setPlaying(true); setStarted(true); setWaiting(false); showControls(); };
@@ -409,7 +444,7 @@ export function CourseVideoPlayer({
     setSeekSpinner(false);
     if (seekSpinnerTimer.current) { clearTimeout(seekSpinnerTimer.current); seekSpinnerTimer.current = null; }
     setCurrent(0);
-    setBuffered(0);
+    setBufferedRanges([]);
     const v = videoRef.current;
     if (v) v.playbackRate = speed;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -582,12 +617,12 @@ export function CourseVideoPlayer({
     e.stopPropagation();
     setScrubbing(true);
     (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
-    seekTo(pointerToTime(e.clientX));
+    seekTo(pointerToTime(e.clientX), true);
   }, [pointerToTime, seekTo]);
 
   const onProgressMove = useCallback((e: React.PointerEvent) => {
     if (!scrubbing) return;
-    seekTo(pointerToTime(e.clientX));
+    seekTo(pointerToTime(e.clientX), true);
   }, [scrubbing, pointerToTime, seekTo]);
 
   const onProgressUp = useCallback(() => setScrubbing(false), []);
@@ -623,7 +658,7 @@ export function CourseVideoPlayer({
       // RTL: السحب لليمين = ترجيع، لليسار = تقديم
       const delta = -(dx / 6);
       const nt = Math.min(Math.max(0, d.startTime + delta), duration || 0);
-      seekTo(nt);
+      seekTo(nt, true);
       flashGesture({ kind: "seek", text: formatTime(nt), side: dx < 0 ? "l" : "r" });
     } else if (d.mode === "vol") {
       const nv = Math.min(1, Math.max(0, d.startVal - dy / h));
@@ -673,7 +708,6 @@ export function CourseVideoPlayer({
   }, [seekBy, controlsVisible, showControls, togglePlay, videoDisabled]);
 
   const progressPct = duration ? (current / duration) * 100 : 0;
-  const bufferedPct = duration ? (buffered / duration) * 100 : 0;
 
   const containerClass = cn(
     "relative w-full overflow-hidden bg-black select-none group/player",
@@ -717,6 +751,25 @@ export function CourseVideoPlayer({
           onPointerUp={onSurfaceUp}
           onPointerCancel={() => { dragRef.current = null; }}
         />
+
+        {/* تنبيه: منطقة غير محمَّلة بعد */}
+        <AnimatePresence>
+          {seekBlockedMsg && (
+            <motion.div
+              key="seek-blocked"
+              className="pointer-events-none absolute inset-x-0 top-[18%] z-40 flex justify-center px-4"
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2 }}
+            >
+              <div className="flex items-center gap-2 rounded-xl bg-black/75 px-4 py-2.5 text-sm font-semibold text-white shadow-lg backdrop-blur-md">
+                <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
+                <span>هذا الجزء لم يتم تحميله بعد، انتظر قليلاً.</span>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* مؤشّر إيماءة مؤقت */}
         {gesture && (
@@ -834,7 +887,7 @@ export function CourseVideoPlayer({
               controlsVisible || !playing ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0 pointer-events-none",
             )}
           >
-            {/* شريط التقدّم */}
+            {/* شريط التقدّم — ثلاث طبقات: المدة الكاملة / المحمَّل / المشاهَد */}
             <div
               ref={progressRef}
               onPointerDown={onProgressDown}
@@ -842,16 +895,34 @@ export function CourseVideoPlayer({
               onPointerUp={onProgressUp}
               className="group/bar relative mb-2 h-5 cursor-pointer touch-none"
             >
-              <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 overflow-hidden rounded-full bg-white/25">
-                <div className="absolute inset-y-0 right-0 bg-white/30" style={{ width: `${bufferedPct}%` }} />
-                <div className="absolute inset-y-0 right-0 bg-primary" style={{ width: `${progressPct}%` }} />
-              </div>
+              {/* الطبقة 1: مسار الوقت الكامل */}
+              <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-white/20" />
+
+              {/* الطبقة 2: النطاقات المحمَّلة فعلياً (أبيض/40) — RTL: right=start, width=length */}
+              {duration > 0 && bufferedRanges.map((r, i) => (
+                <div
+                  key={i}
+                  className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-white/40"
+                  style={{
+                    right: `${(r.start / duration) * 100}%`,
+                    width: `${((r.end - r.start) / duration) * 100}%`,
+                  }}
+                />
+              ))}
+
+              {/* الطبقة 3: ما تمّت مشاهدته (لون أساسي) */}
+              <div
+                className="absolute inset-y-0 right-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-primary"
+                style={{ width: `${progressPct}%` }}
+              />
+
+              {/* مؤشر الموضع الحالي */}
               <div
                 className={cn(
                   "absolute top-1/2 h-3.5 w-3.5 -translate-y-1/2 translate-x-1/2 rounded-full bg-primary shadow ring-2 ring-white transition-transform",
                   scrubbing ? "scale-110" : "scale-90 group-hover/bar:scale-100",
                 )}
-                style={{ right: `calc(${progressPct}% - 0px)` }}
+                style={{ right: `${progressPct}%` }}
               />
             </div>
 
