@@ -785,11 +785,12 @@ export function CourseVideoPlayer({
           webkit-playsinline="true"
           x5-playsinline="true"
           preload="auto"
-          controlsList="nodownload noremoteplayback"
+          controlsList="nodownload noremoteplayback nofullscreen"
           disablePictureInPicture={false}
           className={cn("absolute inset-0 h-full w-full", fit === "cover" ? "object-cover" : "object-contain")}
           style={{ filter: brightness < 1 ? `brightness(${brightness})` : undefined }}
           onClick={(e) => { if (e.detail === 0) return; togglePlay(); }}
+          onContextMenu={(e) => e.preventDefault()}
         />
 
         {/* طبقة الإيماءات (لمس فقط) */}
