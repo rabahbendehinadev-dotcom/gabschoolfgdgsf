@@ -3,7 +3,7 @@ import { db, adminsTable, categoriesTable, subscriptionPlansTable, videosTable }
 import bcrypt from "bcryptjs";
 import { sql, eq, isNull, and } from "drizzle-orm";
 import { startIpResetScheduler } from "./lib/ipResetScheduler";
-import { copyDriveFileToStorage, buildVideoObjectPath, deleteVideoObjects } from "./lib/videoStorage";
+import { copyDriveFileToStorage, buildVideoObjectPath } from "./lib/videoStorage";
 import { resolveVideoParts, extractDriveFileId } from "./lib/googleDrive";
 import type { ObjectPart } from "./lib/videoStorage";
 
@@ -250,30 +250,23 @@ async function runAutoStorageMigration(): Promise<void> {
 
         // Copy all parts in PARALLEL — dramatically faster for multi-part videos
         // (11 parts finish together instead of 11 × sequential round-trips).
-        let copiedParts: ObjectPart[];
-        let totalBytes: number;
-
-        try {
-          const partResults = await Promise.all(
-            partsList.map(async (p, i) => {
-              const fileId = extractDriveFileId(p.url);
-              if (!fileId) throw new Error(`Part ${i + 1}: cannot extract Drive file id`);
-              const destPath = buildVideoObjectPath(video.id, i);
-              const result = await copyDriveFileToStorage(fileId, destPath);
-              if (result.bytes === 0) throw new Error(`Part ${i + 1}: copied 0 bytes`);
-              return { label: p.label, objectPath: result.objectPath, bytes: result.bytes };
-            }),
-          );
-          copiedParts = partResults.map(r => ({ label: r.label, objectPath: r.objectPath }));
-          totalBytes = partResults.reduce((acc, r) => acc + r.bytes, 0);
-        } catch (copyErr) {
-          // Best-effort cleanup of any objects we managed to write before failure.
-          // We can't know which parts succeeded (Promise.all short-circuits), so we
-          // probe GCS and delete any orphans after a short delay.
-          const destPaths = partsList.map((_, i) => buildVideoObjectPath(video.id, i));
-          void deleteVideoObjects(destPaths.map(op => ({ label: "", objectPath: op })));
-          throw copyErr;
-        }
+        // NEVER delete objects on failure: destination paths are deterministic
+        // and the bucket is SHARED between dev and production. A failed dev
+        // migration (seed videos with SAMPLE_ID urls) must not wipe objects a
+        // production migration already wrote at the same path. Orphaned bytes
+        // are harmless; deleted production bytes broke playback (videos 10-12).
+        const partResults = await Promise.all(
+          partsList.map(async (p, i) => {
+            const fileId = extractDriveFileId(p.url);
+            if (!fileId) throw new Error(`Part ${i + 1}: cannot extract Drive file id`);
+            const destPath = buildVideoObjectPath(video.id, i);
+            const result = await copyDriveFileToStorage(fileId, destPath);
+            if (result.bytes === 0) throw new Error(`Part ${i + 1}: copied 0 bytes`);
+            return { label: p.label, objectPath: result.objectPath, bytes: result.bytes };
+          }),
+        );
+        const copiedParts: ObjectPart[] = partResults.map(r => ({ label: r.label, objectPath: r.objectPath }));
+        const totalBytes = partResults.reduce((acc, r) => acc + r.bytes, 0);
 
         // Conditional update — safe if admin UI raced us
         const updated = await db
@@ -304,6 +297,14 @@ runMigrations().then(() => ensureSeed()).then(() => {
   app.listen(port, () => {
     console.log(`Server listening on port ${port}`);
     // نبدأ الترحيل في الخلفية مباشرة بعد تشغيل السيرفر — لا ينتظر ولا يعطّل
-    void runAutoStorageMigration();
+    // PRODUCTION ONLY: dev shares the same App Storage bucket, and dev's seed
+    // videos (SAMPLE_ID urls) overlap production video ids 10-12. Running the
+    // migration in dev writes/fails against the SAME object paths production
+    // playback depends on. Dev must never touch videos/* in the shared bucket.
+    if (process.env.NODE_ENV === "production") {
+      void runAutoStorageMigration();
+    } else {
+      console.log("[auto-migrate] Skipped (dev environment — shared bucket protection).");
+    }
   });
 });
