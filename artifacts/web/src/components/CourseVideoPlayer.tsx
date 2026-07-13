@@ -247,15 +247,6 @@ export function CourseVideoPlayer({
     showControls();
   }, [videoDisabled, showControls]);
 
-  const seekBy = useCallback((delta: number) => {
-    const v = videoRef.current;
-    if (!v || !Number.isFinite(v.duration)) return;
-    const target = Math.min(Math.max(0, v.currentTime + delta), v.duration);
-    seekTo(target, true);
-    flashGesture({ kind: "seek", text: `${delta > 0 ? "+" : ""}${Math.round(delta)} ث`, side: delta > 0 ? "r" : "l" });
-    showControls();
-  }, [seekTo, flashGesture, showControls]);
-
   /* fromUser=true → تحقّق من وجود البيانات في البفر قبل التنفيذ.
      fromUser=false → استئناف الموضع المحفوظ والقفز الداخلي (لا قيد). */
   const seekTo = useCallback((time: number, fromUser = false) => {
@@ -272,6 +263,15 @@ export function CourseVideoPlayer({
     v.currentTime = clamped;
     setCurrent(clamped);
   }, []);
+
+  const seekBy = useCallback((delta: number) => {
+    const v = videoRef.current;
+    if (!v || !Number.isFinite(v.duration)) return;
+    const target = Math.min(Math.max(0, v.currentTime + delta), v.duration);
+    seekTo(target, true);
+    flashGesture({ kind: "seek", text: `${delta > 0 ? "+" : ""}${Math.round(delta)} ث`, side: delta > 0 ? "r" : "l" });
+    showControls();
+  }, [seekTo, flashGesture, showControls]);
 
   const setVol = useCallback((val: number) => {
     const v = videoRef.current;
