@@ -47,6 +47,7 @@ export function AdminUsers() {
   const [resetPwSuccess, setResetPwSuccess] = useState("");
   const [showResetPw, setShowResetPw] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [resetIpConfirmId, setResetIpConfirmId] = useState<number | null>(null);
 
   const filtered = users?.filter(u =>
     u.username.toLowerCase().includes(search.toLowerCase()) ||
@@ -108,12 +109,21 @@ export function AdminUsers() {
   };
 
   const handleResetIp = (id: number) => {
-    if (!confirm("هل أنت متأكد من تصفير IP هذا المستخدم؟")) return;
-    resetIpMut.mutate({ id }, {
+    setResetIpConfirmId(id);
+  };
+
+  const confirmResetIp = () => {
+    if (!resetIpConfirmId) return;
+    resetIpMut.mutate({ id: resetIpConfirmId }, {
       onSuccess: () => {
         toast({ title: "تم تصفير IP" });
         refetch();
-      }
+        setResetIpConfirmId(null);
+      },
+      onError: () => {
+        toast({ title: "حدث خطأ", variant: "destructive" });
+        setResetIpConfirmId(null);
+      },
     });
   };
 
@@ -580,6 +590,36 @@ export function AdminUsers() {
             <Button className="w-full mt-4" onClick={handleSave} disabled={updateMut.isPending}>
               حفظ التغييرات
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={resetIpConfirmId !== null} onOpenChange={(o) => { if (!o) setResetIpConfirmId(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>تأكيد تصفير IP</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">
+              هل أنت متأكد من تصفير عناوين IP لهذا المستخدم؟ سيتمكن من تسجيل الدخول من أي جهاز جديد.
+            </p>
+            <div className="flex gap-3">
+              <Button
+                className="flex-1"
+                onClick={confirmResetIp}
+                disabled={resetIpMut.isPending}
+              >
+                {resetIpMut.isPending ? "جاري التصفير..." : "تأكيد التصفير"}
+              </Button>
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setResetIpConfirmId(null)}
+                disabled={resetIpMut.isPending}
+              >
+                إلغاء
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

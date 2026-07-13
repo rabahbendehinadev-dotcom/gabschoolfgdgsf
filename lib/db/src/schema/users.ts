@@ -27,6 +27,7 @@ export const usersTable = pgTable("users", {
   pushEnabledAt: timestamp("push_enabled_at"),
   pushReminderSeenAt: timestamp("push_reminder_seen_at"),
   lastPushTestAt: timestamp("last_push_test_at"),
+  driveRevokedAt: timestamp("drive_revoked_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

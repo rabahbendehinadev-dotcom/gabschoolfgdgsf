@@ -5,7 +5,7 @@ import { Button } from "@/components/ui";
 import {
   LayoutDashboard, Users, Video, FolderTree, CreditCard, LogOut,
   ShieldAlert, ListVideo, Activity, BadgeCheck, Banknote, KeyRound,
-  Megaphone, Bell, BellOff, BellRing, X, Share, PlusSquare, Menu,
+  Megaphone, Bell, BellOff, BellRing, X, Share, PlusSquare, Menu, AlertTriangle,
 } from "lucide-react";
 
 /* ─── helpers ─────────────────────────────────────────────────────────── */
@@ -110,8 +110,9 @@ const NAV = [
   { name: "التصنيفات",         path: "/gab-ctrl-9x/categories",        icon: FolderTree },
   { name: "السلاسل",           path: "/gab-ctrl-9x/playlists",         icon: ListVideo },
   { name: "خطط الأسعار",       path: "/gab-ctrl-9x/plans",             icon: CreditCard },
-  { name: "الاشتراكات",        path: "/gab-ctrl-9x/subscriptions",     icon: BadgeCheck },
-  { name: "إرسال إشعار",       path: "/gab-ctrl-9x/send-notification", icon: Megaphone },
+  { name: "الاشتراكات",        path: "/gab-ctrl-9x/subscriptions",        icon: BadgeCheck },
+  { name: "تنبيهات الاشتراك", path: "/gab-ctrl-9x/subscription-alerts", icon: AlertTriangle },
+  { name: "إرسال إشعار",       path: "/gab-ctrl-9x/send-notification",   icon: Megaphone },
   { name: "سجل النشاطات",      path: "/gab-ctrl-9x/activity-log",      icon: Activity },
   { name: "طلبات الدفع",       path: "/gab-ctrl-9x/payments",          icon: Banknote },
   { name: "تغيير كلمة المرور", path: "/gab-ctrl-9x/change-password",   icon: KeyRound },
