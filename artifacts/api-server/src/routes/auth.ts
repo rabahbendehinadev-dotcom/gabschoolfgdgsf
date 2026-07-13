@@ -6,7 +6,7 @@ import { eq, and, gte } from "drizzle-orm";
 import { hashPassword, comparePassword, generateToken, generateAdminToken } from "../lib/auth";
 import { applyVipIpPolicy, getClientIp, VIP_IP_LIMIT_MESSAGE } from "../lib/ipPolicy";
 import { deviceTypeFromUA } from "../lib/device";
-import { userAuth } from "../middlewares/auth";
+import { userAuth, userAuthAllowExpired } from "../middlewares/auth";
 import { normalizePhone, INVALID_PHONE_MESSAGE } from "../lib/phone";
 
 import {
@@ -279,12 +279,12 @@ router.post("/auth/admin-login", async (req, res) => {
   }
 });
 
-router.get("/auth/me", userAuth, async (req, res) => {
+router.get("/auth/me", userAuthAllowExpired, async (req, res) => {
   const user = req.user!;
   res.json(buildUserPayload({ ...user, createdAt: req.userCreatedAt ?? new Date() }));
 });
 
-router.patch("/auth/me/phone", userAuth, async (req, res) => {
+router.patch("/auth/me/phone", userAuthAllowExpired, async (req, res) => {
   try {
     const body = UpdateMyPhoneBody.parse(req.body);
     const normalizedPhone = normalizePhone(body.phone);
