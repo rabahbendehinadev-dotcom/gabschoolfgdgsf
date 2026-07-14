@@ -10,18 +10,16 @@ import {
 import { getDriveAccessToken } from "./googleDrive";
 
 /* ════════════════════════════════════════════════════════════════════════
-   Video bytes in App Storage (GCS) — the permanent fix for buffering.
+   Video bytes in App Storage (GCS) — permanent fix for buffering.
 
-   Instead of proxying every byte range from Google Drive through this server
-   (double hop + per-chunk TTFB + shared autoscale egress), migrated videos are
-   copied ONCE into the private App Storage bucket and played back via
-   short-lived presigned GET URLs. The browser then streams DIRECTLY from
-   storage.googleapis.com with native Range support — zero server involvement
-   per byte, no proxy truncation, no chunk capping.
+   Migrated videos are copied ONCE into the private App Storage bucket and
+   streamed to the browser through THIS server (never via presigned URLs that
+   would expose storage.googleapis.com to the network tab). The server proxy
+   supports Range requests for native seeking and caps each chunk at 8 MB so
+   large open-ended Range requests cannot OOM the process.
 
-   Security model: presigned URLs expire (~4h) and are only issued after the
-   exact same entitlement check that gates the Drive proxy. Drive file ids
-   still never reach the client.
+   Security model: every byte request is gated by authorizeStreamRequest
+   (token + live entitlement re-check). Drive file IDs never reach the client.
    ════════════════════════════════════════════════════════════════════════ */
 
 export interface ObjectPart {
@@ -135,18 +133,27 @@ export async function streamGcsObjectToResponse(
 
   const chunkSize = totalSize > 0 ? end - start + 1 : 0;
 
-  res.setHeader("Accept-Ranges", "bytes");
   res.setHeader("Content-Type", contentType);
   res.setHeader("Content-Disposition", "inline");
-  res.setHeader("Cache-Control", "private, max-age=3600");
+  // no-store: tokens are per-user; nothing should be cached by proxies or the browser
+  res.setHeader("Cache-Control", "private, no-store");
   res.setHeader("X-Content-Type-Options", "nosniff");
-  // Never let CDNs/proxies cache — the token already scopes this per-user
+  // Suppress server identity
+  res.removeHeader("X-Powered-By");
   res.setHeader("Vary", "Range");
-  if (chunkSize > 0) res.setHeader("Content-Length", String(chunkSize));
+
   if (isRange && totalSize > 0) {
+    // Range responses: advertise byte ranges and report the exact slice size so
+    // the browser can seek correctly. Content-Length is safe here because each
+    // range slice is already bounded to GCS_PROXY_CHUNK.
+    res.setHeader("Accept-Ranges", "bytes");
     res.setHeader("Content-Range", `bytes ${start}-${end}/${totalSize}`);
+    if (chunkSize > 0) res.setHeader("Content-Length", String(chunkSize));
     res.status(206);
   } else {
+    // Full-file responses: intentionally omit Accept-Ranges and Content-Length.
+    // Without a known total size, download-manager tools cannot pre-split the
+    // file into parallel byte-range chunks — their primary attack vector.
     res.status(200);
   }
 

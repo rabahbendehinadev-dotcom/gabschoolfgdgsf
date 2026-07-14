@@ -59,12 +59,16 @@ export function verifyMediaToken(
 // embeds this signed token in the stream URL. Entitlement (VIP / subscription)
 // is STILL re-checked server-side at stream time — this token only proves the
 // request was issued by our API for a specific user + video + part.
+//
+// TTL is 2 h — long enough for a native iOS HLS session on a slow connection,
+// short enough to limit replay attacks. The player refreshes the token
+// every ~90 min via GET /api/videos/:id/token/:part (cookie-authenticated).
 export function generateVideoStreamToken(payload: {
   userId: number;
   videoId: number;
   part: number;
 }): string {
-  return jwt.sign({ ...payload, kind: "course-video" }, JWT_SECRET, { expiresIn: "6h" });
+  return jwt.sign({ ...payload, kind: "course-video" }, JWT_SECRET, { expiresIn: "2h" });
 }
 
 export function verifyVideoStreamToken(
