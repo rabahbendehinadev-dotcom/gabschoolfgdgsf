@@ -142,6 +142,16 @@ export function CourseVideoPlayer({
   hlsSrcRef.current = hlsSrc ?? null;
   const srcRef = useRef(src);
   srcRef.current = src;
+
+  /* currentTokenRef: يحتفظ بآخر token صالح للـ HLS ويُحدَّث كل ~90 دقيقة.
+     xhrSetup يستبدل token القديم في كل URL بالقيمة المحدَّثة لحظياً، بدون
+     إعادة تحميل المصدر — يتيح ذلك التشغيل المستمر حتى بعد انتهاء التوكن الأصلي. */
+  const extractToken = (url: string | null | undefined): string => {
+    if (!url) return "";
+    try { return new URL(url, window.location.origin).searchParams.get("token") ?? ""; }
+    catch { return ""; }
+  };
+  const currentTokenRef = useRef<string>(extractToken(hlsSrc));
   // المصدر الفعّال — يُدار عبر useEffect (وليس خاصية src في JSX) لأن hls.js يربط MediaSource بنفسه
   const effectiveKey = useHls ? (hlsKey as string) : srcKey;
 
@@ -502,6 +512,15 @@ export function CourseVideoPlayer({
             backBufferLength: 30,
             // لا تحمّل جودة أعلى من حجم المشغّل الفعلي (يراعي devicePixelRatio)
             capLevelToPlayerSize: true,
+            /* xhrSetup: يستبدل token الموجود في كل URL بآخر قيمة في currentTokenRef
+               قبل إرسال الطلب. IDM لا ينفّذ هذا السياق فلا يحصل على الإحلال. */
+            xhrSetup: (xhr: XMLHttpRequest, url: string) => {
+              const fresh = currentTokenRef.current;
+              if (fresh) {
+                const updated = url.replace(/([?&]token=)[^&]+/, `$1${encodeURIComponent(fresh)}`);
+                if (updated !== url) xhr.open("GET", updated, true);
+              }
+            },
           });
           let netRetried = false;
           let mediaRecovered = false;
@@ -545,6 +564,29 @@ export function CourseVideoPlayer({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [useHls, hlsKey, srcKey]);
+
+  /* ── تجديد الـ token تلقائياً (كل 90 دقيقة) ─────────────────────────────
+     يتصل بـ GET /api/videos/:id/token/:part (بالـ cookie) ويُحدِّث
+     currentTokenRef. xhrSetup يلتقط القيمة المحدَّثة في الطلب التالي
+     دون إعادة تحميل المصدر أو انقطاع التشغيل.
+     يعمل فقط عند وجود videoId وعند تشغيل HLS (الحالة الأكثر احتياجاً). */
+  useEffect(() => {
+    if (!videoId || !useHls) return;
+    // استخرج رقم الجزء من رابط HLS (مثال: /api/videos/57/hls/0/master.m3u8?token=...)
+    const partMatch = hlsSrcRef.current?.match(/\/hls\/(\d+)\//);
+    const part = partMatch ? Number(partMatch[1]) : 0;
+    const REFRESH_MS = 90 * 60 * 1000; // 90 دقيقة (قبل انتهاء الـ 2h بنصف ساعة)
+    const id = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/videos/${videoId}/token/${part}`, { credentials: "include" });
+        if (!res.ok) return;
+        const data = await res.json() as { token?: string };
+        if (data.token) currentTokenRef.current = data.token;
+      } catch { /* best-effort — لا تكسر التشغيل عند فشل التجديد */ }
+    }, REFRESH_MS);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [videoId, useHls]);
 
   /* ── مزامنة حالة الشاشة الكاملة ── */
   useEffect(() => {

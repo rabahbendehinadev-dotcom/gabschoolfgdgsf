@@ -10,6 +10,30 @@ import { extractDriveFileId, resolveVideoParts, streamDriveFile } from "../lib/g
 import { streamGcsObjectToResponse, parseObjectParts } from "../lib/videoStorage";
 import { parseHlsParts, buildMasterPlaylist, renderMediaPlaylist, buildHlsBasePath, RENDITION_NAME_RE, SAFE_SEGMENT_RE } from "../lib/hlsStorage";
 
+/* ── Per-token concurrent-connection guard ────────────────────────────────
+   Tracks how many in-flight streaming responses are using each stream token.
+   Browser video players use 1–3 overlapping Range requests (play + seek);
+   download-manager tools (IDM / XDM / JDownloader) open 8–32 in parallel.
+   Capping at MAX_CONCURRENT_PER_TOKEN stops the parallel-split attack while
+   leaving normal playback unaffected.
+   Entries are cleaned up in the finally block of each route handler. */
+const MP4_CONCURRENT: Map<string, number> = new Map();
+const SEG_CONCURRENT: Map<string, number> = new Map();
+const MP4_MAX = 3; // 3 is safe for a seeking browser; IDM needs 8+
+const SEG_MAX = 5; // hls.js may prefetch a few segments at level switches
+
+function acquireSlot(map: Map<string, number>, key: string, max: number): boolean {
+  const n = map.get(key) ?? 0;
+  if (n >= max) return false;
+  map.set(key, n + 1);
+  return true;
+}
+function releaseSlot(map: Map<string, number>, key: string): void {
+  const n = map.get(key) ?? 1;
+  if (n <= 1) map.delete(key);
+  else map.set(key, n - 1);
+}
+
 const router: IRouter = Router();
 
 // Allowed client-reported security events (allowlist — never trust arbitrary input).
@@ -484,7 +508,19 @@ router.get("/videos/:id/stream-object/:part", async (req, res) => {
       return;
     }
 
-    await streamGcsObjectToResponse(objPart.objectPath, req, res);
+    const token = req.query.token as string;
+    if (!acquireSlot(MP4_CONCURRENT, token, MP4_MAX)) {
+      console.warn("[video-object] RATE 429: too many concurrent requests for token", {
+        videoId: id, part, active: MP4_CONCURRENT.get(token),
+      });
+      res.status(429).setHeader("Retry-After", "2").end();
+      return;
+    }
+    try {
+      await streamGcsObjectToResponse(objPart.objectPath, req, res);
+    } finally {
+      releaseSlot(MP4_CONCURRENT, token);
+    }
   } catch (error: unknown) {
     console.error("[video-object] ROUTE ERROR", {
       videoId: req.params.id,
@@ -605,7 +641,19 @@ router.get("/videos/:id/hls/:part/:rendition/segment/:filename", async (req, res
     }
 
     const objectPath = `${buildHlsBasePath(id, part)}/${rendition}/${filename}`;
-    await streamGcsObjectToResponse(objectPath, req, res);
+    const token = req.query.token as string;
+    if (!acquireSlot(SEG_CONCURRENT, token, SEG_MAX)) {
+      console.warn("[video-hls-seg] RATE 429: too many concurrent segment requests for token", {
+        videoId: id, part, rendition, active: SEG_CONCURRENT.get(token),
+      });
+      res.status(429).setHeader("Retry-After", "1").end();
+      return;
+    }
+    try {
+      await streamGcsObjectToResponse(objectPath, req, res);
+    } finally {
+      releaseSlot(SEG_CONCURRENT, token);
+    }
   } catch (error: unknown) {
     console.error("[video-hls-seg] ROUTE ERROR", {
       videoId: req.params.id,
@@ -616,6 +664,68 @@ router.get("/videos/:id/hls/:part/:rendition/segment/:filename", async (req, res
     });
     if (!res.headersSent) res.status(500).end();
     else res.end();
+  }
+});
+
+/* ── Token refresh endpoint ───────────────────────────────────────────────
+   The player calls this every ~90 min (before the 2h token expires) to get a
+   fresh stream token without re-loading the page. Requires the session cookie
+   (userAuth middleware) — not the stream token — so a captured stream URL
+   cannot be used to mint new tokens. */
+router.get("/videos/:id/token/:part", userAuth, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const part = Number(req.params.part);
+    if (!Number.isInteger(id) || !Number.isInteger(part) || part < 0) {
+      res.status(400).json({ message: "Invalid video id or part" });
+      return;
+    }
+
+    const [video] = await db
+      .select({ isVisible: videosTable.isVisible, accessType: videosTable.accessType })
+      .from(videosTable)
+      .where(eq(videosTable.id, id))
+      .limit(1);
+
+    if (!video || !video.isVisible) {
+      res.status(404).end();
+      return;
+    }
+
+    const accessType = video.accessType || "normal";
+    const [u] = await db
+      .select({
+        accountType: usersTable.accountType,
+        subscriptionType: usersTable.subscriptionType,
+        subscriptionExpiresAt: usersTable.subscriptionExpiresAt,
+        isActive: usersTable.isActive,
+      })
+      .from(usersTable)
+      .where(eq(usersTable.id, req.user!.id))
+      .limit(1);
+
+    const isVipUser = isActiveVip(u);
+    const isSubscribed = !!u && u.subscriptionType !== "demo";
+
+    if (accessType === "vip" && !isVipUser) {
+      res.status(403).json({ message: "VIP required" });
+      return;
+    }
+    if (accessType === "normal" && !isVipUser && !isSubscribed) {
+      res.status(403).json({ message: "Subscription required" });
+      return;
+    }
+
+    const token = generateVideoStreamToken({ userId: req.user!.id, videoId: id, part });
+    res.setHeader("Cache-Control", "private, no-store");
+    res.json({ token });
+  } catch (error: unknown) {
+    console.error("[token-refresh] ERROR", {
+      videoId: req.params.id,
+      part: req.params.part,
+      message: error instanceof Error ? error.message : String(error),
+    });
+    res.status(500).end();
   }
 });
 
