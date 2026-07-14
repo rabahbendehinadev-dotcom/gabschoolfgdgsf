@@ -143,17 +143,19 @@ export async function streamGcsObjectToResponse(
   res.setHeader("Vary", "Range");
 
   if (isRange && totalSize > 0) {
-    // Range responses: advertise byte ranges and report the exact slice size so
-    // the browser can seek correctly. Content-Length is safe here because each
-    // range slice is already bounded to GCS_PROXY_CHUNK.
+    // Range responses: report exact slice boundaries so the browser can seek.
     res.setHeader("Accept-Ranges", "bytes");
     res.setHeader("Content-Range", `bytes ${start}-${end}/${totalSize}`);
     if (chunkSize > 0) res.setHeader("Content-Length", String(chunkSize));
     res.status(206);
   } else {
-    // Full-file responses: intentionally omit Accept-Ranges and Content-Length.
-    // Without a known total size, download-manager tools cannot pre-split the
-    // file into parallel byte-range chunks — their primary attack vector.
+    // Full-file responses: must include Accept-Ranges + Content-Length so the
+    // browser does NOT open a simultaneous byte-range request on the same
+    // stream. Without these headers the browser issues a full 200 request AND
+    // a range request concurrently; both responses interleave in the decoder,
+    // causing H.264 frame corruption / visual artifacts.
+    res.setHeader("Accept-Ranges", "bytes");
+    if (totalSize > 0) res.setHeader("Content-Length", String(totalSize));
     res.status(200);
   }
 
