@@ -98,7 +98,7 @@ export function MediaGrid({
       <Cell
         item={it}
         username={username}
-        className={`${cellBase} aspect-[4/3] sm:aspect-video`}
+        className={`${cellBase} w-full aspect-[4/3] sm:aspect-video`}
         onZoom={setZoom}
         onPlay={setPlaying}
       />
