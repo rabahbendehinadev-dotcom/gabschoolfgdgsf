@@ -19,10 +19,10 @@ import {
   Button,
   Textarea,
 } from "@/components/ui";
-import { buildMediaInput, MAX_IMAGE_BYTES, MAX_VIDEO_BYTES } from "@/lib/communityUpload";
-import { ImagePlus, Film, X, Loader2, Crown, Send } from "lucide-react";
+import { buildMediaInput, MAX_IMAGE_BYTES } from "@/lib/communityUpload";
+import { ImagePlus, X, Loader2, Crown, Send } from "lucide-react";
 
-type Picked = { file: File; url: string; isVideo: boolean };
+type Picked = { file: File; url: string };
 
 const MAX_IMAGES = 6;
 
@@ -58,28 +58,13 @@ export function CreatePostDialog({
 
   const handleFiles = (list: FileList | null) => {
     if (!list || list.length === 0) return;
-    const files = Array.from(list);
-    const video = files.find((f) => f.type.startsWith("video/"));
-
-    if (video) {
-      if (video.size > MAX_VIDEO_BYTES) {
-        toast({ title: "حجم الفيديو كبير جداً (الحد 120MB)", variant: "destructive" });
-        return;
-      }
-      picked.forEach((p) => URL.revokeObjectURL(p.url));
-      setPicked([{ file: video, url: URL.createObjectURL(video), isVideo: true }]);
-      if (files.length > 1) toast({ title: "تم اختيار الفيديو فقط (لا يمكن دمجه مع صور)" });
-      return;
-    }
-
-    const images = files.filter((f) => f.type.startsWith("image/"));
+    const images = Array.from(list).filter((f) => f.type.startsWith("image/"));
     const tooBig = images.find((f) => f.size > MAX_IMAGE_BYTES);
     if (tooBig) {
       toast({ title: "حجم إحدى الصور كبير جداً (الحد 15MB)", variant: "destructive" });
       return;
     }
-    const existingImages = picked.filter((p) => !p.isVideo);
-    const merged = [...existingImages, ...images.map((f) => ({ file: f, url: URL.createObjectURL(f), isVideo: false }))];
+    const merged = [...picked, ...images.map((f) => ({ file: f, url: URL.createObjectURL(f) }))];
     if (merged.length > MAX_IMAGES) {
       toast({ title: `الحد الأقصى ${MAX_IMAGES} صور` });
     }
@@ -108,7 +93,7 @@ export function CreatePostDialog({
 
       let postType: CreateCommunityPostInputPostType = "text";
       if (picked.length > 0) {
-        postType = picked[0].isVideo ? "video" : picked.length > 1 ? "gallery" : "image";
+        postType = picked.length > 1 ? "gallery" : "image";
       }
 
       await createPost.mutateAsync({
@@ -129,8 +114,6 @@ export function CreatePostDialog({
       setSubmitting(false);
     }
   };
-
-  const hasVideo = picked.some((p) => p.isVideo);
 
   return (
     <Dialog open={open} onOpenChange={close}>
@@ -166,16 +149,7 @@ export function CreatePostDialog({
                 key={p.url}
                 className="relative aspect-square overflow-hidden rounded-xl border border-border bg-muted"
               >
-                {p.isVideo ? (
-                  <video src={p.url} className="h-full w-full object-cover" muted />
-                ) : (
-                  <img src={p.url} alt="" className="h-full w-full object-cover" />
-                )}
-                {p.isVideo && (
-                  <span className="absolute bottom-1 right-1 rounded-md bg-black/60 px-1.5 py-0.5 text-[10px] font-bold text-white">
-                    فيديو
-                  </span>
-                )}
+                <img src={p.url} alt="" className="h-full w-full object-cover" />
                 <button
                   type="button"
                   onClick={() => removeAt(idx)}
@@ -193,9 +167,7 @@ export function CreatePostDialog({
         {/* Attach controls */}
         <div className="flex items-center gap-2">
           <label
-            className={`flex cursor-pointer items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-sm font-semibold transition-colors hover:bg-muted ${
-              hasVideo ? "pointer-events-none opacity-40" : ""
-            }`}
+            className="flex cursor-pointer items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-sm font-semibold transition-colors hover:bg-muted"
           >
             <ImagePlus className="h-4 w-4 text-emerald-600" />
             صور
@@ -204,26 +176,7 @@ export function CreatePostDialog({
               accept="image/*"
               multiple
               hidden
-              disabled={submitting || hasVideo}
-              onChange={(e) => {
-                handleFiles(e.target.files);
-                e.target.value = "";
-              }}
-            />
-          </label>
-
-          <label
-            className={`flex cursor-pointer items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-sm font-semibold transition-colors hover:bg-muted ${
-              picked.length > 0 ? "pointer-events-none opacity-40" : ""
-            }`}
-          >
-            <Film className="h-4 w-4 text-orange-600" />
-            فيديو
-            <input
-              type="file"
-              accept="video/*"
-              hidden
-              disabled={submitting || picked.length > 0}
+              disabled={submitting}
               onChange={(e) => {
                 handleFiles(e.target.files);
                 e.target.value = "";
