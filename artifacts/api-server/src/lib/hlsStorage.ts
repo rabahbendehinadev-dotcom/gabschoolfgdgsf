@@ -1,7 +1,6 @@
 import {
   objectStorageClient,
   parseObjectPath,
-  signObjectURL,
 } from "./objectStorage";
 
 /* ════════════════════════════════════════════════════════════════════════
@@ -15,16 +14,10 @@ import {
    `.private/hls/{videoId}/part-{i}/{rendition}/` in App Storage. The
    original MP4s are untouched and remain the fallback.
 
-   Playback security mirrors the MP4 path: playlists are served from THIS
-   server behind the same short-lived stream token + live entitlement
-   re-check, and the media playlists embed short-lived presigned GCS segment
-   URLs. Raw object paths never reach the client.
-
-   The `videos.hls_parts` column stores only lightweight rendition metadata
-   (name/resolution/bandwidth/codecs per part). The per-segment detail lives
-   in the skeleton playlists ffmpeg wrote next to the segments
-   (`index.m3u8`), which this module downloads, rewrites with presigned
-   segment URLs, and caches in memory.
+   Playback security: playlists are served from THIS server behind the same
+   short-lived stream token + live entitlement re-check. The media playlists
+   embed same-origin PROXY URLs for every segment (never storage.googleapis.com
+   URLs) so download-manager extensions cannot intercept the segment bytes.
    ════════════════════════════════════════════════════════════════════════ */
 
 export interface HlsRendition {
@@ -39,7 +32,10 @@ export interface HlsPart {
   renditions: HlsRendition[];
 }
 
-const RENDITION_NAME_RE = /^[0-9]{3,4}p$/;
+export const RENDITION_NAME_RE = /^[0-9]{3,4}p$/;
+
+// Segment filenames must be plain alphanumeric to prevent path traversal.
+export const SAFE_SEGMENT_RE = /^[A-Za-z0-9._-]+$/;
 
 // Parse the videos.hls_parts JSON column. Returns null when absent/invalid
 // so callers fall back to plain MP4 playback.
@@ -128,112 +124,104 @@ export function buildMasterPlaylist(part: HlsPart, token: string): string {
 
 /* ── Media playlists ──────────────────────────────────────────────────────
    The skeleton `index.m3u8` ffmpeg produced (relative segment filenames) is
-   downloaded from App Storage and each segment line is replaced with a
-   presigned GCS URL. Rendered playlists are cached ~50 minutes while the
-   embedded URLs live 4 hours, so a playlist handed out at any moment keeps
-   working for 3h+ of continuous playback — and repeat requests return
-   byte-identical playlists (stable URLs = browser/hls.js cache friendly). */
+   downloaded from App Storage ONCE and its segment lines are replaced with
+   same-origin PROXY URLs that include the caller's stream token. The raw
+   skeleton (segment filenames only, no tokens) is cached for 1 hour — the
+   rendered text is NOT cached because it contains per-user tokens.
 
-const SEGMENT_URL_TTL_SEC = 4 * 3600;
-const RENDERED_PLAYLIST_CACHE_MS = 50 * 60_000;
-const SIGN_CONCURRENCY = 16;
+   Each segment request goes through /api/videos/:id/hls/:part/:rendition/
+   segment/:filename?token=... which validates the token, re-checks
+   entitlement, then proxies the bytes from GCS through the server.
+   The browser (and IDM) never sees a storage.googleapis.com URL. */
 
-const renderedPlaylistCache = new Map<string, { text: string; freshUntilMs: number }>();
+const SKELETON_CACHE_MS = 60 * 60_000; // 1 hour
 
-/* Drop cached rendered playlists for a video — called when its hlsParts flag
-   changes (set/clear/re-transcode) so stale segment lists are never served. */
-export function invalidateRenderedPlaylists(videoId: number): void {
-  for (const key of renderedPlaylistCache.keys()) {
-    if (key.startsWith(`${videoId}/`)) renderedPlaylistCache.delete(key);
-  }
+interface PlaylistSkeleton {
+  lines: string[];
+  segmentFiles: string[];
+  freshUntilMs: number;
 }
 
-async function mapWithConcurrency<T, R>(
-  items: T[],
-  limit: number,
-  fn: (item: T) => Promise<R>,
-): Promise<R[]> {
-  const results: R[] = new Array(items.length);
-  let next = 0;
-  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (next < items.length) {
-      const i = next++;
-      results[i] = await fn(items[i]);
-    }
-  });
-  await Promise.all(workers);
-  return results;
-}
+const skeletonCache = new Map<string, PlaylistSkeleton>();
 
-// Renders the media playlist for one rendition of one part, or null when the
-// skeleton object does not exist (caller answers 404).
-export async function renderMediaPlaylist(
+async function getPlaylistSkeleton(
   videoId: number,
   partIndex: number,
   renditionName: string,
-): Promise<string | null> {
-  if (!RENDITION_NAME_RE.test(renditionName)) return null;
-
+): Promise<PlaylistSkeleton | null> {
   const cacheKey = `${videoId}/${partIndex}/${renditionName}`;
-  const hit = renderedPlaylistCache.get(cacheKey);
-  if (hit && hit.freshUntilMs > Date.now()) return hit.text;
+  const hit = skeletonCache.get(cacheKey);
+  if (hit && hit.freshUntilMs > Date.now()) return hit;
 
   const basePath = `${buildHlsBasePath(videoId, partIndex)}/${renditionName}`;
   const { bucketName, objectName } = parseObjectPath(`${basePath}/index.m3u8`);
   const file = objectStorageClient.bucket(bucketName).file(objectName);
 
-  let skeleton: string;
+  let skeletonText: string;
   try {
     const [buf] = await file.download();
-    skeleton = buf.toString("utf-8");
+    skeletonText = buf.toString("utf-8");
   } catch (err) {
     const code = (err as { code?: number }).code;
     if (code === 404) return null;
     throw err;
   }
 
-  const lines = skeleton.split("\n");
-  // Segment lines are the non-empty lines that do not start with '#'.
+  const lines = skeletonText.split("\n");
   const segmentFiles: string[] = [];
   for (const line of lines) {
     const t = line.trim();
     if (t && !t.startsWith("#")) segmentFiles.push(t);
   }
   // Defense in depth: skeleton must only reference plain sibling filenames.
-  const SAFE_SEGMENT_RE = /^[A-Za-z0-9._-]+$/;
   if (segmentFiles.some((f) => !SAFE_SEGMENT_RE.test(f))) {
     throw new Error(`HLS skeleton for ${cacheKey} contains unexpected segment URIs`);
   }
 
-  const signedUrls = await mapWithConcurrency(segmentFiles, SIGN_CONCURRENCY, async (f) => {
-    const seg = parseObjectPath(`${basePath}/${f}`);
-    return signObjectURL({
-      bucketName: seg.bucketName,
-      objectName: seg.objectName,
-      method: "GET",
-      ttlSec: SEGMENT_URL_TTL_SEC,
-    });
-  });
+  const entry: PlaylistSkeleton = {
+    lines,
+    segmentFiles,
+    freshUntilMs: Date.now() + SKELETON_CACHE_MS,
+  };
+  skeletonCache.set(cacheKey, entry);
 
+  if (skeletonCache.size > 300) {
+    const now = Date.now();
+    for (const [k, v] of skeletonCache) {
+      if (v.freshUntilMs <= now) skeletonCache.delete(k);
+    }
+  }
+  return entry;
+}
+
+// Renders the media playlist for one rendition of one part, or null when the
+// skeleton object does not exist (caller answers 404).
+// token: the stream token from the request — embedded in every segment URL so
+// the segment proxy can re-validate entitlement without a separate handshake.
+export async function renderMediaPlaylist(
+  videoId: number,
+  partIndex: number,
+  renditionName: string,
+  token: string,
+): Promise<string | null> {
+  if (!RENDITION_NAME_RE.test(renditionName)) return null;
+
+  const skeleton = await getPlaylistSkeleton(videoId, partIndex, renditionName);
+  if (!skeleton) return null;
+
+  // Build playlist with same-origin segment proxy URLs — never presigned GCS.
   let segIdx = 0;
-  const rendered = lines
+  const rendered = skeleton.lines
     .map((line) => {
       const t = line.trim();
-      if (t && !t.startsWith("#")) return signedUrls[segIdx++];
+      if (t && !t.startsWith("#")) {
+        const filename = skeleton.segmentFiles[segIdx++];
+        return `/api/videos/${videoId}/hls/${partIndex}/${renditionName}/segment/${encodeURIComponent(filename)}?token=${encodeURIComponent(token)}`;
+      }
       return line;
     })
     .join("\n");
 
-  renderedPlaylistCache.set(cacheKey, {
-    text: rendered,
-    freshUntilMs: Date.now() + RENDERED_PLAYLIST_CACHE_MS,
-  });
-  if (renderedPlaylistCache.size > 300) {
-    const now = Date.now();
-    for (const [k, v] of renderedPlaylistCache) {
-      if (v.freshUntilMs <= now) renderedPlaylistCache.delete(k);
-    }
-  }
   return rendered;
 }
 
@@ -242,6 +230,12 @@ export async function renderMediaPlaylist(
    source changed). SAFETY: like deleteVideoObjects, this is a no-op outside
    production — dev shares the production bucket and video ids overlap, so a
    dev-side prefix delete would destroy segments production playback needs. */
+export function invalidateRenderedPlaylists(videoId: number): void {
+  for (const key of skeletonCache.keys()) {
+    if (key.startsWith(`${videoId}/`)) skeletonCache.delete(key);
+  }
+}
+
 export async function deleteHlsObjects(videoId: number): Promise<void> {
   if (process.env.NODE_ENV !== "production") {
     console.warn(
@@ -257,8 +251,8 @@ export async function deleteHlsObjects(videoId: number): Promise<void> {
     await objectStorageClient
       .bucket(bucketName)
       .deleteFiles({ prefix: `${objectName}/`, force: true });
-    for (const key of renderedPlaylistCache.keys()) {
-      if (key.startsWith(`${videoId}/`)) renderedPlaylistCache.delete(key);
+    for (const key of skeletonCache.keys()) {
+      if (key.startsWith(`${videoId}/`)) skeletonCache.delete(key);
     }
   } catch (err) {
     console.warn("[hls-storage] cleanup failed (non-fatal)", {

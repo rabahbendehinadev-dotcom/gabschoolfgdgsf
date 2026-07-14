@@ -8,7 +8,7 @@ import { isActiveVip } from "../lib/vipUtils";
 import { generateVideoStreamToken, verifyVideoStreamToken } from "../lib/auth";
 import { extractDriveFileId, resolveVideoParts, streamDriveFile } from "../lib/googleDrive";
 import { streamGcsObjectToResponse, parseObjectParts } from "../lib/videoStorage";
-import { parseHlsParts, buildMasterPlaylist, renderMediaPlaylist } from "../lib/hlsStorage";
+import { parseHlsParts, buildMasterPlaylist, renderMediaPlaylist, buildHlsBasePath, RENDITION_NAME_RE, SAFE_SEGMENT_RE } from "../lib/hlsStorage";
 
 const router: IRouter = Router();
 
@@ -499,9 +499,9 @@ router.get("/videos/:id/stream-object/:part", async (req, res) => {
 /* ── HLS playlists (adaptive streaming for transcoded videos) ─────────────
    Same security gate as the byte routes. The master playlist references the
    media playlists RELATIVELY (same-origin, token re-attached); the media
-   playlists embed short-lived presigned GCS segment URLs, so the actual
-   video bytes stream directly from storage.googleapis.com with zero server
-   involvement — the server only ever hands out small text playlists. */
+   playlists embed same-origin PROXY segment URLs (/hls/:part/:rendition/
+   segment/:filename?token=...) — storage.googleapis.com URLs NEVER appear
+   in the browser's network tab so download managers cannot intercept them. */
 
 const HLS_PLAYLIST_HEADERS = {
   "Content-Type": "application/vnd.apple.mpegurl",
@@ -556,7 +556,8 @@ router.get("/videos/:id/hls/:part/:rendition.m3u8", async (req, res) => {
       return;
     }
 
-    const playlist = await renderMediaPlaylist(id, part, rendition);
+    const token = req.query.token as string; // validated by authorizeStreamRequest
+    const playlist = await renderMediaPlaylist(id, part, rendition, token);
     if (!playlist) {
       console.warn("[video-hls] DENY 404: skeleton playlist missing in storage", {
         videoId: id,
@@ -572,6 +573,45 @@ router.get("/videos/:id/hls/:part/:rendition.m3u8", async (req, res) => {
       videoId: req.params.id,
       part: req.params.part,
       rendition: req.params.rendition,
+      message: error instanceof Error ? error.message : String(error),
+    });
+    if (!res.headersSent) res.status(500).end();
+    else res.end();
+  }
+});
+
+/* ── HLS segment proxy ────────────────────────────────────────────────────
+   Each .ts segment is streamed through the server behind the same stream
+   token so storage.googleapis.com URLs NEVER appear in the browser's
+   network tab — download managers cannot intercept what they never see.
+   The token is validated by authorizeStreamRequest (videoId + part + live
+   entitlement re-check). Rendition and filename are allow-listed against
+   strict regexes to prevent path traversal. */
+router.get("/videos/:id/hls/:part/:rendition/segment/:filename", async (req, res) => {
+  try {
+    const auth = await authorizeStreamRequest(req, res, "video-hls-seg");
+    if (!auth) return;
+    const { id, part } = auth;
+
+    const rendition = String(req.params.rendition);
+    const filename = String(req.params.filename);
+
+    if (!RENDITION_NAME_RE.test(rendition) || !SAFE_SEGMENT_RE.test(filename)) {
+      console.warn("[video-hls-seg] DENY 400: invalid rendition or filename", {
+        videoId: id, part, rendition, filename,
+      });
+      res.status(400).end();
+      return;
+    }
+
+    const objectPath = `${buildHlsBasePath(id, part)}/${rendition}/${filename}`;
+    await streamGcsObjectToResponse(objectPath, req, res);
+  } catch (error: unknown) {
+    console.error("[video-hls-seg] ROUTE ERROR", {
+      videoId: req.params.id,
+      part: req.params.part,
+      rendition: req.params.rendition,
+      filename: req.params.filename,
       message: error instanceof Error ? error.message : String(error),
     });
     if (!res.headersSent) res.status(500).end();
