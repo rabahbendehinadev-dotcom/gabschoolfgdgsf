@@ -22,12 +22,13 @@ function lessonsLabel(n: number) {
   return `${n} درساً`;
 }
 
-function CourseCard({ playlist, index }: { playlist: Playlist; index: number }) {
+function CourseCard({ playlist, index }: { playlist: Playlist & { imageUrl?: string | null }; index: number }) {
   const { user } = useAuth();
   const pal = PALETTE[index % PALETTE.length];
   const lessonCount = playlist.videos?.length ?? 0;
   const hasVipVideos = playlist.videos?.some(v => v.accessType === "vip");
   const isVip = user?.accountType === "vip";
+  const hasImage = !!playlist.imageUrl;
 
   return (
     <motion.div
@@ -36,44 +37,50 @@ function CourseCard({ playlist, index }: { playlist: Playlist; index: number }) 
       transition={{ delay: index * 0.05, duration: 0.3 }}
     >
       <Link href={`/courses/${playlist.id}`}>
-        <div
-          className={`relative flex flex-col rounded-2xl border bg-gradient-to-br ${pal.bg} ${pal.border} p-5 shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 cursor-pointer h-full`}
-        >
-          {/* Badge */}
-          <div className="mb-3 flex items-center justify-between">
-            <span className={`flex items-center gap-1 text-xs font-semibold ${pal.icon}`}>
-              <PlayCircle className="h-3.5 w-3.5" />
+        <div className="group relative flex flex-col rounded-2xl border border-border overflow-hidden shadow-sm transition-all duration-200 hover:shadow-lg hover:-translate-y-1 cursor-pointer h-full bg-white">
+          {/* Cover image / gradient */}
+          <div className={`relative aspect-video overflow-hidden ${hasImage ? "" : `bg-gradient-to-br ${pal.bg}`}`}>
+            {hasImage ? (
+              <img
+                src={playlist.imageUrl!}
+                alt={playlist.title}
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center">
+                <div className={`flex h-14 w-14 items-center justify-center rounded-2xl bg-white/70 shadow-sm ${pal.icon}`}>
+                  <GraduationCap className="h-7 w-7" />
+                </div>
+              </div>
+            )}
+            {/* Lesson count badge */}
+            <div className="absolute bottom-2 right-2 flex items-center gap-1 rounded-full bg-black/60 backdrop-blur-sm px-2.5 py-1 text-[11px] font-bold text-white">
+              <PlayCircle className="h-3 w-3" />
               {lessonsLabel(lessonCount)}
-            </span>
+            </div>
             {hasVipVideos && !isVip && (
-              <span className="flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700 border border-amber-200">
+              <div className="absolute top-2 left-2 flex items-center gap-1 rounded-full bg-amber-500/90 backdrop-blur-sm px-2 py-0.5 text-[10px] font-bold text-white">
                 <Lock className="h-2.5 w-2.5" />
                 VIP
-              </span>
+              </div>
             )}
           </div>
 
-          {/* Icon */}
-          <div className={`mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-white/70 shadow-sm ${pal.icon}`}>
-            <GraduationCap className="h-7 w-7" />
-          </div>
-
-          {/* Title */}
-          <h3 className="mb-1.5 text-base font-extrabold leading-snug text-foreground line-clamp-2">
-            {playlist.title}
-          </h3>
-
-          {/* Description */}
-          {playlist.description && (
-            <p className="mb-4 text-xs text-muted-foreground leading-relaxed line-clamp-2 flex-1">
-              {playlist.description}
-            </p>
-          )}
-
-          {/* CTA */}
-          <div className={`mt-auto flex items-center gap-1 text-sm font-semibold ${pal.btn}`}>
-            <ArrowLeft className="h-3.5 w-3.5" />
-            استعراض الدروس
+          {/* Content */}
+          <div className="flex flex-col flex-1 p-4">
+            <h3 className="mb-1 text-sm font-extrabold leading-snug text-foreground line-clamp-2">
+              {playlist.title}
+            </h3>
+            {playlist.description && (
+              <p className="mb-3 text-xs text-muted-foreground leading-relaxed line-clamp-2 flex-1">
+                {playlist.description}
+              </p>
+            )}
+            <div className={`mt-auto flex items-center gap-1 text-xs font-semibold ${pal.btn}`}>
+              <ArrowLeft className="h-3 w-3" />
+              استعراض الدروس
+            </div>
           </div>
         </div>
       </Link>

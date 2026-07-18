@@ -26,6 +26,7 @@ import { AdminDashboard } from "@/pages/admin/Dashboard";
 import { AdminUsers } from "@/pages/admin/Users";
 import { AdminVideos } from "@/pages/admin/Videos";
 import { AdminCategories } from "@/pages/admin/Categories";
+import { AdminCourses } from "@/pages/admin/Courses";
 import { AdminPlaylists } from "@/pages/admin/Playlists";
 import { AdminPlans } from "@/pages/admin/Plans";
 import { AdminSubscriptions } from "@/pages/admin/Subscriptions";
@@ -128,6 +129,9 @@ function Router() {
       </Route>
       <Route path="/gab-ctrl-9x/users">
         <AdminLayout><AdminUsers /></AdminLayout>
+      </Route>
+      <Route path="/gab-ctrl-9x/courses">
+        <AdminLayout><AdminCourses /></AdminLayout>
       </Route>
       <Route path="/gab-ctrl-9x/videos">
         <AdminLayout><AdminVideos /></AdminLayout>
