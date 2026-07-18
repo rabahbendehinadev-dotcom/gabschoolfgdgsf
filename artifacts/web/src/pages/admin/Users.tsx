@@ -572,7 +572,7 @@ export function AdminUsers() {
             <div className="space-y-2">
               <Label>نوع الحساب</Label>
               <select
-                className="flex h-10 w-full rounded-md border border-white/10 bg-background px-3 py-2 text-sm"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
                 value={formData.accountType}
                 onChange={e => setFormData({ ...formData, accountType: e.target.value as "vip" | "normal" })}
               >
@@ -583,7 +583,7 @@ export function AdminUsers() {
             <div className="space-y-2">
               <Label>خطة الاشتراك</Label>
               <select
-                className="flex h-10 w-full rounded-md border border-white/10 bg-background px-3 py-2 text-sm"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
                 value={formData.subscriptionType}
                 onChange={e => setFormData({ ...formData, subscriptionType: e.target.value as "demo" | "monthly" | "annual" | "lifetime" })}
               >
@@ -596,7 +596,7 @@ export function AdminUsers() {
             <div className="space-y-2">
               <Label>حالة الحساب</Label>
               <select
-                className="flex h-10 w-full rounded-md border border-white/10 bg-background px-3 py-2 text-sm"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
                 value={formData.isActive ? "true" : "false"}
                 onChange={e => setFormData({ ...formData, isActive: e.target.value === "true" })}
               >
@@ -640,7 +640,7 @@ export function AdminUsers() {
                         <span className={`flex-shrink-0 w-4 h-4 rounded border flex items-center justify-center transition-colors ${selected ? "bg-primary border-primary" : "border-input"}`}>
                           {selected && <Check className="w-3 h-3 text-primary-foreground" />}
                         </span>
-                        <span className="flex-1 truncate text-foreground">{pl.name}</span>
+                        <span className="flex-1 truncate text-foreground">{pl.title}</span>
                       </button>
                     );
                   })}
