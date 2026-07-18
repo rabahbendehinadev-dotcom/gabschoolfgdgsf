@@ -104,10 +104,10 @@ function PublicRoutes() {
       <ScrollToTop />
       <Switch>
         <Route path="/"><Home /></Route>
-        <Route path="/courses"><Courses /></Route>
         <Route path="/courses/:id">{(params) => <CourseDetail id={Number(params.id)} />}</Route>
-        <Route path="/videos"><Videos /></Route>
+        <Route path="/courses"><Courses /></Route>
         <Route path="/videos/:id"><VideoDetail /></Route>
+        <Route path="/videos"><Videos /></Route>
         <Route path="/dashboard"><Dashboard /></Route>
         <Route path="/subscribe"><Subscribe /></Route>
         <Route path="/community"><Community /></Route>
