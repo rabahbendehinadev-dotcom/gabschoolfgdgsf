@@ -616,6 +616,36 @@ router.put("/admin/users/:id/courses", adminAuth, async (req, res) => {
 router.get("/admin/videos", adminAuth, async (req, res) => {
   try {
     const playlistId = req.query.playlistId ? Number(req.query.playlistId) : undefined;
+
+    // Build WHERE condition when filtering by course/playlist
+    let whereCondition = undefined;
+    if (playlistId) {
+      // 1. Get the playlist's own categoryId (old architecture: playlist → single category → videos)
+      const [playlistRow] = await db
+        .select({ categoryId: playlistsTable.categoryId })
+        .from(playlistsTable)
+        .where(eq(playlistsTable.id, playlistId))
+        .limit(1);
+
+      // 2. Get all categories explicitly linked to this playlist via linkedPlaylistId
+      const linkedCats = await db
+        .select({ id: categoriesTable.id })
+        .from(categoriesTable)
+        .where(eq(categoriesTable.linkedPlaylistId, playlistId));
+
+      // Union of all relevant category IDs
+      const catIdSet = new Set<number>(linkedCats.map(c => c.id));
+      if (playlistRow?.categoryId) catIdSet.add(playlistRow.categoryId);
+      const catIds = Array.from(catIdSet);
+
+      whereCondition = or(
+        // direct playlist_id link (future-proof)
+        eq(videosTable.playlistId, playlistId),
+        // via category
+        catIds.length > 0 ? inArray(videosTable.categoryId, catIds) : sql`false`,
+      );
+    }
+
     const baseQuery = db.select({
       id: videosTable.id,
       title: videosTable.title,
@@ -638,8 +668,8 @@ router.get("/admin/videos", adminAuth, async (req, res) => {
     .from(videosTable)
     .leftJoin(categoriesTable, eq(videosTable.categoryId, categoriesTable.id));
 
-    const videos = await (playlistId
-      ? baseQuery.where(eq(videosTable.playlistId, playlistId))
+    const videos = await (whereCondition
+      ? baseQuery.where(whereCondition)
       : baseQuery
     ).orderBy(asc(videosTable.sortOrder), asc(videosTable.createdAt));
 
@@ -984,8 +1014,28 @@ router.put("/admin/videos/:id/hls-parts", adminAuth, async (req, res) => {
 router.get("/admin/categories", adminAuth, async (req, res) => {
   try {
     const playlistId = req.query.playlistId ? Number(req.query.playlistId) : undefined;
+
+    let whereCondition = undefined;
+    if (playlistId) {
+      // Get the playlist's direct categoryId (old architecture)
+      const [playlistRow] = await db
+        .select({ categoryId: playlistsTable.categoryId })
+        .from(playlistsTable)
+        .where(eq(playlistsTable.id, playlistId))
+        .limit(1);
+
+      // Build condition: categories explicitly linked OR the playlist's own categoryId
+      const conditions = [
+        eq(categoriesTable.linkedPlaylistId, playlistId),
+      ];
+      if (playlistRow?.categoryId) {
+        conditions.push(eq(categoriesTable.id, playlistRow.categoryId));
+      }
+      whereCondition = conditions.length === 1 ? conditions[0] : or(...conditions);
+    }
+
     const categories = await db.select().from(categoriesTable)
-      .where(playlistId ? eq(categoriesTable.linkedPlaylistId, playlistId) : undefined)
+      .where(whereCondition)
       .orderBy(asc(categoriesTable.sortOrder), asc(categoriesTable.id));
     const counts = await db
       .select({ categoryId: videosTable.categoryId, c: count() })
@@ -1114,18 +1164,40 @@ router.get("/admin/playlists", adminAuth, async (_req, res) => {
       .from(playlistsTable)
       .leftJoin(categoriesTable, eq(playlistsTable.categoryId, categoriesTable.id))
       .orderBy(desc(playlistsTable.createdAt));
+
     const allVideos = await db.select().from(videosTable);
-    res.json(rows.map(({ playlist, categoryName }) => ({
-      id: playlist.id, title: playlist.title, description: playlist.description,
-      imageUrl: playlist.imageUrl ?? null,
-      categoryId: playlist.categoryId, categoryName: categoryName ?? "",
-      sortOrder: playlist.sortOrder, isVisible: playlist.isVisible,
-      createdAt: playlist.createdAt.toISOString(),
-      videos: allVideos
-        .filter(v => v.playlistId === playlist.id)
-        .sort((a, b) => (a.partNumber ?? 999) - (b.partNumber ?? 999))
-        .map(v => ({ id: v.id, title: v.title, thumbnailUrl: v.thumbnailUrl, driveEmbedUrl: v.driveEmbedUrl, partNumber: v.partNumber, accessType: v.accessType, isVisible: v.isVisible, createdAt: v.createdAt.toISOString() })),
-    })));
+
+    // Also load all categories so we can find which ones are linked to each playlist
+    const allCategories = await db.select({ id: categoriesTable.id, linkedPlaylistId: categoriesTable.linkedPlaylistId }).from(categoriesTable);
+
+    res.json(rows.map(({ playlist, categoryName }) => {
+      // Category IDs that belong to this playlist:
+      // 1. The playlist's own categoryId (old architecture)
+      // 2. Any category with linkedPlaylistId = playlist.id (new architecture)
+      const catIds = new Set<number>();
+      catIds.add(playlist.categoryId);
+      for (const cat of allCategories) {
+        if (cat.linkedPlaylistId === playlist.id) catIds.add(cat.id);
+      }
+
+      const playlistVideos = allVideos
+        .filter(v => v.playlistId === playlist.id || catIds.has(v.categoryId))
+        .sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999) || (a.partNumber ?? 999) - (b.partNumber ?? 999));
+
+      return {
+        id: playlist.id, title: playlist.title, description: playlist.description,
+        imageUrl: playlist.imageUrl ?? null,
+        categoryId: playlist.categoryId, categoryName: categoryName ?? "",
+        sortOrder: playlist.sortOrder, isVisible: playlist.isVisible,
+        createdAt: playlist.createdAt.toISOString(),
+        videos: playlistVideos.map(v => ({
+          id: v.id, title: v.title, thumbnailUrl: v.thumbnailUrl,
+          driveEmbedUrl: v.driveEmbedUrl, partNumber: v.partNumber,
+          accessType: v.accessType, isVisible: v.isVisible,
+          createdAt: v.createdAt.toISOString(),
+        })),
+      };
+    }));
   } catch (error: unknown) {
     res.status(500).json({ message: error instanceof Error ? error.message : "Failed to fetch playlists" });
   }
