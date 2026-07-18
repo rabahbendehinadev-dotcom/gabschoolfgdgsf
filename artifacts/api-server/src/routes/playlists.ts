@@ -108,6 +108,31 @@ router.get("/playlists/:id", optionalUserAuth, async (req: Request, res: Respons
       return;
     }
 
+    // ── Course access check — user must have this playlist in user_courses ──
+    const user = req.user;
+    const hasAccess = user
+      ? (await db.select({ playlistId: userCoursesTable.playlistId })
+          .from(userCoursesTable)
+          .where(and(eq(userCoursesTable.userId, user.id), eq(userCoursesTable.playlistId, id)))
+          .limit(1)).length > 0
+      : false;
+
+    if (!hasAccess) {
+      const imageUrl = (row.playlist as typeof row.playlist & { imageUrl?: string | null }).imageUrl ?? null;
+      res.json({
+        id: row.playlist.id,
+        title: row.playlist.title,
+        description: row.playlist.description,
+        imageUrl,
+        isVisible: row.playlist.isVisible,
+        createdAt: row.playlist.createdAt.toISOString(),
+        locked: true,
+        sections: [],
+        videos: [],
+      });
+      return;
+    }
+
     // Find all categories linked to this playlist
     const linkedCats = await db.select().from(categoriesTable)
       .where(eq(

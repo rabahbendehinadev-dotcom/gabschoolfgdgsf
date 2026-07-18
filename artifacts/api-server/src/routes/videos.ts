@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { db, videosTable, categoriesTable, visitLogsTable, playlistsTable, activityLogsTable, usersTable } from "@workspace/db";
+import { db, videosTable, categoriesTable, visitLogsTable, playlistsTable, activityLogsTable, usersTable, userCoursesTable } from "@workspace/db";
 import { eq, and, or, asc, sql, isNull } from "drizzle-orm";
 import { optionalUserAuth, userAuth } from "../middlewares/auth";
 import { getClientIp } from "../lib/ipPolicy";
@@ -177,6 +177,22 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
       });
       res.status(403).json({ message });
     };
+
+    // ── Course (playlist) access check — user must have the course assigned ──
+    if (video.playlistId) {
+      if (!user) {
+        await denyVideoAccess("يجب تسجيل الدخول لمشاهدة هذا الفيديو");
+        return;
+      }
+      const [courseAccess] = await db.select({ playlistId: userCoursesTable.playlistId })
+        .from(userCoursesTable)
+        .where(and(eq(userCoursesTable.userId, user.id), eq(userCoursesTable.playlistId, video.playlistId)))
+        .limit(1);
+      if (!courseAccess) {
+        await denyVideoAccess("ليس لديك صلاحية الوصول لهذه الدورة");
+        return;
+      }
+    }
 
     if (accessType === "vip") {
       if (!isVipUser) {
