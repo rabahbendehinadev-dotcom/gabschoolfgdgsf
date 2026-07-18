@@ -268,6 +268,7 @@ export function Videos() {
                         lessonCount={countByCategory.get(cat.id) ?? 0}
                         index={i}
                         active={cat.id === categoryId}
+                        onSelect={() => selectCategory(cat.id)}
                       />
                     ))}
                   </div>
