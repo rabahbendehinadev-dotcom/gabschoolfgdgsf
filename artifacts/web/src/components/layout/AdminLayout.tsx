@@ -4,7 +4,7 @@ import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui";
 import {
   LayoutDashboard, Users, Video, FolderTree, CreditCard, LogOut,
-  ShieldAlert, ListVideo, Activity, BadgeCheck, Banknote, KeyRound,
+  ShieldAlert, Activity, BadgeCheck, Banknote, KeyRound,
   Megaphone, Bell, BellOff, BellRing, X, Share, PlusSquare, Menu, AlertTriangle, GraduationCap,
 } from "lucide-react";
 
@@ -109,7 +109,6 @@ const NAV = [
   { name: "الدورات",           path: "/gab-ctrl-9x/courses",           icon: GraduationCap },
   { name: "الفيديوهات",        path: "/gab-ctrl-9x/videos",            icon: Video },
   { name: "التصنيفات",         path: "/gab-ctrl-9x/categories",        icon: FolderTree },
-  { name: "السلاسل",           path: "/gab-ctrl-9x/playlists",         icon: ListVideo },
   { name: "خطط الأسعار",       path: "/gab-ctrl-9x/plans",             icon: CreditCard },
   { name: "الاشتراكات",        path: "/gab-ctrl-9x/subscriptions",        icon: BadgeCheck },
   { name: "تنبيهات الاشتراك", path: "/gab-ctrl-9x/subscription-alerts", icon: AlertTriangle },
