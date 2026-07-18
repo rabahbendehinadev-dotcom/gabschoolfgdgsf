@@ -87,23 +87,19 @@ function CategoryCard({
   );
 }
 
-/* ── صف فيديو ── */
-function LessonRow({ video, index, isVip }: { video: SectionVideo; index: number; isVip: boolean }) {
-  const locked = video.accessType === "vip" && !isVip;
-
+/* ── صف فيديو — دائماً يُوجّه لصفحة الفيديو (تتولى هي عرض preview المقفل) ── */
+function LessonRow({ video, index, locked }: { video: SectionVideo; index: number; locked: boolean }) {
   return (
     <motion.div
       initial={{ opacity: 0, x: 10 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ delay: index * 0.04, duration: 0.25 }}
     >
-      <Link href={locked ? "/subscribe" : `/videos/${video.id}`}>
+      <Link href={`/videos/${video.id}`}>
         <div
           className={cn(
             "flex items-center gap-4 rounded-xl border bg-card p-4 shadow-sm transition-all duration-150",
-            locked
-              ? "opacity-60 cursor-not-allowed border-white/8"
-              : "hover:shadow-md hover:-translate-y-0.5 cursor-pointer border-white/8 hover:border-primary/40"
+            "hover:shadow-md hover:-translate-y-0.5 cursor-pointer border-white/8 hover:border-primary/40"
           )}
         >
           <div className={cn(
@@ -147,7 +143,18 @@ function LessonRow({ video, index, isVip }: { video: SectionVideo; index: number
 /* ════════════════════════════════════════════════════════════ */
 export function CourseDetail({ id }: { id: number }) {
   const { user, getAuthHeaders } = useAuth();
-  const isVip = user?.accountType === "vip";
+  const isVip =
+    user?.accountType === "vip" &&
+    !user.subscriptionIsExpired &&
+    (!user.subscriptionExpiresAt || new Date(user.subscriptionExpiresAt) > new Date());
+  const isSubscriptionLocked = !user || user.subscriptionType === "demo";
+
+  const computeLocked = (v: SectionVideo): boolean => {
+    const at = v.accessType ?? "normal";
+    if (at === "visitor") return false;
+    if (at === "vip") return !isVip;
+    return isSubscriptionLocked;
+  };
   const [, navigate] = useLocation();
   const [activeSection, setActiveSection] = useState<Section | null>(null);
 
@@ -341,7 +348,7 @@ export function CourseDetail({ id }: { id: number }) {
               ) : (
                 <div className="flex flex-col gap-2.5">
                   {activeSection.videos.map((v, i) => (
-                    <LessonRow key={v.id} video={v} index={i} isVip={isVip} />
+                    <LessonRow key={v.id} video={v} index={i} locked={computeLocked(v)} />
                   ))}
                 </div>
               )}

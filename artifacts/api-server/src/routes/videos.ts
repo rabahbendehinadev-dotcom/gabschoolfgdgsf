@@ -205,6 +205,8 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
     const isSubscribed = user && user.subscriptionType !== "demo";
 
     // Log + deny when a user tries to open a video they are not entitled to.
+    // Include safe preview metadata so the client can render a locked preview page
+    // without leaking any stream URLs, Drive parts, or software links.
     const denyVideoAccess = async (message: string) => {
       await logVideoActivity({
         user,
@@ -215,7 +217,16 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
         ip: getClientIp(req),
         ua: req.headers["user-agent"],
       });
-      res.status(403).json({ message });
+      res.status(403).json({
+        message,
+        preview: {
+          title: video.title,
+          thumbnailUrl: video.thumbnailUrl ?? null,
+          accessType: video.accessType ?? "normal",
+          categoryName: video.categoryName ?? null,
+          description: video.description ?? null,
+        },
+      });
     };
 
     // ── Course (playlist) access check — user must have the course assigned ──

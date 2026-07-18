@@ -8,6 +8,9 @@ import { Link } from "wouter";
 import { formatDate } from "@/lib/utils";
 import { CourseVideoPlayer } from "@/components/CourseVideoPlayer";
 
+const FALLBACK_THUMB =
+  "https://images.unsplash.com/photo-1580927752452-89d86da3fa0a?w=800&q=80";
+
 export function VideoDetail() {
   const [, params] = useRoute("/videos/:id");
   const [, navigate] = useLocation();
@@ -29,31 +32,104 @@ export function VideoDetail() {
     </div>
   );
 
+  /* ── معالجة 403 — يُعرض preview مقفل بدل صفحة خطأ كاملة ── */
   if (status === 403) {
+    const preview = (error as any)?.response?.data?.preview as {
+      title?: string;
+      thumbnailUrl?: string | null;
+      accessType?: string;
+      categoryName?: string | null;
+      description?: string | null;
+    } | undefined;
+
+    const isVipRequired = preview?.accessType === "vip";
+    const thumb = preview?.thumbnailUrl || FALLBACK_THUMB;
+
     return (
-      <div className="min-h-[80vh] flex items-center justify-center p-4">
-        <Card className="max-w-md w-full p-8 text-center glass-card border-amber-500/20">
-          <div className="w-20 h-20 mx-auto bg-amber-500/10 text-amber-400 rounded-full flex items-center justify-center mb-6">
-            <Crown className="w-10 h-10" />
+      <div className="min-h-screen py-8">
+        <div className="container mx-auto px-4 max-w-4xl">
+
+          {/* رابط العودة */}
+          <Link href="/videos" className="inline-flex items-center text-muted-foreground hover:text-primary mb-8 transition-colors font-medium group">
+            <ArrowRight className="w-4 h-4 ml-2 group-hover:-translate-x-1 transition-transform" />
+            العودة للدروس
+          </Link>
+
+          {/* العنوان */}
+          {preview?.title && (
+            <h1 className="text-2xl md:text-3xl font-bold leading-tight mb-4">{preview.title}</h1>
+          )}
+
+          {/* معلومات */}
+          {(preview?.categoryName || isVipRequired) && (
+            <div className="flex flex-wrap items-center gap-3 mb-6">
+              {preview?.categoryName && (
+                <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+                  <Tag className="w-3.5 h-3.5" />{preview.categoryName}
+                </span>
+              )}
+              {isVipRequired && (
+                <Badge variant="vip"><Crown className="w-3 h-3 ml-1" /> VIP</Badge>
+              )}
+            </div>
+          )}
+
+          {/* منطقة الفيديو المقفل */}
+          <div
+            className="relative w-full rounded-2xl overflow-hidden border border-border mb-8"
+            style={{ paddingBottom: "56.25%" }}
+          >
+            <img
+              src={thumb}
+              alt=""
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/75 to-black/55 backdrop-blur-sm flex flex-col items-center justify-center text-center px-6">
+              <div className="w-16 h-16 rounded-full bg-white/10 border border-white/20 flex items-center justify-center mb-4">
+                {isVipRequired
+                  ? <Crown className="w-8 h-8 text-amber-400" />
+                  : <Lock className="w-7 h-7 text-white" />}
+              </div>
+              <p className="text-white font-bold text-lg mb-1.5">
+                {isVipRequired
+                  ? "مخصص لحسابات VIP فقط"
+                  : user
+                    ? "ترقية حسابك للمشاهدة"
+                    : "اشترك لمشاهدة هذا الدرس"}
+              </p>
+              <p className="text-white/70 text-sm mb-5 max-w-sm">
+                {isVipRequired
+                  ? "هذا الدرس حصري لأعضاء VIP. قم بترقية حسابك للوصول الكامل."
+                  : user
+                    ? "قم بالاشتراك الآن للوصول إلى جميع الدروس."
+                    : "سجّل الدخول واشترك للوصول إلى جميع الدروس."}
+              </p>
+              <Link href={user ? "/subscribe" : "/login"}>
+                <Button size="lg" className="gap-2 shadow-lg">
+                  {isVipRequired ? (
+                    <><Crown className="w-4 h-4" /> ترقية إلى VIP</>
+                  ) : user ? (
+                    <><Lock className="w-4 h-4" /> عرض الاشتراكات</>
+                  ) : (
+                    <><Lock className="w-4 h-4" /> تسجيل الدخول</>
+                  )}
+                </Button>
+              </Link>
+            </div>
           </div>
-          <h2 className="text-2xl font-bold mb-4">
-            هذا الفيديو متاح فقط للأعضاء المميزين
-          </h2>
-          <p className="text-muted-foreground mb-8">
-            هذا الدرس حصري لأصحاب اشتراكات VIP. قم بترقية حسابك الآن للوصول الكامل.
-          </p>
-          <div className="flex flex-col gap-3">
-            <Link href="/subscribe">
-              <Button className="w-full h-12 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold">
-                <Crown className="w-4 h-4 ml-2" />
-                ترقية الحساب إلى VIP
-              </Button>
-            </Link>
-            <Link href="/videos">
-              <Button variant="outline" className="w-full h-12">العودة للمكتبة</Button>
-            </Link>
-          </div>
-        </Card>
+
+          {/* الوصف */}
+          {preview?.description && (
+            <Card className="p-6 glass-card">
+              <h3 className="text-lg font-bold mb-4 text-primary border-b border-border pb-3">
+                وصف الدرس
+              </h3>
+              <div className="text-foreground/80 leading-loose whitespace-pre-wrap text-[15px]">
+                {preview.description}
+              </div>
+            </Card>
+          )}
+        </div>
       </div>
     );
   }
@@ -183,7 +259,6 @@ export function VideoDetail() {
                 </a>
               </div>
             )}
-
 
             {/* Description */}
             {video.description && (

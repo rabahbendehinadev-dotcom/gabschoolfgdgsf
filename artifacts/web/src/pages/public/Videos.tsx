@@ -113,8 +113,7 @@ export function Videos() {
         : "اشترك لمشاهدة هذا الدرس";
     return { isVipVideo, isVisitorVideo, videoLocked, lockMessage };
   };
-  const hrefFor = (videoId: number, locked: boolean) =>
-    locked ? (isLoggedIn ? "/subscribe" : "/login") : `/videos/${videoId}`;
+  const hrefFor = (videoId: number, _locked: boolean) => `/videos/${videoId}`;
 
   const activeCategory = categories?.find(c => c.id === categoryId);
   const isSearching = search.trim().length > 0;
