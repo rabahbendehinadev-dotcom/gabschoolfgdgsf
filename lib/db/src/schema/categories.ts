@@ -15,6 +15,7 @@ export const categoriesTable = pgTable("categories", {
   isVisible: boolean("is_visible").notNull().default(true),
   isFeatured: boolean("is_featured").notNull().default(false),
   showOnHomepage: boolean("show_on_homepage").notNull().default(true),
+  linkedPlaylistId: integer("linked_playlist_id"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

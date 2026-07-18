@@ -649,6 +649,7 @@ export const CreateCategoryBody = zod.object({
   isVisible: zod.boolean().optional(),
   isFeatured: zod.boolean().optional(),
   showOnHomepage: zod.boolean().optional(),
+  linkedPlaylistId: zod.number().nullish(),
 });
 
 /**
@@ -686,6 +687,7 @@ export const UpdateCategoryBody = zod.object({
   isVisible: zod.boolean().optional(),
   isFeatured: zod.boolean().optional(),
   showOnHomepage: zod.boolean().optional(),
+  linkedPlaylistId: zod.number().nullish(),
 });
 
 export const UpdateCategoryResponse = zod.object({

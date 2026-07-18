@@ -10,7 +10,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import {
   useGetAdminCategories, useCreateCategory, useUpdateCategory,
-  useDeleteCategory, useReorderCategories,
+  useDeleteCategory, useReorderCategories, useGetAdminPlaylists,
 } from "@workspace/api-client-react/src/generated/api";
 import { Category } from "@workspace/api-client-react/src/generated/api.schemas";
 import { useAuth } from "@/lib/auth";
@@ -247,6 +247,7 @@ export function AdminCategories() {
       isVisible: c.isVisible,
       isFeatured: c.isFeatured,
       showOnHomepage: c.showOnHomepage,
+      linkedPlaylistId: (c as typeof c & { linkedPlaylistId?: number | null }).linkedPlaylistId ?? null,
     });
     setSlugTouched(true);
     setIsOpen(true);
@@ -301,6 +302,7 @@ export function AdminCategories() {
       isVisible: form.isVisible,
       isFeatured: form.isFeatured,
       showOnHomepage: form.showOnHomepage,
+      linkedPlaylistId: form.linkedPlaylistId ?? null,
     };
     const action = editingId
       ? updateMut.mutateAsync({ id: editingId, data: payload })
@@ -466,6 +468,27 @@ export function AdminCategories() {
                     </div>
                   </div>
                 </div>
+              </div>
+
+              {/* ربط الدورة */}
+              <div className="space-y-2 pt-1 border-t border-white/10">
+                <Label className="flex items-center gap-1.5 text-sm">
+                  <Link2 className="w-3.5 h-3.5 text-primary" />
+                  ربط مع دورة
+                </Label>
+                <select
+                  className="flex h-10 w-full rounded-md border border-white/10 bg-background px-3 py-2 text-sm"
+                  value={form.linkedPlaylistId ?? ""}
+                  onChange={e => setForm(f => ({ ...f, linkedPlaylistId: e.target.value ? parseInt(e.target.value) : null }))}
+                >
+                  <option value="">— بدون ربط —</option>
+                  {(playlists ?? []).map(p => (
+                    <option key={p.id} value={p.id}>{p.title}</option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-muted-foreground">
+                  عند الربط، تظهر فيديوهات هذا التصنيف تلقائياً داخل الدورة المختارة
+                </p>
               </div>
 
               {/* المفاتيح */}

@@ -1014,6 +1014,7 @@ router.post("/admin/categories", adminAuth, async (req, res) => {
       isVisible: body.isVisible ?? true,
       isFeatured: body.isFeatured ?? false,
       showOnHomepage: body.showOnHomepage ?? true,
+      linkedPlaylistId: body.linkedPlaylistId ?? null,
     }).returning();
 
     res.status(201).json({ ...category, lessonCount: 0 });
@@ -1039,6 +1040,7 @@ router.patch("/admin/categories/:id", adminAuth, async (req, res) => {
     if (body.isVisible !== undefined) updateData.isVisible = body.isVisible;
     if (body.isFeatured !== undefined) updateData.isFeatured = body.isFeatured;
     if (body.showOnHomepage !== undefined) updateData.showOnHomepage = body.showOnHomepage;
+    if ("linkedPlaylistId" in body) updateData.linkedPlaylistId = body.linkedPlaylistId ?? null;
 
     const [category] = await db.update(categoriesTable).set(updateData)
       .where(eq(categoriesTable.id, id)).returning();

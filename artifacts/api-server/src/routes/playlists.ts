@@ -22,11 +22,12 @@ function buildPlaylistResponse(
     videos: videos
       .filter(v => v.isVisible)
       .sort((a, b) => {
-        // Videos with explicit partNumber come first, ordered by partNumber
-        // Then by sortOrder, then by createdAt
-        if (a.partNumber !== null && b.partNumber !== null) return a.partNumber - b.partNumber;
-        if (a.partNumber !== null) return -1;
-        if (b.partNumber !== null) return 1;
+        if (a.partNumber !== null && b.partNumber !== null &&
+            a.partNumber !== undefined && b.partNumber !== undefined) {
+          return a.partNumber - b.partNumber;
+        }
+        if (a.partNumber != null) return -1;
+        if (b.partNumber != null) return 1;
         return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
       })
       .map(v => ({
@@ -41,7 +42,7 @@ function buildPlaylistResponse(
   };
 }
 
-// GET /playlists — returns all visible playlists with their category's videos
+// GET /playlists — returns all visible playlists with videos from linked categories
 router.get("/playlists", optionalUserAuth, async (req: Request, res: Response) => {
   try {
     const categoryId = req.query.categoryId ? Number(req.query.categoryId) : undefined;
@@ -60,19 +61,28 @@ router.get("/playlists", optionalUserAuth, async (req: Request, res: Response) =
       ? rows.filter(r => r.playlist.categoryId === categoryId)
       : rows;
 
-    // Collect all distinct categoryIds from these playlists
-    const catIds = [...new Set(filtered.map(r => r.playlist.categoryId).filter(Boolean))];
+    const playlistIds = filtered.map(r => r.playlist.id);
 
-    // Fetch all visible videos that belong to any of those categories
-    const allVideos = catIds.length > 0
+    // Find categories linked to each playlist
+    const linkedCategories = playlistIds.length > 0
+      ? await db.select().from(categoriesTable)
+          .where(inArray((categoriesTable as typeof categoriesTable & { linkedPlaylistId: typeof categoriesTable.id }).linkedPlaylistId, playlistIds))
+      : [];
+
+    // Get all videos from linked categories
+    const linkedCatIds = [...new Set(linkedCategories.map(c => c.id))];
+    const allVideos = linkedCatIds.length > 0
       ? await db.select().from(videosTable)
-          .where(inArray(videosTable.categoryId, catIds as number[]))
+          .where(inArray(videosTable.categoryId, linkedCatIds))
           .orderBy(asc(videosTable.partNumber))
       : [];
 
-    // For each playlist, show videos from its linked category
     const result = filtered.map(({ playlist, categoryName }) => {
-      const videos = allVideos.filter(v => v.categoryId === playlist.categoryId);
+      // Find all categories linked to this playlist
+      const catIds = linkedCategories
+        .filter(c => (c as typeof c & { linkedPlaylistId?: number | null }).linkedPlaylistId === playlist.id)
+        .map(c => c.id);
+      const videos = allVideos.filter(v => catIds.includes(v.categoryId!));
       return buildPlaylistResponse({ ...playlist, categoryName: categoryName ?? "" }, videos);
     });
 
@@ -82,7 +92,7 @@ router.get("/playlists", optionalUserAuth, async (req: Request, res: Response) =
   }
 });
 
-// GET /playlists/:id — returns one playlist with all videos from its linked category
+// GET /playlists/:id — returns one playlist with videos from its linked categories
 router.get("/playlists/:id", optionalUserAuth, async (req: Request, res: Response) => {
   try {
     const id = Number(req.params.id);
@@ -98,10 +108,20 @@ router.get("/playlists/:id", optionalUserAuth, async (req: Request, res: Respons
       return;
     }
 
-    // Fetch all visible videos that belong to the same category as this playlist
-    const videos = await db.select().from(videosTable)
-      .where(eq(videosTable.categoryId, row.playlist.categoryId))
-      .orderBy(asc(videosTable.partNumber));
+    // Find all categories linked to this playlist
+    const linkedCats = await db.select().from(categoriesTable)
+      .where(eq(
+        (categoriesTable as typeof categoriesTable & { linkedPlaylistId: typeof categoriesTable.id }).linkedPlaylistId,
+        id
+      ));
+
+    let videos: (typeof videosTable.$inferSelect)[] = [];
+    if (linkedCats.length > 0) {
+      const catIds = linkedCats.map(c => c.id);
+      videos = await db.select().from(videosTable)
+        .where(inArray(videosTable.categoryId, catIds))
+        .orderBy(asc(videosTable.partNumber));
+    }
 
     res.json(buildPlaylistResponse({ ...row.playlist, categoryName: row.categoryName ?? "" }, videos));
   } catch (error: unknown) {
