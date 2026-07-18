@@ -12,6 +12,7 @@ import { AdminLayout } from "@/components/layout/AdminLayout";
 import { Home } from "@/pages/public/Home";
 import { Login } from "@/pages/public/Login";
 import { Register } from "@/pages/public/Register";
+import { Courses } from "@/pages/public/Courses";
 import { Videos } from "@/pages/public/Videos";
 import { VideoDetail } from "@/pages/public/VideoDetail";
 import { Dashboard } from "@/pages/public/Dashboard";
@@ -92,6 +93,7 @@ function PublicRoutes() {
     <PublicLayout>
       <Switch>
         <Route path="/"><Home /></Route>
+        <Route path="/courses"><Courses /></Route>
         <Route path="/videos"><Videos /></Route>
         <Route path="/videos/:id"><VideoDetail /></Route>
         <Route path="/dashboard"><Dashboard /></Route>
