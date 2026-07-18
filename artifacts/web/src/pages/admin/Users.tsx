@@ -616,18 +616,18 @@ export function AdminUsers() {
 
             {/* Courses section */}
             <div className="space-y-2">
-              <Label className="flex items-center gap-1.5">
-                <GraduationCap className="w-4 h-4 text-primary" />
+              <Label className="flex items-center gap-1.5 text-sm font-medium">
+                <GraduationCap className="w-4 h-4 text-muted-foreground" />
                 الدورات الممنوحة
               </Label>
               {coursesLoading ? (
-                <div className="flex items-center justify-center py-3">
+                <div className="flex h-10 items-center justify-center rounded-md border border-input bg-background">
                   <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
                 </div>
               ) : !allPlaylists || allPlaylists.length === 0 ? (
                 <p className="text-xs text-muted-foreground py-2">لا توجد دورات متاحة</p>
               ) : (
-                <div className="border border-white/10 rounded-md divide-y divide-white/10 max-h-48 overflow-y-auto">
+                <div className="rounded-md border border-input bg-background max-h-48 overflow-y-auto divide-y divide-border">
                   {allPlaylists.map(pl => {
                     const selected = userCourseIds.includes(pl.id);
                     return (
@@ -635,19 +635,19 @@ export function AdminUsers() {
                         key={pl.id}
                         type="button"
                         onClick={() => toggleCourse(pl.id)}
-                        className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm text-right transition-colors hover:bg-white/5 ${selected ? "bg-primary/10" : ""}`}
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm text-right transition-colors hover:bg-muted/50 ${selected ? "bg-muted/60" : ""}`}
                       >
-                        <span className={`flex-shrink-0 w-4 h-4 rounded border flex items-center justify-center transition-colors ${selected ? "bg-primary border-primary" : "border-white/20"}`}>
+                        <span className={`flex-shrink-0 w-4 h-4 rounded border flex items-center justify-center transition-colors ${selected ? "bg-primary border-primary" : "border-input"}`}>
                           {selected && <Check className="w-3 h-3 text-primary-foreground" />}
                         </span>
-                        <span className="flex-1 truncate">{pl.name}</span>
+                        <span className="flex-1 truncate text-foreground">{pl.name}</span>
                       </button>
                     );
                   })}
                 </div>
               )}
               {userCourseIds.length > 0 && (
-                <p className="text-xs text-primary">{userCourseIds.length} دورة محددة</p>
+                <p className="text-xs text-muted-foreground">{userCourseIds.length} دورة محددة</p>
               )}
             </div>
 
