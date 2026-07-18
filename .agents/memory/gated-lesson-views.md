@@ -1,26 +1,40 @@
 ---
 name: Gated lesson/video views (client-side permission preservation)
-description: How locked lessons must behave in the public web UI so client gating mirrors the server 403.
+description: How locked lessons and VideoDetail behave for non-subscribed users.
 ---
 
 # Gated lesson/video views
 
-When rendering any lesson/video player in `artifacts/web` (e.g. CoursePlayer,
-VideoDetail, LessonCard), locked content must NOT mount the player iframe and
-must NOT call the single-video endpoint (`useGetVideo`). Gate both on the
-client's `accessInfo(video)` result (`videoLocked`) before rendering/fetching —
-show a locked/subscribe overlay instead.
+## Current UX (restored user expectation)
 
-**Why:** The list endpoint (`/videos`) returns `driveEmbedUrl` for ALL videos,
-but the single endpoint (`/videos/:id`) is the one that enforces the real 403
-gating (vip/normal) and returns the sensitive extras (`driveParts`,
-`softwareLink` for VIP). If a locked lesson mounts the player or fetches the
-detail, you'd both leak playable URLs and fire requests the server will reject.
-Keeping the iframe/fetch behind the same `accessInfo` check makes the client UI
-consistent with the server's permission model.
+All lesson cards/rows navigate to `/videos/:id` regardless of lock state.
+`VideoDetail` calls `useGetVideo`; if server returns 403 it renders a **locked
+preview page** (blurred thumbnail + lock/crown + upgrade button) using metadata
+returned in the 403 body — never a full-screen redirect.
 
-**How to apply:** Compute `accessInfo` once; for locked lessons render the
-locked pane only; pass `query.enabled = !locked` to `useGetVideo` (TanStack v5
-also requires a `queryKey` in that options object — use
-`getGetVideoQueryKey(id)`). Never widen access logic here without matching a
-server-side change.
+`CoursePlayer` continues to gate its in-page player (does not call `useGetVideo`
+when `currentLocked`) to avoid unnecessary requests, but the sidebar list lets
+users click any lesson and reach the standalone VideoDetail page.
+
+## 403 response shape (GET /api/videos/:id)
+
+When access is denied, the server returns:
+```json
+{ "message": "...", "preview": { "title", "thumbnailUrl", "accessType", "categoryName", "description" } }
+```
+`preview` never includes stream URLs, driveParts, objectParts, hlsParts, or
+softwareLink — these are safe to expose (already visible in listing).
+
+## Lock computation (client)
+```
+accessType = "visitor" → never locked
+accessType = "vip"     → locked if !isVipUser
+accessType = "normal"  → locked if !isLoggedIn || isDemo
+```
+Both `Videos.tsx/accessInfo` and `CourseDetail.tsx/computeLocked` implement
+this — keep them in sync. `CoursePlayer/shouldFetch` uses the same logic.
+
+**Why:** driveEmbedUrl used to leak in the list endpoint (old architecture).
+That concern is resolved (GCS migration, list no longer returns stream URLs).
+The 403 preview approach keeps security at the server boundary while giving
+users the expected UX of seeing the lesson page before subscribing.
