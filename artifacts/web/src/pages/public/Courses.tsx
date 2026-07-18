@@ -38,7 +38,7 @@ function CourseCard({ playlist, index }: { playlist: Playlist & { imageUrl?: str
       transition={{ delay: index * 0.07, duration: 0.4, ease: "easeOut" }}
       className="h-full"
     >
-      <Link href={`/courses/${playlist.id}`}>
+      <Link href={`/videos?courseId=${playlist.id}`}>
         <div className="group relative flex flex-col rounded-3xl overflow-hidden shadow-md hover:shadow-2xl transition-all duration-300 hover:-translate-y-1.5 cursor-pointer h-full bg-card border border-white/8">
 
           {/* Cover — 16:9 */}

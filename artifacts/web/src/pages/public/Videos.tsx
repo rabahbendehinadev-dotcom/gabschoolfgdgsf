@@ -1,9 +1,9 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { Link, useSearch, useLocation } from "wouter";
-import { useGetVideos, useGetCategories, useGetVideo, getGetVideoQueryKey } from "@workspace/api-client-react/src/generated/api";
+import { useGetVideos, useGetCategories, useGetVideo, getGetVideoQueryKey, useGetPlaylist } from "@workspace/api-client-react/src/generated/api";
 import { useAuth } from "@/lib/auth";
 import { Card, Badge, Button, Input, Dialog, DialogContent } from "@/components/ui";
-import { Search, PlayCircle, Lock, X, Rocket, LayoutGrid, Sparkles, Loader2 } from "lucide-react";
+import { Search, PlayCircle, Lock, X, Rocket, LayoutGrid, Sparkles, Loader2, GraduationCap, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
 import { CategoryCard } from "@/components/public/CategoryCard";
 import { LessonCard } from "@/components/public/LessonCard";
@@ -18,17 +18,31 @@ export function Videos() {
   const [search, setSearch] = useState("");
   const [videoModalOpen, setVideoModalOpen] = useState(false);
 
-  /* ── القسم المحدّد من الـURL (?categoryId=) ── */
-  const categoryIdParam = new URLSearchParams(searchString).get("categoryId");
+  /* ── المعاملات من الـURL ── */
+  const params = new URLSearchParams(searchString);
+  const categoryIdParam = params.get("categoryId");
+  const courseIdParam = params.get("courseId");
   const categoryId = categoryIdParam ? Number(categoryIdParam) : undefined;
+  const courseId = courseIdParam ? Number(courseIdParam) : undefined;
 
   const lessonsRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
 
+  /* بيانات الدورة المختارة (إن وُجدت) */
+  const { data: coursePlaylist } = useGetPlaylist(courseId ?? 0, {
+    query: { enabled: !!courseId },
+  });
+  const courseSectionIds: Set<number> = useMemo(() => {
+    const sections = (coursePlaylist as typeof coursePlaylist & { sections?: { id: number }[] })?.sections;
+    return new Set(sections?.map(s => s.id) ?? []);
+  }, [coursePlaylist]);
+
   const selectCategory = (id?: number) => {
     setSearch("");
-    navigate(id ? `/videos?categoryId=${id}` : "/videos");
-    if (!id) {
+    if (id) {
+      navigate(courseId ? `/videos?courseId=${courseId}&categoryId=${id}` : `/videos?categoryId=${id}`);
+    } else {
+      navigate(courseId ? `/videos?courseId=${courseId}` : "/videos");
       requestAnimationFrame(() =>
         gridRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
       );
@@ -55,7 +69,12 @@ export function Videos() {
     { request: getAuthHeaders() }
   );
 
-  const { data: categories } = useGetCategories();
+  const { data: allCategories } = useGetCategories();
+  /* عند وجود courseId — فلتر الأقسام على تلك المرتبطة بالدورة فقط */
+  const categories = useMemo(() => {
+    if (!courseId || courseSectionIds.size === 0) return allCategories;
+    return allCategories?.filter(c => courseSectionIds.has(c.id));
+  }, [allCategories, courseId, courseSectionIds]);
 
   /* ── عدد الدروس لكل قسم ── */
   const countByCategory = useMemo(() => {
@@ -154,11 +173,49 @@ export function Videos() {
       <>
           {/* ── الأقسام (دائماً أعلى الصفحة) ثم دروس القسم المختار أسفلها ── */}
           <div className="container mx-auto px-4 py-12">
+            {/* بانر الدورة عند الفلترة */}
+            {courseId && coursePlaylist && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-8 flex items-center gap-4 rounded-2xl border border-primary/20 bg-primary/5 px-5 py-4"
+              >
+                {(coursePlaylist as typeof coursePlaylist & { imageUrl?: string | null }).imageUrl ? (
+                  <div className="h-12 w-16 shrink-0 overflow-hidden rounded-xl bg-muted shadow-sm">
+                    <img
+                      src={(coursePlaylist as typeof coursePlaylist & { imageUrl?: string | null }).imageUrl!}
+                      alt={coursePlaylist.title}
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                ) : (
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
+                    <GraduationCap className="h-6 w-6" />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-muted-foreground">الدورة المختارة</p>
+                  <p className="font-bold text-foreground truncate">{coursePlaylist.title}</p>
+                </div>
+                <button
+                  onClick={() => navigate("/videos")}
+                  className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                >
+                  <ArrowRight className="h-3.5 w-3.5" />
+                  كل الأقسام
+                </button>
+              </motion.div>
+            )}
+
             {/* ترويسة + بحث */}
             <div ref={gridRef} className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10 scroll-mt-24">
               <div>
-                <h1 className="text-3xl md:text-4xl font-bold mb-2">اختر القسم الذي تريد تعلّمه</h1>
-                <p className="text-foreground/60">اختر قسماً من الكروت بالأعلى لتظهر دروسه بالأسفل، مرتّبة كمسار تعليمي متكامل</p>
+                <h1 className="text-3xl md:text-4xl font-bold mb-2">
+                  {courseId && coursePlaylist ? `تصنيفات: ${coursePlaylist.title}` : "اختر القسم الذي تريد تعلّمه"}
+                </h1>
+                <p className="text-foreground/60">
+                  {courseId ? "اختر تصنيفاً لتظهر دروسه بالأسفل" : "اختر قسماً من الكروت بالأعلى لتظهر دروسه بالأسفل، مرتّبة كمسار تعليمي متكامل"}
+                </p>
               </div>
               <div className="w-full md:w-96 relative">
                 <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
