@@ -41,6 +41,7 @@ import type {
   CreateVideoInput,
   ErrorResponse,
   GetAdminUsersParams,
+  GetCategoriesParams,
   GetCommunityFeedParams,
   GetNotificationsParams,
   GetPlaylistsParams,
@@ -1002,43 +1003,59 @@ export function useGetVideo<
 }
 
 /**
- * @summary Get all categories
+ * @summary Get all categories, optionally filtered by playlistId (courseId)
  */
-export const getGetCategoriesUrl = () => {
-  return `/api/categories`;
+export const getGetCategoriesUrl = (params?: GetCategoriesParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/categories?${stringifiedParams}`
+    : `/api/categories`;
 };
 
 export const getCategories = async (
+  params?: GetCategoriesParams,
   options?: RequestInit,
 ): Promise<Category[]> => {
-  return customFetch<Category[]>(getGetCategoriesUrl(), {
+  return customFetch<Category[]>(getGetCategoriesUrl(params), {
     ...options,
     method: "GET",
   });
 };
 
-export const getGetCategoriesQueryKey = () => {
-  return [`/api/categories`] as const;
+export const getGetCategoriesQueryKey = (params?: GetCategoriesParams) => {
+  return [`/api/categories`, ...(params ? [params] : [])] as const;
 };
 
 export const getGetCategoriesQueryOptions = <
   TData = Awaited<ReturnType<typeof getCategories>>,
   TError = ErrorType<unknown>,
->(options?: {
-  query?: UseQueryOptions<
-    Awaited<ReturnType<typeof getCategories>>,
-    TError,
-    TData
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}) => {
+>(
+  params?: GetCategoriesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCategories>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getGetCategoriesQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getGetCategoriesQueryKey(params);
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof getCategories>>> = ({
     signal,
-  }) => getCategories({ signal, ...requestOptions });
+  }) => getCategories(params, { signal, ...requestOptions });
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof getCategories>>,
@@ -1053,21 +1070,24 @@ export type GetCategoriesQueryResult = NonNullable<
 export type GetCategoriesQueryError = ErrorType<unknown>;
 
 /**
- * @summary Get all categories
+ * @summary Get all categories, optionally filtered by playlistId (courseId)
  */
 
 export function useGetCategories<
   TData = Awaited<ReturnType<typeof getCategories>>,
   TError = ErrorType<unknown>,
->(options?: {
-  query?: UseQueryOptions<
-    Awaited<ReturnType<typeof getCategories>>,
-    TError,
-    TData
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-  const queryOptions = getGetCategoriesQueryOptions(options);
+>(
+  params?: GetCategoriesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCategories>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetCategoriesQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

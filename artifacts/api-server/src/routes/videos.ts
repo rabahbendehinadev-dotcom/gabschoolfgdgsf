@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, videosTable, categoriesTable, visitLogsTable, playlistsTable, activityLogsTable, usersTable, userCoursesTable } from "@workspace/db";
-import { eq, and, or, asc, sql, isNull } from "drizzle-orm";
+import { eq, and, or, asc, sql, isNull, inArray } from "drizzle-orm";
 import { optionalUserAuth, userAuth } from "../middlewares/auth";
 import { getClientIp } from "../lib/ipPolicy";
 import { deviceTypeFromUA } from "../lib/device";
@@ -75,13 +75,53 @@ router.get("/videos", optionalUserAuth, async (req, res) => {
   try {
     const categoryId = req.query.categoryId ? Number(req.query.categoryId) : undefined;
     const search = req.query.search as string | undefined;
+    const playlistId = req.query.playlistId ? Number(req.query.playlistId) : undefined;
 
-    let conditions = [
+    /* ── فلترة قاعدة البيانات حسب الدورة (playlistId) ───────────────────
+       عند تمرير playlistId:
+       1. نجلب معرّفات الأقسام المرتبطة بهذه الدورة (linkedPlaylistId).
+       2. نرفض categoryId إن لم يكن تابعاً لنفس الدورة.
+       3. نفلتر الفيديوهات لتلك التابعة للدورة مباشرةً (playlistId) أو عبر أقسامها.
+    ── */
+    let linkedCategoryIds: number[] | undefined;
+    if (playlistId && Number.isFinite(playlistId)) {
+      const linked = await db
+        .select({ id: categoriesTable.id })
+        .from(categoriesTable)
+        .where(and(
+          eq(categoriesTable.linkedPlaylistId, playlistId),
+          eq(categoriesTable.isVisible, true),
+        ));
+      linkedCategoryIds = linked.map(c => c.id);
+
+      /* إذا طُلب قسم معيّن وهو ليس تابعاً لهذه الدورة — ارفض الطلب */
+      if (categoryId !== undefined && !linkedCategoryIds.includes(categoryId)) {
+        res.status(403).json({ message: "هذا القسم لا ينتمي للدورة المطلوبة" });
+        return;
+      }
+
+      /* إذا لم تكن هناك أقسام مرتبطة بالدورة — أعد مصفوفة فارغة فوراً */
+      if (linkedCategoryIds.length === 0 && categoryId === undefined) {
+        res.json([]);
+        return;
+      }
+    }
+
+    const conditions = [
       eq(videosTable.isVisible, true),
-      or(eq(categoriesTable.isVisible, true), isNull(videosTable.categoryId)),
+      or(eq(categoriesTable.isVisible, true), isNull(videosTable.categoryId)) as ReturnType<typeof eq>,
     ];
+
     if (categoryId) {
       conditions.push(eq(videosTable.categoryId, categoryId));
+    } else if (linkedCategoryIds !== undefined && linkedCategoryIds.length > 0) {
+      /* فلتر الفيديوهات: تابعة للأقسام المرتبطة بالدورة أو مرتبطة بها مباشرة */
+      conditions.push(
+        or(
+          inArray(videosTable.categoryId, linkedCategoryIds),
+          eq(videosTable.playlistId, playlistId!),
+        ),
+      );
     }
 
     const results = await db.select({

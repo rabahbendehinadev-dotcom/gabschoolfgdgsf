@@ -33,15 +33,11 @@ export function Videos() {
   const lessonsRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
 
-  /* بيانات الدورة المختارة (إن وُجدت) */
+  /* بيانات الدورة المختارة — لعرض البانر والعنوان فقط */
   const { data: coursePlaylist } = useGetPlaylist(courseId ?? 0, {
     request: getAuthHeaders(),
     query: { enabled: !!courseId },
   });
-  const courseSectionIds: Set<number> = useMemo(() => {
-    const sections = (coursePlaylist as typeof coursePlaylist & { sections?: { id: number }[] })?.sections;
-    return new Set(sections?.map(s => s.id) ?? []);
-  }, [coursePlaylist]);
 
   const selectCategory = (id?: number) => {
     setSearch("");
@@ -55,8 +51,16 @@ export function Videos() {
     }
   };
 
-  /* ── طلب مستقل لجلب كل الفيديوهات (للفيديو المجاني + عدّ الدروس لكل قسم) ── */
-  const { data: allVideosUnfiltered } = useGetVideos({}, { request: getAuthHeaders() });
+  /* ── الأقسام — مفلترة من الـ backend حسب playlistId (courseId) ── */
+  const { data: categories } = useGetCategories(
+    courseId ? { playlistId: courseId } : undefined,
+  );
+
+  /* ── كل فيديوهات الدورة (للفيديو المجاني + عدّ الدروس لكل قسم) ── */
+  const { data: allVideosUnfiltered } = useGetVideos(
+    courseId ? { playlistId: courseId } : {},
+    { request: getAuthHeaders() },
+  );
   const freeVideo = allVideosUnfiltered?.find(v => v.accessType === "visitor");
 
   /* تفاصيل الفيديو المجاني (روابط البثّ الآمنة) — تُجلب فقط عند فتح النافذة */
@@ -69,24 +73,21 @@ export function Videos() {
   });
   const freeStreamUrl = freeDetail?.streamParts?.[0]?.url ?? "";
 
-  /* ── الفيديوهات حسب الفلاتر الحالية (قسم / بحث) ── */
+  /* ── الفيديوهات حسب الفلاتر الحالية (قسم / بحث) — مفلترة من الـ backend ── */
   const { data: videos, isLoading } = useGetVideos(
-    { search: search || undefined, categoryId },
-    { request: getAuthHeaders() }
+    {
+      search: search || undefined,
+      categoryId,
+      ...(courseId ? { playlistId: courseId } : {}),
+    },
+    { request: getAuthHeaders() },
   );
 
-  const { data: allCategories } = useGetCategories();
-  /* عند وجود courseId — فلتر الأقسام على تلك المرتبطة بالدورة فقط */
-  const categories = useMemo(() => {
-    if (!courseId || courseSectionIds.size === 0) return allCategories;
-    return allCategories?.filter(c => courseSectionIds.has(c.id));
-  }, [allCategories, courseId, courseSectionIds]);
-
-  /* ── عدد الدروس لكل قسم ── */
+  /* ── عدد الدروس لكل قسم (مبني على فيديوهات الدورة فقط) ── */
   const countByCategory = useMemo(() => {
     const map = new Map<number, number>();
     (allVideosUnfiltered ?? []).forEach(v => {
-      map.set(v.categoryId, (map.get(v.categoryId) ?? 0) + 1);
+      if (v.categoryId) map.set(v.categoryId, (map.get(v.categoryId) ?? 0) + 1);
     });
     return map;
   }, [allVideosUnfiltered]);
@@ -118,13 +119,8 @@ export function Videos() {
   const activeCategory = categories?.find(c => c.id === categoryId);
   const isSearching = search.trim().length > 0;
 
-  /* القسم المحدّد: الدروس مرتبة تسلسلياً (الـAPI يرتّبها حسب sortOrder)
-     عند وجود courseId، نفلتر client-side لنتائج البحث لضمان عرض دروس الدورة فقط */
-  const lessons = useMemo(() => {
-    const all = videos ?? [];
-    if (!courseId || courseSectionIds.size === 0 || !isSearching) return all;
-    return all.filter(v => courseSectionIds.has(v.categoryId));
-  }, [videos, courseId, courseSectionIds, isSearching]);
+  /* الدروس المعروضة — الـ backend يضمن أنها تابعة للدورة الصحيحة فقط */
+  const lessons = videos ?? [];
 
   /* عند اختيار قسم: انزل تلقائياً إلى قسم الدروس بالأسفل
      (نعتمد أيضاً على activeCategory لتعمل عند الدخول المباشر برابط ?categoryId=) */
