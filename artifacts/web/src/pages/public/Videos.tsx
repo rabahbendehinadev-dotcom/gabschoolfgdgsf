@@ -112,8 +112,13 @@ export function Videos() {
   const activeCategory = categories?.find(c => c.id === categoryId);
   const isSearching = search.trim().length > 0;
 
-  /* القسم المحدّد: الدروس مرتبة تسلسلياً (الـAPI يرتّبها حسب sortOrder) */
-  const lessons = videos ?? [];
+  /* القسم المحدّد: الدروس مرتبة تسلسلياً (الـAPI يرتّبها حسب sortOrder)
+     عند وجود courseId، نفلتر client-side لنتائج البحث لضمان عرض دروس الدورة فقط */
+  const lessons = useMemo(() => {
+    const all = videos ?? [];
+    if (!courseId || courseSectionIds.size === 0 || !isSearching) return all;
+    return all.filter(v => courseSectionIds.has(v.categoryId));
+  }, [videos, courseId, courseSectionIds, isSearching]);
 
   /* عند اختيار قسم: انزل تلقائياً إلى قسم الدروس بالأسفل
      (نعتمد أيضاً على activeCategory لتعمل عند الدخول المباشر برابط ?categoryId=) */
