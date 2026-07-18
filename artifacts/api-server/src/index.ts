@@ -153,6 +153,47 @@ async function runMigrations() {
     await db.execute(sql`CREATE INDEX IF NOT EXISTS community_reports_comment_idx ON community_reports(comment_id)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS community_reports_status_idx ON community_reports(status)`);
 
+    // ── One-time data migration: grant Flash & Decoding course (id=5)
+    //    to all legacy VIP users who don't already have it.
+    //    Idempotent: NOT EXISTS guard prevents any duplicate rows.
+    //    Hardcoded to playlist 5 only — no other course is affected.
+    try {
+      // Check playlist 5 (Flash & Decoding) actually exists before touching user_courses
+      const playlistCheck = await db.execute(sql`SELECT id FROM playlists WHERE id = 5 LIMIT 1`);
+      if ((playlistCheck.rows as any[]).length === 0) {
+        console.log("[migrations] Flash & Decoding course (id=5) not found in this environment — skipping VIP grant.");
+      } else {
+        // Count VIP users who already have the course (for the log report)
+        const beforeResult = await db.execute(sql`
+          SELECT COUNT(*) AS already
+          FROM user_courses
+          WHERE playlist_id = 5
+            AND user_id IN (SELECT id FROM users WHERE account_type = 'vip')
+        `);
+        const alreadyHad = Number((beforeResult.rows[0] as any)?.already ?? 0);
+
+        // Idempotent INSERT — NOT EXISTS guard prevents duplicates on reruns
+        const insertResult = await db.execute(sql`
+          INSERT INTO user_courses (user_id, playlist_id, granted_at)
+          SELECT u.id, 5, NOW()
+          FROM users u
+          WHERE u.account_type = 'vip'
+            AND NOT EXISTS (
+              SELECT 1 FROM user_courses uc
+              WHERE uc.user_id = u.id AND uc.playlist_id = 5
+            )
+        `);
+        const granted = (insertResult as any).rowCount ?? 0;
+        if (granted > 0) {
+          console.log(`[migrations] ✓ Granted Flash & Decoding course to ${granted} legacy VIP user(s). (${alreadyHad} already had it)`);
+        } else {
+          console.log(`[migrations] Flash & Decoding course: all ${alreadyHad} eligible VIP users already had access — no changes.`);
+        }
+      }
+    } catch (migErr) {
+      console.warn("[migrations] VIP course grant skipped:", migErr instanceof Error ? migErr.message : migErr);
+    }
+
     console.log("[migrations] Schema up to date.");
   } catch (err) {
     console.error("[migrations] Migration error:", err);
