@@ -8,7 +8,7 @@ import {
   useSortable, arrayMove
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useGetAdminVideos, useCreateVideo, useUpdateVideo, useDeleteVideo, useGetAdminCategories, useReorderVideos, useMigrateVideoStorage } from "@workspace/api-client-react/src/generated/api";
+import { useGetAdminVideos, useCreateVideo, useUpdateVideo, useDeleteVideo, useGetAdminCategories, useReorderVideos, useMigrateVideoStorage, useGetAdminPlaylists } from "@workspace/api-client-react/src/generated/api";
 import { AdminVideo, CreateVideoInput } from "@workspace/api-client-react/src/generated/api.schemas";
 import { useAuth } from "@/lib/auth";
 import { Card, Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label } from "@/components/ui";
@@ -130,6 +130,7 @@ export function AdminVideos() {
   const reqOpts = { request: getAdminAuthHeaders() };
   const { data: videos, refetch } = useGetAdminVideos(reqOpts);
   const { data: categories } = useGetAdminCategories(reqOpts);
+  const { data: playlists } = useGetAdminPlaylists(reqOpts);
   const createMut = useCreateVideo({ request: getAdminAuthHeaders() });
   const updateMut = useUpdateVideo({ request: getAdminAuthHeaders() });
   const deleteMut = useDeleteVideo({ request: getAdminAuthHeaders() });
@@ -604,6 +605,34 @@ export function AdminVideos() {
                   <option value={0} disabled>اختر تصنيف</option>
                   {categories?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
+              </div>
+
+              {/* Playlist (Course) */}
+              <div className="space-y-2 col-span-2">
+                <Label className="flex items-center gap-1.5">
+                  الدورة (اختياري)
+                  <span className="text-xs text-muted-foreground font-normal">— ربط الدرس بدورة معينة</span>
+                </Label>
+                <div className="grid grid-cols-[1fr_auto] gap-2">
+                  <select
+                    className="flex h-10 w-full rounded-md border border-white/10 bg-background px-3 py-2 text-sm"
+                    value={formData.playlistId ?? ""}
+                    onChange={e => setFormData({ ...formData, playlistId: e.target.value ? parseInt(e.target.value) : null })}
+                  >
+                    <option value="">بدون دورة</option>
+                    {(playlists ?? []).map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
+                  </select>
+                  {formData.playlistId && (
+                    <div className="space-y-0">
+                      <Input
+                        type="number" min={1} placeholder="رقم الجزء"
+                        className="h-10 w-28 text-center"
+                        value={formData.partNumber ?? ""}
+                        onChange={e => setFormData({ ...formData, partNumber: e.target.value ? parseInt(e.target.value) : null })}
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Access type + visibility */}
