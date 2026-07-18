@@ -18,3 +18,4 @@ export * from "./notifications";
 export * from "./notificationRecipients";
 export * from "./pushSubscriptions";
 export * from "./adminPushSubscriptions";
+export * from "./userCourses";

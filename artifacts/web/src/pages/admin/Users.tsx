@@ -1,11 +1,11 @@
-import { useState } from "react";
-import { useGetAdminUsers, useUpdateAdminUser, useResetUserIp, useDeleteAdminUser, useGetAdminNotificationStats, useSendUserTestPush } from "@workspace/api-client-react/src/generated/api";
+import { useState, useEffect } from "react";
+import { useGetAdminUsers, useUpdateAdminUser, useResetUserIp, useDeleteAdminUser, useGetAdminNotificationStats, useSendUserTestPush, useGetAdminPlaylists } from "@workspace/api-client-react/src/generated/api";
 import { AdminUser, UpdateUserInput, GetAdminUsersNotifications } from "@workspace/api-client-react/src/generated/api.schemas";
 import { useAuth } from "@/lib/auth";
 import { Card, Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label } from "@/components/ui";
 import { PhoneNumberInput } from "@/components/PhoneNumberInput";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Edit, RefreshCw, ShieldOff, ShieldCheck, Trash2, MessageCircle, KeyRound, Eye, EyeOff, BellRing, BellOff, Clock, Send, Loader2 } from "lucide-react";
+import { Search, Edit, RefreshCw, ShieldOff, ShieldCheck, Trash2, MessageCircle, KeyRound, Eye, EyeOff, BellRing, BellOff, Clock, Send, Loader2, GraduationCap, Check } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 
 const API_BASE = "";
@@ -35,9 +35,13 @@ export function AdminUsers() {
   const deleteMut = useDeleteAdminUser({ request: getAdminAuthHeaders() });
   const testPushMut = useSendUserTestPush({ request: getAdminAuthHeaders() });
 
+  const { data: allPlaylists } = useGetAdminPlaylists({ request: getAdminAuthHeaders() });
+
   const [search, setSearch] = useState("");
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [formData, setFormData] = useState<UpdateUserInput>({});
+  const [userCourseIds, setUserCourseIds] = useState<number[]>([]);
+  const [coursesLoading, setCoursesLoading] = useState(false);
   const [loadingId, setLoadingId] = useState<number | null>(null);
   const [testingId, setTestingId] = useState<number | null>(null);
   const [resetPwUser, setResetPwUser] = useState<AdminUser | null>(null);
@@ -84,7 +88,7 @@ export function AdminUsers() {
     }
   };
 
-  const handleEdit = (user: AdminUser) => {
+  const handleEdit = async (user: AdminUser) => {
     setEditingUser(user);
     setFormData({
       accountType: user.accountType,
@@ -92,10 +96,32 @@ export function AdminUsers() {
       isActive: user.isActive,
       phone: (user as typeof user & { phone?: string }).phone ?? undefined,
     });
+    setUserCourseIds([]);
+    setCoursesLoading(true);
+    try {
+      const headers = getAdminAuthHeaders().headers as Record<string, string>;
+      const res = await fetch(`/api/admin/users/${user.id}/courses`, { headers });
+      if (res.ok) setUserCourseIds(await res.json());
+    } catch { /* ignore */ }
+    finally { setCoursesLoading(false); }
   };
 
-  const handleSave = () => {
+  const toggleCourse = (id: number) => {
+    setUserCourseIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
+
+  const handleSave = async () => {
     if (!editingUser) return;
+    try {
+      const headers = getAdminAuthHeaders().headers as Record<string, string>;
+      await fetch(`/api/admin/users/${editingUser.id}/courses`, {
+        method: "PUT",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify(userCourseIds),
+      });
+    } catch { /* ignore */ }
     updateMut.mutate(
       { id: editingUser.id, data: formData },
       {
@@ -587,6 +613,44 @@ export function AdminUsers() {
               />
               <p className="text-xs text-muted-foreground">اختر الدولة وأدخل رقمًا دوليًا صحيحًا</p>
             </div>
+
+            {/* Courses section */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1.5">
+                <GraduationCap className="w-4 h-4 text-primary" />
+                الدورات الممنوحة
+              </Label>
+              {coursesLoading ? (
+                <div className="flex items-center justify-center py-3">
+                  <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                </div>
+              ) : !allPlaylists || allPlaylists.length === 0 ? (
+                <p className="text-xs text-muted-foreground py-2">لا توجد دورات متاحة</p>
+              ) : (
+                <div className="border border-white/10 rounded-md divide-y divide-white/10 max-h-48 overflow-y-auto">
+                  {allPlaylists.map(pl => {
+                    const selected = userCourseIds.includes(pl.id);
+                    return (
+                      <button
+                        key={pl.id}
+                        type="button"
+                        onClick={() => toggleCourse(pl.id)}
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm text-right transition-colors hover:bg-white/5 ${selected ? "bg-primary/10" : ""}`}
+                      >
+                        <span className={`flex-shrink-0 w-4 h-4 rounded border flex items-center justify-center transition-colors ${selected ? "bg-primary border-primary" : "border-white/20"}`}>
+                          {selected && <Check className="w-3 h-3 text-primary-foreground" />}
+                        </span>
+                        <span className="flex-1 truncate">{pl.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {userCourseIds.length > 0 && (
+                <p className="text-xs text-primary">{userCourseIds.length} دورة محددة</p>
+              )}
+            </div>
+
             <Button className="w-full mt-4" onClick={handleSave} disabled={updateMut.isPending}>
               حفظ التغييرات
             </Button>
