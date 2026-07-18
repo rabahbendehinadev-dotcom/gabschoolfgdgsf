@@ -69,14 +69,24 @@ export function GoogleSignInButton({ redirectTo = "/videos" }: { redirectTo?: st
   const [configLoaded, setConfigLoaded] = useState(false);
   const [gisStatus, setGisStatus] = useState<GisStatus>("loading");
 
+  const navigateAfterLogin = useCallback(async (token: string, phone: string | null | undefined) => {
+    if (!phone) { navigate("/complete-phone"); return; }
+    try {
+      const res = await fetch("/api/user/courses", { headers: { Authorization: `Bearer ${token}` } });
+      const courses: { id: number }[] = res.ok ? await res.json() : [];
+      navigate(courses.length === 1 ? `/courses/${courses[0].id}` : "/courses");
+    } catch {
+      navigate("/courses");
+    }
+  }, [navigate]);
+
   const handleCredential = useCallback((response: { credential?: string }) => {
     if (!response.credential) return;
     googleLoginMut.mutate({ data: { credential: response.credential } }, {
       onSuccess: (res) => {
         setAuth(res.token, res.user);
         toast({ title: "تم تسجيل الدخول بنجاح", className: "bg-green-600 text-white border-none" });
-        // New Google users have no WhatsApp number yet -> collect it first.
-        navigate(res.user.phone ? redirectTo : "/complete-phone");
+        void navigateAfterLogin(res.token, res.user.phone);
       },
       onError: (err) => {
         const apiErr = err as Error & { status?: number; data?: { message?: string } };
@@ -86,7 +96,7 @@ export function GoogleSignInButton({ redirectTo = "/videos" }: { redirectTo?: st
         toast({ variant: "destructive", title: "فشل تسجيل الدخول عبر Google", description });
       },
     });
-  }, [googleLoginMut, setAuth, toast, navigate, redirectTo]);
+  }, [googleLoginMut, setAuth, toast, navigate, navigateAfterLogin]);
 
   // Keep latest handler in a ref so the init effect only depends on clientId.
   const handlerRef = useRef(handleCredential);

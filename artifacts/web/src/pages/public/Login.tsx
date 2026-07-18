@@ -29,12 +29,23 @@ export function Login() {
     resolver: zodResolver(loginSchema)
   });
 
+  const navigateAfterLogin = async (token: string, phone: string | null | undefined) => {
+    if (!phone) { navigate("/complete-phone"); return; }
+    try {
+      const res = await fetch("/api/user/courses", { headers: { Authorization: `Bearer ${token}` } });
+      const courses: { id: number }[] = res.ok ? await res.json() : [];
+      navigate(courses.length === 1 ? `/courses/${courses[0].id}` : "/courses");
+    } catch {
+      navigate("/courses");
+    }
+  };
+
   const onSubmit = (data: LoginForm) => {
     loginMut.mutate({ data }, {
       onSuccess: (res) => {
         setAuth(res.token, res.user);
         toast({ title: "تم تسجيل الدخول بنجاح", className: "bg-green-600 text-white border-none" });
-        navigate(res.user.phone ? "/videos" : "/complete-phone");
+        void navigateAfterLogin(res.token, res.user.phone);
       },
       onError: (err) => {
         const apiErr = err as Error & { status?: number; data?: { message?: string } };

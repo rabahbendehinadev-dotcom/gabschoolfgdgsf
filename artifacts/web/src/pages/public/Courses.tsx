@@ -4,6 +4,23 @@ import { Link } from "wouter";
 import { motion } from "framer-motion";
 import { GraduationCap, PlayCircle, Lock, ArrowLeft, BookOpen, Star } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { useState, useEffect } from "react";
+
+function useUserCourseIds(token: string | null) {
+  const [ids, setIds] = useState<Set<number>>(new Set());
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => {
+    if (!token) { setLoaded(true); return; }
+    fetch("/api/user/courses", { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : [])
+      .then((data: { id: number }[]) => {
+        setIds(new Set(Array.isArray(data) ? data.map(d => d.id) : []));
+        setLoaded(true);
+      })
+      .catch(() => setLoaded(true));
+  }, [token]);
+  return { ids, loaded };
+}
 
 const ACCENTS = [
   { from: "#f97316", to: "#fb923c" },
@@ -38,7 +55,7 @@ function CourseCard({ playlist, index }: { playlist: Playlist & { imageUrl?: str
       transition={{ delay: index * 0.07, duration: 0.4, ease: "easeOut" }}
       className="h-full"
     >
-      <Link href={`/videos?courseId=${playlist.id}`}>
+      <Link href={`/courses/${playlist.id}`}>
         <div className="group relative flex flex-col rounded-3xl overflow-hidden shadow-md hover:shadow-2xl transition-all duration-300 hover:-translate-y-1.5 cursor-pointer h-full bg-card border border-white/8">
 
           {/* Cover — 16:9 */}
@@ -124,7 +141,14 @@ function CourseCard({ playlist, index }: { playlist: Playlist & { imageUrl?: str
 
 export function Courses() {
   const { data: playlists, isLoading } = useGetPlaylists();
-  const visible = (playlists ?? []).filter(p => p.isVisible !== false);
+  const { token } = useAuth();
+  const { ids: userCourseIds, loaded: coursesLoaded } = useUserCourseIds(token);
+
+  const allVisible = (playlists ?? []).filter(p => p.isVisible !== false);
+  const hasAssigned = userCourseIds.size > 0;
+  const visible = token && hasAssigned
+    ? allVisible.filter(p => userCourseIds.has(p.id))
+    : allVisible;
   const totalLessons = visible.reduce((acc, p) => acc + (p.videos?.length ?? 0), 0);
 
   return (
@@ -174,7 +198,7 @@ export function Courses() {
 
       {/* ── Grid ── */}
       <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
-        {isLoading ? (
+        {(isLoading || (!!token && !coursesLoaded)) ? (
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="flex flex-col rounded-3xl overflow-hidden">

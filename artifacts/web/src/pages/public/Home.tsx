@@ -2,8 +2,9 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Button, Card, Badge } from "@/components/ui";
 import { Link } from "wouter";
-import { Play, CheckCircle2, Shield, Zap, Crown, Lock, Search, LayoutGrid, Cloud, Terminal, Unlock, Cpu, ArrowRight, CircuitBoard, Usb, Wrench, Laptop, Download, BookOpen, ShieldOff, KeyRound, Trophy, MoveHorizontal, type LucideIcon } from "lucide-react";
-import { useGetCategories, useGetSubscriptionPlans, useGetVideos } from "@workspace/api-client-react/src/generated/api";
+import { Play, CheckCircle2, Shield, Zap, Crown, Lock, Search, LayoutGrid, Cloud, Terminal, Unlock, Cpu, ArrowRight, ArrowLeft, CircuitBoard, Usb, Wrench, Laptop, Download, BookOpen, ShieldOff, KeyRound, Trophy, MoveHorizontal, GraduationCap, PlayCircle, type LucideIcon } from "lucide-react";
+import { useGetCategories, useGetSubscriptionPlans, useGetVideos, useGetPlaylists } from "@workspace/api-client-react/src/generated/api";
+import type { Playlist } from "@workspace/api-client-react/src/generated/api.schemas";
 import { useAuth } from "@/lib/auth";
 import { CategoryCard } from "@/components/public/CategoryCard";
 import { CoursePlayer } from "@/components/public/CoursePlayer";
@@ -12,6 +13,112 @@ import iphoneLocked from "@assets/generated_images/hero_iphone_locked.png";
 import iphoneHome from "@assets/generated_images/hero_iphone_home.png";
 import androidUnlock from "@assets/generated_images/hero_android_unlock.png";
 import tabletClean from "@assets/generated_images/hero_tablet_clean.png";
+
+const HOME_ACCENTS = [
+  { from: "#f97316", to: "#fb923c" },
+  { from: "#8b5cf6", to: "#a78bfa" },
+  { from: "#06b6d4", to: "#22d3ee" },
+  { from: "#10b981", to: "#34d399" },
+  { from: "#ef4444", to: "#f87171" },
+  { from: "#3b82f6", to: "#60a5fa" },
+];
+
+function HomeCourseCard({ playlist, index }: { playlist: Playlist & { imageUrl?: string | null }; index: number }) {
+  const accent = HOME_ACCENTS[index % HOME_ACCENTS.length];
+  const lessonCount = playlist.videos?.length ?? 0;
+  const hasImage = !!playlist.imageUrl;
+
+  return (
+    <Link href={`/courses/${playlist.id}`}>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true }}
+        transition={{ delay: index * 0.06, duration: 0.4 }}
+        className="group relative flex flex-col rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 cursor-pointer h-full bg-card border border-border"
+      >
+        <div className="relative overflow-hidden" style={{ aspectRatio: "16/9" }}>
+          {hasImage ? (
+            <img
+              src={playlist.imageUrl!}
+              alt={playlist.title}
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+              onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
+            />
+          ) : (
+            <div
+              className="w-full h-full flex items-center justify-center"
+              style={{ background: `linear-gradient(135deg, ${accent.from}22, ${accent.to}44)` }}
+            >
+              <div
+                className="flex h-14 w-14 items-center justify-center rounded-2xl shadow-lg"
+                style={{ background: `linear-gradient(135deg, ${accent.from}, ${accent.to})` }}
+              >
+                <GraduationCap className="h-7 w-7 text-white" />
+              </div>
+            </div>
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+          <div className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full bg-black/70 backdrop-blur-sm px-2.5 py-1 text-xs font-bold text-white">
+            <PlayCircle className="h-3.5 w-3.5" />
+            {lessonCount > 0 ? `${lessonCount} درس` : "قريباً"}
+          </div>
+        </div>
+
+        <div className="flex flex-col p-4 flex-1">
+          <div className="w-8 h-1 rounded-full mb-2" style={{ background: `linear-gradient(90deg, ${accent.from}, ${accent.to})` }} />
+          <h3 className="font-bold text-sm leading-snug text-foreground line-clamp-2 mb-1">{playlist.title}</h3>
+          {playlist.description && (
+            <p className="text-xs text-muted-foreground line-clamp-2 flex-1">{playlist.description}</p>
+          )}
+          <div className="mt-3 flex items-center gap-1 text-xs font-bold" style={{ color: accent.from }}>
+            <ArrowLeft className="h-3.5 w-3.5" />
+            ابدأ التعلم
+          </div>
+        </div>
+      </motion.div>
+    </Link>
+  );
+}
+
+function HomeCoursesSection() {
+  const { data: playlists, isLoading } = useGetPlaylists();
+  const visible = ((playlists ?? []) as (Playlist & { imageUrl?: string | null })[])
+    .filter(p => p.isVisible !== false)
+    .slice(0, 6);
+
+  if (isLoading || visible.length === 0) return null;
+
+  return (
+    <section className="py-16 bg-background" dir="rtl">
+      <div className="container mx-auto px-4">
+        <div className="text-center mb-10">
+          <div className="inline-flex items-center gap-2 mb-3 px-4 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-sm font-semibold">
+            <GraduationCap className="w-4 h-4" />
+            تعلّم من الأفضل
+          </div>
+          <h2 className="text-3xl md:text-4xl font-black tracking-tight text-foreground">الدورات المتوفرة</h2>
+          <p className="mt-3 text-muted-foreground text-sm">اختر دورتك وابدأ رحلتك نحو الاحتراف</p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 max-w-5xl mx-auto">
+          {visible.map((pl, i) => (
+            <HomeCourseCard key={pl.id} playlist={pl} index={i} />
+          ))}
+        </div>
+
+        <div className="text-center mt-10">
+          <Link href="/courses">
+            <Button variant="outline" className="rounded-full px-8 gap-2 h-11 font-semibold">
+              عرض جميع الدورات
+              <ArrowLeft className="w-4 h-4" />
+            </Button>
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+}
 
 // خارطة طريق التعلّم داخل البانر — رحلة الطالب من البداية حتى الاحتراف (بدون أسماء ماركات)
 const roadmap: { label: string; icon: LucideIcon; tone: "sky" | "primary" | "gold" }[] = [
@@ -244,6 +351,11 @@ export function Home() {
           قسم تثبيت التطبيق — أزرار iPhone / Android بارزة تحت البانر
       ══════════════════════════════════ */}
       <InstallAppSection />
+
+      {/* ══════════════════════════════════
+          الدورات المتوفرة — بطاقات الدورات تحت قسم التثبيت
+      ══════════════════════════════════ */}
+      <HomeCoursesSection />
 
       {/* ══════════════════════════════════
           ماركات الهواتف المدعومة (الكروت) + دروس الماركة المختارة أسفلها
