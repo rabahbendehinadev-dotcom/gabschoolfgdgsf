@@ -362,7 +362,7 @@ export function AdminUsers() {
                 <th className="px-4 py-4">الإشعارات</th>
                 <th className="px-4 py-4">آخر إشعار</th>
                 <th className="px-4 py-4">الحالة</th>
-                <th className="px-4 py-4">إجراءات</th>
+                <th className="px-4 py-4 sticky left-0 bg-[#1a1a1a] z-10 border-r border-white/5">إجراءات</th>
               </tr>
             </thead>
             <tbody>
