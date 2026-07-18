@@ -25,6 +25,11 @@ export function Videos() {
   const categoryId = categoryIdParam ? Number(categoryIdParam) : undefined;
   const courseId = courseIdParam ? Number(courseIdParam) : undefined;
 
+  /* إذا فُتحت الصفحة بدون courseId، أعد التوجيه إلى صفحة الدورات */
+  useEffect(() => {
+    if (!courseIdParam) navigate("/courses", { replace: true });
+  }, [courseIdParam, navigate]);
+
   const lessonsRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
 
