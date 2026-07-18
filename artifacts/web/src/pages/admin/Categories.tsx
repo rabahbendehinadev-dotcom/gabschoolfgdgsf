@@ -8,8 +8,10 @@ import {
   useSortable, arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { useSearch, Link } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import {
-  useGetAdminCategories, useCreateCategory, useUpdateCategory,
+  useCreateCategory, useUpdateCategory,
   useDeleteCategory, useReorderCategories, useGetAdminPlaylists,
 } from "@workspace/api-client-react/src/generated/api";
 import { Category } from "@workspace/api-client-react/src/generated/api.schemas";
@@ -18,7 +20,7 @@ import { Card, Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, 
 import { useToast } from "@/hooks/use-toast";
 import {
   Plus, Edit, Trash2, FolderTree, GripVertical, Eye, EyeOff, Star,
-  Upload, ImageIcon, X, Loader2, Save, PlayCircle, ArrowLeft, Home, Link2,
+  Upload, X, Loader2, Save, PlayCircle, ArrowLeft, Home, Link2, GraduationCap, Video,
 } from "lucide-react";
 
 interface CategoryForm {
@@ -32,11 +34,13 @@ interface CategoryForm {
   isVisible: boolean;
   isFeatured: boolean;
   showOnHomepage: boolean;
+  linkedPlaylistId: number | null;
 }
 
 const EMPTY_FORM: CategoryForm = {
   name: "", nameEn: "", slug: "", icon: "", description: "",
   imageUrl: "", accentColor: "", isVisible: true, isFeatured: false, showOnHomepage: true,
+  linkedPlaylistId: null,
 };
 
 const PRESET_COLORS = ["#ea580c", "#2563eb", "#16a34a", "#9333ea", "#dc2626", "#0891b2", "#ca8a04", "#475569"];
@@ -167,14 +171,80 @@ function SortableCategoryCard({
   );
 }
 
+/* ── شاشة اختيار الدورة ── */
+function CoursePickerForCategories({ playlists }: { playlists: { id: number; title: string; description?: string | null }[] }) {
+  return (
+    <div className="space-y-6" dir="rtl">
+      <div>
+        <h1 className="text-3xl font-bold flex items-center gap-2">
+          <FolderTree className="w-7 h-7 text-primary" />
+          إدارة الأقسام
+        </h1>
+        <p className="text-sm text-muted-foreground mt-1">اختر الدورة لإدارة أقسامها</p>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {(playlists ?? []).map(pl => (
+          <Card key={pl.id} className="glass-card p-5 hover:border-primary/30 transition-colors">
+            <div className="flex items-start gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                <GraduationCap className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <h3 className="font-bold line-clamp-1">{pl.title}</h3>
+                {pl.description && <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{pl.description}</p>}
+              </div>
+            </div>
+            <Link href={`/gab-ctrl-9x/categories?courseId=${pl.id}`}>
+              <Button className="w-full gap-2" variant="outline">
+                <FolderTree className="w-4 h-4" />
+                إدارة أقسام الدورة
+              </Button>
+            </Link>
+          </Card>
+        ))}
+        {(playlists ?? []).length === 0 && (
+          <div className="col-span-full">
+            <Card className="glass-card p-14 text-center">
+              <GraduationCap className="w-12 h-12 mx-auto text-muted-foreground/30 mb-3" />
+              <p className="text-muted-foreground text-sm">لا توجد دورات. أنشئ دورة أولاً.</p>
+              <Link href="/gab-ctrl-9x/courses">
+                <Button variant="outline" className="mt-4">إدارة الدورات</Button>
+              </Link>
+            </Card>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ════════════════════════════════════════════════════════════ */
 export function AdminCategories() {
   const { getAdminAuthHeaders } = useAuth();
   const { toast } = useToast();
   const reqOpts = { request: getAdminAuthHeaders() };
+  const search = useSearch();
+  const courseIdStr = new URLSearchParams(search).get("courseId");
+  const courseId = courseIdStr ? parseInt(courseIdStr) : null;
 
-  const { data: categories, refetch } = useGetAdminCategories(reqOpts);
   const { data: playlists } = useGetAdminPlaylists(reqOpts);
+  const currentCourse = courseId ? playlists?.find(p => p.id === courseId) : null;
+
+  const authHeaders = getAdminAuthHeaders() as { headers?: Record<string, string> };
+  const fetchHeaders = authHeaders.headers ?? {};
+
+  const { data: categories, refetch } = useQuery({
+    queryKey: ["/api/admin/categories", courseId],
+    queryFn: async () => {
+      const url = courseId
+        ? `/api/admin/categories?playlistId=${courseId}`
+        : `/api/admin/categories`;
+      const res = await fetch(url, { headers: fetchHeaders });
+      if (!res.ok) throw new Error("Failed");
+      return res.json() as Promise<(Category & { lessonCount?: number })[]>;
+    },
+    enabled: courseId !== null,
+  });
   const createMut = useCreateCategory({ request: getAdminAuthHeaders() });
   const updateMut = useUpdateCategory({ request: getAdminAuthHeaders() });
   const deleteMut = useDeleteCategory({ request: getAdminAuthHeaders() });
@@ -230,7 +300,7 @@ export function AdminCategories() {
 
   const openCreate = () => {
     setEditingId(null);
-    setForm(EMPTY_FORM);
+    setForm({ ...EMPTY_FORM, linkedPlaylistId: courseId ?? null });
     setSlugTouched(false);
     setIsOpen(true);
   };
@@ -248,7 +318,7 @@ export function AdminCategories() {
       isVisible: c.isVisible,
       isFeatured: c.isFeatured,
       showOnHomepage: c.showOnHomepage,
-      linkedPlaylistId: (c as typeof c & { linkedPlaylistId?: number | null }).linkedPlaylistId ?? null,
+      linkedPlaylistId: (c as typeof c & { linkedPlaylistId?: number | null }).linkedPlaylistId ?? courseId ?? null,
     });
     setSlugTouched(true);
     setIsOpen(true);
@@ -335,14 +405,39 @@ export function AdminCategories() {
     });
   };
 
+  /* ── إذا لم يُختر courseId → شاشة اختيار الدورة ── */
+  if (!courseId) {
+    return <CoursePickerForCategories playlists={(playlists ?? []) as { id: number; title: string; description?: string | null }[]} />;
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" dir="rtl">
+      {/* Breadcrumb */}
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Link href="/gab-ctrl-9x/categories" className="hover:text-foreground flex items-center gap-1 transition-colors">
+          <FolderTree className="w-3.5 h-3.5" />
+          الأقسام
+        </Link>
+        <span>/</span>
+        <span className="text-foreground font-medium flex items-center gap-1">
+          <GraduationCap className="w-3.5 h-3.5 text-primary" />
+          {currentCourse?.title ?? `دورة #${courseId}`}
+        </span>
+      </div>
+
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold">إدارة أقسام الدورات</h1>
+          <h1 className="text-2xl font-bold">{currentCourse?.title ?? `دورة #${courseId}`} — الأقسام</h1>
           <p className="text-sm text-muted-foreground mt-1">اسحب الكروت لإعادة الترتيب — كل التغييرات تظهر مباشرة للطلاب</p>
         </div>
-        <Button onClick={openCreate}><Plus className="w-4 h-4 ml-2" /> إضافة قسم جديد</Button>
+        <div className="flex gap-2">
+          <Link href={`/gab-ctrl-9x/videos?courseId=${courseId}`}>
+            <Button variant="outline" className="gap-2">
+              <Video className="w-4 h-4" /> فيديوهات الدورة
+            </Button>
+          </Link>
+          <Button onClick={openCreate}><Plus className="w-4 h-4 ml-2" /> إضافة قسم جديد</Button>
+        </div>
       </div>
 
       {/* شريط حفظ الترتيب */}
@@ -471,25 +566,30 @@ export function AdminCategories() {
                 </div>
               </div>
 
-              {/* ربط الدورة */}
+              {/* الدورة التابعة */}
               <div className="space-y-2 pt-1 border-t border-white/10">
                 <Label className="flex items-center gap-1.5 text-sm">
                   <Link2 className="w-3.5 h-3.5 text-primary" />
-                  ربط مع دورة
+                  الدورة التابعة لها <span className="text-destructive">*</span>
                 </Label>
-                <select
-                  className="flex h-10 w-full rounded-md border border-white/10 bg-background px-3 py-2 text-sm"
-                  value={form.linkedPlaylistId ?? ""}
-                  onChange={e => setForm(f => ({ ...f, linkedPlaylistId: e.target.value ? parseInt(e.target.value) : null }))}
-                >
-                  <option value="">— بدون ربط —</option>
-                  {(playlists ?? []).map(p => (
-                    <option key={p.id} value={p.id}>{p.title}</option>
-                  ))}
-                </select>
-                <p className="text-[11px] text-muted-foreground">
-                  عند الربط، تظهر فيديوهات هذا التصنيف تلقائياً داخل الدورة المختارة
-                </p>
+                {courseId ? (
+                  <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-primary/8 border border-primary/20">
+                    <GraduationCap className="w-4 h-4 text-primary shrink-0" />
+                    <span className="text-sm font-semibold flex-1">{currentCourse?.title ?? `دورة #${courseId}`}</span>
+                    <span className="text-xs text-muted-foreground bg-white/5 px-2 py-0.5 rounded">ثابت</span>
+                  </div>
+                ) : (
+                  <select
+                    className="flex h-10 w-full rounded-md border border-white/10 bg-background px-3 py-2 text-sm"
+                    value={form.linkedPlaylistId ?? ""}
+                    onChange={e => setForm(f => ({ ...f, linkedPlaylistId: e.target.value ? parseInt(e.target.value) : null }))}
+                  >
+                    <option value="">— اختر الدورة —</option>
+                    {(playlists ?? []).map(p => (
+                      <option key={p.id} value={p.id}>{p.title}</option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               {/* المفاتيح */}
