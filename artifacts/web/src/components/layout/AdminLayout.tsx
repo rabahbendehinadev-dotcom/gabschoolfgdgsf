@@ -5,7 +5,7 @@ import { Button } from "@/components/ui";
 import {
   LayoutDashboard, Users, Video, FolderTree, CreditCard, LogOut,
   ShieldAlert, ListVideo, Activity, BadgeCheck, Banknote, KeyRound,
-  Megaphone, Bell, BellOff, BellRing, X, Share, PlusSquare, Menu, AlertTriangle,
+  Megaphone, Bell, BellOff, BellRing, X, Share, PlusSquare, Menu, AlertTriangle, GraduationCap,
 } from "lucide-react";
 
 /* ─── helpers ─────────────────────────────────────────────────────────── */
@@ -106,6 +106,7 @@ function useAdminPush(adminToken: string | null) {
 const NAV = [
   { name: "الإحصائيات",       path: "/gab-ctrl-9x",                   icon: LayoutDashboard },
   { name: "المستخدمين",        path: "/gab-ctrl-9x/users",             icon: Users },
+  { name: "الدورات",           path: "/gab-ctrl-9x/courses",           icon: GraduationCap },
   { name: "الفيديوهات",        path: "/gab-ctrl-9x/videos",            icon: Video },
   { name: "التصنيفات",         path: "/gab-ctrl-9x/categories",        icon: FolderTree },
   { name: "السلاسل",           path: "/gab-ctrl-9x/playlists",         icon: ListVideo },

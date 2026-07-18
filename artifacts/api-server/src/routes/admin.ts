@@ -1078,6 +1078,7 @@ router.get("/admin/playlists", adminAuth, async (_req, res) => {
     const allVideos = await db.select().from(videosTable);
     res.json(rows.map(({ playlist, categoryName }) => ({
       id: playlist.id, title: playlist.title, description: playlist.description,
+      imageUrl: playlist.imageUrl ?? null,
       categoryId: playlist.categoryId, categoryName: categoryName ?? "",
       sortOrder: playlist.sortOrder, isVisible: playlist.isVisible,
       createdAt: playlist.createdAt.toISOString(),
@@ -1093,12 +1094,12 @@ router.get("/admin/playlists", adminAuth, async (_req, res) => {
 
 router.post("/admin/playlists", adminAuth, async (req, res) => {
   try {
-    const { title, description, categoryId, sortOrder, isVisible } = req.body;
+    const { title, description, imageUrl, categoryId, sortOrder, isVisible } = req.body;
     const [playlist] = await db.insert(playlistsTable).values({
-      title, description: description ?? "", categoryId: Number(categoryId),
-      sortOrder: sortOrder ?? 0, isVisible: isVisible ?? true,
+      title, description: description ?? "", imageUrl: imageUrl ?? null,
+      categoryId: Number(categoryId), sortOrder: sortOrder ?? 0, isVisible: isVisible ?? true,
     }).returning();
-    res.status(201).json({ id: playlist.id, title: playlist.title, description: playlist.description, categoryId: playlist.categoryId, categoryName: "", sortOrder: playlist.sortOrder, isVisible: playlist.isVisible, createdAt: playlist.createdAt.toISOString(), videos: [] });
+    res.status(201).json({ id: playlist.id, title: playlist.title, description: playlist.description, imageUrl: playlist.imageUrl ?? null, categoryId: playlist.categoryId, categoryName: "", sortOrder: playlist.sortOrder, isVisible: playlist.isVisible, createdAt: playlist.createdAt.toISOString(), videos: [] });
   } catch (error: unknown) {
     res.status(400).json({ message: error instanceof Error ? error.message : "Failed to create playlist" });
   }
@@ -1107,16 +1108,17 @@ router.post("/admin/playlists", adminAuth, async (req, res) => {
 router.patch("/admin/playlists/:id", adminAuth, async (req, res) => {
   try {
     const id = Number(req.params.id);
-    const { title, description, categoryId, sortOrder, isVisible } = req.body;
+    const { title, description, imageUrl, categoryId, sortOrder, isVisible } = req.body;
     const updateData: Record<string, unknown> = {};
     if (title !== undefined) updateData.title = title;
     if (description !== undefined) updateData.description = description;
+    if (imageUrl !== undefined) updateData.imageUrl = imageUrl;
     if (categoryId !== undefined) updateData.categoryId = Number(categoryId);
     if (sortOrder !== undefined) updateData.sortOrder = sortOrder;
     if (isVisible !== undefined) updateData.isVisible = isVisible;
     const [playlist] = await db.update(playlistsTable).set(updateData).where(eq(playlistsTable.id, id)).returning();
     if (!playlist) { res.status(404).json({ message: "Playlist not found" }); return; }
-    res.json({ id: playlist.id, title: playlist.title, description: playlist.description, categoryId: playlist.categoryId, categoryName: "", sortOrder: playlist.sortOrder, isVisible: playlist.isVisible, createdAt: playlist.createdAt.toISOString(), videos: [] });
+    res.json({ id: playlist.id, title: playlist.title, description: playlist.description, imageUrl: playlist.imageUrl ?? null, categoryId: playlist.categoryId, categoryName: "", sortOrder: playlist.sortOrder, isVisible: playlist.isVisible, createdAt: playlist.createdAt.toISOString(), videos: [] });
   } catch (error: unknown) {
     res.status(400).json({ message: error instanceof Error ? error.message : "Failed to update playlist" });
   }

@@ -13,6 +13,7 @@ function buildPlaylistResponse(
     id: playlist.id,
     title: playlist.title,
     description: playlist.description,
+    imageUrl: (playlist as typeof playlist & { imageUrl?: string | null }).imageUrl ?? null,
     categoryId: playlist.categoryId,
     categoryName: playlist.categoryName || "",
     sortOrder: playlist.sortOrder,
