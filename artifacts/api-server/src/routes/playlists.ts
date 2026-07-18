@@ -92,7 +92,7 @@ router.get("/playlists", optionalUserAuth, async (req: Request, res: Response) =
   }
 });
 
-// GET /playlists/:id — returns one playlist with videos from its linked categories
+// GET /playlists/:id — returns one playlist with sections (categories + their videos)
 router.get("/playlists/:id", optionalUserAuth, async (req: Request, res: Response) => {
   try {
     const id = Number(req.params.id);
@@ -113,17 +113,59 @@ router.get("/playlists/:id", optionalUserAuth, async (req: Request, res: Respons
       .where(eq(
         (categoriesTable as typeof categoriesTable & { linkedPlaylistId: typeof categoriesTable.id }).linkedPlaylistId,
         id
-      ));
+      ))
+      .orderBy(asc(categoriesTable.sortOrder));
 
-    let videos: (typeof videosTable.$inferSelect)[] = [];
+    let allVideos: (typeof videosTable.$inferSelect)[] = [];
     if (linkedCats.length > 0) {
       const catIds = linkedCats.map(c => c.id);
-      videos = await db.select().from(videosTable)
+      allVideos = await db.select().from(videosTable)
         .where(inArray(videosTable.categoryId, catIds))
         .orderBy(asc(videosTable.partNumber));
     }
 
-    res.json(buildPlaylistResponse({ ...row.playlist, categoryName: row.categoryName ?? "" }, videos));
+    const visibleVideos = allVideos.filter(v => v.isVisible);
+
+    // Build sections: one per linked category
+    const sections = linkedCats.map(cat => ({
+      id: cat.id,
+      name: cat.name,
+      imageUrl: (cat as typeof cat & { imageUrl?: string | null }).imageUrl ?? null,
+      accentColor: (cat as typeof cat & { accentColor?: string | null }).accentColor ?? null,
+      videos: visibleVideos
+        .filter(v => v.categoryId === cat.id)
+        .map(v => ({
+          id: v.id,
+          title: v.title,
+          thumbnailUrl: v.thumbnailUrl,
+          partNumber: v.partNumber,
+          accessType: v.accessType,
+          isVisible: v.isVisible,
+          createdAt: v.createdAt.toISOString(),
+        })),
+    }));
+
+    const imageUrl = (row.playlist as typeof row.playlist & { imageUrl?: string | null }).imageUrl ?? null;
+
+    res.json({
+      id: row.playlist.id,
+      title: row.playlist.title,
+      description: row.playlist.description,
+      imageUrl,
+      isVisible: row.playlist.isVisible,
+      createdAt: row.playlist.createdAt.toISOString(),
+      sections,
+      // flat videos list kept for backward compat
+      videos: visibleVideos.map(v => ({
+        id: v.id,
+        title: v.title,
+        thumbnailUrl: v.thumbnailUrl,
+        partNumber: v.partNumber,
+        accessType: v.accessType,
+        isVisible: v.isVisible,
+        createdAt: v.createdAt.toISOString(),
+      })),
+    });
   } catch (error: unknown) {
     res.status(500).json({ message: error instanceof Error ? error.message : "Failed to fetch playlist" });
   }
