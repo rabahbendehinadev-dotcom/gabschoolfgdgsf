@@ -362,7 +362,7 @@ export function AdminUsers() {
                 <th className="px-4 py-4">الإشعارات</th>
                 <th className="px-4 py-4">آخر إشعار</th>
                 <th className="px-4 py-4">الحالة</th>
-                <th className="px-4 py-4 sticky left-0 bg-[#1a1a1a] z-10 border-r border-white/5">إجراءات</th>
+                <th className="px-4 py-4 sticky left-0 z-10 border-r border-gray-200" style={{ backgroundColor: "var(--color-card)" }}>إجراءات</th>
               </tr>
             </thead>
             <tbody>
@@ -468,7 +468,7 @@ export function AdminUsers() {
                         ? <Badge className="bg-green-500/20 text-green-500 hover:bg-green-500/20 border-0">نشط</Badge>
                         : <Badge variant="destructive">محظور</Badge>}
                     </td>
-                    <td className="px-4 py-4 sticky left-0 z-10 border-r border-white/5" style={{ backgroundColor: "hsl(var(--card))" }}>
+                    <td className="px-4 py-4 sticky left-0 z-10 border-r border-gray-200" style={{ backgroundColor: "var(--color-card)" }}>
                       <div className="flex gap-1.5">
                         <Button variant="ghost" size="icon" title="تعديل" onClick={() => handleEdit(user)}>
                           <Edit className="w-4 h-4" />
