@@ -27,7 +27,6 @@ import { AdminUsers } from "@/pages/admin/Users";
 import { AdminVideos } from "@/pages/admin/Videos";
 import { AdminCategories } from "@/pages/admin/Categories";
 import { AdminCourses } from "@/pages/admin/Courses";
-import { AdminPlaylists } from "@/pages/admin/Playlists";
 import { AdminPlans } from "@/pages/admin/Plans";
 import { AdminSubscriptions } from "@/pages/admin/Subscriptions";
 import { AdminActivityLog } from "@/pages/admin/ActivityLog";
@@ -138,9 +137,6 @@ function Router() {
       </Route>
       <Route path="/gab-ctrl-9x/categories">
         <AdminLayout><AdminCategories /></AdminLayout>
-      </Route>
-      <Route path="/gab-ctrl-9x/playlists">
-        <AdminLayout><AdminPlaylists /></AdminLayout>
       </Route>
       <Route path="/gab-ctrl-9x/plans">
         <AdminLayout><AdminPlans /></AdminLayout>
