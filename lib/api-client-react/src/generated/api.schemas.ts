@@ -321,6 +321,7 @@ export interface Category {
   isVisible: boolean;
   isFeatured: boolean;
   showOnHomepage: boolean;
+  linkedPlaylistId?: number | null;
   lessonCount?: number;
   createdAt?: string;
   updatedAt?: string;
@@ -338,6 +339,7 @@ export interface CreateCategoryInput {
   isVisible?: boolean;
   isFeatured?: boolean;
   showOnHomepage?: boolean;
+  linkedPlaylistId?: number | null;
 }
 
 export interface UpdateCategoryInput {
@@ -352,6 +354,7 @@ export interface UpdateCategoryInput {
   isVisible?: boolean;
   isFeatured?: boolean;
   showOnHomepage?: boolean;
+  linkedPlaylistId?: number | null;
 }
 
 export interface SubscriptionPlan {
@@ -739,6 +742,11 @@ export interface AdminNotificationsResponse {
 export type GetVideosParams = {
   categoryId?: number;
   search?: string;
+  playlistId?: number;
+};
+
+export type GetCategoriesParams = {
+  playlistId?: number;
 };
 
 export type GetPlaylistsParams = {
