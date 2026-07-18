@@ -613,9 +613,10 @@ router.put("/admin/users/:id/courses", adminAuth, async (req, res) => {
   }
 });
 
-router.get("/admin/videos", adminAuth, async (_req, res) => {
+router.get("/admin/videos", adminAuth, async (req, res) => {
   try {
-    const videos = await db.select({
+    const playlistId = req.query.playlistId ? Number(req.query.playlistId) : undefined;
+    const baseQuery = db.select({
       id: videosTable.id,
       title: videosTable.title,
       description: videosTable.description,
@@ -635,8 +636,12 @@ router.get("/admin/videos", adminAuth, async (_req, res) => {
       createdAt: videosTable.createdAt,
     })
     .from(videosTable)
-    .leftJoin(categoriesTable, eq(videosTable.categoryId, categoriesTable.id))
-    .orderBy(asc(videosTable.sortOrder), asc(videosTable.createdAt));
+    .leftJoin(categoriesTable, eq(videosTable.categoryId, categoriesTable.id));
+
+    const videos = await (playlistId
+      ? baseQuery.where(eq(videosTable.playlistId, playlistId))
+      : baseQuery
+    ).orderBy(asc(videosTable.sortOrder), asc(videosTable.createdAt));
 
     res.json(videos.map(v => ({
       ...v,
@@ -976,9 +981,11 @@ router.put("/admin/videos/:id/hls-parts", adminAuth, async (req, res) => {
   }
 });
 
-router.get("/admin/categories", adminAuth, async (_req, res) => {
+router.get("/admin/categories", adminAuth, async (req, res) => {
   try {
+    const playlistId = req.query.playlistId ? Number(req.query.playlistId) : undefined;
     const categories = await db.select().from(categoriesTable)
+      .where(playlistId ? eq(categoriesTable.linkedPlaylistId, playlistId) : undefined)
       .orderBy(asc(categoriesTable.sortOrder), asc(categoriesTable.id));
     const counts = await db
       .select({ categoryId: videosTable.categoryId, c: count() })

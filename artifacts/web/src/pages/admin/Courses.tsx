@@ -1,8 +1,9 @@
 import { useState, useRef } from "react";
+import { Link } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { Card, Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label } from "@/components/ui";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Edit, Trash2, GraduationCap, Upload, X, Loader2, Eye, EyeOff, ImageIcon } from "lucide-react";
+import { Plus, Edit, Trash2, GraduationCap, Upload, X, Loader2, Eye, EyeOff, ImageIcon, Video, FolderTree } from "lucide-react";
 import { useGetAdminPlaylists, useGetAdminCategories, useCreatePlaylist, useUpdatePlaylist, useDeletePlaylist } from "@workspace/api-client-react/src/generated/api";
 
 interface CourseForm {
@@ -175,6 +176,21 @@ export function AdminCourses() {
                 {pl.description && (
                   <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{pl.description}</p>
                 )}
+                {/* إدارة محتوى الدورة */}
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  <Link href={`/gab-ctrl-9x/videos?courseId=${pl.id}`}>
+                    <Button variant="outline" size="sm" className="w-full gap-1.5 text-xs">
+                      <Video className="w-3.5 h-3.5" />
+                      الفيديوهات
+                    </Button>
+                  </Link>
+                  <Link href={`/gab-ctrl-9x/categories?courseId=${pl.id}`}>
+                    <Button variant="outline" size="sm" className="w-full gap-1.5 text-xs">
+                      <FolderTree className="w-3.5 h-3.5" />
+                      الأقسام
+                    </Button>
+                  </Link>
+                </div>
                 <div className="flex gap-2">
                   <Button variant="ghost" size="sm" className="flex-1 gap-1.5" onClick={() => handleOpen(pl)}>
                     <Edit className="w-3.5 h-3.5" />
