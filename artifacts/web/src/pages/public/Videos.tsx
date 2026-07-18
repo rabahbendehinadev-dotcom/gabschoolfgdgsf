@@ -30,6 +30,7 @@ export function Videos() {
 
   /* بيانات الدورة المختارة (إن وُجدت) */
   const { data: coursePlaylist } = useGetPlaylist(courseId ?? 0, {
+    request: getAuthHeaders(),
     query: { enabled: !!courseId },
   });
   const courseSectionIds: Set<number> = useMemo(() => {
