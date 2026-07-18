@@ -14,7 +14,7 @@ const FALLBACK_THUMB =
 export function VideoDetail() {
   const [, params] = useRoute("/videos/:id");
   const [, navigate] = useLocation();
-  const { user, getAuthHeaders } = useAuth();
+  const { user, getAuthHeaders, bootstrapped } = useAuth();
   const [selectedPartIndex, setSelectedPartIndex] = useState(0);
 
   const id = params?.id ? parseInt(params.id) : 0;
@@ -24,9 +24,11 @@ export function VideoDetail() {
   });
 
   const video = videoRaw as (typeof videoRaw & { softwareLink?: string | null }) | undefined;
-  const status = (error as (Error & { response?: { status: number } }) | null)?.response?.status;
+  // ApiError exposes .status directly; also support .response.status as fallback
+  const apiErr = error as (Error & { status?: number; data?: unknown; response?: { status?: number } }) | null;
+  const status = apiErr?.status ?? apiErr?.response?.status;
 
-  if (isLoading) return (
+  if (isLoading || !bootstrapped) return (
     <div className="min-h-screen flex items-center justify-center">
       <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
     </div>
@@ -34,7 +36,8 @@ export function VideoDetail() {
 
   /* ── معالجة 403 — يُعرض preview مقفل بدل صفحة خطأ كاملة ── */
   if (status === 403) {
-    const preview = (error as any)?.response?.data?.preview as {
+    // ApiError stores the parsed response body in .data (not .response.data)
+    const preview = (apiErr?.data as any)?.preview as {
       title?: string;
       thumbnailUrl?: string | null;
       accessType?: string;
@@ -134,7 +137,7 @@ export function VideoDetail() {
     );
   }
 
-  if (status === 401 || (!user && error)) {
+  if (status === 401) {
     navigate("/login");
     return null;
   }

@@ -179,6 +179,7 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
       driveEmbedUrl: videosTable.driveEmbedUrl,
       categoryId: videosTable.categoryId,
       categoryName: categoriesTable.name,
+      categoryLinkedPlaylistId: categoriesTable.linkedPlaylistId,
       playlistId: videosTable.playlistId,
       partNumber: videosTable.partNumber,
       isVipOnly: videosTable.isVipOnly,
@@ -229,31 +230,40 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
       });
     };
 
-    // ── Course (playlist) access check — user must have the course assigned ──
-    if (video.playlistId) {
+    // ── Course (playlist) access check ──
+    // A video belongs to a course if video.playlistId is set directly,
+    // OR if its category has linkedPlaylistId (category-based course link).
+    const coursePlaylistId = video.playlistId ?? video.categoryLinkedPlaylistId ?? null;
+    let hasCourseAccess = false;
+
+    if (coursePlaylistId) {
       if (!user) {
         await denyVideoAccess("يجب تسجيل الدخول لمشاهدة هذا الفيديو");
         return;
       }
       const [courseAccess] = await db.select({ playlistId: userCoursesTable.playlistId })
         .from(userCoursesTable)
-        .where(and(eq(userCoursesTable.userId, user.id), eq(userCoursesTable.playlistId, video.playlistId)))
+        .where(and(eq(userCoursesTable.userId, user.id), eq(userCoursesTable.playlistId, coursePlaylistId)))
         .limit(1);
       if (!courseAccess) {
         await denyVideoAccess("ليس لديك صلاحية الوصول لهذه الدورة");
         return;
       }
+      // User has explicit course access — grant full access without subscription check
+      hasCourseAccess = true;
     }
 
-    if (accessType === "vip") {
-      if (!isVipUser) {
-        await denyVideoAccess("This video is only available for VIP accounts");
-        return;
-      }
-    } else if (accessType === "normal") {
-      if (!isVipUser && !isSubscribed) {
-        await denyVideoAccess("Subscribe to watch this video");
-        return;
+    if (!hasCourseAccess) {
+      if (accessType === "vip") {
+        if (!isVipUser) {
+          await denyVideoAccess("This video is only available for VIP accounts");
+          return;
+        }
+      } else if (accessType === "normal") {
+        if (!isVipUser && !isSubscribed) {
+          await denyVideoAccess("Subscribe to watch this video");
+          return;
+        }
       }
     }
 

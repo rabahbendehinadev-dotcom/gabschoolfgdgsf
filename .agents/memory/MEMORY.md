@@ -12,7 +12,8 @@
 - [Stale/orphan workflow process](stale-workflow-process.md) — if a workflow restart doesn't reflect on-disk edits, an older orphan process tree may still hold the port; ps + kill it, then restart.
 - [Google Sign-In (GIS ID-token)](google-signin-gis.md) — no redirect URI; needs Authorized JS origins not redirect URIs; client secret unused; client id is public; after codegen/schema run `tsc --build` so artifact typecheck sees new exports.
 - [Fragment + Replit metadata warning](fragment-metadata-warning.md) — Vite metadata plugin adds data-* to Fragment → React "invalid prop" warning; use flatMap/keyed elements or a DOM wrapper, not a keyed <Fragment>.
-- [Gated lesson/video views](gated-lesson-views.md) — locked lessons must NOT mount the player iframe or call useGetVideo; gate both on accessInfo so client mirrors the server 403 and avoids leaking driveParts/softwareLink.
+- [Gated lesson/video views](gated-lesson-views.md) — VideoDetail handles 403 with locked preview; route ordering in App.tsx critical (/:id before /); ApiError.data holds parsed body, not response.data.
+- [wouter v3 route ordering](wouter-route-ordering.md) — in Switch, put /path/:id BEFORE /path or prefix-match may render wrong component; also guard redirect effects with bootstrapped to avoid firing during auth load.
 - [Category-lessons two entry points](category-lessons-entrypoints.md) — category lessons render in BOTH Home.tsx (brand cards section, the one users click) and Videos.tsx CategoryDetail; change both (shared CoursePlayer) or it looks unapplied.
 - [Category card media aspect ratio](category-card-media-ratio.md) — CategoryCard media is 16:10 on mobile, taller 4:3 on desktop (lg) on purpose; don't normalize to one ratio. object-cover always crops.
 - [Replit proxy client IP](replit-proxy-client-ip.md) — edge strips client X-Forwarded-For; `req.ip` with `trust proxy:true` is the real, non-spoofable IP; don't set a fixed hop count.

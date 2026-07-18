@@ -12,7 +12,7 @@ import { CourseVideoPlayer } from "@/components/CourseVideoPlayer";
 import { getCategoryMeta } from "@/lib/categoryMeta";
 
 export function Videos() {
-  const { user, getAuthHeaders } = useAuth();
+  const { user, getAuthHeaders, bootstrapped } = useAuth();
   const [, navigate] = useLocation();
   const searchString = useSearch();
   const [search, setSearch] = useState("");
@@ -25,10 +25,11 @@ export function Videos() {
   const categoryId = categoryIdParam ? Number(categoryIdParam) : undefined;
   const courseId = courseIdParam ? Number(courseIdParam) : undefined;
 
-  /* إذا فُتحت الصفحة بدون courseId، أعد التوجيه إلى صفحة الدورات */
+  /* إذا فُتحت الصفحة بدون courseId بعد تحميل الـ auth، أعد التوجيه إلى صفحة الدورات */
   useEffect(() => {
+    if (!bootstrapped) return;
     if (!courseIdParam) navigate("/courses", { replace: true });
-  }, [courseIdParam, navigate]);
+  }, [bootstrapped, courseIdParam, navigate]);
 
   const lessonsRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
