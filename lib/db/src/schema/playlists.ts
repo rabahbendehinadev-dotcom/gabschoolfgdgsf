@@ -7,6 +7,7 @@ export const playlistsTable = pgTable("playlists", {
   id: serial("id").primaryKey(),
   title: varchar("title", { length: 255 }).notNull(),
   description: text("description").notNull().default(""),
+  imageUrl: text("image_url"),
   categoryId: integer("category_id").notNull().references(() => categoriesTable.id),
   sortOrder: integer("sort_order").notNull().default(0),
   isVisible: boolean("is_visible").notNull().default(true),
