@@ -18,7 +18,7 @@ import { Card, Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, 
 import { useToast } from "@/hooks/use-toast";
 import {
   Plus, Edit, Trash2, FolderTree, GripVertical, Eye, EyeOff, Star,
-  Upload, ImageIcon, X, Loader2, Save, PlayCircle, ArrowLeft, Home,
+  Upload, ImageIcon, X, Loader2, Save, PlayCircle, ArrowLeft, Home, Link2,
 } from "lucide-react";
 
 interface CategoryForm {
