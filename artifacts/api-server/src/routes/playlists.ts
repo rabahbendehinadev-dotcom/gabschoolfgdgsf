@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { eq, asc, inArray } from "drizzle-orm";
-import { db, playlistsTable, videosTable, categoriesTable } from "@workspace/db";
-import { optionalUserAuth } from "../middlewares/auth";
+import { eq, asc, inArray, and } from "drizzle-orm";
+import { db, playlistsTable, videosTable, categoriesTable, userCoursesTable } from "@workspace/db";
+import { optionalUserAuth, userAuth } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
@@ -168,6 +168,58 @@ router.get("/playlists/:id", optionalUserAuth, async (req: Request, res: Respons
     });
   } catch (error: unknown) {
     res.status(500).json({ message: error instanceof Error ? error.message : "Failed to fetch playlist" });
+  }
+});
+
+// GET /user/courses — returns playlists assigned to the current user via user_courses table
+router.get("/user/courses", userAuth, async (req: Request, res: Response) => {
+  try {
+    const userId = (req as typeof req & { user?: { id: number } }).user!.id;
+    const assignments = await db.select({ playlistId: userCoursesTable.playlistId })
+      .from(userCoursesTable)
+      .where(eq(userCoursesTable.userId, userId));
+
+    if (assignments.length === 0) {
+      res.json([]);
+      return;
+    }
+
+    const playlistIds = assignments.map(a => a.playlistId);
+
+    const rows = await db.select({
+      playlist: playlistsTable,
+      categoryName: categoriesTable.name,
+    })
+      .from(playlistsTable)
+      .leftJoin(categoriesTable, eq(playlistsTable.categoryId, categoriesTable.id))
+      .where(and(eq(playlistsTable.isVisible, true), inArray(playlistsTable.id, playlistIds)))
+      .orderBy(asc(playlistsTable.sortOrder), asc(playlistsTable.createdAt));
+
+    const linkedCategories = rows.length > 0
+      ? await db.select().from(categoriesTable).where(inArray(
+          (categoriesTable as typeof categoriesTable & { linkedPlaylistId: typeof categoriesTable.id }).linkedPlaylistId,
+          playlistIds
+        ))
+      : [];
+
+    const linkedCatIds = linkedCategories.map(c => c.id);
+    const allVideos = linkedCatIds.length > 0
+      ? await db.select().from(videosTable)
+          .where(inArray(videosTable.categoryId, linkedCatIds))
+          .orderBy(asc(videosTable.partNumber))
+      : [];
+
+    const result = rows.map(({ playlist, categoryName }) => {
+      const catIds = linkedCategories
+        .filter(c => (c as typeof c & { linkedPlaylistId?: number | null }).linkedPlaylistId === playlist.id)
+        .map(c => c.id);
+      const videos = allVideos.filter(v => catIds.includes(v.categoryId!));
+      return buildPlaylistResponse({ ...playlist, categoryName: categoryName ?? "" }, videos);
+    });
+
+    res.json(result);
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Failed to fetch user courses" });
   }
 });
 
