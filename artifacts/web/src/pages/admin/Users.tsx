@@ -627,7 +627,7 @@ export function AdminUsers() {
               ) : !allPlaylists || allPlaylists.length === 0 ? (
                 <p className="text-xs text-muted-foreground py-2">لا توجد دورات متاحة</p>
               ) : (
-                <div className="rounded-md border border-input bg-background max-h-48 overflow-y-auto divide-y divide-border">
+                <div className="rounded-md border border-gray-200 bg-white max-h-48 overflow-y-auto divide-y divide-gray-100">
                   {allPlaylists.map(pl => {
                     const selected = userCourseIds.includes(pl.id);
                     return (
@@ -635,12 +635,12 @@ export function AdminUsers() {
                         key={pl.id}
                         type="button"
                         onClick={() => toggleCourse(pl.id)}
-                        className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm text-right transition-colors hover:bg-muted/50 ${selected ? "bg-muted/60" : ""}`}
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm text-right transition-colors ${selected ? "bg-orange-50 hover:bg-orange-100" : "hover:bg-gray-50"}`}
                       >
-                        <span className={`flex-shrink-0 w-4 h-4 rounded border flex items-center justify-center transition-colors ${selected ? "bg-primary border-primary" : "border-input"}`}>
-                          {selected && <Check className="w-3 h-3 text-primary-foreground" />}
+                        <span className={`flex-shrink-0 w-4 h-4 rounded border flex items-center justify-center transition-colors ${selected ? "bg-primary border-primary" : "border-gray-300"}`}>
+                          {selected && <Check className="w-3 h-3 text-white" />}
                         </span>
-                        <span className="flex-1 truncate text-foreground">{pl.title}</span>
+                        <span className="flex-1 truncate text-gray-800 font-medium">{pl.title || `دورة #${pl.id}`}</span>
                       </button>
                     );
                   })}
