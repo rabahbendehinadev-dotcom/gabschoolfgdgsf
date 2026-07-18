@@ -39,12 +39,9 @@ function lessonsLabel(n: number) {
   return `${n} درساً`;
 }
 
-function CourseCard({ playlist, index }: { playlist: Playlist & { imageUrl?: string | null }; index: number }) {
-  const { user } = useAuth();
+function CourseCard({ playlist, index, isLocked }: { playlist: Playlist & { imageUrl?: string | null }; index: number; isLocked: boolean }) {
   const accent = ACCENTS[index % ACCENTS.length];
   const lessonCount = playlist.videos?.length ?? 0;
-  const hasVipVideos = playlist.videos?.some(v => v.accessType === "vip");
-  const isVip = user?.accountType === "vip";
   const hasImage = !!playlist.imageUrl;
   const isSoon = lessonCount === 0;
 
@@ -90,11 +87,15 @@ function CourseCard({ playlist, index }: { playlist: Playlist & { imageUrl?: str
               {lessonsLabel(lessonCount)}
             </div>
 
-            {/* VIP badge */}
-            {hasVipVideos && !isVip && (
-              <div className="absolute top-3 left-3 flex items-center gap-1 rounded-full bg-amber-500 px-2.5 py-1 text-[11px] font-bold text-white shadow-lg">
-                <Lock className="h-3 w-3" />
-                VIP
+            {/* Locked overlay */}
+            {isLocked && (
+              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-black/55 backdrop-blur-[2px]">
+                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-black/60">
+                  <Lock className="h-5 w-5 text-white" />
+                </div>
+                <span className="rounded-full bg-black/50 px-3 py-0.5 text-[11px] font-bold text-white">
+                  غير مفعل
+                </span>
               </div>
             )}
 
@@ -127,10 +128,12 @@ function CourseCard({ playlist, index }: { playlist: Playlist & { imageUrl?: str
             {/* CTA */}
             <div
               className="mt-auto flex items-center gap-2 text-sm font-bold"
-              style={{ color: accent.from }}
+              style={{ color: isLocked ? "#9ca3af" : accent.from }}
             >
-              <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1 duration-200" />
-              استعراض الدروس
+              {isLocked
+                ? <><Lock className="h-4 w-4" /> مقفل — تواصل مع الإدارة</>
+                : <><ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1 duration-200" /> استعراض الدروس</>
+              }
             </div>
           </div>
         </div>
@@ -144,11 +147,7 @@ export function Courses() {
   const { token } = useAuth();
   const { ids: userCourseIds, loaded: coursesLoaded } = useUserCourseIds(token);
 
-  const allVisible = (playlists ?? []).filter(p => p.isVisible !== false);
-  const hasAssigned = userCourseIds.size > 0;
-  const visible = token && hasAssigned
-    ? allVisible.filter(p => userCourseIds.has(p.id))
-    : allVisible;
+  const visible = (playlists ?? []).filter(p => p.isVisible !== false);
   const totalLessons = visible.reduce((acc, p) => acc + (p.videos?.length ?? 0), 0);
 
   return (
@@ -222,7 +221,7 @@ export function Courses() {
         ) : (
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {visible.map((pl, i) => (
-              <CourseCard key={pl.id} playlist={pl} index={i} />
+              <CourseCard key={pl.id} playlist={pl} index={i} isLocked={coursesLoaded && !userCourseIds.has(pl.id)} />
             ))}
           </div>
         )}

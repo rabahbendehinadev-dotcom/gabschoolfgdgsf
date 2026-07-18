@@ -146,17 +146,48 @@ function LessonRow({ video, index, isVip }: { video: SectionVideo; index: number
 
 /* ════════════════════════════════════════════════════════════ */
 export function CourseDetail({ id }: { id: number }) {
-  const { user } = useAuth();
+  const { user, getAuthHeaders } = useAuth();
   const isVip = user?.accountType === "vip";
   const [, navigate] = useLocation();
   const [activeSection, setActiveSection] = useState<Section | null>(null);
 
-  const { data: playlist, isLoading, isError } = useGetPlaylist(id);
+  const { data: playlist, isLoading, isError } = useGetPlaylist(id, { request: getAuthHeaders() });
+
+  const isLocked = !isLoading && !isError && (playlist as typeof playlist & { locked?: boolean })?.locked === true;
 
   if (isLoading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center" dir="rtl">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (isLocked) {
+    return (
+      <div className="flex min-h-[70vh] flex-col items-center justify-center gap-6 text-center px-4" dir="rtl">
+        <div className="flex h-24 w-24 items-center justify-center rounded-3xl bg-amber-500/10 border border-amber-500/20">
+          <Lock className="h-12 w-12 text-amber-400" />
+        </div>
+        <div className="max-w-sm">
+          <h2 className="text-2xl font-extrabold text-foreground mb-3">الدورة غير مفعلة</h2>
+          <p className="text-muted-foreground leading-relaxed">
+            {user
+              ? "هذه الدورة غير مفعلة في حسابك. تواصل مع الإدارة لتفعيل الوصول إليها."
+              : "يجب تسجيل الدخول أولاً للوصول إلى هذه الدورة."}
+          </p>
+        </div>
+        {!user ? (
+          <Link href="/login">
+            <button className="rounded-2xl bg-primary px-8 py-3 text-sm font-bold text-white shadow-md shadow-primary/30 hover:opacity-90 transition-opacity">
+              تسجيل الدخول
+            </button>
+          </Link>
+        ) : (
+          <button onClick={() => navigate("/courses")} className="text-sm font-medium text-primary hover:underline">
+            العودة إلى الدورات
+          </button>
+        )}
       </div>
     );
   }
