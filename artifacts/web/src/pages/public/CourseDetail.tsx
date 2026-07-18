@@ -1,12 +1,12 @@
-import { useGetPlaylist } from "@workspace/api-client-react/src/generated/api";
-import { PlaylistVideo } from "@workspace/api-client-react/src/generated/api.schemas";
+import { useGetCategories, useGetVideos } from "@workspace/api-client-react/src/generated/api";
+import { Video } from "@workspace/api-client-react/src/generated/api.schemas";
 import { Link, useLocation } from "wouter";
 import { motion } from "framer-motion";
-import { GraduationCap, PlayCircle, Lock, ArrowRight, Loader2, ChevronLeft } from "lucide-react";
+import { GraduationCap, PlayCircle, Lock, ArrowRight, Loader2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
-function LessonRow({ video, index, isVip }: { video: PlaylistVideo; index: number; isVip: boolean }) {
+function LessonRow({ video, index, isVip }: { video: Video; index: number; isVip: boolean }) {
   const locked = video.accessType === "vip" && !isVip;
 
   return (
@@ -73,7 +73,11 @@ export function CourseDetail({ id }: { id: number }) {
   const isVip = user?.accountType === "vip";
   const [, navigate] = useLocation();
 
-  const { data: playlist, isLoading, isError } = useGetPlaylist(id);
+  const { data: categories, isLoading: catLoading } = useGetCategories();
+  const { data: videos, isLoading: vidLoading } = useGetVideos({ categoryId: id });
+
+  const isLoading = catLoading || vidLoading;
+  const category = (categories ?? []).find(c => c.id === id);
 
   if (isLoading) {
     return (
@@ -83,7 +87,7 @@ export function CourseDetail({ id }: { id: number }) {
     );
   }
 
-  if (isError || !playlist) {
+  if (!category) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 text-center" dir="rtl">
         <GraduationCap className="h-12 w-12 text-muted-foreground/40" />
@@ -98,13 +102,20 @@ export function CourseDetail({ id }: { id: number }) {
     );
   }
 
-  const videos = (playlist.videos ?? []).sort(
-    (a, b) => (a.partNumber ?? 999) - (b.partNumber ?? 999)
-  );
+  const sorted = [...(videos ?? [])].sort((a, b) => {
+    if (a.partNumber !== null && b.partNumber !== null &&
+        a.partNumber !== undefined && b.partNumber !== undefined) {
+      return a.partNumber - b.partNumber;
+    }
+    if (a.partNumber != null) return -1;
+    if (b.partNumber != null) return 1;
+    return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+  });
 
-  const totalLessons = videos.length;
-  const vipCount = videos.filter(v => v.accessType === "vip").length;
+  const totalLessons = sorted.length;
+  const vipCount = sorted.filter(v => v.accessType === "vip").length;
   const freeCount = totalLessons - vipCount;
+  const accent = category.accentColor;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/30 pb-24" dir="rtl">
@@ -121,21 +132,36 @@ export function CourseDetail({ id }: { id: number }) {
           </button>
 
           <div className="flex items-start gap-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-              <GraduationCap className="h-6 w-6" />
-            </div>
+            {/* Cover thumbnail or icon */}
+            {category.imageUrl ? (
+              <div className="h-14 w-20 shrink-0 overflow-hidden rounded-xl bg-muted shadow-sm">
+                <img
+                  src={category.imageUrl}
+                  alt={category.name}
+                  className="h-full w-full object-cover"
+                />
+              </div>
+            ) : (
+              <div
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"
+                style={accent ? { background: `${accent}22`, color: accent } : undefined}
+              >
+                <GraduationCap className="h-6 w-6" />
+              </div>
+            )}
+
             <div className="flex-1 min-w-0">
               <h1 className="text-xl font-extrabold leading-snug text-foreground sm:text-2xl">
-                {playlist.title}
+                {category.name}
               </h1>
-              {playlist.description && (
+              {category.description && (
                 <p className="mt-1 text-sm text-muted-foreground leading-relaxed">
-                  {playlist.description}
+                  {category.description}
                 </p>
               )}
               <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                 <span className="flex items-center gap-1">
-                  <PlayCircle className="h-3.5 w-3.5 text-primary" />
+                  <PlayCircle className="h-3.5 w-3.5 text-primary" style={accent ? { color: accent } : undefined} />
                   {totalLessons === 0 ? "لا توجد دروس بعد" : `${totalLessons} درس`}
                 </span>
                 {freeCount > 0 && (
@@ -156,20 +182,20 @@ export function CourseDetail({ id }: { id: number }) {
 
       {/* Lessons list */}
       <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-        {videos.length === 0 ? (
+        {sorted.length === 0 ? (
           <div className="py-16 text-center text-muted-foreground">
             <PlayCircle className="mx-auto mb-3 h-10 w-10 opacity-30" />
             <p className="text-sm">لا توجد دروس في هذه الدورة بعد</p>
           </div>
         ) : (
           <div className="flex flex-col gap-2.5">
-            {videos.map((v, i) => (
+            {sorted.map((v, i) => (
               <LessonRow key={v.id} video={v} index={i} isVip={isVip} />
             ))}
           </div>
         )}
 
-        {/* Subscribe CTA for non-vip users when vip content exists */}
+        {/* Subscribe CTA */}
         {!isVip && vipCount > 0 && (
           <div className="mt-6 rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 p-5 text-center">
             <Lock className="mx-auto mb-2 h-7 w-7 text-amber-500" />
