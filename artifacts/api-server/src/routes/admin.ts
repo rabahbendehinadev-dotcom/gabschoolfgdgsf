@@ -2,7 +2,7 @@ import path from "path";
 import fs from "fs";
 import { Router, type IRouter } from "express";
 import multer from "multer";
-import { db, usersTable, videosTable, categoriesTable, playlistsTable, subscriptionPlansTable, visitLogsTable, activityLogsTable, notificationsTable, notificationRecipientsTable, pushSubscriptionsTable, adminPushSubscriptionsTable, communityPostsTable, communityCommentsTable, communityReportsTable } from "@workspace/db";
+import { db, usersTable, videosTable, categoriesTable, playlistsTable, subscriptionPlansTable, visitLogsTable, activityLogsTable, notificationsTable, notificationRecipientsTable, pushSubscriptionsTable, adminPushSubscriptionsTable, communityPostsTable, communityCommentsTable, communityReportsTable, userCoursesTable } from "@workspace/db";
 import { eq, sql, count, desc, asc, lt, and, gte, isNull, isNotNull, inArray, max, ilike, or } from "drizzle-orm";
 
 import { adminAuth } from "../middlewares/auth";
@@ -580,6 +580,36 @@ router.post("/admin/users/:id/reset-ip", adminAuth, async (req, res) => {
     res.json({ message: "IP address reset successfully" });
   } catch (error: unknown) {
     res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" || "Failed to reset IP" });
+  }
+});
+
+// GET /admin/users/:id/courses — list playlist IDs granted to a user
+router.get("/admin/users/:id/courses", adminAuth, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const rows = await db.select({ playlistId: userCoursesTable.playlistId })
+      .from(userCoursesTable)
+      .where(eq(userCoursesTable.userId, id));
+    res.json(rows.map(r => r.playlistId));
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
+// PUT /admin/users/:id/courses — replace the full set of granted courses
+router.put("/admin/users/:id/courses", adminAuth, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const playlistIds: number[] = zod.array(zod.number()).parse(req.body);
+    await db.delete(userCoursesTable).where(eq(userCoursesTable.userId, id));
+    if (playlistIds.length > 0) {
+      await db.insert(userCoursesTable).values(
+        playlistIds.map(pid => ({ userId: id, playlistId: pid }))
+      );
+    }
+    res.json({ ok: true });
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" });
   }
 });
 

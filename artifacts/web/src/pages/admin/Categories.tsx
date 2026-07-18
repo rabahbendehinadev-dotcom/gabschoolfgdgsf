@@ -174,6 +174,7 @@ export function AdminCategories() {
   const reqOpts = { request: getAdminAuthHeaders() };
 
   const { data: categories, refetch } = useGetAdminCategories(reqOpts);
+  const { data: playlists } = useGetAdminPlaylists(reqOpts);
   const createMut = useCreateCategory({ request: getAdminAuthHeaders() });
   const updateMut = useUpdateCategory({ request: getAdminAuthHeaders() });
   const deleteMut = useDeleteCategory({ request: getAdminAuthHeaders() });
