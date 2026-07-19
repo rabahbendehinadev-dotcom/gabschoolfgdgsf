@@ -884,24 +884,38 @@ router.post("/admin/videos/:id/migrate-storage", adminAuth, async (req, res) => 
     try {
       for (let i = 0; i < partsList.length; i++) {
         const partUrl = partsList[i].url;
+        const partLabel = `الجزء ${i + 1}/${partsList.length}`;
+        console.info(`[video-storage] migrating part ${i + 1}/${partsList.length}`, { videoId: id, url: partUrl.slice(0, 80) });
+
         if (isFolderDriveUrl(partUrl)) {
           throw new Error(
-            `الجزء ${i + 1}: رابط مجلد Google Drive وليس ملف فيديو — لا يمكن نقل مجلد.\n` +
+            `${partLabel}: رابط مجلد Google Drive وليس ملف فيديو — لا يمكن نقل مجلد.\n` +
             `الرابط الخاطئ: ${partUrl}\n` +
             `الحل: افتح المجلد → اختر ملف الفيديو → انسخ رابط الملف (file/d/...) وحدّث الفيديو.`,
           );
         }
         const fileId = extractDriveFileId(partUrl);
         if (!fileId) {
-          throw new Error(`الجزء ${i + 1}: لم يتم التعرف على صيغة رابط Google Drive.\nالرابط: ${partUrl}`);
+          throw new Error(
+            `${partLabel}: لم يتم التعرف على صيغة رابط Google Drive.\nالرابط: ${partUrl}`,
+          );
         }
         const destPath = buildVideoObjectPath(id, i);
         const result = await copyDriveFileToStorage(fileId, destPath);
         if (result.bytes === 0) {
-          throw new Error(`Part ${i + 1}: copied 0 bytes`);
+          throw new Error(`${partLabel}: نُسِخت 0 بايت من Drive — الملف فارغ أو محجوب.`);
         }
         copied.push({ label: partsList[i].label, objectPath: result.objectPath });
         totalBytes += result.bytes;
+        console.info(`[video-storage] part ${i + 1}/${partsList.length} done`, {
+          videoId: id, bytes: result.bytes,
+        });
+
+        // Throttle: wait 1 s between parts to avoid hitting Google Drive rate limits.
+        // Skipped after the last part.
+        if (i < partsList.length - 1) {
+          await new Promise(r => setTimeout(r, 1_000));
+        }
       }
     } catch (copyErr) {
       // Roll back any partial copies so we never store a half-migrated state.
@@ -915,10 +929,15 @@ router.post("/admin/videos/:id/migrate-storage", adminAuth, async (req, res) => 
           .limit(1);
         if (!current?.objectParts) void deleteVideoObjects(copied);
       }
-      // Drive 404/403 → 422 (fixable by admin) instead of 500
-      const driveStatus = (copyErr as Error & { driveStatus?: number }).driveStatus;
-      if (driveStatus === 404 || driveStatus === 403) {
-        res.status(422).json({ message: copyErr instanceof Error ? copyErr.message : "Drive error" });
+      // Drive 404/403/429 → 422 (fixable by admin) instead of 500
+      const driveErr = copyErr as Error & { driveStatus?: number; isRateLimit?: boolean };
+      const driveStatus = driveErr.driveStatus;
+      if (driveStatus === 404 || driveStatus === 403 || driveStatus === 429) {
+        res.status(422).json({
+          message: driveErr.message ?? "Drive error",
+          isRateLimit: driveErr.isRateLimit ?? false,
+          driveStatus,
+        });
         return;
       }
       throw copyErr;

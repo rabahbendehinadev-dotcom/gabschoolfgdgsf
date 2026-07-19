@@ -466,15 +466,31 @@ export function AdminVideos() {
           refetch();
         },
         onError: (err: unknown) => {
-          const msg = err instanceof Error ? err.message : "";
-          const isDriveGone = msg.includes("غير موجود") || msg.includes("تم حذفه") || msg.includes("صلاحية");
+          /* ApiError.data = body JSON من السيرفر: { message, isRateLimit?, driveStatus? } */
+          const data = (err as { data?: { message?: string; isRateLimit?: boolean; driveStatus?: number } } | null)?.data;
+          const serverMsg: string = data?.message ?? (err instanceof Error ? err.message : "") ?? "";
+          const isRateLimit = data?.isRateLimit === true;
+
+          /* رابط Drive غير موجود أو منع الوصول (ليس rate-limit) */
+          const isDriveGone = !isRateLimit && (
+            serverMsg.includes("غير موجود") ||
+            serverMsg.includes("تم حذفه") ||
+            serverMsg.includes("صلاحية")
+          );
+
           toast({
             variant: "destructive",
-            title: isDriveGone ? "ملف Drive غير صالح" : "فشل النقل إلى التخزين السحابي",
-            description: isDriveGone
-              ? "رابط Drive المرتبط بهذا الفيديو لا يعمل — افتح تعديل الفيديو وحدّث الرابط."
-              : (msg || "حاول مرة أخرى"),
-            duration: isDriveGone ? 8000 : 5000,
+            title: isRateLimit
+              ? "تجاوزت حد الطلبات في Drive"
+              : isDriveGone
+                ? "ملف Drive غير صالح"
+                : "فشل النقل إلى التخزين السحابي",
+            description: isRateLimit
+              ? "تجاوز النظام حد الطلبات في Google Drive — انتظر بضع دقائق ثم حاول مرة أخرى."
+              : isDriveGone
+                ? "رابط Drive المرتبط بهذا الفيديو لا يعمل — افتح تعديل الفيديو وحدّث الرابط."
+                : (serverMsg || "حاول مرة أخرى"),
+            duration: isRateLimit ? 10_000 : isDriveGone ? 8000 : 5000,
           });
         },
         onSettled: () => setMigratingId(null),
