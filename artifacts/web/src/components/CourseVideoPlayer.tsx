@@ -826,7 +826,7 @@ export function CourseVideoPlayer({
           playsInline
           webkit-playsinline="true"
           x5-playsinline="true"
-          preload="auto"
+          preload={useHls ? "auto" : "metadata"}
           controlsList="nodownload noremoteplayback nofullscreen"
           disablePictureInPicture={false}
           className={cn("absolute inset-0 h-full w-full", fit === "cover" ? "object-cover" : "object-contain")}
