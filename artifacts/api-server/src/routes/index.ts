@@ -11,6 +11,7 @@ import paymentsRouter from "./payments";
 import communityRouter from "./community";
 import usersRouter from "./users";
 import notificationsRouter from "./notifications";
+import toolsRouter from "./tools";
 
 const router: IRouter = Router();
 
@@ -26,5 +27,6 @@ router.use(paymentsRouter);
 router.use(communityRouter);
 router.use(usersRouter);
 router.use(notificationsRouter);
+router.use(toolsRouter);
 
 export default router;

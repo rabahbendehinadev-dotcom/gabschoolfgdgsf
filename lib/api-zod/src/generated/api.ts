@@ -1315,6 +1315,86 @@ export const GetAdminNotificationsResponse = zod.object({
 });
 
 /**
+ * @summary List published tools (public)
+ */
+export const PublicTool = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  description: zod.string(),
+  imageUrl: zod.string().nullable(),
+  category: zod.string(),
+  accessType: zod.enum(["free", "password", "vip", "vip_password"]),
+  isPublished: zod.boolean(),
+  version: zod.string().nullable(),
+  fileSizeMb: zod.string().nullable(),
+  os: zod.string().nullable(),
+  sortOrder: zod.number(),
+  createdAt: zod.date(),
+});
+
+export const GetToolsResponse = zod.array(PublicTool);
+
+export const DownloadToolBody = zod.object({
+  password: zod.string().optional(),
+});
+
+export const DownloadToolResponse = zod.object({
+  signedUrl: zod.string(),
+});
+
+/**
+ * @summary Admin tool schemas
+ */
+export const AdminTool = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  description: zod.string(),
+  imageUrl: zod.string().nullable(),
+  category: zod.string(),
+  accessType: zod.enum(["free", "password", "vip", "vip_password"]),
+  downloadUrl: zod.string(),
+  hasPassword: zod.boolean(),
+  isPublished: zod.boolean(),
+  version: zod.string().nullable(),
+  fileSizeMb: zod.string().nullable(),
+  os: zod.string().nullable(),
+  sortOrder: zod.number(),
+  createdAt: zod.date(),
+});
+
+export const GetAdminToolsResponse = zod.array(AdminTool);
+
+export const CreateToolBody = zod.object({
+  name: zod.string().min(1),
+  description: zod.string().optional().default(""),
+  imageUrl: zod.string().optional().nullable(),
+  category: zod.string().optional().default("عام"),
+  accessType: zod.enum(["free", "password", "vip", "vip_password"]).optional().default("free"),
+  password: zod.string().optional().nullable(),
+  downloadUrl: zod.string().min(1),
+  isPublished: zod.boolean().optional().default(true),
+  version: zod.string().optional().nullable(),
+  fileSizeMb: zod.string().optional().nullable(),
+  os: zod.string().optional().nullable(),
+  sortOrder: zod.number().optional().default(0),
+});
+
+export const UpdateToolBody = zod.object({
+  name: zod.string().min(1).optional(),
+  description: zod.string().optional(),
+  imageUrl: zod.string().optional().nullable(),
+  category: zod.string().optional(),
+  accessType: zod.enum(["free", "password", "vip", "vip_password"]).optional(),
+  password: zod.string().optional().nullable(),
+  downloadUrl: zod.string().optional(),
+  isPublished: zod.boolean().optional(),
+  version: zod.string().optional().nullable(),
+  fileSizeMb: zod.string().optional().nullable(),
+  os: zod.string().optional().nullable(),
+  sortOrder: zod.number().optional(),
+});
+
+/**
  * @summary Send a notification to an audience
  */
 
