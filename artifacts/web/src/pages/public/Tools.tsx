@@ -171,7 +171,7 @@ export function Tools() {
       const base = import.meta.env.BASE_URL.replace(/\/$/, "");
       const res = await fetch(`${base}/api/tools/${toolId}/download`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders()?.headers },
         body: JSON.stringify({ password: pwd }),
       });
       const data = await res.json();
