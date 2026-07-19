@@ -466,31 +466,56 @@ export function AdminVideos() {
           refetch();
         },
         onError: (err: unknown) => {
-          /* ApiError.data = body JSON من السيرفر: { message, isRateLimit?, driveStatus? } */
-          const data = (err as { data?: { message?: string; isRateLimit?: boolean; driveStatus?: number } } | null)?.data;
-          const serverMsg: string = data?.message ?? (err instanceof Error ? err.message : "") ?? "";
+          /* ApiError.data = body JSON من السيرفر:
+             { message, isRateLimit?, driveStatus?, failedPart?, totalParts? } */
+          type MigrateErrData = {
+            message?: string;
+            isRateLimit?: boolean;
+            driveStatus?: number | null;
+            failedPart?: number;
+            totalParts?: number;
+          };
+          const data = (err as { data?: MigrateErrData } | null)?.data;
+          const serverMsg: string =
+            data?.message ?? (err instanceof Error ? err.message : "") ?? "خطأ غير معروف";
           const isRateLimit = data?.isRateLimit === true;
+          const driveStatus = data?.driveStatus ?? null;
+          const failedPart = data?.failedPart;
+          const totalParts = data?.totalParts;
 
-          /* رابط Drive غير موجود أو منع الوصول (ليس rate-limit) */
-          const isDriveGone = !isRateLimit && (
-            serverMsg.includes("غير موجود") ||
-            serverMsg.includes("تم حذفه") ||
-            serverMsg.includes("صلاحية")
-          );
+          /* تصنيف الخطأ بناءً على driveStatus الفعلي — لا keyword matching */
+          const isAccessDenied = driveStatus === 403 && !isRateLimit;
+          const isNotFound = driveStatus === 404;
+          const isBadUrl = driveStatus === 400;
+
+          const partInfo = failedPart && totalParts
+            ? `(الجزء ${failedPart} من ${totalParts})`
+            : "";
+
+          const title = isRateLimit
+            ? `⏱ تجاوز حد الطلبات في Google Drive ${partInfo}`
+            : isAccessDenied
+              ? `🔒 Drive رفض الوصول ${partInfo}`
+              : isNotFound
+                ? `❌ ملف Drive غير موجود ${partInfo}`
+                : isBadUrl
+                  ? `⚠️ رابط Drive غير صالح ${partInfo}`
+                  : `❌ فشل الترحيل ${partInfo}`;
 
           toast({
             variant: "destructive",
-            title: isRateLimit
-              ? "تجاوزت حد الطلبات في Drive"
-              : isDriveGone
-                ? "ملف Drive غير صالح"
-                : "فشل النقل إلى التخزين السحابي",
-            description: isRateLimit
-              ? "تجاوز النظام حد الطلبات في Google Drive — انتظر بضع دقائق ثم حاول مرة أخرى."
-              : isDriveGone
-                ? "رابط Drive المرتبط بهذا الفيديو لا يعمل — افتح تعديل الفيديو وحدّث الرابط."
-                : (serverMsg || "حاول مرة أخرى"),
-            duration: isRateLimit ? 10_000 : isDriveGone ? 8000 : 5000,
+            title,
+            description: serverMsg.split("\n")[0].slice(0, 200),
+            duration: isRateLimit ? 12_000 : 10_000,
+          });
+
+          /* سجّل الخطأ الكامل في console للـ debugging */
+          console.error("[migrate] error detail:", {
+            driveStatus,
+            isRateLimit,
+            failedPart,
+            totalParts,
+            message: serverMsg,
           });
         },
         onSettled: () => setMigratingId(null),

@@ -305,23 +305,29 @@ async function runAutoStorageMigration(): Promise<void> {
           continue;
         }
 
-        // Copy all parts in PARALLEL — dramatically faster for multi-part videos
-        // (11 parts finish together instead of 11 × sequential round-trips).
+        // Copy all parts SEQUENTIALLY with a 1-second delay between them.
+        // Parallel downloads of 11 × 800 MB files overwhelm Google Drive's
+        // per-minute quota instantly → immediate 403 rateLimitExceeded on
+        // parts 2-11, and concurrent downloads fight over bandwidth, making
+        // each individual part take longer. Sequential + 1 s throttle keeps
+        // well within the per-minute quota while still saturating bandwidth.
         // NEVER delete objects on failure: destination paths are deterministic
-        // and the bucket is SHARED between dev and production. A failed dev
-        // migration (seed videos with SAMPLE_ID urls) must not wipe objects a
-        // production migration already wrote at the same path. Orphaned bytes
-        // are harmless; deleted production bytes broke playback (videos 10-12).
-        const partResults = await Promise.all(
-          partsList.map(async (p, i) => {
-            const fileId = extractDriveFileId(p.url);
-            if (!fileId) throw new Error(`Part ${i + 1}: cannot extract Drive file id`);
-            const destPath = buildVideoObjectPath(video.id, i);
-            const result = await copyDriveFileToStorage(fileId, destPath);
-            if (result.bytes === 0) throw new Error(`Part ${i + 1}: copied 0 bytes`);
-            return { label: p.label, objectPath: result.objectPath, bytes: result.bytes };
-          }),
-        );
+        // and the bucket is SHARED between dev and production.
+        const partResults: Array<{ label: string; objectPath: string; bytes: number }> = [];
+        for (let i = 0; i < partsList.length; i++) {
+          const p = partsList[i];
+          const fileId = extractDriveFileId(p.url);
+          if (!fileId) throw new Error(`Part ${i + 1}: cannot extract Drive file id from "${p.url.slice(0, 80)}"`);
+          const destPath = buildVideoObjectPath(video.id, i);
+          console.log(`[auto-migrate] downloading part ${i + 1}/${partsList.length} of video ${video.id} (${p.label})`);
+          const result = await copyDriveFileToStorage(fileId, destPath);
+          if (result.bytes === 0) throw new Error(`Part ${i + 1}: copied 0 bytes`);
+          const mb = (result.bytes / 1024 / 1024).toFixed(1);
+          console.log(`[auto-migrate] part ${i + 1}/${partsList.length} done — ${mb} MB`);
+          partResults.push({ label: p.label, objectPath: result.objectPath, bytes: result.bytes });
+          // 1-second throttle between parts to stay within Drive rate limits
+          if (i < partsList.length - 1) await new Promise(r => setTimeout(r, 1_000));
+        }
         const copiedParts: ObjectPart[] = partResults.map(r => ({ label: r.label, objectPath: r.objectPath }));
         const totalBytes = partResults.reduce((acc, r) => acc + r.bytes, 0);
 

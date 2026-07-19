@@ -874,73 +874,128 @@ router.post("/admin/videos/:id/migrate-storage", adminAuth, async (req, res) => 
       driveEmbedUrl: video.driveEmbedUrl,
       driveParts: video.driveParts,
     });
+
+    // Log exactly what the server resolved — visible in production logs for debugging
+    console.info(`[video-storage] resolved parts for migration`, {
+      videoId: id,
+      title: video.title,
+      totalParts: partsList.length,
+      parts: partsList.map((p, i) => ({
+        index: i + 1,
+        label: p.label,
+        url: p.url.slice(0, 100),
+        fileId: extractDriveFileId(p.url) ?? "UNRECOGNIZED",
+      })),
+    });
+
     if (partsList.length === 0) {
-      res.status(400).json({ message: "Video has no playable parts" });
+      res.status(422).json({
+        message:
+          "الفيديو لا يحتوي على روابط Drive صالحة.\n" +
+          `driveEmbedUrl: "${video.driveEmbedUrl}"\n` +
+          `driveParts: ${video.driveParts ? video.driveParts.slice(0, 200) : "null"}`,
+        isRateLimit: false,
+      });
       return;
     }
 
     const copied: ObjectPart[] = [];
     let totalBytes = 0;
+    let currentPartIndex = 0; // tracked outside try so catch can report which part failed
     try {
       for (let i = 0; i < partsList.length; i++) {
+        currentPartIndex = i;
         const partUrl = partsList[i].url;
-        const partLabel = `الجزء ${i + 1}/${partsList.length}`;
-        console.info(`[video-storage] migrating part ${i + 1}/${partsList.length}`, { videoId: id, url: partUrl.slice(0, 80) });
+        const partLabel = `الجزء ${i + 1}/${partsList.length} (${partsList[i].label})`;
 
         if (isFolderDriveUrl(partUrl)) {
-          throw new Error(
-            `${partLabel}: رابط مجلد Google Drive وليس ملف فيديو — لا يمكن نقل مجلد.\n` +
-            `الرابط الخاطئ: ${partUrl}\n` +
-            `الحل: افتح المجلد → اختر ملف الفيديو → انسخ رابط الملف (file/d/...) وحدّث الفيديو.`,
+          throw Object.assign(
+            new Error(
+              `${partLabel}: الرابط هو مجلد Google Drive وليس ملف فيديو.\n` +
+              `URL: ${partUrl}\n` +
+              `الحل: افتح المجلد → اختر ملف الفيديو → انسخ رابط الملف (file/d/...).`,
+            ),
+            { driveStatus: 400 as number | undefined, isRateLimit: false },
           );
         }
+
         const fileId = extractDriveFileId(partUrl);
         if (!fileId) {
-          throw new Error(
-            `${partLabel}: لم يتم التعرف على صيغة رابط Google Drive.\nالرابط: ${partUrl}`,
+          throw Object.assign(
+            new Error(
+              `${partLabel}: تعذّر استخراج File ID من الرابط.\n` +
+              `URL: ${partUrl}\n` +
+              `الصيغ المدعومة: /file/d/ID  أو  ?id=ID  أو  مُعرَّف خام (20+ حرف).`,
+            ),
+            { driveStatus: 400 as number | undefined, isRateLimit: false },
           );
         }
-        const destPath = buildVideoObjectPath(id, i);
-        const result = await copyDriveFileToStorage(fileId, destPath);
-        if (result.bytes === 0) {
-          throw new Error(`${partLabel}: نُسِخت 0 بايت من Drive — الملف فارغ أو محجوب.`);
-        }
-        copied.push({ label: partsList[i].label, objectPath: result.objectPath });
-        totalBytes += result.bytes;
-        console.info(`[video-storage] part ${i + 1}/${partsList.length} done`, {
-          videoId: id, bytes: result.bytes,
+
+        console.info(`[video-storage] migrating part ${i + 1}/${partsList.length}`, {
+          videoId: id,
+          label: partsList[i].label,
+          fileId,
+          url: partUrl.slice(0, 100),
         });
 
-        // Throttle: wait 1 s between parts to avoid hitting Google Drive rate limits.
-        // Skipped after the last part.
+        const destPath = buildVideoObjectPath(id, i);
+        const result = await copyDriveFileToStorage(fileId, destPath);
+
+        if (result.bytes === 0) {
+          throw Object.assign(
+            new Error(`${partLabel}: Drive أعاد 0 بايت — الملف فارغ أو محجوب.\nFile ID: ${fileId}`),
+            { driveStatus: 403 as number | undefined, isRateLimit: false },
+          );
+        }
+
+        copied.push({ label: partsList[i].label, objectPath: result.objectPath });
+        totalBytes += result.bytes;
+        const mb = (result.bytes / 1024 / 1024).toFixed(1);
+        console.info(`[video-storage] part ${i + 1}/${partsList.length} done`, {
+          videoId: id, fileId, bytes: result.bytes, mb,
+        });
+
+        // Throttle between parts to avoid hitting Google Drive rate limits.
         if (i < partsList.length - 1) {
           await new Promise(r => setTimeout(r, 1_000));
         }
       }
     } catch (copyErr) {
-      // Roll back any partial copies so we never store a half-migrated state.
-      // Guard: skip deletion if a concurrent migration already claimed the row
-      // (paths are deterministic, so we would be deleting the winner's files).
-      if (copied.length > 0) {
-        const [current] = await db
-          .select({ objectParts: videosTable.objectParts })
-          .from(videosTable)
-          .where(eq(videosTable.id, id))
-          .limit(1);
-        if (!current?.objectParts) void deleteVideoObjects(copied);
-      }
-      // Drive 404/403/429 → 422 (fixable by admin) instead of 500
       const driveErr = copyErr as Error & { driveStatus?: number; isRateLimit?: boolean };
-      const driveStatus = driveErr.driveStatus;
-      if (driveStatus === 404 || driveStatus === 403 || driveStatus === 429) {
-        res.status(422).json({
-          message: driveErr.message ?? "Drive error",
-          isRateLimit: driveErr.isRateLimit ?? false,
-          driveStatus,
-        });
-        return;
+      const failedPart = currentPartIndex + 1;
+
+      console.error(`[video-storage] migration failed at part ${failedPart}/${partsList.length}`, {
+        videoId: id,
+        failedPart,
+        driveStatus: driveErr.driveStatus,
+        isRateLimit: driveErr.isRateLimit,
+        error: driveErr.message,
+        copiedSoFar: copied.length,
+      });
+
+      // Roll back partially-uploaded GCS objects so next retry starts clean.
+      // Skip rollback if another concurrent migration already committed the row.
+      if (copied.length > 0) {
+        try {
+          const [current] = await db
+            .select({ objectParts: videosTable.objectParts })
+            .from(videosTable)
+            .where(eq(videosTable.id, id))
+            .limit(1);
+          if (!current?.objectParts) void deleteVideoObjects(copied);
+        } catch { /* cleanup is best-effort */ }
       }
-      throw copyErr;
+
+      // Always return structured JSON so the client can show the real error.
+      // Use 422 for all migration failures (it is always admin-actionable).
+      res.status(422).json({
+        message: driveErr.message ?? "خطأ غير معروف أثناء الترحيل",
+        isRateLimit: driveErr.isRateLimit ?? false,
+        driveStatus: driveErr.driveStatus ?? null,
+        failedPart,
+        totalParts: partsList.length,
+      });
+      return;
     }
 
     // Conditional update closes the dual-admin race: only the first migration
