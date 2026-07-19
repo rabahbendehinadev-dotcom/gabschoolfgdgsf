@@ -246,18 +246,18 @@ export function VideoDetail() {
                   href={video.softwareLink}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-3 w-full px-6 py-4 rounded-2xl border border-amber-500/30 bg-gradient-to-r from-amber-500/10 to-orange-500/10 hover:from-amber-500/20 hover:to-orange-500/20 transition-all group"
+                  className="download-btn-glow flex items-center gap-4 w-full px-5 py-4 rounded-2xl bg-gradient-to-l from-emerald-600 to-green-500 hover:from-emerald-500 hover:to-green-400 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] group"
                 >
-                  <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
-                    <Download className="w-5 h-5" />
+                  <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+                    <Download className="w-6 h-6 text-white download-icon-animate" />
                   </div>
                   <div className="flex-1 text-right">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <Crown className="w-3.5 h-3.5 text-amber-400" />
-                      <span className="text-xs font-semibold text-amber-400 uppercase">VIP</span>
+                    <div className="flex items-center justify-end gap-1.5 mb-0.5">
+                      <Crown className="w-3.5 h-3.5 text-amber-300" />
+                      <span className="text-xs font-bold text-amber-300 uppercase tracking-wider">VIP</span>
                     </div>
-                    <p className="font-bold text-foreground group-hover:text-amber-300 transition-colors">تحميل البرنامج</p>
-                    <p className="text-xs text-muted-foreground">حصري لأعضاء VIP</p>
+                    <p className="font-bold text-white text-base leading-tight">تحميل البرنامج</p>
+                    <p className="text-xs text-emerald-100/80 mt-0.5">حصري لأعضاء VIP</p>
                   </div>
                 </a>
               </div>
