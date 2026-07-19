@@ -109,6 +109,7 @@ const NAV = [
   { name: "الدورات",           path: "/gab-ctrl-9x/courses",           icon: GraduationCap },
   { name: "الفيديوهات",        path: "/gab-ctrl-9x/videos",            icon: Video },
   { name: "الأدوات",            path: "/gab-ctrl-9x/tools",             icon: Wrench },
+  { name: "تصنيفات الأدوات",  path: "/gab-ctrl-9x/tool-categories",   icon: FolderTree },
   { name: "التصنيفات",         path: "/gab-ctrl-9x/categories",        icon: FolderTree },
   { name: "خطط الأسعار",       path: "/gab-ctrl-9x/plans",             icon: CreditCard },
   { name: "الاشتراكات",        path: "/gab-ctrl-9x/subscriptions",        icon: BadgeCheck },

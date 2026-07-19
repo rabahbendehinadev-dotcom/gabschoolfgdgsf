@@ -36,6 +36,7 @@ import { AdminChangePassword } from "@/pages/admin/ChangePassword";
 import { AdminSendNotification } from "@/pages/admin/SendNotification";
 import { AdminCommunity } from "@/pages/admin/AdminCommunity";
 import { AdminTools } from "@/pages/admin/AdminTools";
+import { AdminToolCategories } from "@/pages/admin/AdminToolCategories";
 import { AdminSubscriptionAlerts } from "@/pages/admin/SubscriptionAlerts";
 import { NotificationGate } from "@/components/notifications/NotificationGate";
 import NotFound from "@/pages/not-found";
@@ -177,6 +178,9 @@ function Router() {
       </Route>
       <Route path="/gab-ctrl-9x/tools">
         <AdminLayout><AdminTools /></AdminLayout>
+      </Route>
+      <Route path="/gab-ctrl-9x/tool-categories">
+        <AdminLayout><AdminToolCategories /></AdminLayout>
       </Route>
       <Route><PublicRoutes /></Route>
     </Switch>

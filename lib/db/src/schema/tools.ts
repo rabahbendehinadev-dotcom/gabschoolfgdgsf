@@ -1,12 +1,14 @@
 import { pgTable, serial, varchar, text, integer, boolean, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { toolCategoriesTable } from "./toolCategories";
 
 export const toolsTable = pgTable("tools", {
   id: serial("id").primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description").notNull().default(""),
   imageUrl: text("image_url"),
+  categoryId: integer("category_id").references(() => toolCategoriesTable.id, { onDelete: "set null" }),
   category: varchar("category", { length: 100 }).notNull().default("عام"),
   accessType: varchar("access_type", { length: 20 }).notNull().default("free"),
   passwordHash: text("password_hash"),
