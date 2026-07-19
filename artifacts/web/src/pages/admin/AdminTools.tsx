@@ -163,16 +163,26 @@ export function AdminTools() {
     }
     setImgUploading(true);
     try {
-      const fd = new FormData();
-      fd.append("thumbnail", file);
-      const res = await fetch(`${base}/api/admin/upload-thumbnail`, {
+      // Step 1: get a presigned upload URL from App Storage
+      const step1 = await fetch(`${base}/api/storage/uploads/request-url`, {
         method: "POST",
-        headers: getAdminAuthHeaders()?.headers,
-        body: fd,
+        headers: { "Content-Type": "application/json", ...getAdminAuthHeaders()?.headers },
+        body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }),
       });
-      if (!res.ok) throw new Error((await res.json()).message ?? "فشل رفع الصورة");
-      const { url } = await res.json() as { url: string };
-      setForm(f => ({ ...f, imageUrl: url }));
+      if (!step1.ok) throw new Error("فشل الحصول على رابط الرفع");
+      const { uploadURL, objectPath } = await step1.json() as { uploadURL: string; objectPath: string };
+
+      // Step 2: upload the file directly to storage
+      const step2 = await fetch(uploadURL, {
+        method: "PUT",
+        headers: { "Content-Type": file.type },
+        body: file,
+      });
+      if (!step2.ok) throw new Error("فشل رفع الصورة");
+
+      // Step 3: store the serve URL (works in dev + production)
+      const serveUrl = `${base}/api/storage${objectPath}`;
+      setForm(f => ({ ...f, imageUrl: serveUrl }));
     } catch (e) {
       toast({ title: "خطأ في رفع الصورة", description: (e as Error).message, variant: "destructive" });
     } finally {
