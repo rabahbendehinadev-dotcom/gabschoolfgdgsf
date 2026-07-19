@@ -1,10 +1,9 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -17,8 +16,8 @@ import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import {
   Plus, Edit, Trash2, Wrench, Eye, EyeOff,
-  Globe, Crown, KeyRound, Lock, CheckCircle2, Loader2,
-  ExternalLink
+  Crown, KeyRound, Lock, CheckCircle2, Loader2,
+  ExternalLink, ImagePlus, X,
 } from "lucide-react";
 
 interface AdminTool {
@@ -31,8 +30,6 @@ interface AdminTool {
   downloadUrl: string;
   hasPassword: boolean;
   isPublished: boolean;
-  version: string | null;
-  fileSizeMb: string | null;
   os: string | null;
   sortOrder: number;
   createdAt: string;
@@ -47,8 +44,6 @@ interface ToolForm {
   password: string;
   downloadUrl: string;
   isPublished: boolean;
-  version: string;
-  fileSizeMb: string;
   os: string;
   sortOrder: number;
 }
@@ -62,24 +57,22 @@ const EMPTY_FORM: ToolForm = {
   password: "",
   downloadUrl: "",
   isPublished: true,
-  version: "",
-  fileSizeMb: "",
   os: "",
   sortOrder: 0,
 };
 
 const ACCESS_OPTIONS = [
-  { value: "free", label: "مجاني", icon: <CheckCircle2 className="w-4 h-4 text-emerald-400" /> },
-  { value: "password", label: "بكلمة مرور", icon: <KeyRound className="w-4 h-4 text-blue-400" /> },
-  { value: "vip", label: "VIP فقط", icon: <Crown className="w-4 h-4 text-amber-400" /> },
-  { value: "vip_password", label: "VIP + كلمة مرور", icon: <Lock className="w-4 h-4 text-purple-400" /> },
+  { value: "free",         label: "مجاني",              icon: <CheckCircle2 className="w-4 h-4 text-emerald-400" /> },
+  { value: "password",     label: "بكلمة مرور",         icon: <KeyRound    className="w-4 h-4 text-blue-400"    /> },
+  { value: "vip",          label: "VIP فقط",            icon: <Crown       className="w-4 h-4 text-amber-400"   /> },
+  { value: "vip_password", label: "VIP + كلمة مرور",   icon: <Lock        className="w-4 h-4 text-purple-400"  /> },
 ];
 
 const ACCESS_BADGE: Record<string, string> = {
-  free: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
-  password: "bg-blue-500/15 text-blue-400 border-blue-500/30",
-  vip: "bg-amber-500/15 text-amber-400 border-amber-500/30",
-  vip_password: "bg-purple-500/15 text-purple-400 border-purple-500/30",
+  free:         "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+  password:     "bg-blue-500/15   text-blue-400    border-blue-500/30",
+  vip:          "bg-amber-500/15  text-amber-400   border-amber-500/30",
+  vip_password: "bg-purple-500/15 text-purple-400  border-purple-500/30",
 };
 
 const ACCESS_LABEL: Record<string, string> = {
@@ -91,13 +84,17 @@ export function AdminTools() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editing, setEditing] = useState<AdminTool | null>(null);
-  const [form, setForm] = useState<ToolForm>(EMPTY_FORM);
+  const [dialogOpen, setDialogOpen]   = useState(false);
+  const [editing, setEditing]         = useState<AdminTool | null>(null);
+  const [form, setForm]               = useState<ToolForm>(EMPTY_FORM);
   const [showPassword, setShowPassword] = useState(false);
-  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [deleteId, setDeleteId]       = useState<number | null>(null);
+  const [imgUploading, setImgUploading] = useState(false);
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+  /* ── queries & mutations ─────────────────────────────────────────── */
 
   const { data: tools = [], isLoading } = useQuery<AdminTool[]>({
     queryKey: ["admin-tools"],
@@ -119,15 +116,13 @@ export function AdminTools() {
           ...data,
           imageUrl: data.imageUrl || null,
           password: data.password || null,
-          version: data.version || null,
-          fileSizeMb: data.fileSizeMb || null,
           os: data.os || null,
         }),
       });
       if (!res.ok) throw new Error((await res.json()).message ?? "خطأ");
     },
     onSuccess: () => { invalidate(); setDialogOpen(false); toast({ title: "تمت إضافة الأداة" }); },
-    onError: (e: Error) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
+    onError:   (e: Error) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
   });
 
   const updateMutation = useMutation({
@@ -139,15 +134,13 @@ export function AdminTools() {
           ...data,
           imageUrl: data.imageUrl || null,
           password: data.password || undefined,
-          version: data.version || null,
-          fileSizeMb: data.fileSizeMb || null,
           os: data.os || null,
         }),
       });
       if (!res.ok) throw new Error((await res.json()).message ?? "خطأ");
     },
     onSuccess: () => { invalidate(); setDialogOpen(false); toast({ title: "تم تحديث الأداة" }); },
-    onError: (e: Error) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
+    onError:   (e: Error) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
   });
 
   const deleteMutation = useMutation({
@@ -158,8 +151,36 @@ export function AdminTools() {
       if (!res.ok) throw new Error((await res.json()).message ?? "خطأ");
     },
     onSuccess: () => { invalidate(); setDeleteId(null); toast({ title: "تم حذف الأداة" }); },
-    onError: (e: Error) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
+    onError:   (e: Error) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
   });
+
+  /* ── image upload ────────────────────────────────────────────────── */
+
+  async function handleImageFile(file: File) {
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "نوع الملف غير مدعوم", description: "يرجى اختيار صورة", variant: "destructive" });
+      return;
+    }
+    setImgUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("thumbnail", file);
+      const res = await fetch(`${base}/api/admin/upload-thumbnail`, {
+        method: "POST",
+        headers: getAdminAuthHeaders()?.headers,
+        body: fd,
+      });
+      if (!res.ok) throw new Error((await res.json()).message ?? "فشل رفع الصورة");
+      const { url } = await res.json() as { url: string };
+      setForm(f => ({ ...f, imageUrl: url }));
+    } catch (e) {
+      toast({ title: "خطأ في رفع الصورة", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      setImgUploading(false);
+    }
+  }
+
+  /* ── dialog helpers ──────────────────────────────────────────────── */
 
   function openCreate() {
     setEditing(null);
@@ -171,18 +192,16 @@ export function AdminTools() {
   function openEdit(tool: AdminTool) {
     setEditing(tool);
     setForm({
-      name: tool.name,
+      name:        tool.name,
       description: tool.description,
-      imageUrl: tool.imageUrl ?? "",
-      category: tool.category,
-      accessType: tool.accessType,
-      password: "",
+      imageUrl:    tool.imageUrl ?? "",
+      category:    tool.category,
+      accessType:  tool.accessType,
+      password:    "",
       downloadUrl: tool.downloadUrl,
       isPublished: tool.isPublished,
-      version: tool.version ?? "",
-      fileSizeMb: tool.fileSizeMb ?? "",
-      os: tool.os ?? "",
-      sortOrder: tool.sortOrder,
+      os:          tool.os ?? "",
+      sortOrder:   tool.sortOrder,
     });
     setShowPassword(false);
     setDialogOpen(true);
@@ -194,24 +213,24 @@ export function AdminTools() {
       return;
     }
     if (editing) updateMutation.mutate({ id: editing.id, data: form });
-    else createMutation.mutate(form);
+    else         createMutation.mutate(form);
   }
 
-  const isPending = createMutation.isPending || updateMutation.isPending;
+  const isPending      = createMutation.isPending || updateMutation.isPending;
+  const needsPassword  = form.accessType === "password" || form.accessType === "vip_password";
 
-  const needsPassword = form.accessType === "password" || form.accessType === "vip_password";
+  /* ── render ─────────────────────────────────────────────────────── */
 
   return (
     <div className="space-y-6" dir="rtl">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <Wrench className="w-7 h-7 text-primary" />
             إدارة الأدوات
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {tools.length} أداة — تحكم كامل في مكتبة الأدوات
-          </p>
+          <p className="text-sm text-muted-foreground mt-1">{tools.length} أداة</p>
         </div>
         <Button onClick={openCreate} className="gap-2 shadow-md shadow-primary/20">
           <Plus className="w-4 h-4" />
@@ -219,6 +238,7 @@ export function AdminTools() {
         </Button>
       </div>
 
+      {/* List */}
       {isLoading ? (
         <div className="flex items-center justify-center py-20">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -238,7 +258,8 @@ export function AdminTools() {
             <Card key={tool.id} className="glass-card p-4">
               <div className="flex items-start gap-4">
                 {tool.imageUrl ? (
-                  <img src={tool.imageUrl} alt={tool.name} className="w-16 h-16 rounded-xl object-cover flex-shrink-0 border border-border" />
+                  <img src={tool.imageUrl} alt={tool.name}
+                    className="w-16 h-16 rounded-xl object-cover flex-shrink-0 border border-border" />
                 ) : (
                   <div className="w-16 h-16 rounded-xl bg-muted/30 flex items-center justify-center flex-shrink-0 border border-border">
                     <Wrench className="w-7 h-7 text-muted-foreground/40" />
@@ -256,14 +277,12 @@ export function AdminTools() {
                     </span>
                     {!tool.isPublished && (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border bg-orange-500/10 text-orange-400 border-orange-500/20">
-                        <EyeOff className="w-3 h-3" />
-                        مخفي
+                        <EyeOff className="w-3 h-3" /> مخفي
                       </span>
                     )}
                     {tool.hasPassword && (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border bg-slate-500/10 text-slate-400 border-slate-500/20">
-                        <KeyRound className="w-3 h-3" />
-                        لها كلمة مرور
+                        <KeyRound className="w-3 h-3" /> لها كلمة مرور
                       </span>
                     )}
                   </div>
@@ -273,8 +292,6 @@ export function AdminTools() {
                   )}
 
                   <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-                    {tool.version && <span>v{tool.version}</span>}
-                    {tool.fileSizeMb && <span>{tool.fileSizeMb}</span>}
                     {tool.os && <span>{tool.os}</span>}
                     <span className="flex items-center gap-1">
                       <ExternalLink className="w-3 h-3" />
@@ -285,12 +302,11 @@ export function AdminTools() {
 
                 <div className="flex gap-2 flex-shrink-0">
                   <Button size="sm" variant="outline" onClick={() => openEdit(tool)} className="gap-1">
-                    <Edit className="w-3.5 h-3.5" />
-                    تعديل
+                    <Edit className="w-3.5 h-3.5" /> تعديل
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => setDeleteId(tool.id)} className="gap-1 border-destructive/40 text-destructive hover:bg-destructive/10">
-                    <Trash2 className="w-3.5 h-3.5" />
-                    حذف
+                  <Button size="sm" variant="outline" onClick={() => setDeleteId(tool.id)}
+                    className="gap-1 border-destructive/40 text-destructive hover:bg-destructive/10">
+                    <Trash2 className="w-3.5 h-3.5" /> حذف
                   </Button>
                 </div>
               </div>
@@ -299,7 +315,7 @@ export function AdminTools() {
         </div>
       )}
 
-      {/* Create / Edit Dialog */}
+      {/* ── Create / Edit Dialog ─────────────────────────────────────── */}
       <Dialog open={dialogOpen} onOpenChange={open => { if (!open) setDialogOpen(false); }}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto" dir="rtl">
           <DialogHeader>
@@ -310,10 +326,15 @@ export function AdminTools() {
           </DialogHeader>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+
             {/* Name */}
             <div className="sm:col-span-2 space-y-1.5">
               <Label>اسم الأداة <span className="text-destructive">*</span></Label>
-              <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="مثال: CCleaner Pro" />
+              <Input
+                value={form.name}
+                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                placeholder="مثال: CCleaner Pro"
+              />
             </div>
 
             {/* Description */}
@@ -328,57 +349,109 @@ export function AdminTools() {
               />
             </div>
 
-            {/* Image URL */}
+            {/* Image upload */}
             <div className="sm:col-span-2 space-y-1.5">
-              <Label>رابط الصورة</Label>
-              <Input value={form.imageUrl} onChange={e => setForm(f => ({ ...f, imageUrl: e.target.value }))} placeholder="https://..." />
+              <Label>صورة الأداة</Label>
+
+              {/* Hidden file input */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) handleImageFile(f); e.target.value = ""; }}
+              />
+
+              {form.imageUrl ? (
+                /* Preview */
+                <div className="relative w-32 h-32 rounded-xl overflow-hidden border border-border group">
+                  <img src={form.imageUrl} alt="معاينة" className="w-full h-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, imageUrl: "" }))}
+                    className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <X className="w-6 h-6 text-white" />
+                  </button>
+                </div>
+              ) : (
+                /* Upload button */
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={imgUploading}
+                  className="flex flex-col items-center justify-center gap-2 w-full h-32 rounded-xl border-2 border-dashed border-border hover:border-primary/50 hover:bg-primary/5 transition-colors text-muted-foreground"
+                >
+                  {imgUploading ? (
+                    <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                  ) : (
+                    <ImagePlus className="w-6 h-6" />
+                  )}
+                  <span className="text-sm">{imgUploading ? "جاري الرفع..." : "اضغط لرفع صورة"}</span>
+                </button>
+              )}
+
+              {/* Change button when image exists */}
+              {form.imageUrl && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={imgUploading}
+                  className="gap-2 mt-1"
+                >
+                  {imgUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImagePlus className="w-3.5 h-3.5" />}
+                  تغيير الصورة
+                </Button>
+              )}
             </div>
 
             {/* Download URL */}
             <div className="sm:col-span-2 space-y-1.5">
               <Label>رابط التحميل <span className="text-destructive">*</span></Label>
-              <Input value={form.downloadUrl} onChange={e => setForm(f => ({ ...f, downloadUrl: e.target.value }))} placeholder="https://..." />
+              <Input
+                value={form.downloadUrl}
+                onChange={e => setForm(f => ({ ...f, downloadUrl: e.target.value }))}
+                placeholder="https://..."
+              />
               <p className="text-xs text-muted-foreground">هذا الرابط سري ولن يُعرض للمستخدمين مباشرة</p>
             </div>
 
             {/* Category */}
             <div className="space-y-1.5">
               <Label>التصنيف</Label>
-              <Input value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} placeholder="مثال: صيانة، تصميم، برمجة" />
+              <Input
+                value={form.category}
+                onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
+                placeholder="مثال: صيانة، تصميم، برمجة"
+              />
             </div>
 
             {/* OS */}
             <div className="space-y-1.5">
               <Label>نظام التشغيل</Label>
-              <Input value={form.os} onChange={e => setForm(f => ({ ...f, os: e.target.value }))} placeholder="مثال: Windows, macOS, All" />
-            </div>
-
-            {/* Version */}
-            <div className="space-y-1.5">
-              <Label>الإصدار</Label>
-              <Input value={form.version} onChange={e => setForm(f => ({ ...f, version: e.target.value }))} placeholder="مثال: 2.5.1" />
-            </div>
-
-            {/* File Size */}
-            <div className="space-y-1.5">
-              <Label>حجم الملف</Label>
-              <Input value={form.fileSizeMb} onChange={e => setForm(f => ({ ...f, fileSizeMb: e.target.value }))} placeholder="مثال: 45 MB" />
+              <Input
+                value={form.os}
+                onChange={e => setForm(f => ({ ...f, os: e.target.value }))}
+                placeholder="مثال: Windows, macOS, All"
+              />
             </div>
 
             {/* Access Type */}
             <div className="sm:col-span-2 space-y-1.5">
               <Label>مستوى الوصول</Label>
-              <Select value={form.accessType} onValueChange={v => setForm(f => ({ ...f, accessType: v as ToolForm["accessType"] }))}>
+              <Select
+                value={form.accessType}
+                onValueChange={v => setForm(f => ({ ...f, accessType: v as ToolForm["accessType"] }))}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {ACCESS_OPTIONS.map(opt => (
                     <SelectItem key={opt.value} value={opt.value}>
-                      <span className="flex items-center gap-2">
-                        {opt.icon}
-                        {opt.label}
-                      </span>
+                      <span className="flex items-center gap-2">{opt.icon}{opt.label}</span>
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -390,7 +463,9 @@ export function AdminTools() {
               <div className="sm:col-span-2 space-y-1.5">
                 <Label>
                   كلمة المرور
-                  {editing?.hasPassword && <span className="text-muted-foreground text-xs mr-2">(اتركها فارغة للإبقاء على الحالية)</span>}
+                  {editing?.hasPassword && (
+                    <span className="text-muted-foreground text-xs mr-2">(اتركها فارغة للإبقاء على الحالية)</span>
+                  )}
                 </Label>
                 <div className="relative">
                   <Input
@@ -400,14 +475,18 @@ export function AdminTools() {
                     placeholder={editing?.hasPassword ? "••••••••" : "أدخل كلمة المرور..."}
                     className="pe-10"
                   />
-                  <button type="button" onClick={() => setShowPassword(p => !p)} className="absolute end-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(p => !p)}
+                    className="absolute end-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                  >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
             )}
 
-            {/* Sort Order */}
+            {/* Sort Order + Published */}
             <div className="space-y-1.5">
               <Label>ترتيب العرض</Label>
               <Input
@@ -418,7 +497,6 @@ export function AdminTools() {
               />
             </div>
 
-            {/* Published toggle */}
             <div className="flex items-center justify-between rounded-xl border border-border bg-muted/10 px-4 py-3">
               <div>
                 <Label className="text-sm font-medium">حالة النشر</Label>
@@ -434,7 +512,7 @@ export function AdminTools() {
           </div>
 
           <div className="flex gap-2 pt-2">
-            <Button onClick={handleSubmit} disabled={isPending} className="flex-1 gap-2">
+            <Button onClick={handleSubmit} disabled={isPending || imgUploading} className="flex-1 gap-2">
               {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
               {editing ? "حفظ التعديلات" : "إضافة الأداة"}
             </Button>
