@@ -915,6 +915,12 @@ router.post("/admin/videos/:id/migrate-storage", adminAuth, async (req, res) => 
           .limit(1);
         if (!current?.objectParts) void deleteVideoObjects(copied);
       }
+      // Drive 404/403 → 422 (fixable by admin) instead of 500
+      const driveStatus = (copyErr as Error & { driveStatus?: number }).driveStatus;
+      if (driveStatus === 404 || driveStatus === 403) {
+        res.status(422).json({ message: copyErr instanceof Error ? copyErr.message : "Drive error" });
+        return;
+      }
       throw copyErr;
     }
 
