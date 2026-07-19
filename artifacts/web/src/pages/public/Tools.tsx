@@ -49,13 +49,13 @@ function ToolCard({ tool, onDownload }: { tool: PublicTool; onDownload: (tool: P
       animate={{ opacity: 1, y: 0 }}
       className="glass-card rounded-2xl overflow-hidden flex flex-col group hover:border-primary/30 transition-all duration-300"
     >
-      <div className="relative aspect-video bg-muted/20 overflow-hidden">
+      <div className="relative aspect-video bg-muted/10 overflow-hidden flex items-center justify-center">
         {tool.imageUrl ? (
           <img
             src={tool.imageUrl}
             alt={tool.name}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-            onError={e => { (e.target as HTMLImageElement).src = ""; (e.target as HTMLImageElement).style.display = "none"; }}
+            className="max-w-[70%] max-h-[70%] object-contain group-hover:scale-105 transition-transform duration-500 drop-shadow-sm"
+            onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/10 to-accent/10">
