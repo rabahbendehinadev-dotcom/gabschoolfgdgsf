@@ -528,6 +528,8 @@ export const CreateVideoBody = zod.object({
   isVisible: zod.boolean().optional(),
   playlistId: zod.number().nullish(),
   partNumber: zod.number().nullish(),
+  softwareLink: zod.string().nullish(),
+  driveParts: zod.string().nullish(),
 });
 
 /**
@@ -548,6 +550,8 @@ export const UpdateVideoBody = zod.object({
   isVisible: zod.boolean().optional(),
   playlistId: zod.number().nullish(),
   partNumber: zod.number().nullish(),
+  softwareLink: zod.string().nullish(),
+  driveParts: zod.string().nullish(),
 });
 
 export const UpdateVideoResponse = zod.object({
