@@ -176,18 +176,128 @@ export interface CopyResult {
   bytes: number;
 }
 
+/* ── Drive download helper ───────────────────────────────────────────────
+   Retries up to MAX_COPY_RETRIES times with exponential back-off when Google
+   Drive rate-limits the request (HTTP 429 or 403 userRateLimitExceeded).
+   Access-denied / file-not-found errors are NOT retried — they are permanent.
+   ──────────────────────────────────────────────────────────────────────── */
+const MAX_COPY_RETRIES = 4; // up to 4 retries: waits 3 s, 6 s, 12 s, 24 s
+
+function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
+
+/** Parse a Drive API error body and decide whether the 403 is retryable. */
+function isDriveRateLimit(body: string): boolean {
+  return (
+    body.includes("rateLimitExceeded") ||
+    body.includes("userRateLimitExceeded") ||
+    body.includes("Too Many Requests")
+  );
+}
+
 export async function copyDriveFileToStorage(
   driveFileId: string,
   destObjectPath: string,
 ): Promise<CopyResult> {
-  const token = await getDriveAccessToken();
+  let lastRateLimitBody = "";
 
-  const driveResp = await fetch(
-    `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(driveFileId)}?alt=media&supportsAllDrives=true`,
-    { headers: { Authorization: `Bearer ${token}` } },
-  );
-  if (driveResp.status !== 200 || !driveResp.body) {
+  for (let attempt = 0; attempt <= MAX_COPY_RETRIES; attempt++) {
+    if (attempt > 0) {
+      // Exponential back-off: 3 s → 6 s → 12 s → 24 s
+      const waitMs = 3_000 * Math.pow(2, attempt - 1);
+      console.info(
+        `[video-storage] Drive rate-limit retry ${attempt}/${MAX_COPY_RETRIES} ` +
+        `for ${driveFileId} — waiting ${waitMs / 1000}s`,
+      );
+      await sleep(waitMs);
+    }
+
+    // Re-fetch access token on every attempt (may have expired or been revoked).
+    const token = await getDriveAccessToken();
+
+    const driveResp = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(driveFileId)}?alt=media&supportsAllDrives=true`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+
+    /* ── Success ── */
+    if (driveResp.status === 200 && driveResp.body) {
+      const upstreamType = driveResp.headers.get("content-type");
+      // iPhone Safari refuses application/octet-stream — force video/mp4 unless
+      // Drive reports an explicit video/* MIME type.
+      const contentType =
+        upstreamType && upstreamType.startsWith("video/") ? upstreamType : "video/mp4";
+
+      const { bucketName, objectName } = parseObjectPath(destObjectPath);
+      const file = objectStorageClient.bucket(bucketName).file(objectName);
+
+      let bytes = 0;
+      const source = Readable.fromWeb(driveResp.body as NodeWebReadableStream<Uint8Array>);
+      source.on("data", (chunk: Buffer) => { bytes += chunk.length; });
+
+      await pipeline(
+        source,
+        file.createWriteStream({
+          contentType,
+          metadata: { cacheControl: "private, max-age=3600" },
+        }),
+      );
+
+      return { objectPath: destObjectPath, bytes };
+    }
+
+    /* ── Non-200: read body for diagnosis ── */
     const errBody = await driveResp.text().catch(() => "");
+
+    if (driveResp.status === 429) {
+      // HTTP 429 Too Many Requests — always retryable
+      const retryAfter = parseInt(driveResp.headers.get("Retry-After") ?? "10", 10);
+      lastRateLimitBody = errBody;
+      if (attempt < MAX_COPY_RETRIES) {
+        await sleep(Math.max(retryAfter * 1000, 3_000));
+        continue;
+      }
+      // Exhausted retries
+      const err = new Error(
+        `تجاوزت حد الطلبات في Google Drive (429).\n` +
+        `الملف: ${driveFileId}\n` +
+        `حاول مرة أخرى بعد بضع دقائق أو قسّم الترحيل إلى دفعات أصغر.`,
+      );
+      (err as Error & { driveStatus: number; isRateLimit: boolean }).driveStatus = 429;
+      (err as Error & { driveStatus: number; isRateLimit: boolean }).isRateLimit = true;
+      throw err;
+    }
+
+    if (driveResp.status === 403) {
+      const rateLimit = isDriveRateLimit(errBody);
+
+      if (rateLimit && attempt < MAX_COPY_RETRIES) {
+        // Quota/rate-limit 403 — retryable
+        lastRateLimitBody = errBody;
+        continue;
+      }
+
+      if (rateLimit) {
+        // Rate-limit 403 exhausted retries
+        const err = new Error(
+          `تجاوزت حد الطلبات في Google Drive (403 rateLimitExceeded).\n` +
+          `الملف: ${driveFileId}\n` +
+          `حاول مرة أخرى بعد بضع دقائق.${lastRateLimitBody ? `\n${lastRateLimitBody.slice(0, 200)}` : ""}`,
+        );
+        (err as Error & { driveStatus: number; isRateLimit: boolean }).driveStatus = 403;
+        (err as Error & { driveStatus: number; isRateLimit: boolean }).isRateLimit = true;
+        throw err;
+      }
+
+      // Permanent access-denied 403
+      const err = new Error(
+        `ليس لديك صلاحية الوصول إلى ملف Drive.\n` +
+        `رقم الملف: ${driveFileId}\n` +
+        `الحل: تأكد أن الملف مشارك مع حساب الخدمة أو قم بتحديث الرابط.`,
+      );
+      (err as Error & { driveStatus: number }).driveStatus = 403;
+      throw err;
+    }
+
     if (driveResp.status === 404) {
       const err = new Error(
         `ملف Google Drive غير موجود أو تم حذفه.\n` +
@@ -197,44 +307,12 @@ export async function copyDriveFileToStorage(
       (err as Error & { driveStatus: number }).driveStatus = 404;
       throw err;
     }
-    if (driveResp.status === 403) {
-      const err = new Error(
-        `ليس لديك صلاحية الوصول إلى ملف Drive.\n` +
-        `رقم الملف: ${driveFileId}\n` +
-        `الحل: تأكد أن الملف مشارك مع حساب الخدمة أو قم بتحديث الرابط.`,
-      );
-      (err as Error & { driveStatus: number }).driveStatus = 403;
-      throw err;
-    }
-    throw new Error(
-      `Drive fetch failed (${driveResp.status}): ${errBody.slice(0, 300)}`,
-    );
+
+    throw new Error(`Drive fetch failed (${driveResp.status}): ${errBody.slice(0, 300)}`);
   }
 
-  const upstreamType = driveResp.headers.get("content-type");
-  // iPhone Safari refuses application/octet-stream — force video/mp4 unless
-  // Drive reports an explicit video/* type.
-  const contentType =
-    upstreamType && upstreamType.startsWith("video/") ? upstreamType : "video/mp4";
-
-  const { bucketName, objectName } = parseObjectPath(destObjectPath);
-  const file = objectStorageClient.bucket(bucketName).file(objectName);
-
-  let bytes = 0;
-  const source = Readable.fromWeb(driveResp.body as NodeWebReadableStream<Uint8Array>);
-  source.on("data", (chunk: Buffer) => {
-    bytes += chunk.length;
-  });
-
-  await pipeline(
-    source,
-    file.createWriteStream({
-      contentType,
-      metadata: { cacheControl: "private, max-age=3600" },
-    }),
-  );
-
-  return { objectPath: destObjectPath, bytes };
+  // Should be unreachable — loop above always returns or throws.
+  throw new Error("copyDriveFileToStorage: exceeded retry loop unexpectedly");
 }
 
 // Best-effort delete of migrated objects (used when a video is deleted or its
