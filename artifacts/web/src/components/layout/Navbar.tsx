@@ -4,7 +4,7 @@ import { Button } from "@/components/ui";
 import { InstallAppButton } from "@/components/InstallAppButton";
 import { IosInstallGuide } from "@/components/IosInstallGuide";
 import { useAuth } from "@/lib/auth";
-import { LogOut, User, Crown, Menu, X, CreditCard, Home, Users, GraduationCap } from "lucide-react";
+import { LogOut, User, Crown, Menu, X, CreditCard, Home, Users, GraduationCap, Wrench } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export function Navbar() {
@@ -18,6 +18,7 @@ export function Navbar() {
   const navLinks = [
     { href: "/",          label: "الرئيسية",     icon: <Home className="w-4 h-4" /> },
     { href: "/courses",   label: "الدورات",      icon: <GraduationCap className="w-4 h-4" /> },
+    { href: "/tools",     label: "الأدوات",      icon: <Wrench className="w-4 h-4" /> },
     { href: "/community", label: "Community GAB",    icon: <Users className="w-4 h-4" /> },
     { href: "/subscribe", label: "الاشتراكات",   icon: <CreditCard className="w-4 h-4" /> },
   ];

@@ -19,6 +19,7 @@ import { VideoDetail } from "@/pages/public/VideoDetail";
 import { Dashboard } from "@/pages/public/Dashboard";
 import { Subscribe } from "@/pages/public/Subscribe";
 import { Community } from "@/pages/public/Community";
+import { Tools } from "@/pages/public/Tools";
 import { Notifications } from "@/pages/public/Notifications";
 import { CompletePhone } from "@/pages/public/CompletePhone";
 import { AdminLogin } from "@/pages/admin/AdminLogin";
@@ -34,6 +35,7 @@ import { AdminPayments } from "@/pages/admin/Payments";
 import { AdminChangePassword } from "@/pages/admin/ChangePassword";
 import { AdminSendNotification } from "@/pages/admin/SendNotification";
 import { AdminCommunity } from "@/pages/admin/AdminCommunity";
+import { AdminTools } from "@/pages/admin/AdminTools";
 import { AdminSubscriptionAlerts } from "@/pages/admin/SubscriptionAlerts";
 import { NotificationGate } from "@/components/notifications/NotificationGate";
 import NotFound from "@/pages/not-found";
@@ -112,6 +114,7 @@ function PublicRoutes() {
         <Route path="/subscribe"><Subscribe /></Route>
         <Route path="/community"><Community /></Route>
         <Route path="/notifications"><Notifications /></Route>
+        <Route path="/tools"><Tools /></Route>
         <Route component={NotFound} />
       </Switch>
     </PublicLayout>
@@ -171,6 +174,9 @@ function Router() {
       </Route>
       <Route path="/gab-ctrl-9x/subscription-alerts">
         <AdminLayout><AdminSubscriptionAlerts /></AdminLayout>
+      </Route>
+      <Route path="/gab-ctrl-9x/tools">
+        <AdminLayout><AdminTools /></AdminLayout>
       </Route>
       <Route><PublicRoutes /></Route>
     </Switch>

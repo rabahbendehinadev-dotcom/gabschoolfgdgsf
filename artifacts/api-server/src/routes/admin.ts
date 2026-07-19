@@ -31,7 +31,10 @@ import {
   UpdateCategoryBody,
   UpdateSubscriptionPlanBody,
   SendAdminNotificationBody,
+  CreateToolBody,
+  UpdateToolBody,
 } from "@workspace/api-zod";
+import { toolsTable } from "@workspace/db";
 
 const CreateSubscriptionPlanBody = zod.object({
   type: zod.string(),
@@ -1752,6 +1755,127 @@ router.post("/admin/push/test", adminAuth, async (_req, res) => {
     });
     res.json(result);
   } catch { res.status(500).json({ message: "Failed to send test push" }); }
+});
+
+// ─── Tools Admin CRUD ───────────────────────────────────────────────────────
+
+router.get("/admin/tools", adminAuth, async (_req, res) => {
+  try {
+    const tools = await db
+      .select({
+        id: toolsTable.id,
+        name: toolsTable.name,
+        description: toolsTable.description,
+        imageUrl: toolsTable.imageUrl,
+        category: toolsTable.category,
+        accessType: toolsTable.accessType,
+        downloadUrl: toolsTable.downloadUrl,
+        hasPassword: sql<boolean>`(${toolsTable.passwordHash} IS NOT NULL)`,
+        isPublished: toolsTable.isPublished,
+        version: toolsTable.version,
+        fileSizeMb: toolsTable.fileSizeMb,
+        os: toolsTable.os,
+        sortOrder: toolsTable.sortOrder,
+        createdAt: toolsTable.createdAt,
+      })
+      .from(toolsTable)
+      .orderBy(asc(toolsTable.sortOrder), asc(toolsTable.id));
+    res.json(tools);
+  } catch (err) {
+    console.error("[admin] GET /admin/tools error:", err);
+    res.status(500).json({ message: "حدث خطأ في جلب الأدوات" });
+  }
+});
+
+router.post("/admin/tools", adminAuth, async (req, res) => {
+  try {
+    const parsed = CreateToolBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: "بيانات الأداة غير صحيحة", errors: parsed.error.issues });
+      return;
+    }
+    const { password, ...rest } = parsed.data;
+    let passwordHash: string | null = null;
+    if (password && password.trim()) {
+      passwordHash = await hashPassword(password.trim());
+    }
+    const [tool] = await db
+      .insert(toolsTable)
+      .values({ ...rest, passwordHash })
+      .returning();
+    res.status(201).json(tool);
+  } catch (err) {
+    console.error("[admin] POST /admin/tools error:", err);
+    res.status(500).json({ message: "حدث خطأ في إضافة الأداة" });
+  }
+});
+
+router.patch("/admin/tools/:id", adminAuth, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) { res.status(400).json({ message: "معرّف غير صالح" }); return; }
+
+    const parsed = UpdateToolBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: "بيانات الأداة غير صحيحة", errors: parsed.error.issues });
+      return;
+    }
+
+    const { password, ...rest } = parsed.data;
+    const updates: Record<string, unknown> = { ...rest, updatedAt: new Date() };
+
+    if (password !== undefined) {
+      updates.passwordHash = password && password.trim()
+        ? await hashPassword(password.trim())
+        : null;
+    }
+
+    const [updated] = await db
+      .update(toolsTable)
+      .set(updates)
+      .where(eq(toolsTable.id, id))
+      .returning({ id: toolsTable.id });
+
+    if (!updated) { res.status(404).json({ message: "الأداة غير موجودة" }); return; }
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[admin] PATCH /admin/tools/:id error:", err);
+    res.status(500).json({ message: "حدث خطأ في تحديث الأداة" });
+  }
+});
+
+router.delete("/admin/tools/:id", adminAuth, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) { res.status(400).json({ message: "معرّف غير صالح" }); return; }
+
+    const [deleted] = await db
+      .delete(toolsTable)
+      .where(eq(toolsTable.id, id))
+      .returning({ id: toolsTable.id });
+
+    if (!deleted) { res.status(404).json({ message: "الأداة غير موجودة" }); return; }
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[admin] DELETE /admin/tools/:id error:", err);
+    res.status(500).json({ message: "حدث خطأ في حذف الأداة" });
+  }
+});
+
+router.post("/admin/tools/reorder", adminAuth, async (req, res) => {
+  try {
+    const { ids } = req.body as { ids: number[] };
+    if (!Array.isArray(ids)) { res.status(400).json({ message: "ids مطلوب" }); return; }
+    await Promise.all(
+      ids.map((id, index) =>
+        db.update(toolsTable).set({ sortOrder: index }).where(eq(toolsTable.id, id))
+      )
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[admin] POST /admin/tools/reorder error:", err);
+    res.status(500).json({ message: "حدث خطأ في الترتيب" });
+  }
 });
 
 export default router;
