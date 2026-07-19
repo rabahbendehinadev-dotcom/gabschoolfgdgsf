@@ -214,10 +214,33 @@ export async function copyDriveFileToStorage(
     // Re-fetch access token on every attempt (may have expired or been revoked).
     const token = await getDriveAccessToken();
 
-    const driveResp = await fetch(
-      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(driveFileId)}?alt=media&supportsAllDrives=true`,
-      { headers: { Authorization: `Bearer ${token}` } },
-    );
+    const driveUrl = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(driveFileId)}?alt=media&supportsAllDrives=true`;
+    console.info(`[video-storage] Drive download attempt`, {
+      driveFileId,
+      attempt: attempt + 1,
+      maxAttempts: MAX_COPY_RETRIES + 1,
+      destObjectPath,
+    });
+
+    let driveResp: Response;
+    try {
+      driveResp = await fetch(driveUrl, { headers: { Authorization: `Bearer ${token}` } });
+    } catch (fetchErr) {
+      // Network-level error (DNS, connection refused, etc.)
+      const msg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
+      console.error(`[video-storage] Drive fetch network error`, { driveFileId, attempt, error: msg });
+      const err = new Error(`خطأ في الاتصال بـ Google Drive: ${msg}\nرقم الملف: ${driveFileId}`);
+      (err as Error & { driveStatus?: number }).driveStatus = undefined;
+      throw err;
+    }
+
+    console.info(`[video-storage] Drive response`, {
+      driveFileId,
+      attempt: attempt + 1,
+      status: driveResp.status,
+      contentType: driveResp.headers.get("content-type"),
+      contentLength: driveResp.headers.get("content-length"),
+    });
 
     /* ── Success ── */
     if (driveResp.status === 200 && driveResp.body) {
@@ -248,19 +271,28 @@ export async function copyDriveFileToStorage(
     /* ── Non-200: read body for diagnosis ── */
     const errBody = await driveResp.text().catch(() => "");
 
+    // Always log the actual Drive error body so it appears in production logs
+    console.error(`[video-storage] Drive non-200 response`, {
+      driveFileId,
+      attempt: attempt + 1,
+      status: driveResp.status,
+      bodySnippet: errBody.slice(0, 600),
+    });
+
     if (driveResp.status === 429) {
       // HTTP 429 Too Many Requests — always retryable
       const retryAfter = parseInt(driveResp.headers.get("Retry-After") ?? "10", 10);
       lastRateLimitBody = errBody;
       if (attempt < MAX_COPY_RETRIES) {
+        console.info(`[video-storage] 429 rate-limit, waiting ${Math.max(retryAfter, 3)}s before retry`);
         await sleep(Math.max(retryAfter * 1000, 3_000));
         continue;
       }
       // Exhausted retries
       const err = new Error(
-        `تجاوزت حد الطلبات في Google Drive (429).\n` +
-        `الملف: ${driveFileId}\n` +
-        `حاول مرة أخرى بعد بضع دقائق أو قسّم الترحيل إلى دفعات أصغر.`,
+        `Google Drive رفض الطلب بسبب تجاوز الحد (HTTP 429).\n` +
+        `رقم الملف: ${driveFileId}\n` +
+        `الاستجابة: ${errBody.slice(0, 300)}`,
       );
       (err as Error & { driveStatus: number; isRateLimit: boolean }).driveStatus = 429;
       (err as Error & { driveStatus: number; isRateLimit: boolean }).isRateLimit = true;
@@ -273,42 +305,51 @@ export async function copyDriveFileToStorage(
       if (rateLimit && attempt < MAX_COPY_RETRIES) {
         // Quota/rate-limit 403 — retryable
         lastRateLimitBody = errBody;
+        const waitMs = 3_000 * Math.pow(2, attempt);
+        console.info(`[video-storage] 403 rate-limit, waiting ${waitMs / 1000}s before retry`);
+        await sleep(waitMs);
         continue;
       }
 
       if (rateLimit) {
         // Rate-limit 403 exhausted retries
         const err = new Error(
-          `تجاوزت حد الطلبات في Google Drive (403 rateLimitExceeded).\n` +
-          `الملف: ${driveFileId}\n` +
-          `حاول مرة أخرى بعد بضع دقائق.${lastRateLimitBody ? `\n${lastRateLimitBody.slice(0, 200)}` : ""}`,
+          `Google Drive رفض الطلب بسبب تجاوز الحد (HTTP 403 rateLimitExceeded).\n` +
+          `رقم الملف: ${driveFileId}\n` +
+          `الاستجابة: ${errBody.slice(0, 300)}`,
         );
         (err as Error & { driveStatus: number; isRateLimit: boolean }).driveStatus = 403;
         (err as Error & { driveStatus: number; isRateLimit: boolean }).isRateLimit = true;
         throw err;
       }
 
-      // Permanent access-denied 403
+      // Permanent access-denied 403 — log the actual body so admin can debug
       const err = new Error(
-        `ليس لديك صلاحية الوصول إلى ملف Drive.\n` +
+        `Google Drive رفض الوصول للملف (HTTP 403).\n` +
         `رقم الملف: ${driveFileId}\n` +
-        `الحل: تأكد أن الملف مشارك مع حساب الخدمة أو قم بتحديث الرابط.`,
+        `سبب Drive: ${errBody.slice(0, 400)}`,
       );
-      (err as Error & { driveStatus: number }).driveStatus = 403;
+      (err as Error & { driveStatus: number; isRateLimit: boolean }).driveStatus = 403;
+      (err as Error & { driveStatus: number; isRateLimit: boolean }).isRateLimit = false;
       throw err;
     }
 
     if (driveResp.status === 404) {
       const err = new Error(
-        `ملف Google Drive غير موجود أو تم حذفه.\n` +
+        `ملف Google Drive غير موجود (HTTP 404).\n` +
         `رقم الملف: ${driveFileId}\n` +
-        `الحل: افتح تعديل الفيديو وحدّث رابط Drive بملف صحيح.`,
+        `سبب Drive: ${errBody.slice(0, 300)}`,
       );
       (err as Error & { driveStatus: number }).driveStatus = 404;
       throw err;
     }
 
-    throw new Error(`Drive fetch failed (${driveResp.status}): ${errBody.slice(0, 300)}`);
+    // Any other HTTP status — not a known Drive error
+    throw new Error(
+      `Google Drive أعاد حالة غير متوقعة (HTTP ${driveResp.status}).\n` +
+      `رقم الملف: ${driveFileId}\n` +
+      `الاستجابة: ${errBody.slice(0, 300)}`,
+    );
   }
 
   // Should be unreachable — loop above always returns or throws.
