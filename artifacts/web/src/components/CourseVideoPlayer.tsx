@@ -170,6 +170,18 @@ export function CourseVideoPlayer({
   const [fit, setFit] = useState<Fit>("contain");
   const [quality, setQuality] = useState("تلقائي");
   const [speed, setSpeed] = useState(1);
+
+  /* ── HLS: مرجع للمثيل لاختيار الجودة يدوياً خارج الـ useEffect ── */
+  const hlsRef = useRef<HlsType | null>(null);
+  const [hlsLevels, setHlsLevels] = useState<Array<{ height: number; label: string; index: number }>>([]);
+  const [manualLevel, setManualLevel] = useState(-1); // -1 = ABR تلقائي
+  const manualLevelRef = useRef(-1); // ref لتجنّب الـ stale closure داخل hls events
+
+  /* سطح المكتب = pointer دقيق (ماوس/touchpad). الهاتف = pointer خشن (إصبع). */
+  const isDesktop = useMemo(() =>
+    typeof window !== "undefined" &&
+    window.matchMedia("(hover: hover) and (pointer: fine)").matches
+  , []);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [theater, setTheater] = useState(false); // بديل ملء الشاشة داخل الصفحة عند عدم دعم Fullscreen
   const [controlsVisible, setControlsVisible] = useState(true);
@@ -329,6 +341,23 @@ export function CourseVideoPlayer({
     setSpeed(s);
   }, []);
 
+  /* ── اختيار جودة HLS يدوياً (أو إعادة ABR التلقائي بـ level = -1) ── */
+  const setHlsLevel = useCallback((level: number) => {
+    manualLevelRef.current = level;
+    setManualLevel(level);
+    const h = hlsRef.current;
+    if (h) {
+      h.currentLevel = level; // -1 يعيد تفعيل ABR؛ 0..n يثبّت مستوى محدد
+    }
+    if (level === -1) {
+      setQuality("تلقائي");
+    } else {
+      const lev = hlsRef.current?.levels?.[level] as { height?: number } | undefined;
+      if (lev?.height) setQuality(qualityLabel(lev.height));
+    }
+    setSettingsOpen(false);
+  }, []);
+
   /* ── شاشة كاملة: حاوية (سطح المكتب + Android) ← فيديو أصلي (iPhone) ← وضع المسرح ──
      iPhone Safari لا يدعم requestFullscreen للعناصر العادية (DIV)؛ لذلك نجرّب ملء
      شاشة الحاوية أولاً (يحافظ على العلامة المائية والتحكم)، فإن لم تتوفّر ننتقل إلى
@@ -478,6 +507,9 @@ export function CourseVideoPlayer({
     if (seekSpinnerTimer.current) { clearTimeout(seekSpinnerTimer.current); seekSpinnerTimer.current = null; }
     setCurrent(0);
     setBufferedRanges([]);
+    setHlsLevels([]);
+    setManualLevel(-1);
+    manualLevelRef.current = -1;
     const v = videoRef.current;
     if (v) v.playbackRate = speed;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -506,14 +538,28 @@ export function CourseVideoPlayer({
         if (cancelled || !videoRef.current) return;
         if (HlsCtor.isSupported()) {
           hls = new HlsCtor({
-            // تخزين مؤقت أمامي سخي (دقيقة) لتفادي التقطّع على الشبكات البطيئة
-            maxBufferLength: 60,
-            maxMaxBufferLength: 120,
+            /* ── Buffer ──
+               Desktop: أقل مسبقاً → يبدأ أسرع، ABR أقل تقلباً
+               Mobile:  أكثر مسبقاً → يعوّض تقطّع الشبكة */
+            maxBufferLength:    isDesktop ? 20 : 60,
+            maxMaxBufferLength: isDesktop ? 40 : 120,
             backBufferLength: 30,
-            // لا تحمّل جودة أعلى من حجم المشغّل الفعلي (يراعي devicePixelRatio)
+
+            /* ── ABR ──
+               capLevelToPlayerSize:  لا تحمّل جودة أعلى من حجم المشغّل
+               capLevelOnFPSDrop:     خفّض الجودة تلقائياً عند سقوط الإطارات
+               startLevel = -1:       ابدأ بأدنى جودة ثم ارفع حسب القياس الفعلي
+               abrEwmaDefaultEstimate: تقدير 500kbps مبدئي → يبدأ بـ 360p لا 720p
+               abrBandWidthFactor:    استخدم 85% من عرض النطاق (هامش أمان)
+               abrBandWidthUpFactor:  ارفع الجودة فقط بعد تأكيد 70% من الرنج الأعلى */
             capLevelToPlayerSize: true,
-            /* xhrSetup: يستبدل token الموجود في كل URL بآخر قيمة في currentTokenRef
-               قبل إرسال الطلب. IDM لا ينفّذ هذا السياق فلا يحصل على الإحلال. */
+            capLevelOnFPSDrop: true,
+            startLevel: -1,
+            abrEwmaDefaultEstimate: 500_000,
+            abrBandWidthFactor: 0.85,
+            abrBandWidthUpFactor: 0.7,
+
+            /* ── xhrSetup: تجديد token في كل طلب بدون إعادة تحميل المصدر ── */
             xhrSetup: (xhr: XMLHttpRequest, url: string) => {
               const fresh = currentTokenRef.current;
               if (fresh) {
@@ -522,8 +568,19 @@ export function CourseVideoPlayer({
               }
             },
           });
+          hlsRef.current = hls; // نكشف المثيل للـ setHlsLevel خارج الـ useEffect
+
           let netRetried = false;
           let mediaRecovered = false;
+
+          /* ── MANIFEST_PARSED: نملأ قائمة مستويات الجودة عند تحليل الـ manifest ── */
+          hls.on(HlsCtor.Events.MANIFEST_PARSED, (_evt: unknown, data: { levels: Array<{ height: number }> }) => {
+            const levels = data.levels
+              .map((l, i) => ({ height: l.height, label: qualityLabel(l.height), index: i }))
+              .sort((a, b) => b.height - a.height); // من الأعلى للأدنى في القائمة
+            setHlsLevels(levels);
+          });
+
           hls.on(HlsCtor.Events.ERROR, (_evt, data) => {
             if (!data.fatal || !hls) return;
             // متصفح بلا دعم H.264 عبر MSE: لا جدوى من recoverMediaError — ارجع فوراً إلى mp4
@@ -541,10 +598,13 @@ export function CourseVideoPlayer({
             hls.destroy(); hls = null;
             setHlsFailed(true); // الرجوع النهائي إلى mp4
           });
+
+          /* LEVEL_SWITCHED: حدّث ملصق الجودة (في وضع ABR أو بعد التثبيت اليدوي) */
           hls.on(HlsCtor.Events.LEVEL_SWITCHED, (_evt, data) => {
-            const h = hls?.levels?.[data.level]?.height;
+            const h = (hls as HlsType | null)?.levels?.[data.level]?.height;
             if (h) setQuality(qualityLabel(h));
           });
+
           hls.loadSource(hlsSrcRef.current as string);
           hls.attachMedia(v);
         } else if (v.canPlayType(HLS_MIME)) {
@@ -559,6 +619,7 @@ export function CourseVideoPlayer({
 
     return () => {
       cancelled = true;
+      hlsRef.current = null; // امسح قبل destroy لتجنّب استخدامه في setHlsLevel بعد تفكيك المكوّن
       if (hls) { hls.destroy(); hls = null; }
       else v.removeAttribute("src");
     };
@@ -1107,10 +1168,34 @@ export function CourseVideoPlayer({
                         {speed === s && <Check className="h-4 w-4 text-primary" />}
                       </button>
                     ))}
-                    <div className="mt-1 flex items-center justify-between border-t border-white/10 px-3 py-2 text-[11px] text-white/50">
-                      <span>الجودة</span>
-                      <span className="font-bold text-white/80">{quality}</span>
-                    </div>
+                    {/* اختيار الجودة — يظهر فقط لفيديوهات HLS متعددة المستويات */}
+                    {hlsLevels.length > 0 ? (
+                      <>
+                        <div className="mt-1 border-t border-white/10 px-3 pt-1.5 text-[11px] font-bold text-white/50">الجودة</div>
+                        <button
+                          onClick={() => setHlsLevel(-1)}
+                          className="flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-right transition-colors hover:bg-white/10"
+                        >
+                          <span>تلقائي (ABR)</span>
+                          {manualLevel === -1 && <Check className="h-4 w-4 text-primary" />}
+                        </button>
+                        {hlsLevels.map(l => (
+                          <button
+                            key={l.index}
+                            onClick={() => setHlsLevel(l.index)}
+                            className="flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-right transition-colors hover:bg-white/10"
+                          >
+                            <span>{l.label}</span>
+                            {manualLevel === l.index && <Check className="h-4 w-4 text-primary" />}
+                          </button>
+                        ))}
+                      </>
+                    ) : (
+                      <div className="mt-1 flex items-center justify-between border-t border-white/10 px-3 py-2 text-[11px] text-white/50">
+                        <span>الجودة</span>
+                        <span className="font-bold text-white/80">{quality}</span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
