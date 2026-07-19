@@ -4,20 +4,19 @@ import { useAuth } from "@/lib/auth";
 import { Card, Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label } from "@/components/ui";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Edit, Trash2, GraduationCap, Upload, X, Loader2, Eye, EyeOff, ImageIcon, Video, FolderTree } from "lucide-react";
-import { useGetAdminPlaylists, useGetAdminCategories, useCreatePlaylist, useUpdatePlaylist, useDeletePlaylist } from "@workspace/api-client-react/src/generated/api";
+import { useGetAdminPlaylists, useCreatePlaylist, useUpdatePlaylist, useDeletePlaylist } from "@workspace/api-client-react/src/generated/api";
 
 interface CourseForm {
   title: string;
   description: string;
   imageUrl: string;
-  categoryId: number;
   sortOrder: number;
   isVisible: boolean;
 }
 
 const DEFAULT_FORM: CourseForm = {
   title: "", description: "", imageUrl: "",
-  categoryId: 0, sortOrder: 0, isVisible: true,
+  sortOrder: 0, isVisible: true,
 };
 
 export function AdminCourses() {
@@ -26,7 +25,6 @@ export function AdminCourses() {
   const reqOpts = { request: getAdminAuthHeaders() };
 
   const { data: playlists, refetch } = useGetAdminPlaylists(reqOpts);
-  const { data: categories } = useGetAdminCategories(reqOpts);
   const createMut = useCreatePlaylist({ request: getAdminAuthHeaders() });
   const updateMut = useUpdatePlaylist({ request: getAdminAuthHeaders() });
   const deleteMut = useDeletePlaylist({ request: getAdminAuthHeaders() });
@@ -44,13 +42,12 @@ export function AdminCourses() {
         title: pl.title,
         description: pl.description ?? "",
         imageUrl: (pl as typeof pl & { imageUrl?: string | null }).imageUrl ?? "",
-        categoryId: pl.categoryId,
         sortOrder: pl.sortOrder,
         isVisible: pl.isVisible,
       });
     } else {
       setEditingId(null);
-      setForm({ ...DEFAULT_FORM, categoryId: categories?.[0]?.id ?? 0 });
+      setForm({ ...DEFAULT_FORM });
     }
     setIsOpen(true);
   };
@@ -85,15 +82,10 @@ export function AdminCourses() {
       toast({ variant: "destructive", title: "اسم الدورة مطلوب" });
       return;
     }
-    if (!form.categoryId) {
-      toast({ variant: "destructive", title: "يجب اختيار تصنيف" });
-      return;
-    }
     const payload = {
       title: form.title.trim(),
       description: form.description.trim(),
       imageUrl: form.imageUrl || null,
-      categoryId: form.categoryId,
       sortOrder: form.sortOrder,
       isVisible: form.isVisible,
     };
@@ -122,7 +114,6 @@ export function AdminCourses() {
 
   return (
     <div className="space-y-6" dir="rtl">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -139,13 +130,11 @@ export function AdminCourses() {
         </Button>
       </div>
 
-      {/* Courses list */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {(playlists ?? []).map(pl => {
           const imageUrl = (pl as typeof pl & { imageUrl?: string | null }).imageUrl;
           return (
             <Card key={pl.id} className="glass-card overflow-hidden">
-              {/* Thumbnail */}
               <div className="relative aspect-video bg-muted/40 overflow-hidden">
                 {imageUrl ? (
                   <img
@@ -170,13 +159,11 @@ export function AdminCourses() {
                 </div>
               </div>
 
-              {/* Info */}
               <div className="p-4">
                 <h3 className="font-bold text-base leading-snug mb-1 line-clamp-1">{pl.title}</h3>
                 {pl.description && (
                   <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{pl.description}</p>
                 )}
-                {/* إدارة محتوى الدورة */}
                 <div className="grid grid-cols-2 gap-2 mb-2">
                   <Link href={`/gab-ctrl-9x/videos?courseId=${pl.id}`}>
                     <Button variant="outline" size="sm" className="w-full gap-1.5 text-xs">
@@ -215,7 +202,6 @@ export function AdminCourses() {
         )}
       </div>
 
-      {/* Dialog */}
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent className="max-w-lg bg-background border border-white/10 max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -223,7 +209,6 @@ export function AdminCourses() {
           </DialogHeader>
 
           <div className="space-y-4 pt-2">
-            {/* Image upload */}
             <div className="space-y-2">
               <Label>صورة الدورة</Label>
               {form.imageUrl ? (
@@ -269,7 +254,6 @@ export function AdminCourses() {
               )}
             </div>
 
-            {/* Title */}
             <div className="space-y-2">
               <Label>اسم الدورة *</Label>
               <Input
@@ -279,7 +263,6 @@ export function AdminCourses() {
               />
             </div>
 
-            {/* Description */}
             <div className="space-y-2">
               <Label>وصف الدورة</Label>
               <textarea
@@ -290,19 +273,7 @@ export function AdminCourses() {
               />
             </div>
 
-            {/* Category + Sort */}
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>التصنيف *</Label>
-                <select
-                  className="flex h-10 w-full rounded-md border border-white/10 bg-background px-3 py-2 text-sm"
-                  value={form.categoryId}
-                  onChange={e => setForm(p => ({ ...p, categoryId: parseInt(e.target.value) }))}
-                >
-                  <option value={0} disabled>اختر تصنيف</option>
-                  {(categories ?? []).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-              </div>
               <div className="space-y-2">
                 <Label>الترتيب</Label>
                 <Input
@@ -311,22 +282,21 @@ export function AdminCourses() {
                   onChange={e => setForm(p => ({ ...p, sortOrder: parseInt(e.target.value) || 0 }))}
                 />
               </div>
+              <div className="space-y-2 flex items-end">
+                <label className="flex items-center gap-3 cursor-pointer pb-2">
+                  <input
+                    type="checkbox" checked={form.isVisible}
+                    onChange={e => setForm(p => ({ ...p, isVisible: e.target.checked }))}
+                    className="w-4 h-4 accent-primary"
+                  />
+                  <span className="text-sm flex items-center gap-1.5">
+                    {form.isVisible ? <Eye className="w-4 h-4 text-green-400" /> : <EyeOff className="w-4 h-4 text-muted-foreground" />}
+                    {form.isVisible ? "مرئية للطلاب" : "مخفية"}
+                  </span>
+                </label>
+              </div>
             </div>
 
-            {/* Visibility */}
-            <label className="flex items-center gap-3 cursor-pointer">
-              <input
-                type="checkbox" checked={form.isVisible}
-                onChange={e => setForm(p => ({ ...p, isVisible: e.target.checked }))}
-                className="w-4 h-4 accent-primary"
-              />
-              <span className="text-sm flex items-center gap-1.5">
-                {form.isVisible ? <Eye className="w-4 h-4 text-green-400" /> : <EyeOff className="w-4 h-4 text-muted-foreground" />}
-                {form.isVisible ? "مرئية للطلاب" : "مخفية"}
-              </span>
-            </label>
-
-            {/* Actions */}
             <div className="flex gap-3 pt-2">
               <Button onClick={handleSave} className="flex-1" disabled={isPending}>
                 {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : (editingId ? "حفظ التغييرات" : "إنشاء الدورة")}

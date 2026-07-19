@@ -757,7 +757,7 @@ export const GetAdminPlaylistsResponse = zod.array(
 export const CreatePlaylistBody = zod.object({
   title: zod.string(),
   description: zod.string().optional(),
-  categoryId: zod.number(),
+  categoryId: zod.number().nullish(),
   sortOrder: zod.number().optional(),
   isVisible: zod.boolean().optional(),
 });

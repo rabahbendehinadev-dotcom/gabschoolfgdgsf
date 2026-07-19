@@ -620,28 +620,18 @@ router.get("/admin/videos", adminAuth, async (req, res) => {
     // Build WHERE condition when filtering by course/playlist
     let whereCondition = undefined;
     if (playlistId) {
-      // 1. Get the playlist's own categoryId (old architecture: playlist → single category → videos)
-      const [playlistRow] = await db
-        .select({ categoryId: playlistsTable.categoryId })
-        .from(playlistsTable)
-        .where(eq(playlistsTable.id, playlistId))
-        .limit(1);
-
-      // 2. Get all categories explicitly linked to this playlist via linkedPlaylistId
+      // Get all categories explicitly linked to this playlist via linkedPlaylistId
       const linkedCats = await db
         .select({ id: categoriesTable.id })
         .from(categoriesTable)
         .where(eq(categoriesTable.linkedPlaylistId, playlistId));
 
-      // Union of all relevant category IDs
-      const catIdSet = new Set<number>(linkedCats.map(c => c.id));
-      if (playlistRow?.categoryId) catIdSet.add(playlistRow.categoryId);
-      const catIds = Array.from(catIdSet);
+      const catIds = linkedCats.map(c => c.id);
 
       whereCondition = or(
-        // direct playlist_id link (future-proof)
+        // direct playlist_id link
         eq(videosTable.playlistId, playlistId),
-        // via category
+        // via categories that belong to this course
         catIds.length > 0 ? inArray(videosTable.categoryId, catIds) : sql`false`,
       );
     }
@@ -1017,21 +1007,8 @@ router.get("/admin/categories", adminAuth, async (req, res) => {
 
     let whereCondition = undefined;
     if (playlistId) {
-      // Get the playlist's direct categoryId (old architecture)
-      const [playlistRow] = await db
-        .select({ categoryId: playlistsTable.categoryId })
-        .from(playlistsTable)
-        .where(eq(playlistsTable.id, playlistId))
-        .limit(1);
-
-      // Build condition: categories explicitly linked OR the playlist's own categoryId
-      const conditions = [
-        eq(categoriesTable.linkedPlaylistId, playlistId),
-      ];
-      if (playlistRow?.categoryId) {
-        conditions.push(eq(categoriesTable.id, playlistRow.categoryId));
-      }
-      whereCondition = conditions.length === 1 ? conditions[0] : or(...conditions);
+      // Only return categories that explicitly belong to this course via linkedPlaylistId
+      whereCondition = eq(categoriesTable.linkedPlaylistId, playlistId);
     }
 
     const categories = await db.select().from(categoriesTable)
@@ -1175,7 +1152,7 @@ router.get("/admin/playlists", adminAuth, async (_req, res) => {
       // 1. The playlist's own categoryId (old architecture)
       // 2. Any category with linkedPlaylistId = playlist.id (new architecture)
       const catIds = new Set<number>();
-      catIds.add(playlist.categoryId);
+      if (playlist.categoryId) catIds.add(playlist.categoryId);
       for (const cat of allCategories) {
         if (cat.linkedPlaylistId === playlist.id) catIds.add(cat.id);
       }
@@ -1208,9 +1185,9 @@ router.post("/admin/playlists", adminAuth, async (req, res) => {
     const { title, description, imageUrl, categoryId, sortOrder, isVisible } = req.body;
     const [playlist] = await db.insert(playlistsTable).values({
       title, description: description ?? "", imageUrl: imageUrl ?? null,
-      categoryId: Number(categoryId), sortOrder: sortOrder ?? 0, isVisible: isVisible ?? true,
+      categoryId: categoryId ? Number(categoryId) : null, sortOrder: sortOrder ?? 0, isVisible: isVisible ?? true,
     }).returning();
-    res.status(201).json({ id: playlist.id, title: playlist.title, description: playlist.description, imageUrl: playlist.imageUrl ?? null, categoryId: playlist.categoryId, categoryName: "", sortOrder: playlist.sortOrder, isVisible: playlist.isVisible, createdAt: playlist.createdAt.toISOString(), videos: [] });
+    res.status(201).json({ id: playlist.id, title: playlist.title, description: playlist.description, imageUrl: playlist.imageUrl ?? null, categoryId: playlist.categoryId ?? null, categoryName: "", sortOrder: playlist.sortOrder, isVisible: playlist.isVisible, createdAt: playlist.createdAt.toISOString(), videos: [] });
   } catch (error: unknown) {
     res.status(400).json({ message: error instanceof Error ? error.message : "Failed to create playlist" });
   }
