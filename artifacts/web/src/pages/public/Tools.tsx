@@ -19,11 +19,16 @@ interface PublicTool {
   name: string;
   description: string;
   imageUrl: string | null;
-  category: string;
+  categoryId: number | null;
+  categoryName: string | null;
   accessType: "free" | "password" | "vip" | "vip_password";
-  version: string | null;
-  fileSizeMb: string | null;
   os: string | null;
+}
+
+interface PublicCategory {
+  id: number;
+  name: string;
+  sortOrder: number;
 }
 
 const ACCESS_LABELS: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
@@ -68,11 +73,13 @@ function ToolCard({ tool, onDownload }: { tool: PublicTool; onDownload: (tool: P
             {access.label}
           </span>
         </div>
-        <div className="absolute top-2 start-2">
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-background/70 border border-border text-muted-foreground backdrop-blur-sm">
-            {tool.category}
-          </span>
-        </div>
+        {tool.categoryName && (
+          <div className="absolute top-2 start-2">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-background/70 border border-border text-muted-foreground backdrop-blur-sm">
+              {tool.categoryName}
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="p-4 flex flex-col gap-2 flex-1">
@@ -125,26 +132,37 @@ export function Tools() {
   const { user, getAuthHeaders } = useAuth();
   const { toast } = useToast();
   const [search, setSearch] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [categoryFilter, setCategoryFilter] = useState<number | "all">("all");
   const [modal, setModal] = useState<ModalState>({ type: "none" });
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
+  const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+
   const { data: tools = [], isLoading } = useQuery<PublicTool[]>({
     queryKey: ["tools"],
     queryFn: async () => {
-      const base = import.meta.env.BASE_URL.replace(/\/$/, "");
       const res = await fetch(`${base}/api/tools`, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error("فشل تحميل الأدوات");
       return res.json();
     },
   });
 
-  const categories = ["all", ...Array.from(new Set(tools.map(t => t.category))).sort()];
+  const { data: apiCategories = [] } = useQuery<PublicCategory[]>({
+    queryKey: ["tool-categories-public"],
+    queryFn: async () => {
+      const res = await fetch(`${base}/api/tool-categories`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
 
   const filtered = tools.filter(t => {
-    const matchSearch = !search || t.name.includes(search) || t.description.includes(search) || t.category.includes(search);
-    const matchCat = categoryFilter === "all" || t.category === categoryFilter;
+    const matchSearch = !search ||
+      t.name.toLowerCase().includes(search.toLowerCase()) ||
+      t.description.toLowerCase().includes(search.toLowerCase()) ||
+      (t.categoryName ?? "").toLowerCase().includes(search.toLowerCase());
+    const matchCat = categoryFilter === "all" || t.categoryId === categoryFilter;
     return matchSearch && matchCat;
   });
 
@@ -231,20 +249,30 @@ export function Tools() {
       </div>
 
       <div className="container mx-auto px-4 pb-16">
-        {/* Category Tabs */}
-        {categories.length > 2 && (
+        {/* Category Tabs — only shown if categories exist in DB */}
+        {apiCategories.length > 0 && (
           <div className="flex gap-2 overflow-x-auto pb-2 mb-8 no-scrollbar">
-            {categories.map(cat => (
+            <button
+              onClick={() => setCategoryFilter("all")}
+              className={`px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap border transition-all ${
+                categoryFilter === "all"
+                  ? "bg-primary text-primary-foreground border-primary shadow-md shadow-primary/25"
+                  : "bg-background/60 border-border text-muted-foreground hover:border-primary/40 hover:text-foreground"
+              }`}
+            >
+              جميع التصنيفات
+            </button>
+            {apiCategories.map(cat => (
               <button
-                key={cat}
-                onClick={() => setCategoryFilter(cat)}
+                key={cat.id}
+                onClick={() => setCategoryFilter(cat.id)}
                 className={`px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap border transition-all ${
-                  categoryFilter === cat
+                  categoryFilter === cat.id
                     ? "bg-primary text-primary-foreground border-primary shadow-md shadow-primary/25"
                     : "bg-background/60 border-border text-muted-foreground hover:border-primary/40 hover:text-foreground"
                 }`}
               >
-                {cat === "all" ? "جميع التصنيفات" : cat}
+                {cat.name}
               </button>
             ))}
           </div>

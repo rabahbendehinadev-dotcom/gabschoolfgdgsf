@@ -34,7 +34,7 @@ import {
   CreateToolBody,
   UpdateToolBody,
 } from "@workspace/api-zod";
-import { toolsTable } from "@workspace/db";
+import { toolsTable, toolCategoriesTable } from "@workspace/db";
 
 const CreateSubscriptionPlanBody = zod.object({
   type: zod.string(),
@@ -1759,26 +1759,93 @@ router.post("/admin/push/test", adminAuth, async (_req, res) => {
 
 // ─── Tools Admin CRUD ───────────────────────────────────────────────────────
 
+/* ═══════════════════════════════════════════════════════════════════════
+   TOOL CATEGORIES CRUD
+   ═══════════════════════════════════════════════════════════════════════ */
+
+router.get("/admin/tool-categories", adminAuth, async (_req, res) => {
+  try {
+    const cats = await db
+      .select()
+      .from(toolCategoriesTable)
+      .orderBy(asc(toolCategoriesTable.sortOrder), asc(toolCategoriesTable.id));
+    res.json(cats);
+  } catch (err) {
+    console.error("[admin] GET /admin/tool-categories error:", err);
+    res.status(500).json({ message: "حدث خطأ في جلب تصنيفات الأدوات" });
+  }
+});
+
+router.post("/admin/tool-categories", adminAuth, async (req, res) => {
+  try {
+    const { name, sortOrder, isVisible } = req.body as { name: string; sortOrder?: number; isVisible?: boolean };
+    if (!name?.trim()) { res.status(400).json({ message: "اسم التصنيف مطلوب" }); return; }
+    const [cat] = await db
+      .insert(toolCategoriesTable)
+      .values({ name: name.trim(), sortOrder: sortOrder ?? 0, isVisible: isVisible ?? true })
+      .returning();
+    res.status(201).json(cat);
+  } catch (err) {
+    console.error("[admin] POST /admin/tool-categories error:", err);
+    res.status(500).json({ message: "حدث خطأ في إضافة التصنيف" });
+  }
+});
+
+router.patch("/admin/tool-categories/:id", adminAuth, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) { res.status(400).json({ message: "معرّف غير صالح" }); return; }
+    const { name, sortOrder, isVisible } = req.body as { name?: string; sortOrder?: number; isVisible?: boolean };
+    const updates: Record<string, unknown> = { updatedAt: new Date() };
+    if (name !== undefined) updates.name = name.trim();
+    if (sortOrder !== undefined) updates.sortOrder = sortOrder;
+    if (isVisible !== undefined) updates.isVisible = isVisible;
+    const [cat] = await db.update(toolCategoriesTable).set(updates).where(eq(toolCategoriesTable.id, id)).returning();
+    if (!cat) { res.status(404).json({ message: "التصنيف غير موجود" }); return; }
+    res.json(cat);
+  } catch (err) {
+    console.error("[admin] PATCH /admin/tool-categories/:id error:", err);
+    res.status(500).json({ message: "حدث خطأ في تحديث التصنيف" });
+  }
+});
+
+router.delete("/admin/tool-categories/:id", adminAuth, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) { res.status(400).json({ message: "معرّف غير صالح" }); return; }
+    const [del] = await db.delete(toolCategoriesTable).where(eq(toolCategoriesTable.id, id)).returning({ id: toolCategoriesTable.id });
+    if (!del) { res.status(404).json({ message: "التصنيف غير موجود" }); return; }
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[admin] DELETE /admin/tool-categories/:id error:", err);
+    res.status(500).json({ message: "حدث خطأ في حذف التصنيف" });
+  }
+});
+
+/* ═══════════════════════════════════════════════════════════════════════
+   TOOLS CRUD
+   ═══════════════════════════════════════════════════════════════════════ */
+
 router.get("/admin/tools", adminAuth, async (_req, res) => {
   try {
     const tools = await db
       .select({
-        id: toolsTable.id,
-        name: toolsTable.name,
-        description: toolsTable.description,
-        imageUrl: toolsTable.imageUrl,
-        category: toolsTable.category,
-        accessType: toolsTable.accessType,
-        downloadUrl: toolsTable.downloadUrl,
-        hasPassword: sql<boolean>`(${toolsTable.passwordHash} IS NOT NULL)`,
-        isPublished: toolsTable.isPublished,
-        version: toolsTable.version,
-        fileSizeMb: toolsTable.fileSizeMb,
-        os: toolsTable.os,
-        sortOrder: toolsTable.sortOrder,
-        createdAt: toolsTable.createdAt,
+        id:           toolsTable.id,
+        name:         toolsTable.name,
+        description:  toolsTable.description,
+        imageUrl:     toolsTable.imageUrl,
+        categoryId:   toolsTable.categoryId,
+        categoryName: toolCategoriesTable.name,
+        accessType:   toolsTable.accessType,
+        downloadUrl:  toolsTable.downloadUrl,
+        hasPassword:  sql<boolean>`(${toolsTable.passwordHash} IS NOT NULL)`,
+        isPublished:  toolsTable.isPublished,
+        os:           toolsTable.os,
+        sortOrder:    toolsTable.sortOrder,
+        createdAt:    toolsTable.createdAt,
       })
       .from(toolsTable)
+      .leftJoin(toolCategoriesTable, eq(toolsTable.categoryId, toolCategoriesTable.id))
       .orderBy(asc(toolsTable.sortOrder), asc(toolsTable.id));
     res.json(tools);
   } catch (err) {
@@ -1795,13 +1862,14 @@ router.post("/admin/tools", adminAuth, async (req, res) => {
       return;
     }
     const { password, ...rest } = parsed.data;
+    const categoryId = req.body.categoryId ? Number(req.body.categoryId) : null;
     let passwordHash: string | null = null;
     if (password && password.trim()) {
       passwordHash = await hashPassword(password.trim());
     }
     const [tool] = await db
       .insert(toolsTable)
-      .values({ ...rest, passwordHash })
+      .values({ ...rest, categoryId, passwordHash })
       .returning();
     res.status(201).json(tool);
   } catch (err) {
@@ -1823,6 +1891,10 @@ router.patch("/admin/tools/:id", adminAuth, async (req, res) => {
 
     const { password, ...rest } = parsed.data;
     const updates: Record<string, unknown> = { ...rest, updatedAt: new Date() };
+
+    if (req.body.categoryId !== undefined) {
+      updates.categoryId = req.body.categoryId ? Number(req.body.categoryId) : null;
+    }
 
     if (password !== undefined) {
       updates.passwordHash = password && password.trim()

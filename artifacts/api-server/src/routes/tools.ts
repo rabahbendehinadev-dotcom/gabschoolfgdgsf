@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { Router, type IRouter } from "express";
-import { db, toolsTable } from "@workspace/db";
+import { db, toolsTable, toolCategoriesTable } from "@workspace/db";
 import { eq, and, asc } from "drizzle-orm";
 import { optionalUserAuth } from "../middlewares/auth";
 import { isActiveVip } from "../lib/vipUtils";
@@ -37,24 +37,38 @@ function verifyDownloadToken(token: string): number | null {
   }
 }
 
+/* ── Public: list visible tool categories ───────────────────────────── */
+router.get("/tool-categories", async (_req, res) => {
+  try {
+    const cats = await db
+      .select({ id: toolCategoriesTable.id, name: toolCategoriesTable.name, sortOrder: toolCategoriesTable.sortOrder })
+      .from(toolCategoriesTable)
+      .where(eq(toolCategoriesTable.isVisible, true))
+      .orderBy(asc(toolCategoriesTable.sortOrder), asc(toolCategoriesTable.id));
+    res.json(cats);
+  } catch (err) {
+    console.error("[tools] GET /tool-categories error:", err);
+    res.status(500).json({ message: "حدث خطأ في جلب التصنيفات" });
+  }
+});
+
+/* ── Public: list published tools ───────────────────────────────────── */
 router.get("/tools", optionalUserAuth, async (_req, res) => {
   try {
     const tools = await db
       .select({
-        id: toolsTable.id,
-        name: toolsTable.name,
-        description: toolsTable.description,
-        imageUrl: toolsTable.imageUrl,
-        category: toolsTable.category,
-        accessType: toolsTable.accessType,
-        isPublished: toolsTable.isPublished,
-        version: toolsTable.version,
-        fileSizeMb: toolsTable.fileSizeMb,
-        os: toolsTable.os,
-        sortOrder: toolsTable.sortOrder,
-        createdAt: toolsTable.createdAt,
+        id:           toolsTable.id,
+        name:         toolsTable.name,
+        description:  toolsTable.description,
+        imageUrl:     toolsTable.imageUrl,
+        categoryId:   toolsTable.categoryId,
+        categoryName: toolCategoriesTable.name,
+        accessType:   toolsTable.accessType,
+        os:           toolsTable.os,
+        sortOrder:    toolsTable.sortOrder,
       })
       .from(toolsTable)
+      .leftJoin(toolCategoriesTable, eq(toolsTable.categoryId, toolCategoriesTable.id))
       .where(eq(toolsTable.isPublished, true))
       .orderBy(asc(toolsTable.sortOrder), asc(toolsTable.id));
 
@@ -65,6 +79,7 @@ router.get("/tools", optionalUserAuth, async (_req, res) => {
   }
 });
 
+/* ── Download: validate access + issue signed token ─────────────────── */
 router.post("/tools/:id/download", optionalUserAuth, async (req, res) => {
   try {
     const toolId = parseInt(req.params.id, 10);
@@ -130,6 +145,7 @@ router.post("/tools/:id/download", optionalUserAuth, async (req, res) => {
   }
 });
 
+/* ── Download redirect via signed token ──────────────────────────────── */
 router.get("/tools/dl/:token", async (req, res) => {
   const toolId = verifyDownloadToken(req.params.token);
   if (!toolId) {

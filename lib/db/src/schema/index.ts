@@ -19,4 +19,5 @@ export * from "./notificationRecipients";
 export * from "./pushSubscriptions";
 export * from "./adminPushSubscriptions";
 export * from "./userCourses";
+export * from "./toolCategories";
 export * from "./tools";
