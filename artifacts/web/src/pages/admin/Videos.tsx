@@ -467,7 +467,15 @@ export function AdminVideos() {
         },
         onError: (err: unknown) => {
           const msg = err instanceof Error ? err.message : "";
-          toast({ variant: "destructive", title: "فشل النقل إلى التخزين السحابي", description: msg || "حاول مرة أخرى" });
+          const isDriveGone = msg.includes("غير موجود") || msg.includes("تم حذفه") || msg.includes("صلاحية");
+          toast({
+            variant: "destructive",
+            title: isDriveGone ? "ملف Drive غير صالح" : "فشل النقل إلى التخزين السحابي",
+            description: isDriveGone
+              ? "رابط Drive المرتبط بهذا الفيديو لا يعمل — افتح تعديل الفيديو وحدّث الرابط."
+              : (msg || "حاول مرة أخرى"),
+            duration: isDriveGone ? 8000 : 5000,
+          });
         },
         onSettled: () => setMigratingId(null),
       }

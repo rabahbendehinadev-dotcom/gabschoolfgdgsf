@@ -188,6 +188,24 @@ export async function copyDriveFileToStorage(
   );
   if (driveResp.status !== 200 || !driveResp.body) {
     const errBody = await driveResp.text().catch(() => "");
+    if (driveResp.status === 404) {
+      const err = new Error(
+        `ملف Google Drive غير موجود أو تم حذفه.\n` +
+        `رقم الملف: ${driveFileId}\n` +
+        `الحل: افتح تعديل الفيديو وحدّث رابط Drive بملف صحيح.`,
+      );
+      (err as Error & { driveStatus: number }).driveStatus = 404;
+      throw err;
+    }
+    if (driveResp.status === 403) {
+      const err = new Error(
+        `ليس لديك صلاحية الوصول إلى ملف Drive.\n` +
+        `رقم الملف: ${driveFileId}\n` +
+        `الحل: تأكد أن الملف مشارك مع حساب الخدمة أو قم بتحديث الرابط.`,
+      );
+      (err as Error & { driveStatus: number }).driveStatus = 403;
+      throw err;
+    }
     throw new Error(
       `Drive fetch failed (${driveResp.status}): ${errBody.slice(0, 300)}`,
     );
