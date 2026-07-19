@@ -135,17 +135,37 @@ export function isFolderDriveUrl(url: string): boolean {
 
 // ─── Pre-fetch cache ─────────────────────────────────────────────────────────
 // When we serve chunk [start, end] we immediately kick off a background fetch
-// for chunk [end+1, end+1+MAX_CHUNK]. By the time the browser finishes playing
+// for chunk [end+1, end+1+chunkSize]. By the time the browser finishes playing
 // the current chunk and asks for the next one, it's already buffered in RAM →
 // zero Drive round-trip latency → no "plays one minute then freezes" pause.
 //
-// Memory: MAX_PREFETCH_ENTRIES × MAX_CHUNK = 15 × 8 MB = 120 MB worst-case.
+// Memory: MAX_PREFETCH_ENTRIES × MAX_CHUNK_DESKTOP = 4 × 32 MB = 128 MB worst-case.
 // Entries are consumed on hit or expire after PREFETCH_TTL_MS (3 min).
+//
+// WHY TWO CHUNK SIZES?
+//   Mobile Safari/Chrome routinely request the ENTIRE file in a single Range
+//   (bytes=0- or bytes=0-<total-1>). Piping 200+ MB through the autoscale proxy
+//   on a mobile connection is cut off before it finishes → must cap at 8 MB.
+//   Desktop Chrome, however, issues multiple concurrent 3–5 range requests and
+//   aggressively buffers ahead. At 1440p (~15–20 Mbps), 8 MB = only ~3-4 s of
+//   video: Chrome exhausts each chunk in seconds and must re-request. The rapid
+//   chunk churn (plus in-process prefetch being unreliable in autoscale) causes
+//   brief data gaps at chunk boundaries → H.264 decoder sees non-keyframe
+//   start → visual corruption / tearing. Using 32 MB for desktop reduces chunk
+//   boundaries from one every ~3 s to one every ~13 s at 1440p, dramatically
+//   reducing corruption events without affecting mobile.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const MAX_CHUNK = 8 * 1024 * 1024; // 8 MiB per chunk
+const MAX_CHUNK_MOBILE = 8 * 1024 * 1024;   // 8 MiB — safe cap for mobile proxy
+const MAX_CHUNK_DESKTOP = 32 * 1024 * 1024; // 32 MiB — fewer chunk boundaries → less H.264 corruption on desktop
 const MAX_PREFETCH_ENTRIES = 8;
 const PREFETCH_TTL_MS = 3 * 60_000;
+
+/** Returns true for known mobile user-agents (must be kept to a small set). */
+function isMobileUA(ua: string | undefined): boolean {
+  if (!ua) return false;
+  return /Mobile|Android|iPhone|iPad|iPod/i.test(ua);
+}
 
 interface PrefetchEntry {
   promise: Promise<PrefetchResult | null>;
@@ -196,13 +216,13 @@ async function fetchDriveRange(
   }
 }
 
-function schedulePrefetch(token: string, fileId: string, nextStart: number): void {
+function schedulePrefetch(token: string, fileId: string, nextStart: number, chunkSize: number): void {
   // Don't over-fill the cache
   if (prefetchMap.size >= MAX_PREFETCH_ENTRIES) return;
   const key = prefetchKey(fileId, nextStart);
   if (prefetchMap.has(key)) return; // already in flight
 
-  const nextEnd = nextStart + MAX_CHUNK - 1;
+  const nextEnd = nextStart + chunkSize - 1;
   const driveRange = `bytes=${nextStart}-${nextEnd}`;
   const promise = fetchDriveRange(token, fileId, driveRange);
   const timer = setTimeout(() => prefetchMap.delete(key), PREFETCH_TTL_MS);
@@ -235,6 +255,15 @@ export async function streamDriveFile(
   let start = 0;
   let driveRange: string;
 
+  // Desktop browsers (Chrome/Firefox) issue multiple concurrent range requests
+  // and aggressively buffer ahead. At 1440p, 8 MB ≈ 3-4 s → chunk boundaries
+  // every few seconds → H.264 decoder encounters non-keyframe starts → tearing.
+  // Mobile browsers request the entire file in one Range → must cap at 8 MB
+  // to survive autoscale proxy timeouts. Desktop gets 32 MB for ~4× fewer
+  // boundaries with no risk of proxy timeout (desktop requests are sequential).
+  const ua = req.headers["user-agent"];
+  const chunkSize = isMobileUA(ua) ? MAX_CHUNK_MOBILE : MAX_CHUNK_DESKTOP;
+
   if (isSuffix) {
     driveRange = `bytes=-${match![2]}`;
   } else {
@@ -244,7 +273,7 @@ export async function streamDriveFile(
     if (requestedEnd !== null && (Number.isNaN(requestedEnd) || requestedEnd < start)) {
       requestedEnd = null;
     }
-    const cappedEnd = start + MAX_CHUNK - 1;
+    const cappedEnd = start + chunkSize - 1;
     const end = requestedEnd === null ? cappedEnd : Math.min(requestedEnd, cappedEnd);
     driveRange = `bytes=${start}-${end}`;
   }
@@ -274,10 +303,10 @@ export async function streamDriveFile(
 
   // ── Kick off pre-fetch for the NEXT sequential chunk ────────────────────
   if (!isSuffix) {
-    const nextStart = start + MAX_CHUNK;
+    const nextStart = start + chunkSize;
     // Run token refresh before background fetch so it doesn't race with expiry
     getDriveAccessToken()
-      .then((tok) => schedulePrefetch(tok, fileId, nextStart))
+      .then((tok) => schedulePrefetch(tok, fileId, nextStart, chunkSize))
       .catch(() => { /* prefetch is best-effort */ });
   }
 
