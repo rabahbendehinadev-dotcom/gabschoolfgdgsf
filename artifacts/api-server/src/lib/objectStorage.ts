@@ -8,26 +8,51 @@ import {
   getObjectAclPolicy,
   setObjectAclPolicy,
 } from "./objectAcl";
+import { s3Storage, S3File, signS3ObjectURL } from "./storageS3";
+
+/* ────────────────────────────────────────────────────────────────────────────
+   Storage provider selection.
+
+   STORAGE_PROVIDER=replit  (default) — uses Replit's GCS Sidecar
+   STORAGE_PROVIDER=s3                — uses any S3-compatible provider
+                                        (AWS S3, MinIO, Cloudflare R2, etc.)
+
+   All callers (videoStorage, hlsStorage, routes/storage) use the same
+   exported symbols regardless of which provider is active.
+   ────────────────────────────────────────────────────────────────────────── */
+
+const STORAGE_PROVIDER =
+  process.env.STORAGE_PROVIDER ||
+  (process.env.S3_ACCESS_KEY_ID || process.env.S3_ENDPOINT ? "s3" : "replit");
 
 const REPLIT_SIDECAR_ENDPOINT = "http://127.0.0.1:1106";
 
-export const objectStorageClient = new Storage({
-  credentials: {
-    audience: "replit",
-    subject_token_type: "access_token",
-    token_url: `${REPLIT_SIDECAR_ENDPOINT}/token`,
-    type: "external_account",
-    credential_source: {
-      url: `${REPLIT_SIDECAR_ENDPOINT}/credential`,
-      format: {
-        type: "json",
-        subject_token_field_name: "access_token",
-      },
-    },
-    universe_domain: "googleapis.com",
-  },
-  projectId: "",
-});
+/* ── GCS (Replit Sidecar) client ─────────────────────────────────────────── */
+const gcsStorageClient =
+  STORAGE_PROVIDER === "replit"
+    ? new Storage({
+        credentials: {
+          audience: "replit",
+          subject_token_type: "access_token",
+          token_url: `${REPLIT_SIDECAR_ENDPOINT}/token`,
+          type: "external_account",
+          credential_source: {
+            url: `${REPLIT_SIDECAR_ENDPOINT}/credential`,
+            format: {
+              type: "json",
+              subject_token_field_name: "access_token",
+            },
+          },
+          universe_domain: "googleapis.com",
+        },
+        projectId: "",
+      })
+    : null;
+
+/* ── Unified objectStorageClient export ──────────────────────────────────── */
+// Both GCS Storage and S3Storage expose .bucket(name) → { file(name) }
+export const objectStorageClient: any =
+  STORAGE_PROVIDER === "s3" ? s3Storage : gcsStorageClient;
 
 export class ObjectNotFoundError extends Error {
   constructor() {
@@ -47,13 +72,13 @@ export class ObjectStorageService {
         pathsStr
           .split(",")
           .map((path) => path.trim())
-          .filter((path) => path.length > 0)
-      )
+          .filter((path) => path.length > 0),
+      ),
     );
     if (paths.length === 0) {
       throw new Error(
-        "PUBLIC_OBJECT_SEARCH_PATHS not set. Create a bucket in 'Object Storage' " +
-          "tool and set PUBLIC_OBJECT_SEARCH_PATHS env var (comma-separated paths)."
+        "PUBLIC_OBJECT_SEARCH_PATHS not set. Set it to a comma-separated list of " +
+          "storage paths (GCS: gs://bucket/public, S3: bucket-name/public).",
       );
     }
     return paths;
@@ -63,14 +88,14 @@ export class ObjectStorageService {
     const dir = process.env.PRIVATE_OBJECT_DIR || "";
     if (!dir) {
       throw new Error(
-        "PRIVATE_OBJECT_DIR not set. Create a bucket in 'Object Storage' " +
-          "tool and set PRIVATE_OBJECT_DIR env var."
+        "PRIVATE_OBJECT_DIR not set. Set it to the private storage path " +
+          "(GCS: gs://bucket/private, S3: bucket-name/private).",
       );
     }
     return dir;
   }
 
-  async searchPublicObject(filePath: string): Promise<File | null> {
+  async searchPublicObject(filePath: string): Promise<File | S3File | null> {
     for (const searchPath of this.getPublicObjectSearchPaths()) {
       const fullPath = `${searchPath}/${filePath}`;
 
@@ -87,20 +112,24 @@ export class ObjectStorageService {
     return null;
   }
 
-  async downloadObject(file: File, cacheTtlSec: number = 3600): Promise<Response> {
+  async downloadObject(
+    file: File | S3File,
+    cacheTtlSec: number = 3600,
+  ): Promise<Response> {
     const [metadata] = await file.getMetadata();
-    const aclPolicy = await getObjectAclPolicy(file);
+    const aclPolicy = await getObjectAclPolicy(file as any);
     const isPublic = aclPolicy?.visibility === "public";
 
-    const nodeStream = file.createReadStream();
+    const nodeStream = (file as any).createReadStream();
     const webStream = Readable.toWeb(nodeStream) as ReadableStream;
 
     const headers: Record<string, string> = {
-      "Content-Type": (metadata.contentType as string) || "application/octet-stream",
+      "Content-Type":
+        (metadata as any).contentType || "application/octet-stream",
       "Cache-Control": `${isPublic ? "public" : "private"}, max-age=${cacheTtlSec}`,
     };
-    if (metadata.size) {
-      headers["Content-Length"] = String(metadata.size);
+    if ((metadata as any).size) {
+      headers["Content-Length"] = String((metadata as any).size);
     }
 
     return new Response(webStream, { headers });
@@ -110,8 +139,7 @@ export class ObjectStorageService {
     const privateObjectDir = this.getPrivateObjectDir();
     if (!privateObjectDir) {
       throw new Error(
-        "PRIVATE_OBJECT_DIR not set. Create a bucket in 'Object Storage' " +
-          "tool and set PRIVATE_OBJECT_DIR env var."
+        "PRIVATE_OBJECT_DIR not set.",
       );
     }
 
@@ -128,7 +156,7 @@ export class ObjectStorageService {
     });
   }
 
-  async getObjectEntityFile(objectPath: string): Promise<File> {
+  async getObjectEntityFile(objectPath: string): Promise<File | S3File> {
     if (!objectPath.startsWith("/objects/")) {
       throw new ObjectNotFoundError();
     }
@@ -167,11 +195,6 @@ export class ObjectStorageService {
       objectEntityDir = `${objectEntityDir}/`;
     }
 
-    // Normalise objectEntityDir to a URL-pathname form (must start with "/")
-    // so it can be compared against rawObjectPath (the URL's pathname).
-    //   "gs://bucket/private/"  → "/bucket/private/"
-    //   "bucket/private/"       → "/bucket/private/"
-    //   "/bucket/private/"      → "/bucket/private/"  (unchanged)
     let dirPathname = objectEntityDir;
     if (dirPathname.startsWith("gs://")) {
       dirPathname = "/" + dirPathname.slice("gs://".length);
@@ -189,7 +212,7 @@ export class ObjectStorageService {
 
   async trySetObjectEntityAclPolicy(
     rawPath: string,
-    aclPolicy: ObjectAclPolicy
+    aclPolicy: ObjectAclPolicy,
   ): Promise<string> {
     const normalizedPath = this.normalizeObjectEntityPath(rawPath);
     if (!normalizedPath.startsWith("/")) {
@@ -197,7 +220,7 @@ export class ObjectStorageService {
     }
 
     const objectFile = await this.getObjectEntityFile(normalizedPath);
-    await setObjectAclPolicy(objectFile, aclPolicy);
+    await setObjectAclPolicy(objectFile as any, aclPolicy);
     return normalizedPath;
   }
 
@@ -207,12 +230,12 @@ export class ObjectStorageService {
     requestedPermission,
   }: {
     userId?: string;
-    objectFile: File;
+    objectFile: File | S3File;
     requestedPermission?: ObjectPermission;
   }): Promise<boolean> {
     return canAccessObject({
       userId,
-      objectFile,
+      objectFile: objectFile as any,
       requestedPermission: requestedPermission ?? ObjectPermission.READ,
     });
   }
@@ -222,6 +245,9 @@ export function parseObjectPath(path: string): {
   bucketName: string;
   objectName: string;
 } {
+  if (path.startsWith("gs://")) {
+    path = "/" + path.slice("gs://".length);
+  }
   if (!path.startsWith("/")) {
     path = `/${path}`;
   }
@@ -239,6 +265,7 @@ export function parseObjectPath(path: string): {
   };
 }
 
+/* ── Unified signObjectURL export ────────────────────────────────────────── */
 export async function signObjectURL({
   bucketName,
   objectName,
@@ -250,6 +277,11 @@ export async function signObjectURL({
   method: "GET" | "PUT" | "DELETE" | "HEAD";
   ttlSec: number;
 }): Promise<string> {
+  if (STORAGE_PROVIDER === "s3") {
+    return signS3ObjectURL({ bucketName, objectName, method, ttlSec });
+  }
+
+  // Replit GCS Sidecar signed URL
   const request = {
     bucket_name: bucketName,
     object_name: objectName,
@@ -265,15 +297,15 @@ export async function signObjectURL({
       },
       body: JSON.stringify(request),
       signal: AbortSignal.timeout(30_000),
-    }
+    },
   );
   if (!response.ok) {
     throw new Error(
       `Failed to sign object URL, errorcode: ${response.status}, ` +
-        `make sure you're running on Replit`
+        `make sure you're running on Replit or switch STORAGE_PROVIDER=s3`,
     );
   }
 
-  const { signed_url: signedURL } = await response.json();
+  const { signed_url: signedURL } = (await response.json()) as { signed_url: string };
   return signedURL;
 }

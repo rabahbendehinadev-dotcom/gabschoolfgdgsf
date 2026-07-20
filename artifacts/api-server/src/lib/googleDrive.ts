@@ -1,12 +1,22 @@
 import type { Request, Response } from "express";
+import { OAuth2Client } from "google-auth-library";
 
 /* ════════════════════════════════════════════════════════════════════════
-   Google Drive streaming (server-side, OAuth via Replit connector)
-   - The student's browser NEVER contacts Google: we fetch the private file
-     bytes here with our connected account's access token and pipe them to the
-     custom <video> player. No Drive iframe, no Google login, no cookies.
-   - The connector's access token is fetched at runtime (and refreshed by the
-     Replit connectors service); we cache it only until shortly before expiry.
+   Google Drive streaming (server-side OAuth)
+
+   Two auth modes — selected automatically at runtime:
+
+   A) Replit Connector (default on Replit):
+      Uses REPLIT_CONNECTORS_HOSTNAME + REPL_IDENTITY / WEB_REPL_RENEWAL
+      to obtain the access token via the Replit connectors service.
+
+   B) VPS / Self-hosted (used on Docker / Dokploy):
+      Set GOOGLE_DRIVE_REFRESH_TOKEN + GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET.
+      The google-auth-library exchanges the refresh token for a short-lived
+      access token and renews it automatically.
+
+   Note: once all videos are migrated to S3/Object Storage, Drive streaming
+   is no longer needed and these env vars can be omitted entirely.
    ════════════════════════════════════════════════════════════════════════ */
 
 interface DriveCredentials {
@@ -16,7 +26,11 @@ interface DriveCredentials {
 
 let cached: { token: string; expiresAtMs: number } | null = null;
 
-async function fetchAccessToken(): Promise<{ token: string; expiresAtMs: number }> {
+/* ── Mode A: Replit Connector ─────────────────────────────────────────────── */
+async function fetchAccessTokenReplit(): Promise<{
+  token: string;
+  expiresAtMs: number;
+}> {
   const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
   const xReplitToken = process.env.REPL_IDENTITY
     ? "repl " + process.env.REPL_IDENTITY
@@ -52,7 +66,10 @@ async function fetchAccessToken(): Promise<{ token: string; expiresAtMs: number 
   const data = (await resp.json()) as {
     items?: Array<{
       connector_name?: string;
-      settings?: { access_token?: string; oauth?: { credentials?: DriveCredentials } };
+      settings?: {
+        access_token?: string;
+        oauth?: { credentials?: DriveCredentials };
+      };
     }>;
   };
   const driveItem =
@@ -62,9 +79,10 @@ async function fetchAccessToken(): Promise<{ token: string; expiresAtMs: number 
   const creds = settings?.oauth?.credentials;
   const token = creds?.access_token || settings?.access_token;
   if (!token) {
-    console.error("[video-stream] TOKEN ERROR: connector returned no access token", {
-      itemCount: data.items?.length ?? 0,
-    });
+    console.error(
+      "[video-stream] TOKEN ERROR: connector returned no access token",
+      { itemCount: data.items?.length ?? 0 },
+    );
     throw new Error("Google Drive is not connected");
   }
 
@@ -72,6 +90,56 @@ async function fetchAccessToken(): Promise<{ token: string; expiresAtMs: number 
     ? new Date(creds.expires_at).getTime()
     : Date.now() + 5 * 60_000;
   return { token, expiresAtMs };
+}
+
+/* ── Mode B: VPS — OAuth2 refresh token ──────────────────────────────────── */
+async function fetchAccessTokenVps(): Promise<{
+  token: string;
+  expiresAtMs: number;
+}> {
+  const refreshToken = process.env.GOOGLE_DRIVE_REFRESH_TOKEN;
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+
+  if (!refreshToken || !clientId || !clientSecret) {
+    throw new Error(
+      "Google Drive VPS auth not configured. " +
+        "Set GOOGLE_DRIVE_REFRESH_TOKEN, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET.",
+    );
+  }
+
+  const oauth2 = new OAuth2Client(clientId, clientSecret);
+  oauth2.setCredentials({ refresh_token: refreshToken });
+  const { credentials } = await oauth2.refreshAccessToken();
+
+  const token = credentials.access_token;
+  if (!token) throw new Error("Google OAuth2: refresh returned no access_token");
+
+  return {
+    token,
+    expiresAtMs: credentials.expiry_date ?? Date.now() + 60 * 60_000,
+  };
+}
+
+/* ── Router: pick mode automatically ─────────────────────────────────────── */
+async function fetchAccessToken(): Promise<{
+  token: string;
+  expiresAtMs: number;
+}> {
+  const isReplitEnv = !!(process.env.REPLIT_CONNECTORS_HOSTNAME);
+  const hasVpsOAuth = !!(process.env.GOOGLE_DRIVE_REFRESH_TOKEN);
+
+  if (isReplitEnv) {
+    return fetchAccessTokenReplit();
+  }
+  if (hasVpsOAuth) {
+    return fetchAccessTokenVps();
+  }
+  throw new Error(
+    "Google Drive is not configured. " +
+      "On Replit: connect Google Drive via the Connectors panel. " +
+      "On VPS: set GOOGLE_DRIVE_REFRESH_TOKEN, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET.",
+  );
 }
 
 export async function getDriveAccessToken(): Promise<string> {
@@ -91,18 +159,25 @@ export function resolveVideoParts(video: {
 }): { label: string; url: string }[] {
   if (video.driveParts) {
     try {
-      const parsed = JSON.parse(video.driveParts) as Array<{ label?: string; url?: string }>;
+      const parsed = JSON.parse(video.driveParts) as Array<{
+        label?: string;
+        url?: string;
+      }>;
       const valid = (Array.isArray(parsed) ? parsed : []).filter(
         (p) => p && typeof p.url === "string" && p.url.length > 0,
       );
       if (valid.length > 0) {
-        return valid.map((p, i) => ({ label: p.label || `الجزء ${i + 1}`, url: p.url as string }));
+        return valid.map((p, i) => ({
+          label: p.label || `الجزء ${i + 1}`,
+          url: p.url as string,
+        }));
       }
     } catch {
       /* malformed driveParts → fall back to the single embed url */
     }
   }
-  if (video.driveEmbedUrl) return [{ label: "الفيديو", url: video.driveEmbedUrl }];
+  if (video.driveEmbedUrl)
+    return [{ label: "الفيديو", url: video.driveEmbedUrl }];
   return [];
 }
 
@@ -134,34 +209,11 @@ export function isFolderDriveUrl(url: string): boolean {
 }
 
 // ─── Pre-fetch cache ─────────────────────────────────────────────────────────
-// When we serve chunk [start, end] we immediately kick off a background fetch
-// for chunk [end+1, end+1+chunkSize]. By the time the browser finishes playing
-// the current chunk and asks for the next one, it's already buffered in RAM →
-// zero Drive round-trip latency → no "plays one minute then freezes" pause.
-//
-// Memory: MAX_PREFETCH_ENTRIES × MAX_CHUNK_DESKTOP = 4 × 32 MB = 128 MB worst-case.
-// Entries are consumed on hit or expire after PREFETCH_TTL_MS (3 min).
-//
-// WHY TWO CHUNK SIZES?
-//   Mobile Safari/Chrome routinely request the ENTIRE file in a single Range
-//   (bytes=0- or bytes=0-<total-1>). Piping 200+ MB through the autoscale proxy
-//   on a mobile connection is cut off before it finishes → must cap at 8 MB.
-//   Desktop Chrome, however, issues multiple concurrent 3–5 range requests and
-//   aggressively buffers ahead. At 1440p (~15–20 Mbps), 8 MB = only ~3-4 s of
-//   video: Chrome exhausts each chunk in seconds and must re-request. The rapid
-//   chunk churn (plus in-process prefetch being unreliable in autoscale) causes
-//   brief data gaps at chunk boundaries → H.264 decoder sees non-keyframe
-//   start → visual corruption / tearing. Using 32 MB for desktop reduces chunk
-//   boundaries from one every ~3 s to one every ~13 s at 1440p, dramatically
-//   reducing corruption events without affecting mobile.
-// ─────────────────────────────────────────────────────────────────────────────
-
-const MAX_CHUNK_MOBILE = 8 * 1024 * 1024;   // 8 MiB — safe cap for mobile proxy
-const MAX_CHUNK_DESKTOP = 32 * 1024 * 1024; // 32 MiB — fewer chunk boundaries → less H.264 corruption on desktop
+const MAX_CHUNK_MOBILE = 8 * 1024 * 1024;
+const MAX_CHUNK_DESKTOP = 32 * 1024 * 1024;
 const MAX_PREFETCH_ENTRIES = 8;
 const PREFETCH_TTL_MS = 3 * 60_000;
 
-/** Returns true for known mobile user-agents (must be kept to a small set). */
 function isMobileUA(ua: string | undefined): boolean {
   if (!ua) return false;
   return /Mobile|Android|iPhone|iPad|iPod/i.test(ua);
@@ -188,7 +240,10 @@ function prefetchKey(fileId: string, start: number) {
 
 function evictPrefetchEntry(key: string) {
   const e = prefetchMap.get(key);
-  if (e) { clearTimeout(e.timer); prefetchMap.delete(key); }
+  if (e) {
+    clearTimeout(e.timer);
+    prefetchMap.delete(key);
+  }
 }
 
 async function fetchDriveRange(
@@ -209,18 +264,25 @@ async function fetchDriveRange(
       data,
       contentRange: resp.headers.get("content-range"),
       contentLength: String(data.byteLength),
-      contentType: upstreamType && upstreamType.startsWith("video/") ? upstreamType : "video/mp4",
+      contentType:
+        upstreamType && upstreamType.startsWith("video/")
+          ? upstreamType
+          : "video/mp4",
     };
   } catch {
     return null;
   }
 }
 
-function schedulePrefetch(token: string, fileId: string, nextStart: number, chunkSize: number): void {
-  // Don't over-fill the cache
+function schedulePrefetch(
+  token: string,
+  fileId: string,
+  nextStart: number,
+  chunkSize: number,
+): void {
   if (prefetchMap.size >= MAX_PREFETCH_ENTRIES) return;
   const key = prefetchKey(fileId, nextStart);
-  if (prefetchMap.has(key)) return; // already in flight
+  if (prefetchMap.has(key)) return;
 
   const nextEnd = nextStart + chunkSize - 1;
   const driveRange = `bytes=${nextStart}-${nextEnd}`;
@@ -229,9 +291,6 @@ function schedulePrefetch(token: string, fileId: string, nextStart: number, chun
   prefetchMap.set(key, { promise, born: Date.now(), timer });
 }
 
-// Pipe a Drive file's bytes to the client, honoring HTTP Range so the native
-// <video> element can seek. Pre-fetches the next chunk while sending the
-// current one so sequential playback has zero gap between chunks.
 export async function streamDriveFile(
   req: Request,
   res: Response,
@@ -239,28 +298,16 @@ export async function streamDriveFile(
 ): Promise<void> {
   const token = await getDriveAccessToken();
 
-  // Cap every response to a bounded window. iPhone Safari (and other players)
-  // routinely ask for the ENTIRE file in one Range (e.g. `bytes=0-` or
-  // `bytes=0-<size-1>`). Piping a multi-hundred-MB response through the
-  // autoscale proxy over a mobile connection is terminated before it finishes.
-  // By clamping each request to MAX_CHUNK and pre-fetching the next chunk in
-  // the background, sequential playback has no perceptible gap.
-
   const clientRange = req.headers.range;
-  const match = clientRange ? /^bytes=(\d*)-(\d*)$/.exec(clientRange.trim()) : null;
+  const match = clientRange
+    ? /^bytes=(\d*)-(\d*)$/.exec(clientRange.trim())
+    : null;
 
-  // Suffix range (e.g. moov atom at EOF): small tail read, forward as-is.
   const isSuffix = !!(match && match[1] === "" && match[2] !== "");
 
   let start = 0;
   let driveRange: string;
 
-  // Desktop browsers (Chrome/Firefox) issue multiple concurrent range requests
-  // and aggressively buffer ahead. At 1440p, 8 MB ≈ 3-4 s → chunk boundaries
-  // every few seconds → H.264 decoder encounters non-keyframe starts → tearing.
-  // Mobile browsers request the entire file in one Range → must cap at 8 MB
-  // to survive autoscale proxy timeouts. Desktop gets 32 MB for ~4× fewer
-  // boundaries with no risk of proxy timeout (desktop requests are sequential).
   const ua = req.headers["user-agent"];
   const chunkSize = isMobileUA(ua) ? MAX_CHUNK_MOBILE : MAX_CHUNK_DESKTOP;
 
@@ -270,44 +317,46 @@ export async function streamDriveFile(
     start = match && match[1] ? parseInt(match[1], 10) : 0;
     if (Number.isNaN(start) || start < 0) start = 0;
     let requestedEnd = match && match[2] ? parseInt(match[2], 10) : null;
-    if (requestedEnd !== null && (Number.isNaN(requestedEnd) || requestedEnd < start)) {
+    if (
+      requestedEnd !== null &&
+      (Number.isNaN(requestedEnd) || requestedEnd < start)
+    ) {
       requestedEnd = null;
     }
     const cappedEnd = start + chunkSize - 1;
-    const end = requestedEnd === null ? cappedEnd : Math.min(requestedEnd, cappedEnd);
+    const end =
+      requestedEnd === null ? cappedEnd : Math.min(requestedEnd, cappedEnd);
     driveRange = `bytes=${start}-${end}`;
   }
 
-  // ── Check pre-fetch cache ────────────────────────────────────────────────
   const key = isSuffix ? null : prefetchKey(fileId, start);
-  const cached = key ? prefetchMap.get(key) : null;
+  const cachedEntry = key ? prefetchMap.get(key) : null;
   let result: PrefetchResult | null = null;
 
-  if (cached) {
-    evictPrefetchEntry(key!); // consume immediately so another request doesn't race
-    result = await cached.promise;
+  if (cachedEntry) {
+    evictPrefetchEntry(key!);
+    result = await cachedEntry.promise;
   }
 
   if (!result) {
-    // Cache miss (seek, first request, or failed prefetch) — fetch live
     result = await fetchDriveRange(token, fileId, driveRange);
   }
 
   if (!result) {
     console.error("[video-stream] DRIVE ERROR: files.get returned non-2xx", {
-      fileId, clientRange: clientRange ?? null, driveRange,
+      fileId,
+      clientRange: clientRange ?? null,
+      driveRange,
     });
     res.status(502).end();
     return;
   }
 
-  // ── Kick off pre-fetch for the NEXT sequential chunk ────────────────────
   if (!isSuffix) {
     const nextStart = start + chunkSize;
-    // Run token refresh before background fetch so it doesn't race with expiry
     getDriveAccessToken()
       .then((tok) => schedulePrefetch(tok, fileId, nextStart, chunkSize))
-      .catch(() => { /* prefetch is best-effort */ });
+      .catch(() => {});
   }
 
   console.info("[video-stream] OK: streaming Drive file", {
@@ -315,7 +364,7 @@ export async function streamDriveFile(
     driveStatus: result.status,
     clientRange: clientRange ?? null,
     driveRange,
-    cached: !!cached,
+    cached: !!cachedEntry,
     bytes: result.data.byteLength,
   });
 
