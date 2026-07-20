@@ -122,10 +122,21 @@ export class ObjectStorageService {
   async downloadObject(
     file: File | S3File,
     cacheTtlSec: number = 3600,
+    immutable: boolean = false,
   ): Promise<Response> {
     const [metadata] = await file.getMetadata();
-    const aclPolicy = await getObjectAclPolicy(file as any);
-    const isPublic = aclPolicy?.visibility === "public";
+    // Parse ACL policy from the metadata we already fetched (avoids a second
+    // metadata roundtrip per request).
+    let isPublic = false;
+    try {
+      const rawAcl = (metadata as any)?.metadata?.["custom:aclPolicy"];
+      if (rawAcl) {
+        const aclPolicy = JSON.parse(rawAcl as string) as ObjectAclPolicy;
+        isPublic = aclPolicy?.visibility === "public";
+      }
+    } catch {
+      // Malformed ACL metadata — treat as private.
+    }
 
     const nodeStream = (file as any).createReadStream();
     const webStream = Readable.toWeb(nodeStream) as ReadableStream;
@@ -133,7 +144,7 @@ export class ObjectStorageService {
     const headers: Record<string, string> = {
       "Content-Type":
         (metadata as any).contentType || "application/octet-stream",
-      "Cache-Control": `${isPublic ? "public" : "private"}, max-age=${cacheTtlSec}`,
+      "Cache-Control": `${isPublic ? "public" : "private"}, max-age=${cacheTtlSec}${immutable ? ", immutable" : ""}`,
     };
     if ((metadata as any).size) {
       headers["Content-Length"] = String((metadata as any).size);

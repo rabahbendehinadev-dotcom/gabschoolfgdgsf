@@ -132,7 +132,13 @@ router.get("/storage/objects/*path", async (req: Request, res: Response) => {
     //   return;
     // }
 
-    const response = await objectStorageService.downloadObject(objectFile);
+    // Upload objects are addressed by immutable UUIDs — content never changes,
+    // so let browsers cache them for 30 days and skip revalidation.
+    const response = await objectStorageService.downloadObject(
+      objectFile,
+      60 * 60 * 24 * 30,
+      true,
+    );
 
     res.status(response.status);
     response.headers.forEach((value, key) => res.setHeader(key, value));
