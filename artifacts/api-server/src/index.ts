@@ -370,4 +370,11 @@ runMigrations().then(() => ensureSeed()).then(() => {
       console.log("[auto-migrate] Skipped (dev environment — shared bucket protection).");
     }
   });
+}).catch((err) => {
+  console.error("=== STARTUP FATAL ERROR ===");
+  console.error("The server failed to start. Details below:");
+  console.error(err instanceof Error ? err.stack : err);
+  console.error("DATABASE_URL set:", !!process.env.DATABASE_URL);
+  console.error("DATABASE_URL prefix:", (process.env.DATABASE_URL || "").slice(0, 40));
+  process.exit(1);
 });
