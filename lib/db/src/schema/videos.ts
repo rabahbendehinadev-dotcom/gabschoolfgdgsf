@@ -29,6 +29,13 @@ export const videosTable = pgTable("videos", {
   // buffering + instant seek + auto quality on slow connections); the MP4
   // presigned URL remains as fallback.
   hlsParts: text("hls_parts"),
+  // JSON per-part 720p copies stored back in Google Drive by the background
+  // transcode worker: [{ fileId, size } | { skipped: true, reason } | null].
+  // Index i matches driveParts index i. When an entry has fileId, the player
+  // offers a lightweight 720p stream (default) alongside the original.
+  lowParts: text("low_parts"),
+  // Last transcode error for this video (worker retries on next scan).
+  lowError: text("low_error"),
   migratedAt: timestamp("migrated_at"),
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),

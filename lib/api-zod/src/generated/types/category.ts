@@ -19,6 +19,7 @@ export interface Category {
   isVisible: boolean;
   isFeatured: boolean;
   showOnHomepage: boolean;
+  linkedPlaylistId?: number | null;
   lessonCount?: number;
   createdAt?: Date;
   updatedAt?: Date;

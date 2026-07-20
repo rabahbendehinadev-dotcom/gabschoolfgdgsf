@@ -6,8 +6,6 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type GetVideosParams = {
-  categoryId?: number;
-  search?: string;
-  playlistId?: number;
+export type DeleteTool200 = {
+  success: boolean;
 };

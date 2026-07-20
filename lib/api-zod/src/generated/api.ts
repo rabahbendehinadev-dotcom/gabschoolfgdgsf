@@ -162,6 +162,7 @@ export const UpdateMyPhoneResponse = zod.object({
 export const GetVideosQueryParams = zod.object({
   categoryId: zod.coerce.number().optional(),
   search: zod.coerce.string().optional(),
+  playlistId: zod.coerce.number().optional(),
 });
 
 export const GetVideosResponseItem = zod.object({
@@ -191,6 +192,12 @@ export const GetVideosResponseItem = zod.object({
             .nullish()
             .describe(
               "Same-origin, token-protected HLS master playlist URL (adaptive bitrate). Present only for parts that have been transcoded; the MP4 `url` remains the fallback.",
+            ),
+          lowUrl: zod
+            .string()
+            .nullish()
+            .describe(
+              "Same-origin, token-protected 720p stream URL (lighter Drive copy). Present only when the background transcoder has produced a 720p copy; the player defaults to it with a toggle back to the original-quality `url`.",
             ),
         })
         .describe(
@@ -240,6 +247,12 @@ export const GetVideoResponse = zod.object({
             .describe(
               "Same-origin, token-protected HLS master playlist URL (adaptive bitrate). Present only for parts that have been transcoded; the MP4 `url` remains the fallback.",
             ),
+          lowUrl: zod
+            .string()
+            .nullish()
+            .describe(
+              "Same-origin, token-protected 720p stream URL (lighter Drive copy). Present only when the background transcoder has produced a 720p copy; the player defaults to it with a toggle back to the original-quality `url`.",
+            ),
         })
         .describe(
           "A single playable part streamed securely from our server (no Drive link exposed).",
@@ -253,8 +266,12 @@ export const GetVideoResponse = zod.object({
 });
 
 /**
- * @summary Get all categories
+ * @summary Get all categories, optionally filtered by playlistId (courseId)
  */
+export const GetCategoriesQueryParams = zod.object({
+  playlistId: zod.coerce.number().optional(),
+});
+
 export const GetCategoriesResponseItem = zod.object({
   id: zod.number(),
   name: zod.string(),
@@ -268,6 +285,7 @@ export const GetCategoriesResponseItem = zod.object({
   isVisible: zod.boolean(),
   isFeatured: zod.boolean(),
   showOnHomepage: zod.boolean(),
+  linkedPlaylistId: zod.number().nullish(),
   lessonCount: zod.number().optional(),
   createdAt: zod.date().optional(),
   updatedAt: zod.date().optional(),
@@ -630,6 +648,7 @@ export const GetAdminCategoriesResponseItem = zod.object({
   isVisible: zod.boolean(),
   isFeatured: zod.boolean(),
   showOnHomepage: zod.boolean(),
+  linkedPlaylistId: zod.number().nullish(),
   lessonCount: zod.number().optional(),
   createdAt: zod.date().optional(),
   updatedAt: zod.date().optional(),
@@ -707,6 +726,7 @@ export const UpdateCategoryResponse = zod.object({
   isVisible: zod.boolean(),
   isFeatured: zod.boolean(),
   showOnHomepage: zod.boolean(),
+  linkedPlaylistId: zod.number().nullish(),
   lessonCount: zod.number().optional(),
   createdAt: zod.date().optional(),
   updatedAt: zod.date().optional(),
@@ -757,7 +777,7 @@ export const GetAdminPlaylistsResponse = zod.array(
 export const CreatePlaylistBody = zod.object({
   title: zod.string(),
   description: zod.string().optional(),
-  categoryId: zod.number().nullish(),
+  categoryId: zod.number(),
   sortOrder: zod.number().optional(),
   isVisible: zod.boolean().optional(),
 });
@@ -1315,86 +1335,6 @@ export const GetAdminNotificationsResponse = zod.object({
 });
 
 /**
- * @summary List published tools (public)
- */
-export const PublicTool = zod.object({
-  id: zod.number(),
-  name: zod.string(),
-  description: zod.string(),
-  imageUrl: zod.string().nullable(),
-  category: zod.string(),
-  accessType: zod.enum(["free", "password", "vip", "vip_password"]),
-  isPublished: zod.boolean(),
-  version: zod.string().nullable(),
-  fileSizeMb: zod.string().nullable(),
-  os: zod.string().nullable(),
-  sortOrder: zod.number(),
-  createdAt: zod.date(),
-});
-
-export const GetToolsResponse = zod.array(PublicTool);
-
-export const DownloadToolBody = zod.object({
-  password: zod.string().optional(),
-});
-
-export const DownloadToolResponse = zod.object({
-  signedUrl: zod.string(),
-});
-
-/**
- * @summary Admin tool schemas
- */
-export const AdminTool = zod.object({
-  id: zod.number(),
-  name: zod.string(),
-  description: zod.string(),
-  imageUrl: zod.string().nullable(),
-  category: zod.string(),
-  accessType: zod.enum(["free", "password", "vip", "vip_password"]),
-  downloadUrl: zod.string(),
-  hasPassword: zod.boolean(),
-  isPublished: zod.boolean(),
-  version: zod.string().nullable(),
-  fileSizeMb: zod.string().nullable(),
-  os: zod.string().nullable(),
-  sortOrder: zod.number(),
-  createdAt: zod.date(),
-});
-
-export const GetAdminToolsResponse = zod.array(AdminTool);
-
-export const CreateToolBody = zod.object({
-  name: zod.string().min(1),
-  description: zod.string().optional().default(""),
-  imageUrl: zod.string().optional().nullable(),
-  category: zod.string().optional().default("عام"),
-  accessType: zod.enum(["free", "password", "vip", "vip_password"]).optional().default("free"),
-  password: zod.string().optional().nullable(),
-  downloadUrl: zod.string().min(1),
-  isPublished: zod.boolean().optional().default(true),
-  version: zod.string().optional().nullable(),
-  fileSizeMb: zod.string().optional().nullable(),
-  os: zod.string().optional().nullable(),
-  sortOrder: zod.number().optional().default(0),
-});
-
-export const UpdateToolBody = zod.object({
-  name: zod.string().min(1).optional(),
-  description: zod.string().optional(),
-  imageUrl: zod.string().optional().nullable(),
-  category: zod.string().optional(),
-  accessType: zod.enum(["free", "password", "vip", "vip_password"]).optional(),
-  password: zod.string().optional().nullable(),
-  downloadUrl: zod.string().optional(),
-  isPublished: zod.boolean().optional(),
-  version: zod.string().optional().nullable(),
-  fileSizeMb: zod.string().optional().nullable(),
-  os: zod.string().optional().nullable(),
-  sortOrder: zod.number().optional(),
-});
-
-/**
  * @summary Send a notification to an audience
  */
 
@@ -1406,4 +1346,119 @@ export const SendAdminNotificationBody = zod.object({
   targetType: zod.enum(["post", "lesson", "page", "none"]).optional(),
   targetId: zod.number().nullish(),
   targetPath: zod.string().nullish(),
+});
+
+/**
+ * @summary List published tools (public)
+ */
+export const GetToolsResponseItem = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  description: zod.string(),
+  imageUrl: zod.string().nullish(),
+  categoryId: zod.number().nullish(),
+  categoryName: zod.string().nullish(),
+  accessType: zod.enum(["free", "password", "vip", "vip_password"]),
+  os: zod.string().nullish(),
+  sortOrder: zod.number(),
+});
+export const GetToolsResponse = zod.array(GetToolsResponseItem);
+
+/**
+ * @summary Validate access and get a signed download URL
+ */
+export const DownloadToolParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const DownloadToolBody = zod.object({
+  password: zod.string().optional(),
+});
+
+export const DownloadToolResponse = zod.object({
+  signedUrl: zod.string(),
+});
+
+/**
+ * @summary List all tools (admin)
+ */
+export const GetAdminToolsResponseItem = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  description: zod.string(),
+  imageUrl: zod.string().nullish(),
+  categoryId: zod.number().nullish(),
+  categoryName: zod.string().nullish(),
+  accessType: zod.enum(["free", "password", "vip", "vip_password"]),
+  downloadUrl: zod.string(),
+  hasPassword: zod.boolean(),
+  isPublished: zod.boolean(),
+  os: zod.string().nullish(),
+  sortOrder: zod.number(),
+  createdAt: zod.date(),
+});
+export const GetAdminToolsResponse = zod.array(GetAdminToolsResponseItem);
+
+/**
+ * @summary Create tool
+ */
+
+export const createToolBodyDescriptionDefault = ``;
+export const createToolBodyCategoryDefault = `عام`;
+export const createToolBodyAccessTypeDefault = `free`;
+export const createToolBodyIsPublishedDefault = true;
+export const createToolBodySortOrderDefault = 0;
+
+export const CreateToolBody = zod.object({
+  name: zod.string().min(1),
+  description: zod.string().default(createToolBodyDescriptionDefault),
+  imageUrl: zod.string().nullish(),
+  category: zod.string().default(createToolBodyCategoryDefault),
+  accessType: zod
+    .enum(["free", "password", "vip", "vip_password"])
+    .default(createToolBodyAccessTypeDefault),
+  password: zod.string().nullish(),
+  downloadUrl: zod.string().min(1),
+  isPublished: zod.boolean().default(createToolBodyIsPublishedDefault),
+  version: zod.string().nullish(),
+  fileSizeMb: zod.string().nullish(),
+  os: zod.string().nullish(),
+  sortOrder: zod.number().default(createToolBodySortOrderDefault),
+});
+
+/**
+ * @summary Update tool
+ */
+export const UpdateToolParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateToolBody = zod.object({
+  name: zod.string().min(1).optional(),
+  description: zod.string().optional(),
+  imageUrl: zod.string().nullish(),
+  category: zod.string().optional(),
+  accessType: zod.enum(["free", "password", "vip", "vip_password"]).optional(),
+  password: zod.string().nullish(),
+  downloadUrl: zod.string().optional(),
+  isPublished: zod.boolean().optional(),
+  version: zod.string().nullish(),
+  fileSizeMb: zod.string().nullish(),
+  os: zod.string().nullish(),
+  sortOrder: zod.number().optional(),
+});
+
+export const UpdateToolResponse = zod.object({
+  success: zod.boolean(),
+});
+
+/**
+ * @summary Delete tool
+ */
+export const DeleteToolParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const DeleteToolResponse = zod.object({
+  success: zod.boolean(),
 });

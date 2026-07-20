@@ -15,4 +15,6 @@ export interface VideoStreamPart {
   url: string;
   /** Same-origin, token-protected HLS master playlist URL (adaptive bitrate). Present only for parts that have been transcoded; the MP4 `url` remains the fallback. */
   hlsUrl?: string | null;
+  /** Same-origin, token-protected 720p stream URL (lighter Drive copy). Present only when the background transcoder has produced a 720p copy; the player defaults to it with a toggle back to the original-quality `url`. */
+  lowUrl?: string | null;
 }

@@ -136,6 +136,8 @@ export interface VideoStreamPart {
   url: string;
   /** Same-origin, token-protected HLS master playlist URL (adaptive bitrate). Present only for parts that have been transcoded; the MP4 `url` remains the fallback. */
   hlsUrl?: string | null;
+  /** Same-origin, token-protected 720p stream URL (lighter Drive copy). Present only when the background transcoder has produced a 720p copy; the player defaults to it with a toggle back to the original-quality `url`. */
+  lowUrl?: string | null;
 }
 
 export type VideoAccessType =
@@ -219,6 +221,8 @@ export interface CreateVideoInput {
   isVisible?: boolean;
   playlistId?: number | null;
   partNumber?: number | null;
+  softwareLink?: string | null;
+  driveParts?: string | null;
 }
 
 export type UpdateVideoInputAccessType =
@@ -241,6 +245,8 @@ export interface UpdateVideoInput {
   isVisible?: boolean;
   playlistId?: number | null;
   partNumber?: number | null;
+  softwareLink?: string | null;
+  driveParts?: string | null;
 }
 
 export type ReorderVideosInputItemsItem = {
@@ -290,6 +296,107 @@ export interface Playlist {
   isVisible: boolean;
   createdAt: string;
   videos: PlaylistVideo[];
+}
+
+export type PublicToolAccessType =
+  (typeof PublicToolAccessType)[keyof typeof PublicToolAccessType];
+
+export const PublicToolAccessType = {
+  free: "free",
+  password: "password",
+  vip: "vip",
+  vip_password: "vip_password",
+} as const;
+
+export interface PublicTool {
+  id: number;
+  name: string;
+  description: string;
+  imageUrl?: string | null;
+  categoryId?: number | null;
+  categoryName?: string | null;
+  accessType: PublicToolAccessType;
+  os?: string | null;
+  sortOrder: number;
+}
+
+export type AdminToolAccessType =
+  (typeof AdminToolAccessType)[keyof typeof AdminToolAccessType];
+
+export const AdminToolAccessType = {
+  free: "free",
+  password: "password",
+  vip: "vip",
+  vip_password: "vip_password",
+} as const;
+
+export interface AdminTool {
+  id: number;
+  name: string;
+  description: string;
+  imageUrl?: string | null;
+  categoryId?: number | null;
+  categoryName?: string | null;
+  accessType: AdminToolAccessType;
+  downloadUrl: string;
+  hasPassword: boolean;
+  isPublished: boolean;
+  os?: string | null;
+  sortOrder: number;
+  createdAt: string;
+}
+
+export type CreateToolInputAccessType =
+  (typeof CreateToolInputAccessType)[keyof typeof CreateToolInputAccessType];
+
+export const CreateToolInputAccessType = {
+  free: "free",
+  password: "password",
+  vip: "vip",
+  vip_password: "vip_password",
+} as const;
+
+export interface CreateToolInput {
+  /** @minLength 1 */
+  name: string;
+  description?: string;
+  imageUrl?: string | null;
+  category?: string;
+  accessType?: CreateToolInputAccessType;
+  password?: string | null;
+  /** @minLength 1 */
+  downloadUrl: string;
+  isPublished?: boolean;
+  version?: string | null;
+  fileSizeMb?: string | null;
+  os?: string | null;
+  sortOrder?: number;
+}
+
+export type UpdateToolInputAccessType =
+  (typeof UpdateToolInputAccessType)[keyof typeof UpdateToolInputAccessType];
+
+export const UpdateToolInputAccessType = {
+  free: "free",
+  password: "password",
+  vip: "vip",
+  vip_password: "vip_password",
+} as const;
+
+export interface UpdateToolInput {
+  /** @minLength 1 */
+  name?: string;
+  description?: string;
+  imageUrl?: string | null;
+  category?: string;
+  accessType?: UpdateToolInputAccessType;
+  password?: string | null;
+  downloadUrl?: string;
+  isPublished?: boolean;
+  version?: string | null;
+  fileSizeMb?: string | null;
+  os?: string | null;
+  sortOrder?: number;
 }
 
 export interface CreatePlaylistInput {
@@ -788,4 +895,20 @@ export type ReportCommunityCommentBody = {
 export type GetNotificationsParams = {
   limit?: number;
   cursor?: number;
+};
+
+export type DownloadToolBody = {
+  password?: string;
+};
+
+export type DownloadTool200 = {
+  signedUrl: string;
+};
+
+export type UpdateTool200 = {
+  success: boolean;
+};
+
+export type DeleteTool200 = {
+  success: boolean;
 };

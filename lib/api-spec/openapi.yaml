@@ -247,6 +247,10 @@ paths:
           in: query
           schema:
             type: string
+        - name: playlistId
+          in: query
+          schema:
+            type: integer
       responses:
         "200":
           description: Videos list
@@ -288,7 +292,12 @@ paths:
     get:
       operationId: getCategories
       tags: [categories]
-      summary: Get all categories
+      summary: Get all categories, optionally filtered by playlistId (courseId)
+      parameters:
+        - name: playlistId
+          in: query
+          schema:
+            type: integer
       responses:
         "200":
           description: Categories list
@@ -1435,6 +1444,152 @@ paths:
               schema:
                 $ref: "#/components/schemas/AdminSendNotificationResponse"
 
+  /tools:
+    get:
+      operationId: getTools
+      tags: [tools]
+      summary: List published tools (public)
+      responses:
+        "200":
+          description: Published tools list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PublicTool"
+
+  /tools/{id}/download:
+    post:
+      operationId: downloadTool
+      tags: [tools]
+      summary: Validate access and get a signed download URL
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                password:
+                  type: string
+      responses:
+        "200":
+          description: Signed download URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  signedUrl:
+                    type: string
+                required:
+                  - signedUrl
+        "403":
+          description: Access denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/tools:
+    get:
+      operationId: getAdminTools
+      tags: [admin]
+      summary: List all tools (admin)
+      security:
+        - adminAuth: []
+      responses:
+        "200":
+          description: Tools list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminTool"
+    post:
+      operationId: createTool
+      tags: [admin]
+      summary: Create tool
+      security:
+        - adminAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateToolInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminTool"
+
+  /admin/tools/{id}:
+    patch:
+      operationId: updateTool
+      tags: [admin]
+      summary: Update tool
+      security:
+        - adminAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateToolInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                required:
+                  - success
+    delete:
+      operationId: deleteTool
+      tags: [admin]
+      summary: Delete tool
+      security:
+        - adminAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                required:
+                  - success
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1670,6 +1825,10 @@ components:
           type: string
           nullable: true
           description: Same-origin, token-protected HLS master playlist URL (adaptive bitrate). Present only for parts that have been transcoded; the MP4 `url` remains the fallback.
+        lowUrl:
+          type: string
+          nullable: true
+          description: Same-origin, token-protected 720p stream URL (lighter Drive copy). Present only when the background transcoder has produced a 720p copy; the player defaults to it with a toggle back to the original-quality `url`.
       required:
         - label
         - url
@@ -1820,6 +1979,12 @@ components:
         partNumber:
           type: integer
           nullable: true
+        softwareLink:
+          type: string
+          nullable: true
+        driveParts:
+          type: string
+          nullable: true
       required:
         - title
         - description
@@ -1852,6 +2017,12 @@ components:
           nullable: true
         partNumber:
           type: integer
+          nullable: true
+        softwareLink:
+          type: string
+          nullable: true
+        driveParts:
+          type: string
           nullable: true
 
     ReorderVideosInput:
@@ -1950,6 +2121,164 @@ components:
         - createdAt
         - videos
 
+    PublicTool:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+        imageUrl:
+          type: string
+          nullable: true
+        categoryId:
+          type: integer
+          nullable: true
+        categoryName:
+          type: string
+          nullable: true
+        accessType:
+          type: string
+          enum: [free, password, vip, vip_password]
+        os:
+          type: string
+          nullable: true
+        sortOrder:
+          type: integer
+      required:
+        - id
+        - name
+        - description
+        - accessType
+        - sortOrder
+
+    AdminTool:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+        imageUrl:
+          type: string
+          nullable: true
+        categoryId:
+          type: integer
+          nullable: true
+        categoryName:
+          type: string
+          nullable: true
+        accessType:
+          type: string
+          enum: [free, password, vip, vip_password]
+        downloadUrl:
+          type: string
+        hasPassword:
+          type: boolean
+        isPublished:
+          type: boolean
+        os:
+          type: string
+          nullable: true
+        sortOrder:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - description
+        - accessType
+        - downloadUrl
+        - hasPassword
+        - isPublished
+        - sortOrder
+        - createdAt
+
+    CreateToolInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          default: ""
+        imageUrl:
+          type: string
+          nullable: true
+        category:
+          type: string
+          default: "عام"
+        accessType:
+          type: string
+          enum: [free, password, vip, vip_password]
+          default: free
+        password:
+          type: string
+          nullable: true
+        downloadUrl:
+          type: string
+          minLength: 1
+        isPublished:
+          type: boolean
+          default: true
+        version:
+          type: string
+          nullable: true
+        fileSizeMb:
+          type: string
+          nullable: true
+        os:
+          type: string
+          nullable: true
+        sortOrder:
+          type: integer
+          default: 0
+      required:
+        - name
+        - downloadUrl
+
+    UpdateToolInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        imageUrl:
+          type: string
+          nullable: true
+        category:
+          type: string
+        accessType:
+          type: string
+          enum: [free, password, vip, vip_password]
+        password:
+          type: string
+          nullable: true
+        downloadUrl:
+          type: string
+        isPublished:
+          type: boolean
+        version:
+          type: string
+          nullable: true
+        fileSizeMb:
+          type: string
+          nullable: true
+        os:
+          type: string
+          nullable: true
+        sortOrder:
+          type: integer
+
     CreatePlaylistInput:
       type: object
       properties:
@@ -2013,6 +2342,9 @@ components:
           type: boolean
         showOnHomepage:
           type: boolean
+        linkedPlaylistId:
+          type: integer
+          nullable: true
         lessonCount:
           type: integer
         createdAt:
@@ -2060,6 +2392,9 @@ components:
           type: boolean
         showOnHomepage:
           type: boolean
+        linkedPlaylistId:
+          type: integer
+          nullable: true
       required:
         - name
         - slug
@@ -2094,6 +2429,9 @@ components:
           type: boolean
         showOnHomepage:
           type: boolean
+        linkedPlaylistId:
+          type: integer
+          nullable: true
 
     SubscriptionPlan:
       type: object

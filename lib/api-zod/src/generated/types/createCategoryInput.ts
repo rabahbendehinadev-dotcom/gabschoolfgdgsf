@@ -18,4 +18,5 @@ export interface CreateCategoryInput {
   isVisible?: boolean;
   isFeatured?: boolean;
   showOnHomepage?: boolean;
+  linkedPlaylistId?: number | null;
 }
