@@ -35,6 +35,7 @@ ENV NODE_ENV=production BASE_PATH=/
 RUN pnpm --filter @workspace/web build
 
 # Build API server (esbuild bundles everything → dist/index.cjs)
+# v2: fixed Express 5 wildcard route (*path instead of *)
 RUN pnpm --filter @workspace/api-server build
 
 # ── Stage 2: Production image ───────────────────────────────────────────────────
