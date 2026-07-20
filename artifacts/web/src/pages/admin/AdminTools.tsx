@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { useAuth } from "@/lib/auth";
+import { compressImageForUpload } from "@/lib/imageCompress";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -201,12 +202,13 @@ export function AdminTools() {
   });
 
   /* ── image upload ── */
-  async function handleImageFile(file: File) {
-    if (!file.type.startsWith("image/")) {
+  async function handleImageFile(original: File) {
+    if (!original.type.startsWith("image/")) {
       toast({ title: "نوع الملف غير مدعوم", variant: "destructive" }); return;
     }
     setImgUploading(true);
     try {
+      const file = await compressImageForUpload(original);
       const step1 = await fetch(`${base}/api/storage/uploads/request-url`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...getAdminAuthHeaders()?.headers },

@@ -1,28 +1,95 @@
 /*
- * Minimal service worker.
+ * Service worker.
  *
- * Two jobs:
- *  1. Make the app installable (PWA) — the mere presence of a `fetch` handler
- *     lets browsers expose the native install prompt. It caches NOTHING: every
- *     request goes straight to the network, so behaviour, auth and
- *     subscriptions stay completely unchanged (no offline cache, no stale data).
- *  2. Receive Web Push messages and show notifications, then deep-link the user
- *     into the app on click. Push is strictly additive: if it is never used the
- *     app works exactly as before.
+ * Three jobs:
+ *  1. Make the app installable (PWA) — the presence of a `fetch` handler
+ *     lets browsers expose the native install prompt.
+ *  2. Cache IMAGES (thumbnails, covers, avatars) cache-first so they render
+ *     instantly on repeat views instead of re-downloading every time.
+ *     ONLY image requests are intercepted — API JSON, auth, and video
+ *     streaming always go straight to the network, unchanged.
+ *  3. Receive Web Push messages and show notifications, then deep-link the
+ *     user into the app on click.
  */
+var IMG_CACHE = "gab-img-v2";
+var MAX_IMG_ENTRIES = 400;
+
 self.addEventListener("install", () => {
   self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    (async () => {
+      // Drop stale image caches from older SW versions.
+      try {
+        const names = await caches.keys();
+        await Promise.all(
+          names
+            .filter((n) => n.indexOf("gab-img-") === 0 && n !== IMG_CACHE)
+            .map((n) => caches.delete(n)),
+        );
+      } catch (_e) {
+        /* cache cleanup is best-effort */
+      }
+      await self.clients.claim();
+    })(),
+  );
 });
 
-self.addEventListener("fetch", () => {
-  // No-op on purpose: we do NOT call event.respondWith(), so the browser
-  // performs its normal network request. This handler exists only to satisfy
-  // the PWA installability requirement.
+self.addEventListener("fetch", (event) => {
+  const req = event.request;
+
+  // Intercept ONLY image loads (<img>, CSS backgrounds, posters). Everything
+  // else — API calls, auth, video/audio streams, navigations — is untouched
+  // and goes straight to the network exactly as before.
+  if (req.method !== "GET" || req.destination !== "image") return;
+
+  // VIP-gated community media must stay entitlement-checked on every load.
+  if (req.url.indexOf("/community/media") !== -1) return;
+
+  // Avatars live at a stable URL whose CONTENT changes when the user updates
+  // their picture — cache-first would pin the old photo forever. Let the
+  // browser's normal HTTP cache (24h) handle them instead.
+  if (req.url.indexOf("/avatar") !== -1) return;
+
+  event.respondWith(imageCacheFirst(req));
 });
+
+async function imageCacheFirst(req) {
+  let cache;
+  try {
+    cache = await caches.open(IMG_CACHE);
+    const hit = await cache.match(req, { ignoreVary: true });
+    if (hit) return hit;
+  } catch (_e) {
+    return fetch(req);
+  }
+
+  const res = await fetch(req);
+  // Cache successful responses (incl. opaque cross-origin ones, e.g. external
+  // thumbnail hosts). Errors are never cached so retries reach the network.
+  if (res && (res.ok || res.type === "opaque")) {
+    const copy = res.clone();
+    cache
+      .put(req, copy)
+      .then(() => trimImageCache(cache))
+      .catch(() => {
+        /* quota errors are non-fatal */
+      });
+  }
+  return res;
+}
+
+async function trimImageCache(cache) {
+  const keys = await cache.keys();
+  if (keys.length <= MAX_IMG_ENTRIES) return;
+  // Cache keys are ordered oldest-first; evict the overflow.
+  const excess = keys.length - MAX_IMG_ENTRIES;
+  for (let i = 0; i < excess; i++) {
+    await cache.delete(keys[i]);
+  }
+}
 
 // A push arrived: render a system notification. Payload shape (sent by the
 // server): { title, body, url?, tag? }. Everything is defensive so a malformed

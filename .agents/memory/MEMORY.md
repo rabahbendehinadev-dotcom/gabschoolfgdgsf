@@ -36,3 +36,4 @@
 - [Course content filtering architecture](course-filtering-architecture.md) — filtering MUST be DB-level (linkedPlaylistId); client-side fallback to "show all" is the leak; admin links categories via course-specific URL.
 - [VIP expiry enforcement pattern](vip-expiry-enforcement.md) — gate VIP via isActiveVip(), never accountType==="vip"; optionalUserAuth doesn't block expired users; NULL expiry = active.
 - [Video watermark protection](video-watermark-protection.md) — watermark = viewer identity (never post author); visibility-pause must exempt PiP; getDisplayMedia patch needs cleanup-restore.
+- [SW image cache](sw-image-cache.md) — sw.js caches destination==="image" cache-first; MUST exclude /community/media (gated) and /avatar (mutable stable URL); bump gab-img-vN on rule changes.

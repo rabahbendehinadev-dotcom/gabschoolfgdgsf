@@ -13,6 +13,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useCreateVideo, useUpdateVideo, useDeleteVideo, useReorderVideos, useMigrateVideoStorage, useGetAdminPlaylists } from "@workspace/api-client-react/src/generated/api";
 import { AdminVideo, CreateVideoInput } from "@workspace/api-client-react/src/generated/api.schemas";
 import { useAuth } from "@/lib/auth";
+import { compressImageForUpload } from "@/lib/imageCompress";
 import { Card, Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label } from "@/components/ui";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Edit, Trash2, Upload, ImageIcon, X, Loader2, Layers, GripVertical, Save, Zap, GraduationCap, ArrowRight, Video } from "lucide-react";
@@ -357,12 +358,13 @@ export function AdminVideos() {
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const localPreview = URL.createObjectURL(file);
+    const original = e.target.files?.[0];
+    if (!original) return;
+    const localPreview = URL.createObjectURL(original);
     setPreviewUrl(localPreview);
     setUploading(true);
     try {
+      const file = await compressImageForUpload(original);
       const step1 = await fetch("/api/storage/uploads/request-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

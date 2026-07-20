@@ -16,6 +16,7 @@ import {
 } from "@workspace/api-client-react/src/generated/api";
 import { Category } from "@workspace/api-client-react/src/generated/api.schemas";
 import { useAuth } from "@/lib/auth";
+import { compressImageForUpload } from "@/lib/imageCompress";
 import { Card, Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label } from "@/components/ui";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -329,15 +330,16 @@ export function AdminCategories() {
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const original = e.target.files?.[0];
+    if (!original) return;
     const allowed = ["image/png", "image/jpeg", "image/jpg", "image/webp", "image/svg+xml"];
-    if (!allowed.includes(file.type)) {
+    if (!allowed.includes(original.type)) {
       toast({ variant: "destructive", title: "صيغة غير مدعومة", description: "PNG, JPG, WEBP, SVG فقط" });
       return;
     }
     setUploading(true);
     try {
+      const file = await compressImageForUpload(original);
       const step1 = await fetch("/api/storage/uploads/request-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
