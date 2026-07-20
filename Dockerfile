@@ -43,7 +43,8 @@ FROM node:22-slim AS runner
 WORKDIR /app
 
 # wget is needed for the Docker healthcheck
-RUN apt-get update && apt-get install -y wget --no-install-recommends \
+# ffmpeg is needed for the background 720p transcode worker (driveTranscode.ts)
+RUN apt-get update && apt-get install -y wget ffmpeg --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 RUN corepack enable && corepack prepare pnpm@10 --activate

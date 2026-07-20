@@ -22,6 +22,7 @@ import type {
   AdminNotificationsResponse,
   AdminSendNotificationResponse,
   AdminStats,
+  AdminTool,
   AdminUser,
   AdminVideo,
   AuthResponse,
@@ -38,7 +39,11 @@ import type {
   CreateCommentInput,
   CreateCommunityPostInput,
   CreatePlaylistInput,
+  CreateToolInput,
   CreateVideoInput,
+  DeleteTool200,
+  DownloadTool200,
+  DownloadToolBody,
   ErrorResponse,
   GetAdminUsersParams,
   GetCategoriesParams,
@@ -53,6 +58,7 @@ import type {
   MigrateVideoStorageResponse,
   NotificationListResponse,
   Playlist,
+  PublicTool,
   PushStatusInput,
   PushStatusResponse,
   PushSubscriptionInput,
@@ -72,6 +78,8 @@ import type {
   UpdatePhoneInput,
   UpdatePlanInput,
   UpdatePlaylistInput,
+  UpdateTool200,
+  UpdateToolInput,
   UpdateUserInput,
   UpdateVideoInput,
   UserProfile,
@@ -5642,4 +5650,490 @@ export const useSendAdminNotification = <
   TContext
 > => {
   return useMutation(getSendAdminNotificationMutationOptions(options));
+};
+
+/**
+ * @summary List published tools (public)
+ */
+export const getGetToolsUrl = () => {
+  return `/api/tools`;
+};
+
+export const getTools = async (
+  options?: RequestInit,
+): Promise<PublicTool[]> => {
+  return customFetch<PublicTool[]>(getGetToolsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetToolsQueryKey = () => {
+  return [`/api/tools`] as const;
+};
+
+export const getGetToolsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getTools>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof getTools>>, TError, TData>;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetToolsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getTools>>> = ({
+    signal,
+  }) => getTools({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getTools>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetToolsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getTools>>
+>;
+export type GetToolsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List published tools (public)
+ */
+
+export function useGetTools<
+  TData = Awaited<ReturnType<typeof getTools>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof getTools>>, TError, TData>;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetToolsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Validate access and get a signed download URL
+ */
+export const getDownloadToolUrl = (id: number) => {
+  return `/api/tools/${id}/download`;
+};
+
+export const downloadTool = async (
+  id: number,
+  downloadToolBody?: DownloadToolBody,
+  options?: RequestInit,
+): Promise<DownloadTool200> => {
+  return customFetch<DownloadTool200>(getDownloadToolUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(downloadToolBody),
+  });
+};
+
+export const getDownloadToolMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof downloadTool>>,
+    TError,
+    { id: number; data: BodyType<DownloadToolBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof downloadTool>>,
+  TError,
+  { id: number; data: BodyType<DownloadToolBody> },
+  TContext
+> => {
+  const mutationKey = ["downloadTool"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof downloadTool>>,
+    { id: number; data: BodyType<DownloadToolBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return downloadTool(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DownloadToolMutationResult = NonNullable<
+  Awaited<ReturnType<typeof downloadTool>>
+>;
+export type DownloadToolMutationBody = BodyType<DownloadToolBody>;
+export type DownloadToolMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Validate access and get a signed download URL
+ */
+export const useDownloadTool = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof downloadTool>>,
+    TError,
+    { id: number; data: BodyType<DownloadToolBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof downloadTool>>,
+  TError,
+  { id: number; data: BodyType<DownloadToolBody> },
+  TContext
+> => {
+  return useMutation(getDownloadToolMutationOptions(options));
+};
+
+/**
+ * @summary List all tools (admin)
+ */
+export const getGetAdminToolsUrl = () => {
+  return `/api/admin/tools`;
+};
+
+export const getAdminTools = async (
+  options?: RequestInit,
+): Promise<AdminTool[]> => {
+  return customFetch<AdminTool[]>(getGetAdminToolsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetAdminToolsQueryKey = () => {
+  return [`/api/admin/tools`] as const;
+};
+
+export const getGetAdminToolsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAdminTools>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getAdminTools>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetAdminToolsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminTools>>> = ({
+    signal,
+  }) => getAdminTools({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAdminTools>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetAdminToolsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAdminTools>>
+>;
+export type GetAdminToolsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all tools (admin)
+ */
+
+export function useGetAdminTools<
+  TData = Awaited<ReturnType<typeof getAdminTools>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getAdminTools>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetAdminToolsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create tool
+ */
+export const getCreateToolUrl = () => {
+  return `/api/admin/tools`;
+};
+
+export const createTool = async (
+  createToolInput: CreateToolInput,
+  options?: RequestInit,
+): Promise<AdminTool> => {
+  return customFetch<AdminTool>(getCreateToolUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createToolInput),
+  });
+};
+
+export const getCreateToolMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createTool>>,
+    TError,
+    { data: BodyType<CreateToolInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createTool>>,
+  TError,
+  { data: BodyType<CreateToolInput> },
+  TContext
+> => {
+  const mutationKey = ["createTool"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createTool>>,
+    { data: BodyType<CreateToolInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createTool(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateToolMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createTool>>
+>;
+export type CreateToolMutationBody = BodyType<CreateToolInput>;
+export type CreateToolMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create tool
+ */
+export const useCreateTool = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createTool>>,
+    TError,
+    { data: BodyType<CreateToolInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createTool>>,
+  TError,
+  { data: BodyType<CreateToolInput> },
+  TContext
+> => {
+  return useMutation(getCreateToolMutationOptions(options));
+};
+
+/**
+ * @summary Update tool
+ */
+export const getUpdateToolUrl = (id: number) => {
+  return `/api/admin/tools/${id}`;
+};
+
+export const updateTool = async (
+  id: number,
+  updateToolInput: UpdateToolInput,
+  options?: RequestInit,
+): Promise<UpdateTool200> => {
+  return customFetch<UpdateTool200>(getUpdateToolUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateToolInput),
+  });
+};
+
+export const getUpdateToolMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateTool>>,
+    TError,
+    { id: number; data: BodyType<UpdateToolInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateTool>>,
+  TError,
+  { id: number; data: BodyType<UpdateToolInput> },
+  TContext
+> => {
+  const mutationKey = ["updateTool"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateTool>>,
+    { id: number; data: BodyType<UpdateToolInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateTool(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateToolMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateTool>>
+>;
+export type UpdateToolMutationBody = BodyType<UpdateToolInput>;
+export type UpdateToolMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update tool
+ */
+export const useUpdateTool = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateTool>>,
+    TError,
+    { id: number; data: BodyType<UpdateToolInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateTool>>,
+  TError,
+  { id: number; data: BodyType<UpdateToolInput> },
+  TContext
+> => {
+  return useMutation(getUpdateToolMutationOptions(options));
+};
+
+/**
+ * @summary Delete tool
+ */
+export const getDeleteToolUrl = (id: number) => {
+  return `/api/admin/tools/${id}`;
+};
+
+export const deleteTool = async (
+  id: number,
+  options?: RequestInit,
+): Promise<DeleteTool200> => {
+  return customFetch<DeleteTool200>(getDeleteToolUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteToolMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteTool>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteTool>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteTool"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteTool>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteTool(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteToolMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteTool>>
+>;
+
+export type DeleteToolMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete tool
+ */
+export const useDeleteTool = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteTool>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteTool>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteToolMutationOptions(options));
 };

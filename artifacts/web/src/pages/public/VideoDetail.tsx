@@ -220,6 +220,7 @@ export function VideoDetail() {
                   key={`${id}-${selectedPartIndex}`}
                   src={activeVideoUrl}
                   hlsSrc={parts[selectedPartIndex]?.hlsUrl ?? null}
+                  lowSrc={parts[selectedPartIndex]?.lowUrl ?? null}
                   poster={video.thumbnailUrl}
                   title={video.title}
                   username={user?.username}

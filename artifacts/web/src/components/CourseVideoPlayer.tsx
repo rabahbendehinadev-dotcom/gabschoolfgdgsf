@@ -44,6 +44,9 @@ const WM_INTERVAL_MS = 5000;
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
+/* تفضيل الجودة المحفوظ: "low" (720p الافتراضية) أو "original" */
+const QUALITY_PREF_KEY = "gab-video-quality";
+
 type Warning = "first" | "second" | "blocked" | null;
 type Fit = "cover" | "contain";
 
@@ -52,6 +55,8 @@ interface CourseVideoPlayerProps {
   src: string;
   /** رابط قائمة HLS الرئيسية (بثّ تكيّفي) — إن توفّر يُفضَّل على mp4، مع بقاء mp4 احتياطاً. */
   hlsSrc?: string | null;
+  /** رابط نسخة 720p الأخف (نسخة Drive منسوخة) — إن توفّرت تُشغَّل افتراضياً مع زر للجودة الأصلية. */
+  lowSrc?: string | null;
   poster?: string | null;
   title?: string;
   /** معرّف الدرس — لحفظ موضع المشاهدة وتسجيل المخالفات. */
@@ -123,7 +128,7 @@ type PipVideo = HTMLVideoElement & {
 };
 
 export function CourseVideoPlayer({
-  src, hlsSrc, poster, title, videoId, username, email, userId, onViolation, onRetry,
+  src, hlsSrc, lowSrc, poster, title, videoId, username, email, userId, onViolation, onRetry,
 }: CourseVideoPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -134,14 +139,25 @@ export function CourseVideoPlayer({
   const useHls = !!hlsSrc && !hlsFailed;
   const usingHlsRef = useRef(false); // يقرأه مستمع onError للتمييز بين فشل HLS وفشل mp4
   usingHlsRef.current = useHls;
+  /* ── جودة 720p: نسخة Drive أخف يبنيها السيرفر في الخلفية ──
+     عند توفّرها تكون الافتراضية (أسرع تحميلاً وأقل تقطيعاً)، مع زر في
+     الإعدادات للرجوع إلى الجودة الأصلية. التفضيل محفوظ في localStorage. */
+  const [preferLow, setPreferLow] = useState<boolean>(() => {
+    try { return localStorage.getItem(QUALITY_PREF_KEY) !== "original"; } catch { return true; }
+  });
+  const usingLow = !!lowSrc && preferLow;
+  const activeSrc = usingLow ? (lowSrc as string) : src;
   /* مفاتيح مستقرة بدون token/توقيع: إعادة جلب /videos/:id (مثلاً عند العودة إلى
-     التبويب) تمنح روابط جديدة لنفس الفيديو — يجب ألا تفكّك التشغيل الجاري. */
+     التبويب) تمنح روابط جديدة لنفس الفيديو — يجب ألا تفكّك التشغيل الجاري.
+     لاحقة "#low" تميّز نسخة 720p لأن المسار نفسه (يتغيّر ?q=low فقط). */
   const hlsKey = hlsSrc ? hlsSrc.split("?")[0] : null;
-  const srcKey = src ? src.split("?")[0] : "";
+  const srcKey = (activeSrc ? activeSrc.split("?")[0] : "") + (usingLow ? "#low" : "");
   const hlsSrcRef = useRef<string | null>(hlsSrc ?? null);
   hlsSrcRef.current = hlsSrc ?? null;
-  const srcRef = useRef(src);
-  srcRef.current = src;
+  const srcRef = useRef(activeSrc);
+  srcRef.current = activeSrc;
+  /* عند تبديل الجودة: نحفظ الموضع والحالة لنستأنف من نفس النقطة بعد إعادة الربط */
+  const resumeAfterQualityRef = useRef<{ time: number; wasPlaying: boolean } | null>(null);
 
   /* currentTokenRef: يحتفظ بآخر token صالح للـ HLS ويُحدَّث كل ~90 دقيقة.
      xhrSetup يستبدل token القديم في كل URL بالقيمة المحدَّثة لحظياً، بدون
@@ -358,6 +374,17 @@ export function CourseVideoPlayer({
     setSettingsOpen(false);
   }, []);
 
+  /* ── تبديل جودة mp4 (نسخة 720p ↔ الأصلية) مع الاستئناف من نفس الموضع ── */
+  const setLowQuality = useCallback((low: boolean) => {
+    try { localStorage.setItem(QUALITY_PREF_KEY, low ? "low" : "original"); } catch { /* */ }
+    const v = videoRef.current;
+    if (v && Number.isFinite(v.currentTime)) {
+      resumeAfterQualityRef.current = { time: v.currentTime, wasPlaying: !v.paused };
+    }
+    setPreferLow(low);
+    setSettingsOpen(false);
+  }, []);
+
   /* ── شاشة كاملة: حاوية (سطح المكتب + Android) ← فيديو أصلي (iPhone) ← وضع المسرح ──
      iPhone Safari لا يدعم requestFullscreen للعناصر العادية (DIV)؛ لذلك نجرّب ملء
      شاشة الحاوية أولاً (يحافظ على العلامة المائية والتحكم)، فإن لم تتوفّر ننتقل إلى
@@ -529,6 +556,16 @@ export function CourseVideoPlayer({
 
     if (!useHls) {
       v.src = srcRef.current;
+      // استئناف الموضع بعد تبديل الجودة (720p ↔ الأصلية)
+      const resume = resumeAfterQualityRef.current;
+      if (resume) {
+        resumeAfterQualityRef.current = null;
+        const onMeta = () => {
+          try { if (resume.time > 0) v.currentTime = resume.time; } catch { /* */ }
+          if (resume.wasPlaying) v.play().catch(() => { /* */ });
+        };
+        v.addEventListener("loadedmetadata", onMeta, { once: true });
+      }
       return () => { v.removeAttribute("src"); };
     }
 
@@ -1189,6 +1226,24 @@ export function CourseVideoPlayer({
                             {manualLevel === l.index && <Check className="h-4 w-4 text-primary" />}
                           </button>
                         ))}
+                      </>
+                    ) : lowSrc && !useHls ? (
+                      <>
+                        <div className="mt-1 border-t border-white/10 px-3 pt-1.5 text-[11px] font-bold text-white/50">الجودة</div>
+                        <button
+                          onClick={() => setLowQuality(true)}
+                          className="flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-right transition-colors hover:bg-white/10"
+                        >
+                          <span>720p — أخف وأسرع</span>
+                          {preferLow && <Check className="h-4 w-4 text-primary" />}
+                        </button>
+                        <button
+                          onClick={() => setLowQuality(false)}
+                          className="flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-right transition-colors hover:bg-white/10"
+                        >
+                          <span>الجودة الأصلية</span>
+                          {!preferLow && <Check className="h-4 w-4 text-primary" />}
+                        </button>
                       </>
                     ) : (
                       <div className="mt-1 flex items-center justify-between border-t border-white/10 px-3 py-2 text-[11px] text-white/50">

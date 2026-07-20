@@ -18,4 +18,6 @@ export interface CreateVideoInput {
   isVisible?: boolean;
   playlistId?: number | null;
   partNumber?: number | null;
+  softwareLink?: string | null;
+  driveParts?: string | null;
 }

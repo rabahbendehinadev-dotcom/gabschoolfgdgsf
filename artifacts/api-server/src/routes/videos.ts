@@ -8,6 +8,7 @@ import { isActiveVip } from "../lib/vipUtils";
 import { generateVideoStreamToken, verifyVideoStreamToken } from "../lib/auth";
 import { extractDriveFileId, resolveVideoParts, streamDriveFile } from "../lib/googleDrive";
 import { streamGcsObjectToResponse, parseObjectParts } from "../lib/videoStorage";
+import { parseLowParts } from "../lib/driveTranscode";
 import { parseHlsParts, buildMasterPlaylist, renderMediaPlaylist, buildHlsBasePath, RENDITION_NAME_RE, SAFE_SEGMENT_RE } from "../lib/hlsStorage";
 
 /* ── Per-token concurrent-connection guard ────────────────────────────────
@@ -189,6 +190,7 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
       driveParts: videosTable.driveParts,
       objectParts: videosTable.objectParts,
       hlsParts: videosTable.hlsParts,
+      lowParts: videosTable.lowParts,
       createdAt: videosTable.createdAt,
     })
     .from(videosTable)
@@ -293,11 +295,12 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
     // never leave the server either way.
     const objectParts = parseObjectParts(video.objectParts);
     const hlsParts = parseHlsParts(video.hlsParts);
+    const lowParts = parseLowParts(video.lowParts);
     const partsList = resolveVideoParts({
       driveEmbedUrl: video.driveEmbedUrl,
       driveParts: video.driveParts,
     });
-    let streamParts: { label: string; url: string; hlsUrl?: string }[];
+    let streamParts: { label: string; url: string; hlsUrl?: string; lowUrl?: string }[];
     // Build streamParts from drive parts list (authoritative source for labels/count).
     // For each part: use server-proxied GCS stream if migrated (never a direct
     // storage.googleapis.com URL — download managers intercept those), otherwise
@@ -313,7 +316,13 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
       const url = objPart
         ? `/api/videos/${id}/stream-object/${i}?token=${token}`
         : `/api/videos/${id}/stream/${i}?token=${token}`;
-      return { label: p.label, url, hlsUrl };
+      // 720p copy (background transcode) — same token, same route, ?q=low.
+      const lowEntry = lowParts?.[i];
+      const lowUrl =
+        lowEntry && "fileId" in lowEntry && lowEntry.fileId
+          ? `/api/videos/${id}/stream/${i}?token=${token}&q=low`
+          : undefined;
+      return { label: p.label, url, hlsUrl, lowUrl };
     });
 
     res.json({
@@ -419,6 +428,7 @@ async function authorizeStreamRequest(
     driveParts: string | null;
     hlsParts: string | null;
     objectParts: string | null;
+    lowParts: string | null;
   };
 } | null> {
   const token = typeof req.query.token === "string" ? req.query.token : null;
@@ -460,6 +470,7 @@ async function authorizeStreamRequest(
       driveParts: videosTable.driveParts,
       hlsParts: videosTable.hlsParts,
       objectParts: videosTable.objectParts,
+      lowParts: videosTable.lowParts,
     })
     .from(videosTable)
     .where(eq(videosTable.id, id))
@@ -538,7 +549,15 @@ router.get("/videos/:id/stream/:part", async (req, res) => {
       res.status(404).end();
       return;
     }
-    const fileId = extractDriveFileId(target.url);
+    let fileId = extractDriveFileId(target.url);
+    // ?q=low → stream the lightweight 720p Drive copy when it exists.
+    // Falls back silently to the original if no copy is ready yet.
+    if (req.query.q === "low") {
+      const lowEntry = parseLowParts(video.lowParts)?.[part];
+      if (lowEntry && "fileId" in lowEntry && lowEntry.fileId) {
+        fileId = lowEntry.fileId;
+      }
+    }
     if (!fileId) {
       console.warn("[video-stream] DENY 404: could not extract Drive file id", {
         videoId: id,

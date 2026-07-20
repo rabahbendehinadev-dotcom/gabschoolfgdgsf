@@ -22,6 +22,7 @@ import {
   type ObjectPart,
 } from "../lib/videoStorage";
 import { normalizeHlsPartsInput, deleteHlsObjects, invalidateRenderedPlaylists } from "../lib/hlsStorage";
+import { deleteLowCopiesBestEffort } from "../lib/driveTranscode";
 import * as zod from "zod";
 import {
   UpdateAdminUserBody,
@@ -756,12 +757,13 @@ router.patch("/admin/videos/:id", adminAuth, async (req, res) => {
     if ("softwareLink" in body) updateData.softwareLink = body.softwareLink ?? null;
     if ("driveParts" in body) updateData.driveParts = body.driveParts ?? null;
 
-    // If the video source changed, the migrated App Storage copy AND the HLS
-    // ladder are stale: clear both mappings (playback falls back to the Drive
-    // proxy) and clean up the old objects best-effort. Admin can re-run the
-    // migration/transcode afterwards.
+    // If the video source changed, the migrated App Storage copy, the HLS
+    // ladder AND the 720p Drive copies are stale: clear all mappings (playback
+    // falls back to the Drive proxy) and clean up the old objects best-effort.
+    // Admin can re-run the migration/transcode afterwards.
     let staleObjectParts: ObjectPart[] | null = null;
     let staleHls = false;
+    let staleLowParts: string | null = null;
     if (body.driveEmbedUrl !== undefined || "driveParts" in body) {
       const [existing] = await db
         .select({
@@ -769,22 +771,30 @@ router.patch("/admin/videos/:id", adminAuth, async (req, res) => {
           driveParts: videosTable.driveParts,
           objectParts: videosTable.objectParts,
           hlsParts: videosTable.hlsParts,
+          lowParts: videosTable.lowParts,
         })
         .from(videosTable)
         .where(eq(videosTable.id, id))
         .limit(1);
-      if (existing?.objectParts || existing?.hlsParts) {
+      if (existing) {
         const sourceChanged =
           (body.driveEmbedUrl !== undefined && body.driveEmbedUrl !== existing.driveEmbedUrl) ||
           ("driveParts" in body && (body.driveParts ?? null) !== (existing.driveParts ?? null));
         if (sourceChanged) {
-          staleObjectParts = parseObjectParts(existing.objectParts);
-          updateData.objectParts = null;
-          updateData.migratedAt = null;
+          if (existing.objectParts) {
+            staleObjectParts = parseObjectParts(existing.objectParts);
+            updateData.objectParts = null;
+            updateData.migratedAt = null;
+          }
           if (existing.hlsParts) {
             staleHls = true;
             updateData.hlsParts = null;
           }
+          if (existing.lowParts) {
+            staleLowParts = existing.lowParts;
+            updateData.lowParts = null;
+          }
+          updateData.lowError = null;
         }
       }
     }
@@ -794,6 +804,7 @@ router.patch("/admin/videos/:id", adminAuth, async (req, res) => {
 
     if (staleObjectParts) void deleteVideoObjects(staleObjectParts);
     if (staleHls) void deleteHlsObjects(id);
+    if (staleLowParts) deleteLowCopiesBestEffort(staleLowParts);
 
     if (!video) {
       res.status(404).json({ message: "Video not found" });

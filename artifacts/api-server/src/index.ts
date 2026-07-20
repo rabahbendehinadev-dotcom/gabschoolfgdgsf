@@ -5,6 +5,7 @@ import { sql, eq, isNull, and } from "drizzle-orm";
 import { startIpResetScheduler } from "./lib/ipResetScheduler";
 import { copyDriveFileToStorage, buildVideoObjectPath } from "./lib/videoStorage";
 import { resolveVideoParts, extractDriveFileId } from "./lib/googleDrive";
+import { startDriveTranscodeWorker } from "./lib/driveTranscode";
 import type { ObjectPart } from "./lib/videoStorage";
 
 const rawPort = process.env["PORT"];
@@ -136,6 +137,10 @@ async function runMigrations() {
       WHERE c.id = sub.id
         AND NOT EXISTS (SELECT 1 FROM categories WHERE sort_order <> 0)
     `);
+
+    // 720p transcode worker columns (safe, additive)
+    await db.execute(sql`ALTER TABLE videos ADD COLUMN IF NOT EXISTS low_parts TEXT`);
+    await db.execute(sql`ALTER TABLE videos ADD COLUMN IF NOT EXISTS low_error TEXT`);
 
     // Community reports table
     await db.execute(sql`
@@ -370,6 +375,12 @@ runMigrations().then(() => ensureSeed()).then(() => {
       void runAutoStorageMigration();
     } else {
       console.log("[auto-migrate] Skipped (dev environment — shared bucket protection).");
+    }
+    // عامل تحويل 720p في الخلفية — يعمل فقط على VPS عبر ENABLE_DRIVE_TRANSCODE=true
+    if (process.env.ENABLE_DRIVE_TRANSCODE === "true" && process.env.NODE_ENV === "production") {
+      startDriveTranscodeWorker();
+    } else {
+      console.log("[transcode-720p] Disabled (set ENABLE_DRIVE_TRANSCODE=true in production to enable).");
     }
   });
 }).catch((err) => {
