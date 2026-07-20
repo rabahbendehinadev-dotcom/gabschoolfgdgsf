@@ -364,7 +364,9 @@ runMigrations().then(() => ensureSeed()).then(() => {
     // videos (SAMPLE_ID urls) overlap production video ids 10-12. Running the
     // migration in dev writes/fails against the SAME object paths production
     // playback depends on. Dev must never touch videos/* in the shared bucket.
-    if (process.env.NODE_ENV === "production") {
+    if (process.env.DISABLE_VIDEO_AUTO_MIGRATE === "true") {
+      console.log("[auto-migrate] Disabled via DISABLE_VIDEO_AUTO_MIGRATE — videos stream live from Drive.");
+    } else if (process.env.NODE_ENV === "production") {
       void runAutoStorageMigration();
     } else {
       console.log("[auto-migrate] Skipped (dev environment — shared bucket protection).");

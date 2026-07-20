@@ -1,5 +1,6 @@
 # Memory Index
 
+- [VPS Dokploy ops](vps-dokploy-ops.md) — Dokploy env panel edits may not reach swarm; fix via docker service update, but redeploys revert it; VPS videos stream LIVE from Drive by owner decision.
 - [GCS video migration](gcs-video-migration.md) — ALL video bytes (MP4 + HLS segments) proxied through server; NO presigned storage.googleapis.com URLs ever reach the browser; Drive IDs/objectPaths never reach client; deterministic paths ⇒ race losers must not delete.
 - [Connector lookup dev filter](connector-lookup-dev-filter.md) — connectors v2 API with connector_names filter returns 0 items in dev for prod-scoped connections; list all + filter client-side.
 
