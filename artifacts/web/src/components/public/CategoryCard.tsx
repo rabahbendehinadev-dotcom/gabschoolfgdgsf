@@ -104,7 +104,9 @@ export function CategoryCard({ category, lessonCount, index = 0, active = false,
                 <img
                   src={imageUrl}
                   alt={category.name}
-                  loading="lazy"
+                  loading={index < 8 ? "eager" : "lazy"}
+                  fetchPriority={index < 4 ? "high" : undefined}
+                  decoding="async"
                   className="h-full w-full object-cover object-center"
                   onError={() => setImgError(true)}
                 />

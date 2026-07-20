@@ -40,7 +40,9 @@ export function LessonCard({
             <img
               src={video.thumbnailUrl || FALLBACK_THUMB}
               alt={video.title}
-              loading="lazy"
+              loading={index < 6 ? "eager" : "lazy"}
+              fetchPriority={index < 3 ? "high" : undefined}
+              decoding="async"
               className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
             />
             {/* subtle bottom gradient only — no heavy black overlay */}

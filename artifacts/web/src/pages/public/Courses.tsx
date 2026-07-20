@@ -61,6 +61,8 @@ function CourseCard({ playlist, index, isLocked }: { playlist: Playlist & { imag
               <img
                 src={playlist.imageUrl!}
                 alt={playlist.title}
+                fetchPriority={index < 3 ? "high" : undefined}
+                decoding="async"
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
               />

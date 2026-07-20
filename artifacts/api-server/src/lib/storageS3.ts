@@ -109,6 +109,22 @@ export class S3File {
     return pass;
   }
 
+  /** رفع Buffer كامل مع انتظار اكتمال الرفع فعلياً (على عكس createWriteStream) */
+  async putBuffer(
+    buf: Buffer,
+    opts?: { contentType?: string; metadata?: Record<string, string> },
+  ): Promise<void> {
+    await getS3Client().send(
+      new PutObjectCommand({
+        Bucket: getS3Bucket(),
+        Key: this.name,
+        Body: buf,
+        ContentType: opts?.contentType ?? "application/octet-stream",
+        Metadata: opts?.metadata ?? {},
+      }),
+    );
+  }
+
   createWriteStream(opts?: {
     contentType?: string;
     metadata?: Record<string, string>;
