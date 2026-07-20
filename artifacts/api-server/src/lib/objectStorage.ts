@@ -9,6 +9,7 @@ import {
   setObjectAclPolicy,
 } from "./objectAcl";
 import { s3Storage, S3File, signS3ObjectURL } from "./storageS3";
+import { localStorage, LocalFile, signLocalObjectURL } from "./storageLocal";
 
 /* ────────────────────────────────────────────────────────────────────────────
    Storage provider selection.
@@ -16,6 +17,8 @@ import { s3Storage, S3File, signS3ObjectURL } from "./storageS3";
    STORAGE_PROVIDER=replit  (default) — uses Replit's GCS Sidecar
    STORAGE_PROVIDER=s3                — uses any S3-compatible provider
                                         (AWS S3, MinIO, Cloudflare R2, etc.)
+   STORAGE_PROVIDER=local             — local filesystem at LOCAL_DATA_DIR
+                                        (suitable for VPS with a mounted volume)
 
    All callers (videoStorage, hlsStorage, routes/storage) use the same
    exported symbols regardless of which provider is active.
@@ -50,9 +53,13 @@ const gcsStorageClient =
     : null;
 
 /* ── Unified objectStorageClient export ──────────────────────────────────── */
-// Both GCS Storage and S3Storage expose .bucket(name) → { file(name) }
+// GCS Storage, S3Storage, and LocalStorage all expose .bucket(name) → { file(name) }
 export const objectStorageClient: any =
-  STORAGE_PROVIDER === "s3" ? s3Storage : gcsStorageClient;
+  STORAGE_PROVIDER === "s3"
+    ? s3Storage
+    : STORAGE_PROVIDER === "local"
+      ? localStorage
+      : gcsStorageClient;
 
 export class ObjectNotFoundError extends Error {
   constructor() {
@@ -279,6 +286,10 @@ export async function signObjectURL({
 }): Promise<string> {
   if (STORAGE_PROVIDER === "s3") {
     return signS3ObjectURL({ bucketName, objectName, method, ttlSec });
+  }
+
+  if (STORAGE_PROVIDER === "local") {
+    return signLocalObjectURL({ bucketName, objectName, method, ttlSec });
   }
 
   // Replit GCS Sidecar signed URL

@@ -5,13 +5,12 @@
 #   builder  — installs all deps, builds web (Vite) + api-server (esbuild)
 #   runner   — lean image with only what's needed at runtime
 #
-# Usage:
-#   docker build -t gabschool .
-#   docker run -p 3000:3000 --env-file .env gabschool
+# NOTE: uses node:22-slim (Debian) not Alpine — rollup v4 native bindings
+#       require glibc which Alpine (musl) does not provide.
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # ── Stage 1: Build ─────────────────────────────────────────────────────────────
-FROM node:22-alpine AS builder
+FROM node:22-slim AS builder
 WORKDIR /app
 
 RUN corepack enable && corepack prepare pnpm@10 --activate
@@ -39,8 +38,12 @@ RUN pnpm --filter @workspace/web build
 RUN pnpm --filter @workspace/api-server build
 
 # ── Stage 2: Production image ───────────────────────────────────────────────────
-FROM node:22-alpine AS runner
+FROM node:22-slim AS runner
 WORKDIR /app
+
+# wget is needed for the Docker healthcheck
+RUN apt-get update && apt-get install -y wget --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
 
 RUN corepack enable && corepack prepare pnpm@10 --activate
 
@@ -61,6 +64,9 @@ COPY --from=builder /app/artifacts/api-server/dist ./artifacts/api-server/dist
 
 # Copy web static files
 COPY --from=builder /app/artifacts/web/dist/public ./public
+
+# Data directory (mounted as Docker volume — files persist between restarts)
+RUN mkdir -p /app/data
 
 ENV NODE_ENV=production
 ENV PORT=3000
