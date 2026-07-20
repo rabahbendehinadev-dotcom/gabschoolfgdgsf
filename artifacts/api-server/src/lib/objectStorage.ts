@@ -24,7 +24,7 @@ import { localStorage, LocalFile, signLocalObjectURL } from "./storageLocal";
    exported symbols regardless of which provider is active.
    ────────────────────────────────────────────────────────────────────────── */
 
-const STORAGE_PROVIDER =
+export const STORAGE_PROVIDER =
   process.env.STORAGE_PROVIDER ||
   (process.env.S3_ACCESS_KEY_ID || process.env.S3_ENDPOINT ? "s3" : "replit");
 

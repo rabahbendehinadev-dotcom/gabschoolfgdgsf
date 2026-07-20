@@ -6,6 +6,7 @@ import { startIpResetScheduler } from "./lib/ipResetScheduler";
 import { copyDriveFileToStorage, buildVideoObjectPath } from "./lib/videoStorage";
 import { resolveVideoParts, extractDriveFileId } from "./lib/googleDrive";
 import { startDriveTranscodeWorker } from "./lib/driveTranscode";
+import { startImageOptimizeWorker } from "./lib/imageOptimize";
 import type { ObjectPart } from "./lib/videoStorage";
 
 const rawPort = process.env["PORT"];
@@ -381,6 +382,15 @@ runMigrations().then(() => ensureSeed()).then(() => {
       startDriveTranscodeWorker();
     } else {
       console.log("[transcode-720p] Disabled (set ENABLE_DRIVE_TRANSCODE=true in production to enable).");
+    }
+    // عامل ضغط الصور المخزّنة (الصور القديمة الضخمة) — إنتاج فقط، ويمكن تعطيله
+    if (
+      process.env.ENABLE_IMAGE_OPTIMIZE !== "false" &&
+      (process.env.NODE_ENV === "production" || process.env.ENABLE_IMAGE_OPTIMIZE === "true")
+    ) {
+      startImageOptimizeWorker();
+    } else {
+      console.log("[img-optimize] Disabled in dev (set ENABLE_IMAGE_OPTIMIZE=true to test locally).");
     }
   });
 }).catch((err) => {

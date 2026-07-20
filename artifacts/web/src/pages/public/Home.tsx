@@ -9,6 +9,7 @@ import { useAuth } from "@/lib/auth";
 import { CategoryCard } from "@/components/public/CategoryCard";
 import { CoursePlayer } from "@/components/public/CoursePlayer";
 import { InstallAppSection } from "@/components/public/InstallAppSection";
+import { warmImages } from "@/lib/warmImages";
 import iphoneLocked from "@assets/generated_images/hero_iphone_locked.png";
 import iphoneHome from "@assets/generated_images/hero_iphone_home.png";
 import androidUnlock from "@assets/generated_images/hero_android_unlock.png";
@@ -42,6 +43,8 @@ function HomeCourseCard({ playlist, index }: { playlist: Playlist & { imageUrl?:
             <img
               src={playlist.imageUrl!}
               alt={playlist.title}
+              fetchPriority={index < 3 ? "high" : undefined}
+              decoding="async"
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
               onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
             />
@@ -83,6 +86,16 @@ function HomeCourseCard({ playlist, index }: { playlist: Playlist & { imageUrl?:
 
 function HomeCoursesSection() {
   const { data: playlists, isLoading } = useGetPlaylists();
+
+  /* تسخين أغلفة الدورات وصور الأقسام مسبقاً — تكون جاهزة قبل دخول الزائر */
+  const { data: warmCategories } = useGetCategories();
+  useEffect(() => {
+    if (playlists) warmImages((playlists as (Playlist & { imageUrl?: string | null })[]).map(p => p.imageUrl));
+  }, [playlists]);
+  useEffect(() => {
+    if (warmCategories) warmImages(warmCategories.map(c => c.imageUrl));
+  }, [warmCategories]);
+
   const visible = ((playlists ?? []) as (Playlist & { imageUrl?: string | null })[])
     .filter(p => p.isVisible !== false)
     .slice(0, 6);

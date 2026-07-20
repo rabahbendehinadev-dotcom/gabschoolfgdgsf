@@ -10,6 +10,7 @@ import { LessonCard } from "@/components/public/LessonCard";
 import { CoursePlayer } from "@/components/public/CoursePlayer";
 import { CourseVideoPlayer } from "@/components/CourseVideoPlayer";
 import { getCategoryMeta } from "@/lib/categoryMeta";
+import { warmImages } from "@/lib/warmImages";
 
 export function Videos() {
   const { user, getAuthHeaders, bootstrapped } = useAuth();
@@ -83,6 +84,14 @@ export function Videos() {
     },
     { request: getAuthHeaders() },
   );
+
+  /* ── تسخين الصور مسبقاً: صور الأقسام + مصغّرات كل الدروس قبل دخول أي قسم ── */
+  useEffect(() => {
+    if (categories) warmImages(categories.map(c => c.imageUrl));
+  }, [categories]);
+  useEffect(() => {
+    if (allVideosUnfiltered) warmImages(allVideosUnfiltered.map(v => v.thumbnailUrl), 60);
+  }, [allVideosUnfiltered]);
 
   /* ── عدد الدروس لكل قسم (مبني على فيديوهات الدورة فقط) ── */
   const countByCategory = useMemo(() => {
