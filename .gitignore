@@ -27,6 +27,9 @@ node_modules
 !.vscode/launch.json
 !.vscode/extensions.json
 
+# Replit attached assets (may contain secrets from pasted terminal output)
+attached_assets/
+
 # misc
 /.sass-cache
 /connect.lock
