@@ -1,5 +1,7 @@
 import type { Request, Response } from "express";
 import { OAuth2Client } from "google-auth-library";
+import { Readable } from "stream";
+import { pipeline } from "stream/promises";
 
 /* ════════════════════════════════════════════════════════════════════════
    Google Drive streaming (server-side OAuth)
@@ -291,6 +293,25 @@ function schedulePrefetch(
   prefetchMap.set(key, { promise, born: Date.now(), timer });
 }
 
+function setVideoHeaders(
+  res: Response,
+  status: number,
+  contentRange: string | null,
+  contentLength: string | null,
+  contentType: string | null,
+): void {
+  res.status(status);
+  res.setHeader("Accept-Ranges", "bytes");
+  if (contentRange) res.setHeader("Content-Range", contentRange);
+  if (contentLength) res.setHeader("Content-Length", contentLength);
+  res.setHeader(
+    "Content-Type",
+    contentType && contentType.startsWith("video/") ? contentType : "video/mp4",
+  );
+  res.setHeader("Cache-Control", "private, max-age=3600");
+  res.setHeader("Content-Disposition", "inline");
+}
+
 export async function streamDriveFile(
   req: Request,
   res: Response,
@@ -304,6 +325,12 @@ export async function streamDriveFile(
     : null;
 
   const isSuffix = !!(match && match[1] === "" && match[2] !== "");
+
+  // Windowed mode (small capped ranges + prefetch) is only needed on
+  // platforms that cut off long responses (e.g. Replit Autoscale).
+  // On a VPS the default is to pipe the range straight through to the
+  // client as bytes arrive from Drive — no chunk-boundary stalls.
+  const windowed = process.env.DRIVE_STREAM_WINDOWED === "true";
 
   let start = 0;
   let driveRange: string;
@@ -323,57 +350,117 @@ export async function streamDriveFile(
     ) {
       requestedEnd = null;
     }
-    const cappedEnd = start + chunkSize - 1;
-    const end =
-      requestedEnd === null ? cappedEnd : Math.min(requestedEnd, cappedEnd);
-    driveRange = `bytes=${start}-${end}`;
+    if (windowed) {
+      const cappedEnd = start + chunkSize - 1;
+      const end =
+        requestedEnd === null ? cappedEnd : Math.min(requestedEnd, cappedEnd);
+      driveRange = `bytes=${start}-${end}`;
+    } else {
+      driveRange =
+        requestedEnd === null
+          ? `bytes=${start}-`
+          : `bytes=${start}-${requestedEnd}`;
+    }
   }
 
-  const key = isSuffix ? null : prefetchKey(fileId, start);
+  // Prefetch cache only applies in windowed mode.
+  const key = windowed && !isSuffix ? prefetchKey(fileId, start) : null;
   const cachedEntry = key ? prefetchMap.get(key) : null;
-  let result: PrefetchResult | null = null;
 
   if (cachedEntry) {
     evictPrefetchEntry(key!);
-    result = await cachedEntry.promise;
+    const result = await cachedEntry.promise;
+    if (result) {
+      const nextStart = start + chunkSize;
+      getDriveAccessToken()
+        .then((tok) => schedulePrefetch(tok, fileId, nextStart, chunkSize))
+        .catch(() => {});
+
+      console.info("[video-stream] OK: streaming Drive file", {
+        fileId,
+        driveStatus: result.status,
+        clientRange: clientRange ?? null,
+        driveRange,
+        cached: true,
+        bytes: result.data.byteLength,
+      });
+
+      setVideoHeaders(
+        res,
+        result.status,
+        result.contentRange,
+        result.contentLength,
+        result.contentType,
+      );
+      res.end(result.data);
+      return;
+    }
   }
 
-  if (!result) {
-    result = await fetchDriveRange(token, fileId, driveRange);
+  // Live pipe: forward bytes to the client as they arrive from Drive.
+  const controller = new AbortController();
+  const onClose = () => controller.abort();
+  res.on("close", onClose);
+
+  let resp: globalThis.Response;
+  try {
+    resp = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true`,
+      {
+        headers: { Authorization: `Bearer ${token}`, Range: driveRange },
+        signal: controller.signal,
+      },
+    );
+  } catch (err) {
+    res.off("close", onClose);
+    if (!res.headersSent) res.status(502).end();
+    return;
   }
 
-  if (!result) {
+  if ((resp.status !== 200 && resp.status !== 206) || !resp.body) {
+    res.off("close", onClose);
     console.error("[video-stream] DRIVE ERROR: files.get returned non-2xx", {
       fileId,
       clientRange: clientRange ?? null,
       driveRange,
+      status: resp.status,
     });
     res.status(502).end();
     return;
   }
 
-  if (!isSuffix) {
+  if (windowed && !isSuffix) {
     const nextStart = start + chunkSize;
     getDriveAccessToken()
       .then((tok) => schedulePrefetch(tok, fileId, nextStart, chunkSize))
       .catch(() => {});
   }
 
-  console.info("[video-stream] OK: streaming Drive file", {
+  console.info("[video-stream] OK: piping Drive file", {
     fileId,
-    driveStatus: result.status,
+    driveStatus: resp.status,
     clientRange: clientRange ?? null,
     driveRange,
-    cached: !!cachedEntry,
-    bytes: result.data.byteLength,
+    windowed,
+    contentLength: resp.headers.get("content-length"),
   });
 
-  res.status(result.status);
-  res.setHeader("Accept-Ranges", "bytes");
-  if (result.contentRange) res.setHeader("Content-Range", result.contentRange);
-  res.setHeader("Content-Length", result.contentLength!);
-  res.setHeader("Content-Type", result.contentType!);
-  res.setHeader("Cache-Control", "private, max-age=3600");
-  res.setHeader("Content-Disposition", "inline");
-  res.end(result.data);
+  setVideoHeaders(
+    res,
+    resp.status,
+    resp.headers.get("content-range"),
+    resp.headers.get("content-length"),
+    resp.headers.get("content-type"),
+  );
+
+  try {
+    await pipeline(
+      Readable.fromWeb(resp.body as import("stream/web").ReadableStream),
+      res,
+    );
+  } catch {
+    // Client disconnected or upstream aborted mid-stream — nothing to recover.
+  } finally {
+    res.off("close", onClose);
+  }
 }
