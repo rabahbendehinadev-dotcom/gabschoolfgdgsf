@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { Link } from "wouter";
 import { useAuth } from "@/lib/auth";
+import { compressImageForUpload } from "@/lib/imageCompress";
 import { Card, Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label } from "@/components/ui";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Edit, Trash2, GraduationCap, Upload, X, Loader2, Eye, EyeOff, ImageIcon, Video, FolderTree } from "lucide-react";
@@ -53,10 +54,11 @@ export function AdminCourses() {
   };
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const original = e.target.files?.[0];
+    if (!original) return;
     setUploading(true);
     try {
+      const file = await compressImageForUpload(original);
       const step1 = await fetch("/api/storage/uploads/request-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
