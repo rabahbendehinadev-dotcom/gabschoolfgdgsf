@@ -3,13 +3,13 @@ set -e
 
 VPS_IP="2.24.13.63"
 VPS_USER="root"
-SQL_FILE="backups/prod_full_export.sql.gz"
+SQL_FILE="backups/prod_full_export_v2.sql.gz"
 DB_USER="gabuser"
 DB_NAME="gabschool"
 DB_PASS="BuTh7jiGiuvXmSo2Wt0c"
 
 echo "=== Step 1: Transfer production export to VPS ==="
-scp "$SQL_FILE" "$VPS_USER@$VPS_IP:/tmp/prod_export.sql.gz"
+scp "$SQL_FILE" "$VPS_USER@$VPS_IP:/tmp/prod_export_v2.sql.gz"
 echo "Transfer done."
 
 echo ""
@@ -20,14 +20,15 @@ set -e
 CONTAINER=\$(docker ps --filter "name=gabschooldb" --format "{{.Names}}" | head -1)
 echo "Container: \$CONTAINER"
 
-# Decompress and copy into container
-gunzip -f /tmp/prod_export.sql.gz
-docker cp /tmp/prod_export.sql "\$CONTAINER:/tmp/prod_export.sql"
+gunzip -f /tmp/prod_export_v2.sql.gz
+docker cp /tmp/prod_export_v2.sql "\$CONTAINER:/tmp/prod_export_v2.sql"
 
-# Run the import
+echo "Running import (this may take a minute)..."
 docker exec "\$CONTAINER" bash -c "
-  PGPASSWORD='$DB_PASS' psql -U $DB_USER -d $DB_NAME -f /tmp/prod_export.sql
-" 2>&1 | grep -E "^(ERROR|NOTICE|--)" | head -30
+  PGPASSWORD='$DB_PASS' psql -U $DB_USER -d $DB_NAME \
+    -v ON_ERROR_CONTINUE=on \
+    -f /tmp/prod_export_v2.sql 2>&1
+" | grep -E "^(ERROR)" | head -20 || true
 
 echo ""
 echo "=== Verify row counts ==="
@@ -39,13 +40,13 @@ docker exec "\$CONTAINER" bash -c "
       (SELECT COUNT(*) FROM videos) as videos,
       (SELECT COUNT(*) FROM categories) as categories,
       (SELECT COUNT(*) FROM playlists) as playlists,
-      (SELECT COUNT(*) FROM tools) as tools;
+      (SELECT COUNT(*) FROM tools) as tools,
+      (SELECT COUNT(*) FROM user_courses) as user_courses;
   \"
 "
 
-# Cleanup
-rm -f /tmp/prod_export.sql
-docker exec "\$CONTAINER" rm -f /tmp/prod_export.sql
+rm -f /tmp/prod_export_v2.sql
+docker exec "\$CONTAINER" rm -f /tmp/prod_export_v2.sql
 echo ""
-echo "=== DONE! Production data imported ==="
+echo "=== DONE ==="
 EOF
