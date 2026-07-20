@@ -47,3 +47,12 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Migration data (large — stored separately, never push to GitHub)
+storage-export/
+backups/
+*.dump
+*.dump.gz
+
+# Secrets
+.env
