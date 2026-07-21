@@ -365,21 +365,21 @@ export function AdminVideos() {
     setUploading(true);
     try {
       const file = await compressImageForUpload(original);
-      const step1 = await fetch("/api/storage/uploads/request-url", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }),
-      });
-      if (!step1.ok) throw new Error("فشل طلب رابط الرفع");
-      const { uploadURL, objectPath } = await step1.json() as { uploadURL: string; objectPath: string };
-      const step2 = await fetch(uploadURL, { method: "PUT", headers: { "Content-Type": file.type }, body: file });
-      if (!step2.ok) throw new Error("فشل رفع الصورة إلى التخزين");
+      const formData = new FormData();
+      formData.append("file", file);
+      const resp = await fetch("/api/storage/uploads/data", { method: "POST", body: formData });
+      if (!resp.ok) {
+        const detail = await resp.json().catch(() => ({})) as { error?: string };
+        throw new Error(detail.error ?? `HTTP ${resp.status}`);
+      }
+      const { objectPath } = await resp.json() as { objectPath: string };
       const serveUrl = `/api/storage${objectPath}`;
       setFormData(prev => ({ ...prev, thumbnailUrl: serveUrl }));
       setPreviewUrl(serveUrl);
       toast({ title: "تم رفع الصورة بنجاح" });
-    } catch {
-      toast({ variant: "destructive", title: "فشل رفع الصورة" });
+    } catch (err) {
+      console.error("[upload] video thumbnail failed:", err);
+      toast({ variant: "destructive", title: "فشل رفع الصورة", description: err instanceof Error ? err.message : String(err) });
       setPreviewUrl("");
     } finally {
       setUploading(false);

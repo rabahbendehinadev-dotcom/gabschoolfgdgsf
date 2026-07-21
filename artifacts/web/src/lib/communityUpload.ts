@@ -1,42 +1,21 @@
 import { CommunityMediaInput } from "@workspace/api-client-react/src/generated/api.schemas";
 
 // ── Upload helpers ──────────────────────────────────────────────────────────
-// Reuses the platform's presigned-upload endpoint (POST request-url → PUT file).
+// Uploads via server-side proxy (POST /storage/uploads/data with multipart),
+// which avoids CORS issues when the browser tries to PUT directly to GCS.
 // VIP authors upload BOTH the original media and a separately-generated, low-res
 // teaser object (blurred image / video thumbnail) so non-VIP viewers never touch
 // the original bytes — the teaser is what the server exposes to them.
 
-async function requestUploadUrl(file: {
-  name: string;
-  size: number;
-  contentType: string;
-}): Promise<{ uploadURL: string; objectPath: string }> {
-  const res = await fetch("/api/storage/uploads/request-url", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(file),
-  });
-  if (!res.ok) throw new Error("تعذّر تجهيز رفع الملف");
-  return res.json();
-}
-
-async function putToStorage(uploadURL: string, body: Blob, contentType: string): Promise<void> {
-  const res = await fetch(uploadURL, {
-    method: "PUT",
-    headers: { "Content-Type": contentType || "application/octet-stream" },
-    body,
-  });
-  if (!res.ok) throw new Error("فشل رفع الملف");
-}
-
 async function uploadBlob(blob: Blob, filename: string): Promise<string> {
-  const contentType = blob.type || "application/octet-stream";
-  const { uploadURL, objectPath } = await requestUploadUrl({
-    name: filename,
-    size: blob.size,
-    contentType,
-  });
-  await putToStorage(uploadURL, blob, contentType);
+  const fd = new FormData();
+  fd.append("file", new File([blob], filename, { type: blob.type || "application/octet-stream" }));
+  const res = await fetch("/api/storage/uploads/data", { method: "POST", body: fd });
+  if (!res.ok) {
+    const detail = await res.json().catch(() => ({})) as { error?: string };
+    throw new Error(detail.error ?? `فشل رفع الملف (${res.status})`);
+  }
+  const { objectPath } = await res.json() as { objectPath: string };
   return objectPath;
 }
 
