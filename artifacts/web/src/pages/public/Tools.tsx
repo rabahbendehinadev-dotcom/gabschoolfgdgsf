@@ -35,7 +35,7 @@ const ACCESS_LABELS: Record<string, { label: string; color: string; icon: React.
   free: { label: "مجاني", color: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30", icon: <CheckCircle2 className="w-3 h-3" /> },
   password: { label: "بكلمة مرور", color: "bg-blue-500/15 text-blue-400 border-blue-500/30", icon: <KeyRound className="w-3 h-3" /> },
   vip: { label: "VIP فقط", color: "bg-amber-500/15 text-amber-400 border-amber-500/30", icon: <Crown className="w-3 h-3" /> },
-  vip_password: { label: "VIP + كلمة مرور", color: "bg-purple-500/15 text-purple-400 border-purple-500/30", icon: <Lock className="w-3 h-3" /> },
+  vip_password: { label: "بكلمة مرور / VIP مجاناً", color: "bg-purple-500/15 text-purple-400 border-purple-500/30", icon: <Lock className="w-3 h-3" /> },
 };
 
 function OsIcon({ os }: { os: string | null }) {
@@ -193,23 +193,38 @@ export function Tools() {
     },
   });
 
+  const isVip = user?.accountType === "vip";
+
   function handleDownload(tool: PublicTool) {
     if (tool.accessType === "free") {
       downloadMutation.mutate({ toolId: tool.id });
       return;
     }
-    if ((tool.accessType === "vip" || tool.accessType === "vip_password") && !user) {
-      setModal({ type: "auth", tool });
+
+    // vip: لازم حساب VIP — غير مسجّل → auth، مسجّل بدون VIP → upgrade
+    if (tool.accessType === "vip") {
+      if (!user) { setModal({ type: "auth", tool }); return; }
+      if (!isVip) { setModal({ type: "upgrade", tool }); return; }
+      downloadMutation.mutate({ toolId: tool.id });
       return;
     }
-    if ((tool.accessType === "vip" || tool.accessType === "vip_password") && user?.accountType !== "vip") {
-      setModal({ type: "upgrade", tool });
-      return;
-    }
-    if (tool.accessType === "password" || tool.accessType === "vip_password") {
+
+    // vip_password: VIP يحمّل مباشرة — الباقي (مسجّل أو لا) بكلمة مرور
+    if (tool.accessType === "vip_password") {
+      if (user && isVip) {
+        downloadMutation.mutate({ toolId: tool.id });
+        return;
+      }
       setModal({ type: "password", tool });
       return;
     }
+
+    // password: كلمة مرور دائماً
+    if (tool.accessType === "password") {
+      setModal({ type: "password", tool });
+      return;
+    }
+
     downloadMutation.mutate({ toolId: tool.id });
   }
 

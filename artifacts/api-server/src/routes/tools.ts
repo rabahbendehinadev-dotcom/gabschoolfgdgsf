@@ -107,7 +107,8 @@ router.post("/tools/:id/download", optionalUserAuth, async (req, res) => {
     const accessType = tool.accessType as "free" | "password" | "vip" | "vip_password";
     const user = req.user ?? null;
 
-    if (accessType === "vip" || accessType === "vip_password") {
+    // vip: لازم حساب VIP فقط
+    if (accessType === "vip") {
       if (!user) {
         res.status(401).json({ message: "يجب تسجيل الدخول للوصول إلى هذه الأداة", requiresAuth: true });
         return;
@@ -118,7 +119,12 @@ router.post("/tools/:id/download", optionalUserAuth, async (req, res) => {
       }
     }
 
-    if (accessType === "password" || accessType === "vip_password") {
+    // vip_password: VIP يحمّل مباشرة — غير VIP (سواء مسجّل أو لا) يحتاج كلمة مرور
+    const needsPassword =
+      accessType === "password" ||
+      (accessType === "vip_password" && !(user && isActiveVip(user)));
+
+    if (needsPassword) {
       const parsed = DownloadToolBody.safeParse(req.body);
       const password = parsed.success ? (parsed.data.password ?? "") : "";
       if (!password) {
