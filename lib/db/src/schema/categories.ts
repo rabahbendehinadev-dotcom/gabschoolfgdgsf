@@ -10,6 +10,7 @@ export const categoriesTable = pgTable("categories", {
   icon: text("icon"),
   description: text("description"),
   imageUrl: text("image_url"),
+  thumbnailUrl: text("thumbnail_url"),
   accentColor: varchar("accent_color", { length: 30 }),
   sortOrder: integer("sort_order").notNull().default(0),
   isVisible: boolean("is_visible").notNull().default(true),

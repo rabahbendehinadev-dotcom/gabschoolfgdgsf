@@ -24,10 +24,11 @@ const HOME_ACCENTS = [
   { from: "#3b82f6", to: "#60a5fa" },
 ];
 
-function HomeCourseCard({ playlist, index }: { playlist: Playlist & { imageUrl?: string | null }; index: number }) {
+function HomeCourseCard({ playlist, index }: { playlist: Playlist & { imageUrl?: string | null; thumbnailUrl?: string | null }; index: number }) {
   const accent = HOME_ACCENTS[index % HOME_ACCENTS.length];
   const lessonCount = playlist.videos?.length ?? 0;
-  const hasImage = !!playlist.imageUrl;
+  const cardImage = (playlist as any).thumbnailUrl || playlist.imageUrl || null;
+  const hasImage = !!cardImage;
   const [imgLoaded, setImgLoaded] = useState(false);
 
   return (
@@ -44,7 +45,7 @@ function HomeCourseCard({ playlist, index }: { playlist: Playlist & { imageUrl?:
             <>
               {!imgLoaded && <div className="absolute inset-0 bg-muted animate-pulse" />}
               <img
-                src={playlist.imageUrl!}
+                src={cardImage!}
                 alt={playlist.title}
                 fetchPriority={index < 3 ? "high" : undefined}
                 loading={index < 6 ? "eager" : "lazy"}

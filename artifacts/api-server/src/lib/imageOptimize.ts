@@ -20,16 +20,18 @@
 
 import { Readable } from "stream";
 import { db, videosTable, categoriesTable, playlistsTable, toolsTable } from "@workspace/db";
+import { isNull, or } from "drizzle-orm";
 import {
   ObjectStorageService,
   ObjectNotFoundError,
   STORAGE_PROVIDER,
 } from "./objectStorage";
+import { generateThumbnail, thumbPathToUrl } from "./imageThumbnail";
 
 const TAG = "[img-optimize]";
-const MAX_DIM = 1280;
+const MAX_DIM = 800;
 const WEBP_QUALITY = 82;
-const MIN_SIZE_BYTES = 150 * 1024; // below this, not worth touching
+const MIN_SIZE_BYTES = 80 * 1024; // below this, not worth touching
 const MAX_SIZE_BYTES = 25 * 1024 * 1024; // above this it's not a thumbnail — don't buffer into RAM
 const MIN_GAIN_RATIO = 0.9; // new bytes must be < 90% of original
 const INITIAL_DELAY_MS = 90_000;
@@ -219,6 +221,74 @@ export async function runImageOptimizePass(): Promise<void> {
   console.log(
     `${TAG} pass complete: ${optimized} optimized, ${paths.length - optimized - failed} skipped, ${failed} failed.`,
   );
+
+  // ── Retroactive thumbnail generation ──────────────────────────────────
+  // For every category/playlist that has an imageUrl but no thumbnailUrl yet,
+  // generate an 800×450 WebP thumbnail and store the URL in the DB.
+  await runThumbnailBackfillPass();
+}
+
+async function runThumbnailBackfillPass(): Promise<void> {
+  const TAG2 = "[thumb-backfill]";
+
+  // Fetch categories without thumbnail
+  const catsNeedingThumb = await db
+    .select({ id: categoriesTable.id, imageUrl: categoriesTable.imageUrl })
+    .from(categoriesTable)
+    .where(isNull((categoriesTable as any).thumbnailUrl));
+
+  const plsNeedingThumb = await db
+    .select({ id: playlistsTable.id, imageUrl: playlistsTable.imageUrl })
+    .from(playlistsTable)
+    .where(isNull((playlistsTable as any).thumbnailUrl));
+
+  const catCandidates = catsNeedingThumb.filter(r => !!r.imageUrl);
+  const plsCandidates = plsNeedingThumb.filter(r => !!r.imageUrl);
+
+  if (catCandidates.length + plsCandidates.length === 0) {
+    console.log(`${TAG2} all records already have thumbnails.`);
+    return;
+  }
+
+  console.log(`${TAG2} generating thumbnails for ${catCandidates.length} categories + ${plsCandidates.length} playlists.`);
+
+  for (const cat of catCandidates) {
+    const sourcePath = extractObjectPath(cat.imageUrl);
+    if (!sourcePath) continue;
+    try {
+      const thumbPath = await generateThumbnail(sourcePath);
+      if (thumbPath) {
+        const thumbUrl = thumbPathToUrl(thumbPath);
+        await db.update(categoriesTable)
+          .set({ thumbnailUrl: thumbUrl } as any)
+          .where(eq(categoriesTable.id, cat.id));
+        console.log(`${TAG2} category ${cat.id} → ${thumbUrl}`);
+      }
+    } catch (err) {
+      console.warn(`${TAG2} category ${cat.id} failed:`, err instanceof Error ? err.message : err);
+    }
+    await new Promise((r) => setTimeout(r, PAUSE_BETWEEN_MS));
+  }
+
+  for (const pl of plsCandidates) {
+    const sourcePath = extractObjectPath(pl.imageUrl);
+    if (!sourcePath) continue;
+    try {
+      const thumbPath = await generateThumbnail(sourcePath);
+      if (thumbPath) {
+        const thumbUrl = thumbPathToUrl(thumbPath);
+        await db.update(playlistsTable)
+          .set({ thumbnailUrl: thumbUrl } as any)
+          .where(eq(playlistsTable.id, pl.id));
+        console.log(`${TAG2} playlist ${pl.id} → ${thumbUrl}`);
+      }
+    } catch (err) {
+      console.warn(`${TAG2} playlist ${pl.id} failed:`, err instanceof Error ? err.message : err);
+    }
+    await new Promise((r) => setTimeout(r, PAUSE_BETWEEN_MS));
+  }
+
+  console.log(`${TAG2} done.`);
 }
 
 export function startImageOptimizeWorker(): void {

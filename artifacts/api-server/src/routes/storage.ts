@@ -21,6 +21,39 @@ const RequestUploadUrlResponse = z.object({
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
 
+/* ── Community-check cache ────────────────────────────────────────────────
+   Category / playlist / tool images are never community originals.
+   Hitting the DB on every image request adds pointless TTFB.
+   Cache "not community" results for 10 minutes; don't cache positives
+   (they should be blocked and are very rare).
+   ─────────────────────────────────────────────────────────────────────── */
+const communityCache = new Map<string, { expiresAt: number }>();
+const COMMUNITY_CACHE_TTL_MS = 10 * 60 * 1_000;
+
+async function isNotCommunityOriginal(objectPath: string): Promise<boolean> {
+  const cached = communityCache.get(objectPath);
+  if (cached && Date.now() < cached.expiresAt) return true;
+
+  const [row] = await db
+    .select({ id: communityPostMediaTable.id })
+    .from(communityPostMediaTable)
+    .where(eq(communityPostMediaTable.objectPath, objectPath))
+    .limit(1);
+
+  if (!row) {
+    communityCache.set(objectPath, { expiresAt: Date.now() + COMMUNITY_CACHE_TTL_MS });
+    if (communityCache.size > 2000) {
+      const now = Date.now();
+      for (const [k, v] of communityCache) {
+        if (now > v.expiresAt) communityCache.delete(k);
+      }
+    }
+    return true;
+  }
+
+  return false;
+}
+
 /**
  * POST /storage/uploads/request-url
  *
@@ -89,6 +122,46 @@ router.get("/storage/public-objects/*filePath", async (req: Request, res: Respon
 });
 
 /**
+ * GET /storage/thumbnails/*
+ *
+ * Serve pre-generated card thumbnails (800×450 WebP) stored under
+ * /objects/thumbnails/.  No community-check DB query — these are never
+ * community originals.  Returns 1-year immutable cache headers so browsers
+ * and CDNs cache them aggressively.
+ */
+router.get("/storage/thumbnails/*path", async (req: Request, res: Response) => {
+  try {
+    const raw = req.params.path;
+    const wildcardPath = Array.isArray(raw) ? raw.join("/") : raw;
+    const objectPath = `/objects/thumbnails/${wildcardPath}`;
+
+    const objectFile = await objectStorageService.getObjectEntityFile(objectPath);
+    const response = await objectStorageService.downloadObject(
+      objectFile,
+      60 * 60 * 24 * 365,
+      true,
+    );
+
+    res.status(response.status);
+    response.headers.forEach((value, key) => res.setHeader(key, value));
+
+    if (response.body) {
+      const nodeStream = Readable.fromWeb(response.body as ReadableStream<Uint8Array>);
+      nodeStream.pipe(res);
+    } else {
+      res.end();
+    }
+  } catch (error) {
+    if (error instanceof ObjectNotFoundError) {
+      res.status(404).json({ error: "Thumbnail not found" });
+      return;
+    }
+    console.error("Error serving thumbnail:", error);
+    res.status(500).json({ error: "Failed to serve thumbnail" });
+  }
+});
+
+/**
  * GET /storage/objects/*
  *
  * Serve object entities from PRIVATE_OBJECT_DIR.
@@ -104,33 +177,14 @@ router.get("/storage/objects/*path", async (req: Request, res: Response) => {
     // Community post ORIGINALS are VIP-gated and must ONLY be reachable through
     // the entitlement-checked /community/media route. Block them here even if
     // their object UUID leaks. Non-community objects (payment proofs, etc.) are
-    // unaffected.
-    const [communityOriginal] = await db
-      .select({ id: communityPostMediaTable.id })
-      .from(communityPostMediaTable)
-      .where(eq(communityPostMediaTable.objectPath, objectPath))
-      .limit(1);
-    if (communityOriginal) {
+    // unaffected. The result is cached for 10 min to avoid per-request DB hits.
+    const notCommunity = await isNotCommunityOriginal(objectPath);
+    if (!notCommunity) {
       res.status(404).json({ error: "Object not found" });
       return;
     }
 
     const objectFile = await objectStorageService.getObjectEntityFile(objectPath);
-
-    // --- Protected route example (uncomment when using replit-auth) ---
-    // if (!req.isAuthenticated()) {
-    //   res.status(401).json({ error: "Unauthorized" });
-    //   return;
-    // }
-    // const canAccess = await objectStorageService.canAccessObjectEntity({
-    //   userId: req.user.id,
-    //   objectFile,
-    //   requestedPermission: ObjectPermission.READ,
-    // });
-    // if (!canAccess) {
-    //   res.status(403).json({ error: "Forbidden" });
-    //   return;
-    // }
 
     // Upload objects are addressed by immutable UUIDs — content never changes,
     // so let browsers cache them for 30 days and skip revalidation.
