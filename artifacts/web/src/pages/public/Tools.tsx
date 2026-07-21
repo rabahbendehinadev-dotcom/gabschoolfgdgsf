@@ -372,7 +372,9 @@ export function Tools() {
               {modal.type === "password" ? modal.tool.name : ""}
             </DialogTitle>
             <DialogDescription className="text-start">
-              هذه الأداة محمية بكلمة مرور. أدخل كلمة المرور للمتابعة.
+              {modal.type === "password" && modal.tool.accessType === "vip_password"
+                ? "أدخل كلمة مرور الأداة للتحميل مباشرة، أو رقّ حسابك إلى VIP للوصول الفوري بدون كلمة مرور."
+                : "هذه الأداة محمية بكلمة مرور. أدخل كلمة المرور للمتابعة."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -411,6 +413,19 @@ export function Tools() {
                 إلغاء
               </Button>
             </div>
+
+            {/* خيار الترقية — يظهر فقط لأدوات vip_password */}
+            {modal.type === "password" && modal.tool.accessType === "vip_password" && (
+              <div className="pt-1 border-t border-border/50">
+                <p className="text-xs text-muted-foreground text-center mb-2">أو احصل على وصول فوري بدون كلمة مرور</p>
+                <Link href="/subscribe" onClick={() => { setModal({ type: "none" }); setPassword(""); }}>
+                  <Button variant="outline" className="w-full gap-2 rounded-xl border-amber-500/30 text-amber-400 hover:bg-amber-500/10 hover:border-amber-500/50">
+                    <Crown className="w-4 h-4" />
+                    ترقية الحساب إلى VIP
+                  </Button>
+                </Link>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>
