@@ -93,36 +93,59 @@ router.post("/storage/uploads/request-url", async (req: Request, res: Response) 
  */
 router.post(
   "/storage/uploads/data",
+  (req, res, next) => {
+    console.log("[upload:debug] ← request received", {
+      method: req.method,
+      url: req.originalUrl,
+      contentType: req.headers["content-type"],
+      contentLength: req.headers["content-length"],
+    });
+    next();
+  },
   memUpload.single("file"),
   async (req: Request, res: Response) => {
+    console.log("[upload:debug] multer done", {
+      hasFile: !!req.file,
+      fieldname: req.file?.fieldname,
+      originalname: req.file?.originalname,
+      mimetype: req.file?.mimetype,
+      size: req.file?.size,
+    });
+
     if (!req.file) {
-      res.status(400).json({ error: "No file provided (field name: file)" });
+      console.error("[upload:debug] req.file is undefined — multer did not find field 'file'");
+      res.status(400).json({ error: "No file provided (field name must be 'file')" });
       return;
     }
     const { buffer, mimetype } = req.file;
     const effectiveMime = mimetype || "application/octet-stream";
     if (!effectiveMime.startsWith("image/") && effectiveMime !== "application/octet-stream") {
+      console.error("[upload:debug] rejected MIME:", effectiveMime);
       res.status(400).json({ error: `نوع الملف غير مدعوم: ${effectiveMime}` });
       return;
     }
     try {
+      console.log("[upload:debug] calling getObjectEntityUploadURL …");
       const uploadURL = await objectStorageService.getObjectEntityUploadURL();
       const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
+      console.log("[upload:debug] uploadURL ok, objectPath:", objectPath);
 
-      /* Server-side PUT to GCS — no CORS restrictions apply here */
+      console.log("[upload:debug] PUT to storage, size:", buffer.byteLength, "mime:", effectiveMime);
       const putRes = await fetch(uploadURL, {
         method: "PUT",
-        headers: { "Content-Type": mimetype },
+        headers: { "Content-Type": effectiveMime },
         body: buffer,
       });
+      console.log("[upload:debug] storage PUT status:", putRes.status);
       if (!putRes.ok) {
         const errText = await putRes.text().catch(() => "");
         throw new Error(`Storage PUT failed: ${putRes.status} ${errText}`);
       }
 
+      console.log("[upload:debug] ✓ success:", objectPath);
       res.json({ objectPath });
     } catch (err) {
-      console.error("[storage] server-side upload error:", err);
+      console.error("[upload:debug] ✗ error:", err);
       res.status(500).json({ error: err instanceof Error ? err.message : "Upload failed" });
     }
   },
