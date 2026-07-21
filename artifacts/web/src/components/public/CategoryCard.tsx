@@ -48,6 +48,7 @@ export function CategoryCard({ category, lessonCount, index = 0, active = false,
   const meta = getCategoryMeta(category.name, category.slug);
   const Icon = meta.Icon;
   const [imgError, setImgError] = useState(false);
+  const [imgLoaded, setImgLoaded] = useState(false);
 
   const imageUrl = normalizeUrl(category.imageUrl || "");
   const hasImage = !!imageUrl && !imgError;
@@ -107,7 +108,8 @@ export function CategoryCard({ category, lessonCount, index = 0, active = false,
                   loading={index < 8 ? "eager" : "lazy"}
                   fetchPriority={index < 4 ? "high" : undefined}
                   decoding="async"
-                  className="h-full w-full object-cover object-center"
+                  className={`h-full w-full object-cover object-center transition-opacity duration-300 ${imgLoaded ? "opacity-100" : "opacity-0"}`}
+                  onLoad={() => setImgLoaded(true)}
                   onError={() => setImgError(true)}
                 />
               ) : isEmojiIcon ? (

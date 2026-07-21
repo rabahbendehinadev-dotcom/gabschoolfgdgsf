@@ -28,6 +28,7 @@ function HomeCourseCard({ playlist, index }: { playlist: Playlist & { imageUrl?:
   const accent = HOME_ACCENTS[index % HOME_ACCENTS.length];
   const lessonCount = playlist.videos?.length ?? 0;
   const hasImage = !!playlist.imageUrl;
+  const [imgLoaded, setImgLoaded] = useState(false);
 
   return (
     <Link href={`/videos?courseId=${playlist.id}`}>
@@ -38,16 +39,21 @@ function HomeCourseCard({ playlist, index }: { playlist: Playlist & { imageUrl?:
         transition={{ delay: index * 0.06, duration: 0.4 }}
         className="group relative flex flex-col rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 cursor-pointer h-full bg-card border border-border"
       >
-        <div className="relative overflow-hidden" style={{ aspectRatio: "16/9" }}>
+        <div className="relative overflow-hidden bg-muted" style={{ aspectRatio: "16/9" }}>
           {hasImage ? (
-            <img
-              src={playlist.imageUrl!}
-              alt={playlist.title}
-              fetchPriority={index < 3 ? "high" : undefined}
-              decoding="async"
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-              onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
-            />
+            <>
+              {!imgLoaded && <div className="absolute inset-0 bg-muted animate-pulse" />}
+              <img
+                src={playlist.imageUrl!}
+                alt={playlist.title}
+                fetchPriority={index < 3 ? "high" : undefined}
+                loading={index < 6 ? "eager" : "lazy"}
+                decoding="async"
+                className={`w-full h-full object-cover group-hover:scale-105 transition-all duration-300 ${imgLoaded ? "opacity-100" : "opacity-0"}`}
+                onLoad={() => setImgLoaded(true)}
+                onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
+              />
+            </>
           ) : (
             <div
               className="w-full h-full flex items-center justify-center"
