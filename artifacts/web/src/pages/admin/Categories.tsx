@@ -31,6 +31,7 @@ interface CategoryForm {
   icon: string;
   description: string;
   imageUrl: string;
+  thumbnailUrl: string;
   accentColor: string;
   isVisible: boolean;
   isFeatured: boolean;
@@ -40,7 +41,7 @@ interface CategoryForm {
 
 const EMPTY_FORM: CategoryForm = {
   name: "", nameEn: "", slug: "", icon: "", description: "",
-  imageUrl: "", accentColor: "", isVisible: true, isFeatured: false, showOnHomepage: true,
+  imageUrl: "", thumbnailUrl: "", accentColor: "", isVisible: true, isFeatured: false, showOnHomepage: true,
   linkedPlaylistId: null,
 };
 
@@ -315,6 +316,7 @@ export function AdminCategories() {
       icon: c.icon || "",
       description: c.description || "",
       imageUrl: normalizeUrl(c.imageUrl || ""),
+      thumbnailUrl: normalizeUrl((c as any).thumbnailUrl || ""),
       accentColor: c.accentColor || "",
       isVisible: c.isVisible,
       isFeatured: c.isFeatured,
@@ -349,7 +351,18 @@ export function AdminCategories() {
       const { uploadURL, objectPath } = await step1.json() as { uploadURL: string; objectPath: string };
       const step2 = await fetch(uploadURL, { method: "PUT", headers: { "Content-Type": file.type }, body: file });
       if (!step2.ok) throw new Error("فشل رفع الصورة");
-      setForm(f => ({ ...f, imageUrl: `/api/storage${objectPath}` }));
+      const imageUrl = `/api/storage${objectPath}`;
+      setForm(f => ({ ...f, imageUrl, thumbnailUrl: "" }));
+      // توليد thumbnail في الخلفية (لا ينتظر)
+      fetch("/api/admin/images/generate-thumbnail", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sourcePath: objectPath }),
+      }).then(r => r.ok ? r.json() : null).then(data => {
+        if (data?.thumbnailUrl) {
+          setForm(f => ({ ...f, thumbnailUrl: data.thumbnailUrl }));
+        }
+      }).catch(() => { /* best-effort */ });
       toast({ title: "تم رفع الصورة" });
     } catch {
       toast({ variant: "destructive", title: "فشل رفع الصورة" });
@@ -371,6 +384,7 @@ export function AdminCategories() {
       icon: form.icon.trim() || null,
       description: form.description.trim() || null,
       imageUrl: form.imageUrl.trim() || null,
+      thumbnailUrl: form.thumbnailUrl.trim() || null,
       accentColor: form.accentColor.trim() || null,
       isVisible: form.isVisible,
       isFeatured: form.isFeatured,

@@ -36,6 +36,7 @@ import {
   UpdateToolBody,
 } from "@workspace/api-zod";
 import { toolsTable, toolCategoriesTable } from "@workspace/db";
+import { generateThumbnail, thumbPathToUrl } from "../lib/imageThumbnail";
 
 const CreateSubscriptionPlanBody = zod.object({
   type: zod.string(),
@@ -1154,9 +1155,37 @@ router.post("/admin/categories/reorder", adminAuth, async (req, res) => {
   }
 });
 
+/**
+ * POST /admin/images/generate-thumbnail
+ *
+ * Generate a 800×450 WebP thumbnail from an already-uploaded image.
+ * Returns { thumbnailPath, thumbnailUrl }.
+ */
+router.post("/admin/images/generate-thumbnail", adminAuth, async (req, res) => {
+  const sourcePath = typeof req.body.sourcePath === "string" ? req.body.sourcePath : null;
+  if (!sourcePath) {
+    res.status(400).json({ error: "sourcePath is required" });
+    return;
+  }
+  try {
+    const objectPath = sourcePath.replace(/^\/api\/storage/, "");
+    const thumbPath = await generateThumbnail(objectPath);
+    if (!thumbPath) {
+      res.status(422).json({ error: "Could not generate thumbnail (unsupported format or file missing)" });
+      return;
+    }
+    const thumbnailUrl = thumbPathToUrl(thumbPath);
+    res.json({ thumbnailPath: thumbPath, thumbnailUrl });
+  } catch (err) {
+    console.error("[admin] generate-thumbnail error:", err);
+    res.status(500).json({ error: "Thumbnail generation failed" });
+  }
+});
+
 router.post("/admin/categories", adminAuth, async (req, res) => {
   try {
     const body = CreateCategoryBody.parse(req.body);
+    const thumbnailUrl = typeof req.body.thumbnailUrl === "string" ? req.body.thumbnailUrl || null : null;
     const [{ maxOrder }] = await db
       .select({ maxOrder: sql<number>`COALESCE(MAX(${categoriesTable.sortOrder}), -1)` })
       .from(categoriesTable);
@@ -1167,13 +1196,14 @@ router.post("/admin/categories", adminAuth, async (req, res) => {
       icon: body.icon ?? null,
       description: body.description ?? null,
       imageUrl: body.imageUrl ?? null,
+      thumbnailUrl,
       accentColor: body.accentColor ?? null,
       sortOrder: body.sortOrder ?? Number(maxOrder) + 1,
       isVisible: body.isVisible ?? true,
       isFeatured: body.isFeatured ?? false,
       showOnHomepage: body.showOnHomepage ?? true,
       linkedPlaylistId: body.linkedPlaylistId ?? null,
-    }).returning();
+    } as any).returning();
 
     res.status(201).json({ ...category, lessonCount: 0 });
   } catch (error: unknown) {
@@ -1193,6 +1223,7 @@ router.patch("/admin/categories/:id", adminAuth, async (req, res) => {
     if ("icon" in body) updateData.icon = body.icon ?? null;
     if ("description" in body) updateData.description = body.description ?? null;
     if ("imageUrl" in body) updateData.imageUrl = body.imageUrl ?? null;
+    if ("thumbnailUrl" in req.body) updateData.thumbnailUrl = req.body.thumbnailUrl ?? null;
     if ("accentColor" in body) updateData.accentColor = body.accentColor ?? null;
     if (body.sortOrder !== undefined) updateData.sortOrder = body.sortOrder;
     if (body.isVisible !== undefined) updateData.isVisible = body.isVisible;

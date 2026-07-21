@@ -50,7 +50,7 @@ export function CategoryCard({ category, lessonCount, index = 0, active = false,
   const [imgError, setImgError] = useState(false);
   const [imgLoaded, setImgLoaded] = useState(false);
 
-  const imageUrl = normalizeUrl(category.imageUrl || "");
+  const imageUrl = normalizeUrl((category as any).thumbnailUrl || category.imageUrl || "");
   const hasImage = !!imageUrl && !imgError;
   const isEmojiIcon = !!category.icon && /\p{Extended_Pictographic}/u.test(category.icon);
   const accent = safeColor(category.accentColor, meta.color);

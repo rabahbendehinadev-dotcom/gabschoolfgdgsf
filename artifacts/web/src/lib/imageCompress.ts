@@ -11,7 +11,7 @@
  * (vector / animation would be destroyed by canvas re-encoding).
  */
 
-const MAX_DIMENSION = 1280;
+const MAX_DIMENSION = 800;
 const WEBP_QUALITY = 0.82;
 
 function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number): Promise<Blob | null> {

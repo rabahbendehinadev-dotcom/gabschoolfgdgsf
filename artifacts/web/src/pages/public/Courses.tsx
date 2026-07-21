@@ -39,10 +39,11 @@ function lessonsLabel(n: number) {
   return `${n} درساً`;
 }
 
-function CourseCard({ playlist, index, isLocked }: { playlist: Playlist & { imageUrl?: string | null }; index: number; isLocked: boolean }) {
+function CourseCard({ playlist, index, isLocked }: { playlist: Playlist & { imageUrl?: string | null; thumbnailUrl?: string | null }; index: number; isLocked: boolean }) {
   const accent = ACCENTS[index % ACCENTS.length];
   const lessonCount = playlist.videos?.length ?? 0;
-  const hasImage = !!playlist.imageUrl;
+  const cardImage = (playlist as any).thumbnailUrl || playlist.imageUrl || null;
+  const hasImage = !!cardImage;
   const isSoon = lessonCount === 0;
   const [imgLoaded, setImgLoaded] = useState(false);
 
@@ -62,7 +63,7 @@ function CourseCard({ playlist, index, isLocked }: { playlist: Playlist & { imag
               <>
                 {!imgLoaded && <div className="absolute inset-0 bg-muted animate-pulse" />}
                 <img
-                  src={playlist.imageUrl!}
+                  src={cardImage!}
                   alt={playlist.title}
                   fetchPriority={index < 3 ? "high" : undefined}
                   loading={index < 6 ? "eager" : "lazy"}
