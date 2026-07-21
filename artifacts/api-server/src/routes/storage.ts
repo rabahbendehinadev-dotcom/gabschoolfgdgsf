@@ -41,13 +41,11 @@ async function isNotCommunityOriginal(objectPath: string): Promise<boolean> {
 }
 
 /* ── Multer (memory storage — images only, ≤10 MB) ───────────────────── */
+/* Accept any file — type validation happens after parse to avoid multer v2
+   fileFilter throwing an unhandled error instead of returning JSON. */
 const memUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
-  fileFilter: (_req, file, cb) => {
-    if (file.mimetype.startsWith("image/")) return cb(null, true);
-    cb(new Error("Only image files are accepted"));
-  },
 });
 
 /* ── Routes ─────────────────────────────────────────────────────────────── */
@@ -98,10 +96,15 @@ router.post(
   memUpload.single("file"),
   async (req: Request, res: Response) => {
     if (!req.file) {
-      res.status(400).json({ error: "No image file provided (field name: file)" });
+      res.status(400).json({ error: "No file provided (field name: file)" });
       return;
     }
     const { buffer, mimetype } = req.file;
+    const effectiveMime = mimetype || "application/octet-stream";
+    if (!effectiveMime.startsWith("image/") && effectiveMime !== "application/octet-stream") {
+      res.status(400).json({ error: `نوع الملف غير مدعوم: ${effectiveMime}` });
+      return;
+    }
     try {
       const uploadURL = await objectStorageService.getObjectEntityUploadURL();
       const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
