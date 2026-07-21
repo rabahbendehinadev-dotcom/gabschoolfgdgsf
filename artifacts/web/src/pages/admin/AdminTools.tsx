@@ -209,17 +209,17 @@ export function AdminTools() {
     setImgUploading(true);
     try {
       const file = await compressImageForUpload(original);
-      const step1 = await fetch(`${base}/api/storage/uploads/request-url`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...getAdminAuthHeaders()?.headers },
-        body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }),
-      });
-      if (!step1.ok) throw new Error("فشل الحصول على رابط الرفع");
-      const { uploadURL, objectPath } = await step1.json() as { uploadURL: string; objectPath: string };
-      const step2 = await fetch(uploadURL, { method: "PUT", headers: { "Content-Type": file.type }, body: file });
-      if (!step2.ok) throw new Error("فشل رفع الصورة");
+      const fd = new FormData();
+      fd.append("file", file);
+      const resp = await fetch(`${base}/api/storage/uploads/data`, { method: "POST", body: fd });
+      if (!resp.ok) {
+        const detail = await resp.json().catch(() => ({})) as { error?: string };
+        throw new Error(detail.error ?? `HTTP ${resp.status}`);
+      }
+      const { objectPath } = await resp.json() as { objectPath: string };
       setForm(f => ({ ...f, imageUrl: `${base}/api/storage${objectPath}` }));
     } catch (e) {
+      console.error("[upload] tool image failed:", e);
       toast({ title: "خطأ في رفع الصورة", description: (e as Error).message, variant: "destructive" });
     } finally { setImgUploading(false); }
   }

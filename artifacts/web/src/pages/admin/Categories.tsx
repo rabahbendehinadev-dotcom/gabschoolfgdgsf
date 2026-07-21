@@ -342,15 +342,14 @@ export function AdminCategories() {
     setUploading(true);
     try {
       const file = await compressImageForUpload(original);
-      const step1 = await fetch("/api/storage/uploads/request-url", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }),
-      });
-      if (!step1.ok) throw new Error("فشل طلب رابط الرفع");
-      const { uploadURL, objectPath } = await step1.json() as { uploadURL: string; objectPath: string };
-      const step2 = await fetch(uploadURL, { method: "PUT", headers: { "Content-Type": file.type }, body: file });
-      if (!step2.ok) throw new Error("فشل رفع الصورة");
+      const formData = new FormData();
+      formData.append("file", file);
+      const resp = await fetch("/api/storage/uploads/data", { method: "POST", body: formData });
+      if (!resp.ok) {
+        const detail = await resp.json().catch(() => ({})) as { error?: string };
+        throw new Error(detail.error ?? `HTTP ${resp.status}`);
+      }
+      const { objectPath } = await resp.json() as { objectPath: string };
       const imageUrl = `/api/storage${objectPath}`;
       setForm(f => ({ ...f, imageUrl, thumbnailUrl: "" }));
       // توليد thumbnail في الخلفية (لا ينتظر)
@@ -359,13 +358,12 @@ export function AdminCategories() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sourcePath: objectPath }),
       }).then(r => r.ok ? r.json() : null).then(data => {
-        if (data?.thumbnailUrl) {
-          setForm(f => ({ ...f, thumbnailUrl: data.thumbnailUrl }));
-        }
+        if (data?.thumbnailUrl) setForm(f => ({ ...f, thumbnailUrl: data.thumbnailUrl }));
       }).catch(() => { /* best-effort */ });
       toast({ title: "تم رفع الصورة" });
-    } catch {
-      toast({ variant: "destructive", title: "فشل رفع الصورة" });
+    } catch (err) {
+      console.error("[upload] category image failed:", err);
+      toast({ variant: "destructive", title: "فشل رفع الصورة", description: err instanceof Error ? err.message : String(err) });
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";

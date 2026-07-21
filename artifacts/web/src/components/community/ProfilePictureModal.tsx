@@ -6,27 +6,16 @@ import { Camera, Loader2, CheckCircle } from "lucide-react";
 
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
 
-async function requestPresignedUrl(
-  file: File,
-): Promise<{ uploadUrl: string; objectPath: string }> {
-  const res = await fetch("/api/storage/uploads/request-url", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }),
-  });
-  if (!res.ok) throw new Error("تعذّر الحصول على رابط الرفع");
-  const data = await res.json();
-  // Storage route returns uploadURL (capital), normalize to uploadUrl
-  return { uploadUrl: data.uploadURL ?? data.uploadUrl, objectPath: data.objectPath };
-}
-
-async function uploadToGcs(uploadUrl: string, file: File): Promise<void> {
-  const res = await fetch(uploadUrl, {
-    method: "PUT",
-    headers: { "Content-Type": file.type },
-    body: file,
-  });
-  if (!res.ok) throw new Error("فشل رفع الصورة");
+async function uploadViaServer(file: File): Promise<string> {
+  const fd = new FormData();
+  fd.append("file", file);
+  const res = await fetch("/api/storage/uploads/data", { method: "POST", body: fd });
+  if (!res.ok) {
+    const detail = await res.json().catch(() => ({})) as { error?: string };
+    throw new Error(detail.error ?? `فشل رفع الصورة (${res.status})`);
+  }
+  const { objectPath } = await res.json() as { objectPath: string };
+  return objectPath;
 }
 
 async function saveAvatar(token: string, objectPath: string): Promise<void> {
@@ -92,8 +81,7 @@ export function ProfilePictureModal({
     if (!file || !token) return;
     setUploading(true);
     try {
-      const { uploadUrl, objectPath } = await requestPresignedUrl(file);
-      await uploadToGcs(uploadUrl, file);
+      const objectPath = await uploadViaServer(file);
       await saveAvatar(token, objectPath);
 
       const updatedUser = {

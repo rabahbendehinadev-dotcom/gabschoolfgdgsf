@@ -123,22 +123,18 @@ function PaymentModal({ plan, onClose }: PaymentModalProps) {
     if (!proofFile) return null;
     setUploading(true);
     try {
-      const urlRes = await fetch("/api/storage/uploads/request-url", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: proofFile.name, size: proofFile.size, contentType: proofFile.type }),
-      });
-      if (!urlRes.ok) throw new Error("فشل طلب رابط الرفع");
-      const { uploadURL, objectPath } = await urlRes.json();
-      const putRes = await fetch(uploadURL, {
-        method: "PUT",
-        headers: { "Content-Type": proofFile.type },
-        body: proofFile,
-      });
-      if (!putRes.ok) throw new Error("فشل رفع الصورة");
+      const fd = new FormData();
+      fd.append("file", proofFile);
+      const res = await fetch("/api/storage/uploads/data", { method: "POST", body: fd });
+      if (!res.ok) {
+        const detail = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(detail.error ?? `HTTP ${res.status}`);
+      }
+      const { objectPath } = await res.json() as { objectPath: string };
       return objectPath;
     } catch (err) {
-      toast({ variant: "destructive", title: "فشل رفع الصورة", description: String(err) });
+      console.error("[upload] payment proof failed:", err);
+      toast({ variant: "destructive", title: "فشل رفع الصورة", description: err instanceof Error ? err.message : String(err) });
       return null;
     } finally {
       setUploading(false);

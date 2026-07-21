@@ -1,31 +1,18 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { Readable } from "stream";
+import multer from "multer";
 import { z } from "zod";
 import { db, communityPostMediaTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
-import { ObjectPermission } from "../lib/objectAcl";
-
-const RequestUploadUrlBody = z.object({
-  name: z.string(),
-  size: z.number(),
-  contentType: z.string(),
-});
-
-const RequestUploadUrlResponse = z.object({
-  uploadURL: z.string(),
-  objectPath: z.string(),
-  metadata: z.object({ name: z.string(), size: z.number(), contentType: z.string() }),
-});
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
 
 /* ── Community-check cache ────────────────────────────────────────────────
    Category / playlist / tool images are never community originals.
-   Hitting the DB on every image request adds pointless TTFB.
-   Cache "not community" results for 10 minutes; don't cache positives
-   (they should be blocked and are very rare).
+   Hitting the DB on every image request adds pointless TTFB overhead.
+   Cache "not community" results for 10 minutes; don't cache positives.
    ─────────────────────────────────────────────────────────────────────── */
 const communityCache = new Map<string, { expiresAt: number }>();
 const COMMUNITY_CACHE_TTL_MS = 10 * 60 * 1_000;
@@ -50,37 +37,44 @@ async function isNotCommunityOriginal(objectPath: string): Promise<boolean> {
     }
     return true;
   }
-
   return false;
 }
+
+/* ── Multer (memory storage — images only, ≤10 MB) ───────────────────── */
+const memUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype.startsWith("image/")) return cb(null, true);
+    cb(new Error("Only image files are accepted"));
+  },
+});
+
+/* ── Routes ─────────────────────────────────────────────────────────────── */
 
 /**
  * POST /storage/uploads/request-url
  *
- * Request a presigned URL for file upload.
- * The client sends JSON metadata (name, size, contentType) — NOT the file.
- * Then uploads the file directly to the returned presigned URL.
+ * Legacy: kept for backward compatibility.
+ * New code should use POST /storage/uploads/data instead.
  */
+const RequestUploadUrlBody = z.object({
+  name: z.string(),
+  size: z.number(),
+  contentType: z.string(),
+});
+
 router.post("/storage/uploads/request-url", async (req: Request, res: Response) => {
   const parsed = RequestUploadUrlBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Missing or invalid required fields" });
     return;
   }
-
   try {
     const { name, size, contentType } = parsed.data;
-
     const uploadURL = await objectStorageService.getObjectEntityUploadURL();
     const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
-
-    res.json(
-      RequestUploadUrlResponse.parse({
-        uploadURL,
-        objectPath,
-        metadata: { name, size, contentType },
-      }),
-    );
+    res.json({ uploadURL, objectPath, metadata: { name, size, contentType } });
   } catch (error) {
     console.error("Error generating upload URL:", error);
     res.status(500).json({ error: "Failed to generate upload URL" });
@@ -88,11 +82,54 @@ router.post("/storage/uploads/request-url", async (req: Request, res: Response) 
 });
 
 /**
- * GET /storage/public-objects/*
+ * POST /storage/uploads/data
+ *
+ * Server-side upload proxy — accepts multipart/form-data with a `file` field.
+ * The server uploads the file to object storage, returning { objectPath }.
+ *
+ * Why: Direct browser-to-GCS PUT requires CORS on the GCS bucket for every
+ * production domain. Proxying through our server avoids this entirely and
+ * also means the GCS URL never reaches the browser.
+ *
+ * Intentionally unauthenticated: regular users upload payment proofs, too.
+ */
+router.post(
+  "/storage/uploads/data",
+  memUpload.single("file"),
+  async (req: Request, res: Response) => {
+    if (!req.file) {
+      res.status(400).json({ error: "No image file provided (field name: file)" });
+      return;
+    }
+    const { buffer, mimetype } = req.file;
+    try {
+      const uploadURL = await objectStorageService.getObjectEntityUploadURL();
+      const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
+
+      /* Server-side PUT to GCS — no CORS restrictions apply here */
+      const putRes = await fetch(uploadURL, {
+        method: "PUT",
+        headers: { "Content-Type": mimetype },
+        body: buffer,
+      });
+      if (!putRes.ok) {
+        const errText = await putRes.text().catch(() => "");
+        throw new Error(`Storage PUT failed: ${putRes.status} ${errText}`);
+      }
+
+      res.json({ objectPath });
+    } catch (err) {
+      console.error("[storage] server-side upload error:", err);
+      res.status(500).json({ error: err instanceof Error ? err.message : "Upload failed" });
+    }
+  },
+);
+
+/**
+ * GET /storage/public-objects/*filePath
  *
  * Serve public assets from PUBLIC_OBJECT_SEARCH_PATHS.
- * These are unconditionally public — no authentication or ACL checks.
- * IMPORTANT: Always provide this endpoint when object storage is set up.
+ * Unconditionally public — no auth or ACL checks.
  */
 router.get("/storage/public-objects/*filePath", async (req: Request, res: Response) => {
   try {
@@ -103,12 +140,9 @@ router.get("/storage/public-objects/*filePath", async (req: Request, res: Respon
       res.status(404).json({ error: "File not found" });
       return;
     }
-
     const response = await objectStorageService.downloadObject(file);
-
     res.status(response.status);
     response.headers.forEach((value, key) => res.setHeader(key, value));
-
     if (response.body) {
       const nodeStream = Readable.fromWeb(response.body as ReadableStream<Uint8Array>);
       nodeStream.pipe(res);
@@ -122,29 +156,21 @@ router.get("/storage/public-objects/*filePath", async (req: Request, res: Respon
 });
 
 /**
- * GET /storage/thumbnails/*
+ * GET /storage/thumbnails/*path
  *
- * Serve pre-generated card thumbnails (800×450 WebP) stored under
- * /objects/thumbnails/.  No community-check DB query — these are never
- * community originals.  Returns 1-year immutable cache headers so browsers
- * and CDNs cache them aggressively.
+ * Serve pre-generated 800×450 WebP card thumbnails.
+ * No community-check DB query — these are never community originals.
+ * 1-year immutable cache so browsers don't re-fetch them.
  */
 router.get("/storage/thumbnails/*path", async (req: Request, res: Response) => {
   try {
     const raw = req.params.path;
     const wildcardPath = Array.isArray(raw) ? raw.join("/") : raw;
     const objectPath = `/objects/thumbnails/${wildcardPath}`;
-
     const objectFile = await objectStorageService.getObjectEntityFile(objectPath);
-    const response = await objectStorageService.downloadObject(
-      objectFile,
-      60 * 60 * 24 * 365,
-      true,
-    );
-
+    const response = await objectStorageService.downloadObject(objectFile, 60 * 60 * 24 * 365, true);
     res.status(response.status);
     response.headers.forEach((value, key) => res.setHeader(key, value));
-
     if (response.body) {
       const nodeStream = Readable.fromWeb(response.body as ReadableStream<Uint8Array>);
       nodeStream.pipe(res);
@@ -162,11 +188,11 @@ router.get("/storage/thumbnails/*path", async (req: Request, res: Response) => {
 });
 
 /**
- * GET /storage/objects/*
+ * GET /storage/objects/*path
  *
- * Serve object entities from PRIVATE_OBJECT_DIR.
- * These are served from a separate path from /public-objects and can optionally
- * be protected with authentication or ACL checks based on the use case.
+ * Serve private object entities from PRIVATE_OBJECT_DIR.
+ * Community-post originals are blocked here (gate them via /community/media).
+ * 30-day immutable cache for upload objects (content-addressed by UUID).
  */
 router.get("/storage/objects/*path", async (req: Request, res: Response) => {
   try {
@@ -174,10 +200,6 @@ router.get("/storage/objects/*path", async (req: Request, res: Response) => {
     const wildcardPath = Array.isArray(raw) ? raw.join("/") : raw;
     const objectPath = `/objects/${wildcardPath}`;
 
-    // Community post ORIGINALS are VIP-gated and must ONLY be reachable through
-    // the entitlement-checked /community/media route. Block them here even if
-    // their object UUID leaks. Non-community objects (payment proofs, etc.) are
-    // unaffected. The result is cached for 10 min to avoid per-request DB hits.
     const notCommunity = await isNotCommunityOriginal(objectPath);
     if (!notCommunity) {
       res.status(404).json({ error: "Object not found" });
@@ -185,18 +207,9 @@ router.get("/storage/objects/*path", async (req: Request, res: Response) => {
     }
 
     const objectFile = await objectStorageService.getObjectEntityFile(objectPath);
-
-    // Upload objects are addressed by immutable UUIDs — content never changes,
-    // so let browsers cache them for 30 days and skip revalidation.
-    const response = await objectStorageService.downloadObject(
-      objectFile,
-      60 * 60 * 24 * 30,
-      true,
-    );
-
+    const response = await objectStorageService.downloadObject(objectFile, 60 * 60 * 24 * 30, true);
     res.status(response.status);
     response.headers.forEach((value, key) => res.setHeader(key, value));
-
     if (response.body) {
       const nodeStream = Readable.fromWeb(response.body as ReadableStream<Uint8Array>);
       nodeStream.pipe(res);
@@ -204,11 +217,11 @@ router.get("/storage/objects/*path", async (req: Request, res: Response) => {
       res.end();
     }
   } catch (error) {
-    console.error("Error serving object:", error);
     if (error instanceof ObjectNotFoundError) {
       res.status(404).json({ error: "Object not found" });
       return;
     }
+    console.error("Error serving object:", error);
     res.status(500).json({ error: "Failed to serve object" });
   }
 });
