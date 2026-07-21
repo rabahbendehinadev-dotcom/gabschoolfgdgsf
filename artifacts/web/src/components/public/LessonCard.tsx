@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "wouter";
 import { motion } from "framer-motion";
 import { Crown, Lock, Play } from "lucide-react";
@@ -25,6 +26,8 @@ export function LessonCard({
   episodeNumber,
   index = 0,
 }: LessonCardProps) {
+  const [imgLoaded, setImgLoaded] = useState(false);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -37,13 +40,18 @@ export function LessonCard({
         <div className="group h-full flex flex-col rounded-2xl overflow-hidden border border-border bg-card cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/10">
           {/* Thumbnail */}
           <div className="relative aspect-video overflow-hidden bg-muted">
+            {/* skeleton shimmer يظهر حتى تكتمل الصورة */}
+            {!imgLoaded && (
+              <div className="absolute inset-0 bg-muted animate-pulse" />
+            )}
             <img
               src={video.thumbnailUrl || FALLBACK_THUMB}
               alt={video.title}
               loading={index < 6 ? "eager" : "lazy"}
               fetchPriority={index < 3 ? "high" : undefined}
               decoding="async"
-              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+              className={`w-full h-full object-cover transition-all duration-300 group-hover:scale-105 ${imgLoaded ? "opacity-100" : "opacity-0"}`}
+              onLoad={() => setImgLoaded(true)}
             />
             {/* subtle bottom gradient only — no heavy black overlay */}
             <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/45 to-transparent" />
