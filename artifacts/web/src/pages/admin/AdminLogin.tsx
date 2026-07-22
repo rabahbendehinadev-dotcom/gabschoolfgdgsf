@@ -50,10 +50,10 @@ export function AdminLogin() {
         <div style={{ textAlign: "center", marginBottom: 32 }}>
           <div style={{
             width: 52, height: 52, borderRadius: 14,
-            background: "linear-gradient(135deg, #2563EB, #1D4ED8)",
+            background: "linear-gradient(135deg, #F97316, #EA6C10)",
             display: "flex", alignItems: "center", justifyContent: "center",
             margin: "0 auto 16px",
-            boxShadow: "0 4px 14px rgba(37,99,235,0.30)",
+            boxShadow: "0 4px 14px rgba(249,115,22,0.30)",
           }}>
             <ShieldCheck size={24} color="#fff" />
           </div>
@@ -88,7 +88,7 @@ export function AdminLogin() {
                   background: "#FFFFFF", padding: "0 12px", fontSize: 13.5, color: "#0F172A",
                   outline: "none", transition: "border-color 130ms, box-shadow 130ms", width: "100%", boxSizing: "border-box",
                 }}
-                onFocus={e => { e.currentTarget.style.borderColor = "#2563EB"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(37,99,235,0.12)"; }}
+                onFocus={e => { e.currentTarget.style.borderColor = "#F97316"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(249,115,22,0.12)"; }}
                 onBlur={e => { e.currentTarget.style.borderColor = errors.email ? "#FECDD3" : "#CBD5E1"; e.currentTarget.style.boxShadow = "none"; }}
               />
               {errors.email && <p style={{ fontSize: 11.5, color: "#9F1239", margin: 0 }}>{errors.email.message}</p>}
@@ -109,7 +109,7 @@ export function AdminLogin() {
                     background: "#FFFFFF", padding: "0 40px 0 12px", fontSize: 13.5, color: "#0F172A",
                     outline: "none", transition: "border-color 130ms, box-shadow 130ms", width: "100%", boxSizing: "border-box",
                   }}
-                  onFocus={e => { e.currentTarget.style.borderColor = "#2563EB"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(37,99,235,0.12)"; }}
+                  onFocus={e => { e.currentTarget.style.borderColor = "#F97316"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(249,115,22,0.12)"; }}
                   onBlur={e => { e.currentTarget.style.borderColor = errors.password ? "#FECDD3" : "#CBD5E1"; e.currentTarget.style.boxShadow = "none"; }}
                 />
                 <button
@@ -129,16 +129,16 @@ export function AdminLogin() {
               disabled={loginMut.isPending}
               style={{
                 height: 40, borderRadius: 8, border: "none",
-                background: loginMut.isPending ? "#93C5FD" : "#2563EB",
+                background: loginMut.isPending ? "#FDBA74" : "#F97316",
                 color: "#FFFFFF", fontWeight: 600, fontSize: 13.5,
                 cursor: loginMut.isPending ? "not-allowed" : "pointer",
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                 transition: "background 120ms, box-shadow 120ms",
-                boxShadow: loginMut.isPending ? "none" : "0 1px 3px rgba(37,99,235,0.30)",
+                boxShadow: loginMut.isPending ? "none" : "0 1px 3px rgba(249,115,22,0.30)",
                 marginTop: 4,
               }}
-              onMouseEnter={e => { if (!loginMut.isPending) e.currentTarget.style.background = "#1D4ED8"; }}
-              onMouseLeave={e => { if (!loginMut.isPending) e.currentTarget.style.background = "#2563EB"; }}
+              onMouseEnter={e => { if (!loginMut.isPending) e.currentTarget.style.background = "#EA6C10"; }}
+              onMouseLeave={e => { if (!loginMut.isPending) e.currentTarget.style.background = "#F97316"; }}
             >
               {loginMut.isPending
                 ? <><Loader2 size={16} style={{ animation: "spin 0.7s linear infinite" }} /> Connexion en cours…</>

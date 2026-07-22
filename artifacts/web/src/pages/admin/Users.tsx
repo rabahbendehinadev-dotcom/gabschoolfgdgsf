@@ -79,7 +79,7 @@ function StatusBadge({ isActive }: { isActive: boolean }) {
 /* ── Sort icon ────────────────────────────────────────────────────────── */
 function SortIco({ field, sortBy, sortDir }: { field: SortField; sortBy: SortField; sortDir: "asc"|"desc" }) {
   if (sortBy !== field) return <ChevronsUpDown size={11} style={{ opacity: 0.3 }} />;
-  return sortDir === "asc" ? <ChevronUp size={11} color="#2563EB" /> : <ChevronDown size={11} color="#2563EB" />;
+  return sortDir === "asc" ? <ChevronUp size={11} color="#F97316" /> : <ChevronDown size={11} color="#F97316" />;
 }
 
 const BULK = [
@@ -331,8 +331,8 @@ export function AdminUsers() {
         {/* HEADER */}
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
           <div>
-            <h1 style={{ fontSize: 20, fontWeight: 700, color: "#1F2937", lineHeight: 1.2 }}>Gestion des utilisateurs</h1>
-            <p style={{ fontSize: 13, color: "#667085", marginTop: 3 }}>
+            <h1 style={{ fontSize: 24, fontWeight: 700, color: "#0F172A", lineHeight: 1.2, letterSpacing: "-0.02em" }}>Gestion des utilisateurs</h1>
+            <p style={{ fontSize: 14, color: "#667085", marginTop: 4 }}>
               {filtered.length} utilisateur{filtered.length > 1 ? "s" : ""}{filtered.length !== (users?.length ?? 0) ? ` sur ${users?.length ?? 0}` : ""}
             </p>
           </div>
@@ -407,11 +407,11 @@ export function AdminUsers() {
         {/* BULK BAR */}
         {selectedIds.size > 0 && (
           <div className="ad-bulk-bar">
-            <span style={{ fontSize: 13, fontWeight: 600, color: "#1D4ED8" }}>{selectedIds.size} sélectionné{selectedIds.size > 1 ? "s" : ""}</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "#C2410C" }}>{selectedIds.size} sélectionné{selectedIds.size > 1 ? "s" : ""}</span>
             <button type="button" onClick={deselAll} style={{ fontSize: 11, color: "#98A2B3", display: "flex", alignItems: "center", gap: 3, background: "none", border: "none", cursor: "pointer" }}>
               <X size={11} />Effacer
             </button>
-            <div style={{ width: 1, height: 16, background: "#BFDBFE" }} />
+            <div style={{ width: 1, height: 16, background: "#FED7AA" }} />
             <select className="ad-select" value={bulkAction} onChange={e => setBulkAction(e.target.value)}>
               <option value="">Choisir une action…</option>
               {BULK.map(a => <option key={a.v} value={a.v}>{a.l}</option>)}
@@ -434,18 +434,18 @@ export function AdminUsers() {
             const sel = selectedIds.has(user.id);
             return (
               <div key={user.id} className="ad-card" style={{
-                padding: "14px 16px", opacity: user.isActive ? 1 : 0.65,
-                boxShadow: sel ? "inset 3px 0 0 #2563EB, 0 1px 4px rgba(15,23,42,0.06)" : undefined,
-                background: sel ? "#EFF6FF" : "#fff",
+                padding: "18px 18px", opacity: user.isActive ? 1 : 0.65,
+                boxShadow: sel ? "inset 3px 0 0 #F97316, 0 1px 4px rgba(15,23,42,0.06)" : undefined,
+                background: sel ? "#FFF7ED" : "#fff",
               }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 10 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
                     <Chk checked={sel} onChange={() => toggleSel(user.id)} />
                     <div>
-                      <button type="button" onClick={() => setDetailId(user.id)} style={{ fontWeight: 600, fontSize: 14, color: "#1F2937", background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left" }}>
+                      <button type="button" onClick={() => setDetailId(user.id)} style={{ fontWeight: 700, fontSize: 15, color: "#0F172A", background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left" }}>
                         {user.username}
                       </button>
-                      <div style={{ fontSize: 11, color: "#94A3B8" }}>{user.email}</div>
+                      <div style={{ fontSize: 13, color: "#64748B" }}>{user.email}</div>
                     </div>
                   </div>
                   <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
@@ -457,7 +457,7 @@ export function AdminUsers() {
                     {user.courses.map(c => <span key={c.playlistId} className="ad-course-tag">{c.title}</span>)}
                   </div>
                 )}
-                <div style={{ fontSize: 11, color: "#94A3B8", marginBottom: 10 }}>
+                <div style={{ fontSize: 12.5, color: "#94A3B8", marginBottom: 10 }}>
                   {user.lastVisitAt && <span>Dernière visite : {timeAgo(user.lastVisitAt)} · </span>}
                   <span>Inscrit : {formatDate(user.createdAt)}</span>
                 </div>
@@ -511,9 +511,9 @@ export function AdminUsers() {
                       <td className="ad-td"><Chk checked={sel} onChange={() => toggleSel(user.id)} /></td>
                       <td className="ad-td">
                         <button type="button" onClick={() => setDetailId(user.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left" }}>
-                          <div style={{ fontWeight: 600, color: "#1F2937", whiteSpace: "nowrap" }}>{user.username}</div>
-                          <div style={{ fontSize: 11, color: "#94A3B8", maxWidth: 170, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.email}</div>
-                          {user.fullName && <div style={{ fontSize: 10.5, color: "#94A3B8" }}>{user.fullName}</div>}
+                          <div style={{ fontWeight: 700, fontSize: 14, color: "#0F172A", whiteSpace: "nowrap" }}>{user.username}</div>
+                          <div style={{ fontSize: 12.5, color: "#94A3B8", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.email}</div>
+                          {user.fullName && <div style={{ fontSize: 11.5, color: "#94A3B8" }}>{user.fullName}</div>}
                         </button>
                       </td>
                       <td className="ad-td">
@@ -689,11 +689,11 @@ export function AdminUsers() {
                       const s = userCourseIds.includes(pl.id);
                       return (
                         <button key={pl.id} type="button" onClick={() => setUserCourseIds(p => s ? p.filter(x=>x!==pl.id) : [...p, pl.id])}
-                          style={{ width:"100%", display:"flex", alignItems:"center", gap:10, padding:"10px 14px", background: s ? "#EFF6FF" : i%2===0 ? "#fff" : "#FAFBFC", border:"none", borderBottom: i < allPlaylists.length-1 ? "1px solid #F1F5F9":"none", cursor:"pointer", textAlign:"left" }}>
-                          <span style={{ width:16, height:16, borderRadius:5, border: s?"none":"1.5px solid #CBD5E1", background: s?"#2563EB":"transparent", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                          style={{ width:"100%", display:"flex", alignItems:"center", gap:10, padding:"10px 14px", background: s ? "#FFF7ED" : i%2===0 ? "#fff" : "#FAFBFC", border:"none", borderBottom: i < allPlaylists.length-1 ? "1px solid #F1F5F9":"none", cursor:"pointer", textAlign:"left" }}>
+                          <span style={{ width:17, height:17, borderRadius:5, border: s?"none":"1.5px solid #CBD5E1", background: s?"#F97316":"transparent", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
                             {s && <Check size={10} color="#fff" />}
                           </span>
-                          <span style={{ fontSize:13, color:"#344054" }}>{pl.title||`Cours #${pl.id}`}</span>
+                          <span style={{ fontSize:13.5, color:"#344054" }}>{pl.title||`Cours #${pl.id}`}</span>
                         </button>
                       );
                     })}
@@ -752,8 +752,8 @@ function IBtn({ tip, onClick, disabled, danger, children }: { tip: string; onCli
 
 function Chk({ checked, onChange }: { checked: boolean; onChange: () => void }) {
   return (
-    <button type="button" onClick={onChange} style={{ background: "none", border: "none", cursor: "pointer", color: checked ? "#2563EB" : "#CBD5E1", display: "flex" }}>
-      {checked ? <CheckSquare size={15} /> : <Square size={15} />}
+    <button type="button" onClick={onChange} style={{ background: "none", border: "none", cursor: "pointer", color: checked ? "#F97316" : "#CBD5E1", display: "flex" }}>
+      {checked ? <CheckSquare size={16} /> : <Square size={16} />}
     </button>
   );
 }
