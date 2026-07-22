@@ -1,0 +1,33 @@
+# ── Version control (not needed in build context) ─────────────────────────────
+.git
+.gitignore
+.gitattributes
+
+# ── Node modules (rebuilt inside Docker from package.json) ────────────────────
+**/node_modules
+
+# ── Build outputs (rebuilt inside Docker from source) ─────────────────────────
+**/dist
+**/.turbo
+
+# ── Replit / dev-only files ───────────────────────────────────────────────────
+.replit
+replit.nix
+.upm/
+attached_assets/
+.agents/
+.local/
+.cache/
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+*.log
+/tmp/
+
+# ── Local env files (secrets should come from Dokploy env panel) ──────────────
+.env
+.env.local
+.env.*.local
+
+# ── OS artifacts ──────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db

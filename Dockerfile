@@ -40,6 +40,12 @@ RUN pnpm --filter @workspace/api-server build
 
 # ── Stage 2: Production image ───────────────────────────────────────────────────
 FROM node:22-slim AS runner
+
+# Build-time label args — pass via: docker build --build-arg GIT_SHA=$(git rev-parse --short HEAD)
+# Dokploy can inject these automatically if configured, otherwise they default to "unknown".
+ARG GIT_SHA=unknown
+ARG BUILD_DATE=unknown
+
 WORKDIR /app
 
 # wget is needed for the Docker healthcheck
@@ -64,14 +70,30 @@ RUN pnpm install --prod --frozen-lockfile
 # Copy built server bundle
 COPY --from=builder /app/artifacts/api-server/dist ./artifacts/api-server/dist
 
-# Copy web static files
+# Copy web static files (Vite output: artifacts/web/dist/public → /app/public)
 COPY --from=builder /app/artifacts/web/dist/public ./public
+
+# ── BUILD VERIFICATION ────────────────────────────────────────────────────────
+# These lines print during `docker build` and appear in Dokploy build logs.
+# If /app/public or deploy-test.txt are missing here, the image is broken.
+RUN echo "=== BUILD CHECK ===" && \
+    echo "GIT_SHA: ${GIT_SHA}" && \
+    echo "BUILD_DATE: ${BUILD_DATE}" && \
+    ls -la /app/public/ && \
+    echo "--- deploy-test.txt ---" && \
+    cat /app/public/deploy-test.txt || echo "WARNING: deploy-test.txt NOT FOUND"
+# ─────────────────────────────────────────────────────────────────────────────
 
 # Data directory (mounted as Docker volume — files persist between restarts)
 RUN mkdir -p /app/data
 
 ENV NODE_ENV=production
 ENV PORT=3000
+
+# Image labels — inspect running container with: docker inspect <container> | grep -A5 Labels
+LABEL org.opencontainers.image.title="GAB School" \
+      org.opencontainers.image.revision="${GIT_SHA}" \
+      org.opencontainers.image.created="${BUILD_DATE}"
 
 EXPOSE 3000
 
