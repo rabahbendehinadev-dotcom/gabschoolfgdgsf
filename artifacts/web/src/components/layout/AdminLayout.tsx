@@ -8,8 +8,6 @@ import {
   Megaphone, Bell, BellOff, BellRing, X, Share, PlusSquare, Menu, AlertTriangle, GraduationCap,
 } from "lucide-react";
 
-/* ─── helpers ─────────────────────────────────────────────────────────── */
-
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
@@ -29,8 +27,6 @@ function isStandalone() {
     (navigator as Navigator & { standalone?: boolean }).standalone === true
   );
 }
-
-/* ─── push hook ───────────────────────────────────────────────────────── */
 
 function useAdminPush(adminToken: string | null) {
   const [subscribed, setSubscribed] = useState<boolean | null>(null);
@@ -58,16 +54,13 @@ function useAdminPush(adminToken: string | null) {
       const keyRes = await fetch("/api/admin/push/vapid-key", { headers: authHeader() });
       if (!keyRes.ok) return;
       const { publicKey } = (await keyRes.json()) as { publicKey: string };
-
       const perm = await Notification.requestPermission();
       if (perm !== "granted") return;
-
       const reg = await navigator.serviceWorker.ready;
       const sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(publicKey).buffer as ArrayBuffer,
       });
-
       const j = sub.toJSON() as { endpoint: string; keys: { p256dh: string; auth: string } };
       const saveRes = await fetch("/api/admin/push/subscribe", {
         method: "POST",
@@ -101,27 +94,23 @@ function useAdminPush(adminToken: string | null) {
   return { subscribed, loading, subscribe, unsubscribe };
 }
 
-/* ─── nav items ───────────────────────────────────────────────────────── */
-
 const NAV = [
   { name: "الإحصائيات",       path: "/gab-ctrl-9x",                   icon: LayoutDashboard },
   { name: "المستخدمين",        path: "/gab-ctrl-9x/users",             icon: Users },
   { name: "الدورات",           path: "/gab-ctrl-9x/courses",           icon: GraduationCap },
   { name: "الفيديوهات",        path: "/gab-ctrl-9x/videos",            icon: Video },
-  { name: "الأدوات",            path: "/gab-ctrl-9x/tools",             icon: Wrench },
-  { name: "تصنيفات الأدوات",  path: "/gab-ctrl-9x/tool-categories",   icon: FolderTree },
+  { name: "الأدوات",           path: "/gab-ctrl-9x/tools",             icon: Wrench },
+  { name: "تصنيفات الأدوات",   path: "/gab-ctrl-9x/tool-categories",   icon: FolderTree },
   { name: "التصنيفات",         path: "/gab-ctrl-9x/categories",        icon: FolderTree },
   { name: "خطط الأسعار",       path: "/gab-ctrl-9x/plans",             icon: CreditCard },
-  { name: "الاشتراكات",        path: "/gab-ctrl-9x/subscriptions",        icon: BadgeCheck },
-  { name: "تنبيهات الاشتراك", path: "/gab-ctrl-9x/subscription-alerts", icon: AlertTriangle },
-  { name: "إرسال إشعار",       path: "/gab-ctrl-9x/send-notification",   icon: Megaphone },
+  { name: "الاشتراكات",        path: "/gab-ctrl-9x/subscriptions",     icon: BadgeCheck },
+  { name: "تنبيهات الاشتراك",  path: "/gab-ctrl-9x/subscription-alerts", icon: AlertTriangle },
+  { name: "إرسال إشعار",       path: "/gab-ctrl-9x/send-notification", icon: Megaphone },
   { name: "Community GAB",     path: "/gab-ctrl-9x/community",         icon: Users },
   { name: "سجل النشاطات",      path: "/gab-ctrl-9x/activity-log",      icon: Activity },
   { name: "طلبات الدفع",       path: "/gab-ctrl-9x/payments",          icon: Banknote },
   { name: "تغيير كلمة المرور", path: "/gab-ctrl-9x/change-password",   icon: KeyRound },
 ];
-
-/* ─── bell button (shared) ────────────────────────────────────────────── */
 
 function BellButton({
   subscribed, loading, subscribe, unsubscribe, size = "md",
@@ -132,21 +121,21 @@ function BellButton({
   unsubscribe: () => void;
   size?: "sm" | "md";
 }) {
-  const cls = size === "sm" ? "w-8 h-8" : "w-9 h-9";
+  const cls = size === "sm" ? "w-8 h-8" : "w-8 h-8";
   return (
     <button
       type="button"
       title={subscribed ? "إلغاء إشعارات التسجيل" : "تفعيل إشعارات التسجيل"}
       disabled={loading || subscribed === null}
       onClick={subscribed ? unsubscribe : subscribe}
-      className={`${cls} rounded-xl flex items-center justify-center transition-colors shrink-0 ${
+      className={`${cls} rounded-lg flex items-center justify-center transition-colors shrink-0 ${
         subscribed
-          ? "bg-green-500/20 text-green-400 hover:bg-red-500/20 hover:text-red-400"
-          : "bg-white/5 text-muted-foreground hover:bg-primary/20 hover:text-primary"
+          ? "bg-green-50 text-green-600 hover:bg-red-50 hover:text-red-500"
+          : "text-gray-400 hover:bg-gray-100 hover:text-gray-600"
       }`}
     >
       {loading ? (
-        <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+        <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
       ) : subscribed ? (
         <BellRing className="w-4 h-4" />
       ) : (
@@ -155,8 +144,6 @@ function BellButton({
     </button>
   );
 }
-
-/* ─── layout ──────────────────────────────────────────────────────────── */
 
 export function AdminLayout({ children }: { children: ReactNode }) {
   const { admin, adminLogout } = useAuth();
@@ -178,15 +165,12 @@ export function AdminLayout({ children }: { children: ReactNode }) {
 
   const iosDevice = typeof window !== "undefined" && isIosSafari();
   const standalone = typeof window !== "undefined" && isStandalone();
-
-  /* iOS push only works once installed; on plain Safari show "install first" */
   const pushReady = pushSupported && (!iosDevice || standalone);
 
   const { subscribed, loading, subscribe, unsubscribe } = useAdminPush(
     admin ? adminToken : null,
   );
 
-  /* close drawer on outside tap */
   useEffect(() => {
     if (!drawerOpen) return;
     const handler = (e: MouseEvent) => {
@@ -198,10 +182,8 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     return () => document.removeEventListener("mousedown", handler);
   }, [drawerOpen]);
 
-  /* close drawer on navigation */
   useEffect(() => { setDrawerOpen(false); }, [location]);
 
-  /* lock body scroll when drawer open */
   useEffect(() => {
     document.body.style.overflow = drawerOpen ? "hidden" : "";
     return () => { document.body.style.overflow = ""; };
@@ -214,7 +196,6 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     try { localStorage.setItem("admin-ios-banner-dismissed", "1"); } catch { /* */ }
   };
 
-  /* current page label for mobile header */
   const currentPageName =
     NAV.find((n) =>
       n.path === "/gab-ctrl-9x"
@@ -224,19 +205,20 @@ export function AdminLayout({ children }: { children: ReactNode }) {
 
   if (!admin) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center space-y-4">
-          <ShieldAlert className="w-16 h-16 text-destructive mx-auto" />
-          <h2 className="text-2xl font-bold">غير مصرح لك بالدخول</h2>
+          <div className="w-16 h-16 rounded-2xl bg-red-50 border border-red-100 flex items-center justify-center mx-auto">
+            <ShieldAlert className="w-8 h-8 text-red-500" />
+          </div>
+          <h2 className="text-xl font-bold text-gray-900">غير مصرح لك بالدخول</h2>
           <Link href="/gab-ctrl-9x/login">
-            <Button>تسجيل دخول الإدارة</Button>
+            <Button className="bg-orange-500 hover:bg-orange-600 text-white">تسجيل دخول الإدارة</Button>
           </Link>
         </div>
       </div>
     );
   }
 
-  /* ── nav link (reused in sidebar + drawer) ── */
   const NavLinks = ({ onNavigate }: { onNavigate?: () => void }) => (
     <>
       {NAV.map((item) => {
@@ -249,14 +231,17 @@ export function AdminLayout({ children }: { children: ReactNode }) {
           <Link key={item.path} href={item.path}>
             <div
               onClick={onNavigate}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all cursor-pointer ${
+              className={`relative flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all cursor-pointer ${
                 isActive
-                  ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20"
-                  : "text-foreground/70 hover:bg-white/5 hover:text-foreground"
+                  ? "bg-orange-50 text-orange-600 font-semibold"
+                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
               }`}
             >
-              <Icon className="w-5 h-5 shrink-0" />
-              <span className="font-medium">{item.name}</span>
+              {isActive && (
+                <span className="absolute right-0 top-1.5 bottom-1.5 w-0.5 rounded-full bg-orange-500" />
+              )}
+              <Icon className={`w-4 h-4 shrink-0 ${isActive ? "text-orange-500" : "text-gray-400"}`} />
+              <span>{item.name}</span>
             </div>
           </Link>
         );
@@ -265,200 +250,156 @@ export function AdminLayout({ children }: { children: ReactNode }) {
   );
 
   return (
-    <div className="min-h-screen bg-background rtl">
+    <div className="min-h-screen bg-gray-50 rtl">
 
-      {/* ══ MOBILE HEADER (hidden on md+) ══════════════════════════════ */}
-      <header className="md:hidden fixed top-0 inset-x-0 z-40 h-14 bg-card/95 backdrop-blur-xl border-b border-white/10 flex items-center gap-3 px-4">
+      {/* ══ MOBILE HEADER ══════════════════════════════════════════════ */}
+      <header className="md:hidden fixed top-0 inset-x-0 z-40 h-14 bg-white border-b border-gray-200 flex items-center gap-3 px-4">
         <button
           onClick={() => setDrawerOpen(true)}
-          className="w-9 h-9 rounded-xl flex items-center justify-center text-foreground/70 hover:bg-white/5 hover:text-foreground transition-colors shrink-0"
+          className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors shrink-0"
           aria-label="فتح القائمة"
         >
           <Menu className="w-5 h-5" />
         </button>
-
-        <span className="flex-1 font-bold text-base truncate">{currentPageName}</span>
-
-        {/* Bell — only if push is ready on this device */}
+        <span className="flex-1 font-semibold text-sm text-gray-900 truncate">{currentPageName}</span>
         {pushReady && (
-          <BellButton
-            subscribed={subscribed}
-            loading={loading}
-            subscribe={subscribe}
-            unsubscribe={unsubscribe}
-            size="sm"
-          />
+          <BellButton subscribed={subscribed} loading={loading} subscribe={subscribe} unsubscribe={unsubscribe} size="sm" />
         )}
-
-        {/* iOS: show install icon if not standalone */}
         {iosDevice && !standalone && (
           <button
             onClick={dismissIosBanner}
-            className="w-8 h-8 rounded-xl flex items-center justify-center bg-primary/20 text-primary shrink-0"
-            title="ثبّت التطبيق"
+            className="w-8 h-8 rounded-lg flex items-center justify-center bg-orange-50 text-orange-500 shrink-0"
           >
             <PlusSquare className="w-4 h-4" />
           </button>
         )}
       </header>
 
-      {/* ══ MOBILE DRAWER ═══════════════════════════════════════════════ */}
-      {/* Overlay */}
+      {/* ══ MOBILE DRAWER OVERLAY ═══════════════════════════════════════ */}
       <div
-        className={`md:hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm transition-opacity duration-300 ${
+        className={`md:hidden fixed inset-0 z-50 bg-black/40 transition-opacity duration-200 ${
           drawerOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
         }`}
         aria-hidden="true"
       />
 
-      {/* Panel slides from right */}
+      {/* ══ MOBILE DRAWER PANEL ════════════════════════════════════════ */}
       <div
         ref={drawerRef}
-        className={`md:hidden fixed top-0 right-0 bottom-0 z-50 w-72 bg-card flex flex-col shadow-2xl border-l border-white/10 transition-transform duration-300 ease-out ${
+        className={`md:hidden fixed top-0 right-0 bottom-0 z-50 w-64 bg-white flex flex-col shadow-xl border-l border-gray-200 transition-transform duration-200 ease-out ${
           drawerOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >
-        {/* Drawer header */}
-        <div className="p-5 border-b border-white/10 flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-destructive/20 flex items-center justify-center text-destructive shrink-0">
-            <ShieldAlert className="w-5 h-5" />
-          </div>
+        <div className="px-4 py-4 border-b border-gray-100 flex items-center gap-3">
           <div className="flex-1 min-w-0">
-            <p className="font-bold leading-tight">لوحة التحكم</p>
-            <p className="text-xs text-muted-foreground truncate">{admin.username}</p>
+            <p className="font-bold text-gray-900 text-sm">لوحة التحكم</p>
+            <p className="text-xs text-gray-400 truncate">{admin.username}</p>
           </div>
-
-          {/* Bell in drawer header */}
           {pushReady && (
-            <BellButton
-              subscribed={subscribed}
-              loading={loading}
-              subscribe={subscribe}
-              unsubscribe={unsubscribe}
-              size="sm"
-            />
+            <BellButton subscribed={subscribed} loading={loading} subscribe={subscribe} unsubscribe={unsubscribe} size="sm" />
           )}
-
           <button
             onClick={() => setDrawerOpen(false)}
-            className="w-8 h-8 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors shrink-0"
+            className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Push hint: subscribe */}
         {pushReady && subscribed === false && (
-          <div className="mx-4 mt-3 rounded-xl bg-amber-500/10 border border-amber-500/20 px-3 py-2 text-xs text-amber-400 flex items-start gap-2">
+          <div className="mx-3 mt-3 rounded-lg bg-amber-50 border border-amber-100 px-3 py-2 text-xs text-amber-700 flex items-start gap-2">
             <Bell className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-            <span>اضغط على جرس الإشعارات ↑ لتلقّي تنبيه عند كل تسجيل جديد</span>
+            <span>اضغط على الجرس لتلقّي تنبيه عند كل تسجيل جديد</span>
           </div>
         )}
 
-        {/* iOS: push requires standalone */}
         {iosDevice && !standalone && (
-          <div className="mx-4 mt-3 rounded-xl bg-blue-500/10 border border-blue-500/20 px-3 py-2 text-xs text-blue-400 flex items-start gap-2">
+          <div className="mx-3 mt-3 rounded-lg bg-blue-50 border border-blue-100 px-3 py-2 text-xs text-blue-700 flex items-start gap-2">
             <Share className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-            <span>
-              لتفعيل الإشعارات: ثبّت التطبيق أولاً —
-              اضغط <Share className="inline w-3 h-3 mx-0.5" /> ثم <strong>"Add to Home Screen"</strong>
-            </span>
+            <span>ثبّت التطبيق أولاً لتفعيل الإشعارات</span>
           </div>
         )}
 
-        {/* Nav items */}
-        <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+        <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
           <NavLinks onNavigate={() => setDrawerOpen(false)} />
         </nav>
 
-        {/* Logout */}
-        <div className="p-4 border-t border-white/10">
-          <Button
-            variant="ghost"
-            className="w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/10"
+        <div className="p-3 border-t border-gray-100">
+          <button
+            type="button"
             onClick={() => { setDrawerOpen(false); adminLogout(); }}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-red-500 hover:bg-red-50 transition-colors"
           >
-            <LogOut className="w-5 h-5 ml-2" />
+            <LogOut className="w-4 h-4" />
             تسجيل الخروج
-          </Button>
+          </button>
         </div>
       </div>
 
-      {/* ══ DESKTOP + MOBILE CONTENT AREA ══════════════════════════════ */}
+      {/* ══ DESKTOP LAYOUT ═════════════════════════════════════════════ */}
       <div className="flex min-h-screen">
 
-        {/* ── Desktop Sidebar (hidden on mobile) ── */}
-        <aside className="hidden md:flex w-64 shrink-0 border-l border-white/10 bg-card/50 backdrop-blur-xl flex-col">
-          <div className="p-6 border-b border-white/10 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-destructive/20 flex items-center justify-center text-destructive">
-              <ShieldAlert className="w-6 h-6" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <h1 className="font-bold text-lg leading-tight">لوحة التحكم</h1>
-              <p className="text-xs text-muted-foreground">{admin.username}</p>
+        {/* ── Desktop Sidebar ── */}
+        <aside className="hidden md:flex w-56 shrink-0 border-l border-gray-200 bg-white flex-col">
+          {/* Brand */}
+          <div className="px-5 py-5 border-b border-gray-100 flex items-center justify-between">
+            <div>
+              <h1 className="font-bold text-gray-900 text-sm leading-tight">GAB School</h1>
+              <p className="text-xs text-gray-400 mt-0.5">{admin.username}</p>
             </div>
             {pushReady && (
-              <BellButton
-                subscribed={subscribed}
-                loading={loading}
-                subscribe={subscribe}
-                unsubscribe={unsubscribe}
-              />
+              <BellButton subscribed={subscribed} loading={loading} subscribe={subscribe} unsubscribe={unsubscribe} />
             )}
           </div>
 
-          {/* Push subscription hints on desktop */}
           {pushReady && subscribed === false && (
-            <div className="mx-4 mt-3 rounded-xl bg-amber-500/10 border border-amber-500/20 px-3 py-2 text-xs text-amber-400 flex items-start gap-2">
+            <div className="mx-3 mt-3 rounded-lg bg-amber-50 border border-amber-100 px-3 py-2 text-xs text-amber-700 flex items-start gap-2">
               <Bell className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-              <span>اضغط على الجرس ↑ لتلقّي إشعار عند كل تسجيل جديد</span>
+              <span>اضغط على الجرس لتلقّي إشعار عند كل تسجيل جديد</span>
             </div>
           )}
 
-          <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+          <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
             <NavLinks />
           </nav>
 
-          <div className="p-4 border-t border-white/10">
-            <Button
-              variant="ghost"
-              className="w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/10"
+          <div className="p-3 border-t border-gray-100">
+            <button
+              type="button"
               onClick={adminLogout}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-red-500 hover:bg-red-50 transition-colors"
             >
-              <LogOut className="w-5 h-5 ml-2" />
+              <LogOut className="w-4 h-4" />
               تسجيل الخروج
-            </Button>
+            </button>
           </div>
         </aside>
 
-        {/* ── Main content ── */}
-        <main className="flex-1 overflow-y-auto bg-black/20 pt-14 md:pt-0 min-w-0">
-          <div className="p-4 md:p-6 lg:p-10 max-w-7xl mx-auto">
+        {/* ── Main Content ── */}
+        <main className="flex-1 overflow-y-auto bg-gray-50 pt-14 md:pt-0 min-w-0">
+          <div className="p-4 md:p-6 lg:p-8 max-w-screen-xl mx-auto">
             {children}
           </div>
         </main>
       </div>
 
-      {/* ══ iOS "Add to Home Screen" banner (bottom, dismissible) ══════ */}
+      {/* ══ iOS Banner ════════════════════════════════════════════════ */}
       {showIosBanner && (
-        <div className="fixed bottom-0 inset-x-0 z-50 bg-card border-t border-white/10 p-4 shadow-2xl">
+        <div className="fixed bottom-0 inset-x-0 z-50 bg-white border-t border-gray-200 p-4 shadow-lg">
           <button
-            className="absolute top-3 left-3 text-muted-foreground hover:text-foreground"
+            className="absolute top-3 left-3 text-gray-400 hover:text-gray-600"
             onClick={dismissIosBanner}
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
           <div className="flex items-start gap-3 pr-1 pl-8">
-            <div className="mt-0.5 w-9 h-9 rounded-xl bg-primary/20 flex items-center justify-center shrink-0">
-              <PlusSquare className="w-5 h-5 text-primary" />
+            <div className="mt-0.5 w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center shrink-0">
+              <PlusSquare className="w-4 h-4 text-orange-500" />
             </div>
             <div>
-              <p className="font-bold text-sm mb-1">ثبّت لوحة التحكم على شاشتك</p>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                اضغط على أيقونة المشاركة{" "}
-                <Share className="inline w-3.5 h-3.5 mx-0.5 -mt-0.5" /> في Safari
-                ثم <strong>"Add to Home Screen"</strong> — ستفتح بدون شريط Safari
-                وتشتغل الإشعارات.
+              <p className="font-semibold text-sm text-gray-900 mb-1">ثبّت لوحة التحكم على شاشتك</p>
+              <p className="text-xs text-gray-500 leading-relaxed">
+                اضغط <Share className="inline w-3 h-3 mx-0.5" /> ثم <strong>"Add to Home Screen"</strong>
               </p>
             </div>
           </div>
