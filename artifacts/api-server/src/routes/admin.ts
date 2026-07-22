@@ -2,7 +2,7 @@ import path from "path";
 import fs from "fs";
 import { Router, type IRouter } from "express";
 import multer from "multer";
-import { db, usersTable, videosTable, categoriesTable, playlistsTable, subscriptionPlansTable, visitLogsTable, activityLogsTable, notificationsTable, notificationRecipientsTable, pushSubscriptionsTable, adminPushSubscriptionsTable, communityPostsTable, communityCommentsTable, communityReportsTable, userCoursesTable } from "@workspace/db";
+import { db, usersTable, videosTable, categoriesTable, playlistsTable, subscriptionPlansTable, visitLogsTable, activityLogsTable, notificationsTable, notificationRecipientsTable, pushSubscriptionsTable, adminPushSubscriptionsTable, communityPostsTable, communityCommentsTable, communityReportsTable, userCoursesTable, paymentSubmissionsTable } from "@workspace/db";
 import { eq, sql, count, desc, asc, lt, and, gte, isNull, isNotNull, inArray, max, ilike, or } from "drizzle-orm";
 
 import { adminAuth } from "../middlewares/auth";
@@ -143,23 +143,19 @@ router.get("/admin/users", adminAuth, async (req, res) => {
     const notifFilter = req.query.notifications;
     const users = await db.select().from(usersTable).orderBy(desc(usersTable.createdAt));
 
-    // A user is "enabled" iff they have at least one push subscription that
-    // hasn't been pruned for delivery failures — the only proof we can reach
-    // them, independent of the per-device permission they last reported.
+    // Push subscription state
     const activeSubs = await db
       .selectDistinct({ userId: pushSubscriptionsTable.userId })
       .from(pushSubscriptionsTable)
       .where(isNull(pushSubscriptionsTable.failedAt));
     const enabledIds = new Set(activeSubs.map((s) => s.userId));
 
-    // Users who have ANY subscription row (active or already soft-failed). Lets us
-    // tell "broken" (had a sub, all failed) apart from "missing/none" (no row).
     const anySubs = await db
       .selectDistinct({ userId: pushSubscriptionsTable.userId })
       .from(pushSubscriptionsTable);
     const hasAnySubIds = new Set(anySubs.map((s) => s.userId));
 
-    // Last time each user actually received a notification (fan-out delivery).
+    // Last notification delivered
     const lastDelivered = await db
       .select({
         userId: notificationRecipientsTable.userId,
@@ -169,16 +165,50 @@ router.get("/admin/users", adminAuth, async (req, res) => {
       .groupBy(notificationRecipientsTable.userId);
     const lastMap = new Map(lastDelivered.map((r) => [r.userId, r.last]));
 
+    // Last page visit per user (batch — not N+1)
+    const lastVisits = await db
+      .select({ userId: visitLogsTable.userId, lastVisit: max(visitLogsTable.visitedAt) })
+      .from(visitLogsTable)
+      .where(isNotNull(visitLogsTable.userId))
+      .groupBy(visitLogsTable.userId);
+    const lastVisitMap = new Map(lastVisits.map((r) => [r.userId!, r.lastVisit]));
+
+    // Device count per user (total push subscription rows)
+    const deviceCounts = await db
+      .select({ userId: pushSubscriptionsTable.userId, cnt: count() })
+      .from(pushSubscriptionsTable)
+      .groupBy(pushSubscriptionsTable.userId);
+    const deviceCountMap = new Map(deviceCounts.map((r) => [r.userId, Number(r.cnt)]));
+
+    // Enrolled courses per user (batch join with playlist titles)
+    const allUserCourses = await db
+      .select({
+        userId: userCoursesTable.userId,
+        playlistId: userCoursesTable.playlistId,
+        title: playlistsTable.title,
+      })
+      .from(userCoursesTable)
+      .leftJoin(playlistsTable, eq(userCoursesTable.playlistId, playlistsTable.id));
+    const coursesByUser = new Map<number, { playlistId: number; title: string }[]>();
+    for (const c of allUserCourses) {
+      const arr = coursesByUser.get(c.userId) ?? [];
+      arr.push({ playlistId: c.playlistId, title: c.title ?? `دورة #${c.playlistId}` });
+      coursesByUser.set(c.userId, arr);
+    }
+
     const mapped = users.map(u => {
       const ip = effectiveIpState(u);
       const last = lastMap.get(u.id) ?? null;
+      const lastVisit = lastVisitMap.get(u.id) ?? null;
       return {
         id: u.id,
         username: u.username,
         email: u.email,
+        fullName: u.fullName ?? null,
         accountType: u.accountType,
         subscriptionType: u.subscriptionType,
         subscriptionExpiresAt: u.subscriptionExpiresAt?.toISOString() || null,
+        subscriptionStartedAt: u.subscriptionStartedAt?.toISOString() || null,
         ipAddress: ip.ipAddress,
         ipAddress2: ip.ipAddress2,
         ipFirstSeenAt: ip.ipFirstSeenAt?.toISOString() || null,
@@ -199,6 +229,9 @@ router.get("/admin/users", adminAuth, async (req, res) => {
                 : "none",
         lastNotifiedAt: last ? new Date(last).toISOString() : null,
         lastPushTestAt: u.lastPushTestAt ? u.lastPushTestAt.toISOString() : null,
+        lastVisitAt: lastVisit ? new Date(lastVisit).toISOString() : null,
+        deviceCount: deviceCountMap.get(u.id) ?? 0,
+        courses: coursesByUser.get(u.id) ?? [],
         createdAt: u.createdAt.toISOString(),
       };
     });
@@ -229,6 +262,125 @@ router.get("/admin/users/notification-stats", adminAuth, async (_req, res) => {
     res.json({ total, enabled, disabled: Math.max(total - enabled, 0) });
   } catch (error: unknown) {
     res.status(500).json({ message: error instanceof Error ? error.message : "Failed to load notification stats" });
+  }
+});
+
+// GET /admin/users/stats — rich stats for the user management dashboard.
+router.get("/admin/users/stats", adminAuth, async (_req, res) => {
+  try {
+    const now = new Date();
+    const soon = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    const users = await db.select({
+      id: usersTable.id,
+      accountType: usersTable.accountType,
+      subscriptionExpiresAt: usersTable.subscriptionExpiresAt,
+      isActive: usersTable.isActive,
+      createdAt: usersTable.createdAt,
+    }).from(usersTable);
+
+    const courseCounts = await db.select({
+      playlistId: userCoursesTable.playlistId,
+      cnt: count(),
+    }).from(userCoursesTable).groupBy(userCoursesTable.playlistId);
+
+    const playlists = await db.select({ id: playlistsTable.id, title: playlistsTable.title })
+      .from(playlistsTable).orderBy(asc(playlistsTable.sortOrder));
+
+    const total = users.length;
+    const vip = users.filter(u => u.accountType === "vip" && (!u.subscriptionExpiresAt || u.subscriptionExpiresAt > now)).length;
+    const expired = users.filter(u => u.accountType === "vip" && u.subscriptionExpiresAt && u.subscriptionExpiresAt < now).length;
+    const expiringSoon = users.filter(u => u.accountType === "vip" && u.subscriptionExpiresAt && u.subscriptionExpiresAt >= now && u.subscriptionExpiresAt <= soon).length;
+    const nonVip = users.filter(u => u.accountType !== "vip").length;
+    const newUsers = users.filter(u => u.createdAt >= monthAgo).length;
+    const blocked = users.filter(u => !u.isActive).length;
+
+    const perCourse = playlists.map(p => ({
+      playlistId: p.id,
+      title: p.title,
+      count: Number(courseCounts.find(c => c.playlistId === p.id)?.cnt ?? 0),
+    }));
+
+    res.json({ total, vip, expired, expiringSoon, nonVip, newUsers, blocked, perCourse });
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Failed to load user stats" });
+  }
+});
+
+// POST /admin/users/bulk-action — apply an operation to multiple users at once.
+const BulkActionBody = zod.object({
+  action: zod.enum(["block", "unblock", "reset_ip", "grant_course", "revoke_course", "grant_vip", "revoke_vip", "extend_subscription"]),
+  userIds: zod.array(zod.number()).min(1).max(500),
+  playlistId: zod.number().optional(),
+  days: zod.number().min(1).max(3650).optional(),
+});
+
+router.post("/admin/users/bulk-action", adminAuth, async (req, res) => {
+  try {
+    const body = BulkActionBody.parse(req.body);
+    const { action, userIds } = body;
+    const adminName = req.admin!.username;
+
+    if (action === "block") {
+      await db.update(usersTable).set({ isActive: false }).where(inArray(usersTable.id, userIds));
+      await logActivity(null, adminName, "bulk_block", `حظر ${userIds.length} مستخدم`);
+    } else if (action === "unblock") {
+      await db.update(usersTable).set({ isActive: true }).where(inArray(usersTable.id, userIds));
+      await logActivity(null, adminName, "bulk_unblock", `رفع الحظر عن ${userIds.length} مستخدم`);
+    } else if (action === "reset_ip") {
+      await db.update(usersTable)
+        .set({ ipAddress: null, ipAddress2: null, ipFirstSeenAt: null })
+        .where(inArray(usersTable.id, userIds));
+      await logActivity(null, adminName, "bulk_reset_ip", `تصفير IP لـ ${userIds.length} مستخدم`);
+    } else if (action === "grant_course") {
+      const pid = body.playlistId;
+      if (!pid) { res.status(400).json({ message: "playlistId مطلوب" }); return; }
+      const existing = await db.select({ userId: userCoursesTable.userId })
+        .from(userCoursesTable)
+        .where(and(inArray(userCoursesTable.userId, userIds), eq(userCoursesTable.playlistId, pid)));
+      const existingIds = new Set(existing.map(r => r.userId));
+      const toInsert = userIds.filter(uid => !existingIds.has(uid));
+      if (toInsert.length > 0) {
+        await db.insert(userCoursesTable).values(toInsert.map(uid => ({ userId: uid, playlistId: pid })));
+      }
+      await logActivity(null, adminName, "bulk_grant_course", `منح الدورة ${pid} لـ ${toInsert.length} مستخدم`);
+    } else if (action === "revoke_course") {
+      const pid = body.playlistId;
+      if (!pid) { res.status(400).json({ message: "playlistId مطلوب" }); return; }
+      await db.delete(userCoursesTable)
+        .where(and(inArray(userCoursesTable.userId, userIds), eq(userCoursesTable.playlistId, pid)));
+      await logActivity(null, adminName, "bulk_revoke_course", `إلغاء الدورة ${pid} من ${userIds.length} مستخدم`);
+    } else if (action === "grant_vip") {
+      const days = body.days ?? 365;
+      const expires = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+      await db.update(usersTable)
+        .set({ accountType: "vip", subscriptionType: "annual", subscriptionExpiresAt: expires, subscriptionStartedAt: new Date() })
+        .where(inArray(usersTable.id, userIds));
+      await logActivity(null, adminName, "bulk_grant_vip", `منح VIP (${days} يوم) لـ ${userIds.length} مستخدم`);
+    } else if (action === "revoke_vip") {
+      await db.update(usersTable)
+        .set({ accountType: "normal", subscriptionType: "demo", subscriptionExpiresAt: null })
+        .where(inArray(usersTable.id, userIds));
+      await logActivity(null, adminName, "bulk_revoke_vip", `إلغاء VIP من ${userIds.length} مستخدم`);
+    } else if (action === "extend_subscription") {
+      const days = body.days ?? 30;
+      await db.execute(sql`
+        UPDATE users
+        SET subscription_expires_at = 
+          CASE
+            WHEN subscription_expires_at > NOW()
+              THEN subscription_expires_at + (${days} || ' days')::INTERVAL
+            ELSE NOW() + (${days} || ' days')::INTERVAL
+          END
+        WHERE id = ANY(${sql.raw(`ARRAY[${userIds.join(",")}]::integer[]`)})
+      `);
+      await logActivity(null, adminName, "bulk_extend_subscription", `تمديد الاشتراك ${days} يوم لـ ${userIds.length} مستخدم`);
+    }
+
+    res.json({ ok: true, affected: userIds.length });
+  } catch (error: unknown) {
+    res.status(400).json({ message: error instanceof Error ? error.message : "فشل تنفيذ العملية الجماعية" });
   }
 });
 
@@ -615,6 +767,101 @@ router.put("/admin/users/:id/courses", adminAuth, async (req, res) => {
     res.json({ ok: true });
   } catch (error: unknown) {
     res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
+// GET /admin/users/:id/detail — full user profile (courses, activity, devices, payments, visits).
+router.get("/admin/users/:id/detail", adminAuth, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) { res.status(400).json({ message: "Invalid id" }); return; }
+
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, id)).limit(1);
+    if (!user) { res.status(404).json({ message: "User not found" }); return; }
+
+    const [courses, recentActivity, payments, devices, recentVisits] = await Promise.all([
+      db.select({
+        playlistId: userCoursesTable.playlistId,
+        title: playlistsTable.title,
+        grantedAt: userCoursesTable.grantedAt,
+      }).from(userCoursesTable)
+        .leftJoin(playlistsTable, eq(userCoursesTable.playlistId, playlistsTable.id))
+        .where(eq(userCoursesTable.userId, id)),
+
+      db.select().from(activityLogsTable)
+        .where(eq(activityLogsTable.userId, id))
+        .orderBy(desc(activityLogsTable.createdAt))
+        .limit(30),
+
+      db.select().from(paymentSubmissionsTable)
+        .where(eq(paymentSubmissionsTable.userId, id))
+        .orderBy(desc(paymentSubmissionsTable.createdAt)),
+
+      db.select().from(pushSubscriptionsTable)
+        .where(eq(pushSubscriptionsTable.userId, id))
+        .orderBy(desc(pushSubscriptionsTable.lastSeenAt)),
+
+      db.select().from(visitLogsTable)
+        .where(eq(visitLogsTable.userId, id))
+        .orderBy(desc(visitLogsTable.visitedAt))
+        .limit(20),
+    ]);
+
+    const ip = effectiveIpState(user);
+
+    res.json({
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      phone: user.phone ?? null,
+      fullName: user.fullName ?? null,
+      profileImage: user.profileImage ?? null,
+      accountType: user.accountType,
+      subscriptionType: user.subscriptionType,
+      subscriptionExpiresAt: user.subscriptionExpiresAt?.toISOString() ?? null,
+      subscriptionStartedAt: user.subscriptionStartedAt?.toISOString() ?? null,
+      isActive: user.isActive,
+      ipAddress: ip.ipAddress,
+      ipAddress2: ip.ipAddress2,
+      ipCount: ip.ipCount,
+      createdAt: user.createdAt.toISOString(),
+      pushPermission: user.pushPermission,
+      pushSupported: user.pushSupported,
+      courses: courses.map(c => ({
+        playlistId: c.playlistId,
+        title: c.title ?? `دورة #${c.playlistId}`,
+        grantedAt: c.grantedAt?.toISOString() ?? null,
+      })),
+      recentActivity: recentActivity.map(a => ({
+        id: a.id,
+        action: a.action,
+        details: a.details ?? null,
+        videoTitle: a.videoTitle ?? null,
+        createdAt: a.createdAt.toISOString(),
+      })),
+      payments: payments.map(p => ({
+        id: p.id,
+        planType: p.planType,
+        planPrice: p.planPrice,
+        paymentMethod: p.paymentMethod,
+        status: p.status,
+        createdAt: p.createdAt.toISOString(),
+      })),
+      devices: devices.map(d => ({
+        id: d.id,
+        userAgent: d.userAgent ?? null,
+        lastSeenAt: d.lastSeenAt?.toISOString() ?? null,
+        failedAt: d.failedAt?.toISOString() ?? null,
+        createdAt: d.createdAt.toISOString(),
+      })),
+      recentVisits: recentVisits.map(v => ({
+        path: v.path ?? null,
+        visitedAt: v.visitedAt.toISOString(),
+        ip: v.ip ?? null,
+      })),
+    });
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Failed to load user detail" });
   }
 });
 
