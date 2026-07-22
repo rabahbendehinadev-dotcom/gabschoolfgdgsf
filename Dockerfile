@@ -97,5 +97,10 @@ LABEL org.opencontainers.image.title="GAB School" \
 
 EXPOSE 3000
 
+# Health check used by Docker Swarm (NOT from docker-compose.yml in swarm mode).
+# start_period=90s gives the app time to run migrations + seed before first check.
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=90s \
+  CMD wget -qO- http://localhost:3000/api/healthz || exit 1
+
 WORKDIR /app/artifacts/api-server
 CMD ["node", "dist/index.cjs"]
