@@ -125,8 +125,7 @@ function ToolCard({ tool, onDownload }: { tool: PublicTool; onDownload: (tool: P
 type ModalState =
   | { type: "none" }
   | { type: "password"; tool: PublicTool }
-  | { type: "upgrade"; tool: PublicTool }
-  | { type: "auth"; tool: PublicTool };
+  | { type: "upgrade"; tool: PublicTool };
 
 export function Tools() {
   const { user, getAuthHeaders } = useAuth();
@@ -196,36 +195,31 @@ export function Tools() {
   const isVip = user?.accountType === "vip";
 
   function handleDownload(tool: PublicTool) {
+    // الترتيب الصحيح:
+    // 1. مجاني → تحميل مباشر
+    // 2. VIP نشط → تحميل مباشر بغض النظر عن نوع الأداة
+    // 3. الأداة فيها كود (password / vip_password) → نافذة الكود أولاً للجميع
+    // 4. الأداة VIP فقط (بدون كود) → نافذة الترقية (زائر أو مسجّل عادي)
+
     if (tool.accessType === "free") {
       downloadMutation.mutate({ toolId: tool.id });
       return;
     }
 
-    // vip: لازم حساب VIP — غير مسجّل → auth، مسجّل بدون VIP → upgrade
-    if (tool.accessType === "vip") {
-      if (!user) { setModal({ type: "auth", tool }); return; }
-      if (!isVip) { setModal({ type: "upgrade", tool }); return; }
+    // VIP نشط يتجاوز كل الحواجز
+    if (isVip) {
       downloadMutation.mutate({ toolId: tool.id });
       return;
     }
 
-    // vip_password: VIP يحمّل مباشرة — الباقي (مسجّل أو لا) بكلمة مرور
-    if (tool.accessType === "vip_password") {
-      if (user && isVip) {
-        downloadMutation.mutate({ toolId: tool.id });
-        return;
-      }
+    // الأداة فيها كود → نافذة إدخال الكود أولاً (حتى للزائر بدون حساب)
+    if (tool.accessType === "password" || tool.accessType === "vip_password") {
       setModal({ type: "password", tool });
       return;
     }
 
-    // password: كلمة مرور دائماً
-    if (tool.accessType === "password") {
-      setModal({ type: "password", tool });
-      return;
-    }
-
-    downloadMutation.mutate({ toolId: tool.id });
+    // الأداة VIP فقط (بدون كود) → نافذة الترقية
+    setModal({ type: "upgrade", tool });
   }
 
   function handlePasswordSubmit() {
@@ -430,7 +424,7 @@ export function Tools() {
         </DialogContent>
       </Dialog>
 
-      {/* Upgrade Modal (VIP) */}
+      {/* Upgrade Modal (VIP) — يظهر لكل من ليس VIP، زائر أو مسجّل */}
       <Dialog open={modal.type === "upgrade"} onOpenChange={open => { if (!open) setModal({ type: "none" }); }}>
         <DialogContent className="sm:max-w-md" dir="rtl">
           <DialogHeader>
@@ -455,41 +449,15 @@ export function Tools() {
                 مشاهدة الدورات المتوفرة
               </Button>
             </Link>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Auth Modal (not logged in) */}
-      <Dialog open={modal.type === "auth"} onOpenChange={open => { if (!open) setModal({ type: "none" }); }}>
-        <DialogContent className="sm:max-w-md" dir="rtl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-start">
-              <LogIn className="w-5 h-5 text-primary" />
-              تسجيل الدخول مطلوب
-            </DialogTitle>
-            <DialogDescription className="text-start">
-              {modal.type === "auth" ? `"${modal.tool.name}"` : ""} متاحة لأعضاء VIP فقط. سجّل الدخول أو أنشئ حساباً وارقَّ للوصول.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3 pt-2">
-            <Link href="/subscribe" onClick={() => setModal({ type: "none" })}>
-              <Button className="w-full gap-2 rounded-xl shadow-md shadow-primary/20">
-                <Crown className="w-4 h-4" />
-                اشترك الآن
-              </Button>
-            </Link>
-            <Link href="/courses" onClick={() => setModal({ type: "none" })}>
-              <Button variant="outline" className="w-full gap-2 rounded-xl border-border hover:border-primary/40">
-                <GraduationCap className="w-4 h-4" />
-                مشاهدة الدورات المتوفرة
-              </Button>
-            </Link>
-            <Link href="/login" onClick={() => setModal({ type: "none" })}>
-              <Button variant="ghost" className="w-full gap-2 rounded-xl">
-                <LogIn className="w-4 h-4" />
-                تسجيل الدخول أو إنشاء حساب
-              </Button>
-            </Link>
+            {/* زر تسجيل الدخول — مرئي للزوار فقط */}
+            {!user && (
+              <Link href="/login" onClick={() => setModal({ type: "none" })}>
+                <Button variant="ghost" className="w-full gap-2 rounded-xl">
+                  <LogIn className="w-4 h-4" />
+                  تسجيل الدخول
+                </Button>
+              </Link>
+            )}
           </div>
         </DialogContent>
       </Dialog>
