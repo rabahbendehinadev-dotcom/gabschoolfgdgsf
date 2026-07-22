@@ -1,21 +1,28 @@
 version: "3.9"
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# GAB School — Production Docker Compose
+# GAB School — docker-compose.yml
 #
-# Storage: STORAGE_PROVIDER=local  → files at /app/data (Docker volume)
-# Videos:  served from Google Drive via proxy (no change needed)
+# PURPOSE: Local development / standalone testing ONLY.
+#          Dokploy should NOT use this file for the web application.
 #
-# PostgreSQL is created separately in Dokploy Dashboard.
+# ─── HOW TO DEPLOY ON DOKPLOY ─────────────────────────────────────────────────
 #
-# Usage on Dokploy:
-#   1. Create PostgreSQL service in Dokploy
-#   2. Create Application → GitHub → Dockerfile
-#   3. Add environment variables in Dokploy UI (see .env.example)
-#   4. Set domain → port 3000
-#   5. Copy storage files: docker cp storage-export/. <container>:/app/data/
+#   Web application (this repo):
+#     Dokploy → Create Application → GitHub → Dockerfile
+#     ┌──────────────────────────────────────────────────┐
+#     │  Build Path      : /  (repository root)          │
+#     │  Dockerfile Path : Dockerfile                    │
+#     │  Port            : 3000                          │
+#     └──────────────────────────────────────────────────┘
+#     Do NOT use Docker Compose mode for the web app.
+#     Do NOT set the image to minio — MinIO is a separate Dokploy service.
 #
-# Usage standalone:
+#   PostgreSQL : Create separately via Dokploy → PostgreSQL service
+#   MinIO      : Create separately via Dokploy → Docker Image (minio/minio)
+#                MinIO is storage-only; it is NOT the web application.
+#
+# ─── LOCAL STANDALONE USAGE ───────────────────────────────────────────────────
 #   cp .env.example .env && docker compose up -d
 # ═══════════════════════════════════════════════════════════════════════════════
 
