@@ -1,29 +1,38 @@
-# ── Version control (not needed in build context) ─────────────────────────────
+# ── Version control ───────────────────────────────────────────────────────────
 .git
 .gitignore
 .gitattributes
 
-# ── Node modules (rebuilt inside Docker from package.json) ────────────────────
+# ── Node modules (rebuilt inside Docker) ──────────────────────────────────────
 **/node_modules
 
-# ── Build outputs (rebuilt inside Docker from source) ─────────────────────────
+# ── Build outputs (rebuilt inside Docker) ─────────────────────────────────────
 **/dist
 **/.turbo
 
-# ── Replit / dev-only files ───────────────────────────────────────────────────
+# ── Large binary/data files not needed for build ──────────────────────────────
+backups/
+screenshots/
+*.dump
+*.sql
+*.tar
+*.tar.gz
+*.zip
+attached_assets/
+
+# ── Replit-specific files ──────────────────────────────────────────────────────
 .replit
 replit.nix
 .upm/
-attached_assets/
+.cache/
 .agents/
 .local/
-.cache/
 
-# ── Logs ──────────────────────────────────────────────────────────────────────
+# ── Logs and temp ─────────────────────────────────────────────────────────────
 *.log
 /tmp/
 
-# ── Local env files (secrets should come from Dokploy env panel) ──────────────
+# ── Local environment (secrets come from Dokploy env panel) ───────────────────
 .env
 .env.local
 .env.*.local
