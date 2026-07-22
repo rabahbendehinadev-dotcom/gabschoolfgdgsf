@@ -129,6 +129,9 @@ async function runMigrations() {
     await db.execute(sql`ALTER TABLE categories ADD COLUMN IF NOT EXISTS show_on_homepage BOOLEAN NOT NULL DEFAULT true`);
     await db.execute(sql`ALTER TABLE categories ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW()`);
     await db.execute(sql`ALTER TABLE categories ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW()`);
+    // Course-linking columns (added when courses/playlists feature was introduced)
+    await db.execute(sql`ALTER TABLE categories ADD COLUMN IF NOT EXISTS thumbnail_url TEXT`);
+    await db.execute(sql`ALTER TABLE categories ADD COLUMN IF NOT EXISTS linked_playlist_id INTEGER`);
 
     // One-time backfill of sort_order for legacy rows (only when no category has been ordered yet)
     await db.execute(sql`
@@ -138,6 +141,18 @@ async function runMigrations() {
       WHERE c.id = sub.id
         AND NOT EXISTS (SELECT 1 FROM categories WHERE sort_order <> 0)
     `);
+
+    // Playlists image/thumbnail columns (added after initial playlists table creation)
+    await db.execute(sql`ALTER TABLE playlists ADD COLUMN IF NOT EXISTS image_url TEXT`);
+    await db.execute(sql`ALTER TABLE playlists ADD COLUMN IF NOT EXISTS thumbnail_url TEXT`);
+    // Make category_id nullable on playlists (playlists may exist independently of a category)
+    await db.execute(sql`ALTER TABLE playlists ALTER COLUMN category_id DROP NOT NULL`);
+
+    // Video storage / HLS / ordering columns (added progressively after initial videos table)
+    await db.execute(sql`ALTER TABLE videos ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0`);
+    await db.execute(sql`ALTER TABLE videos ADD COLUMN IF NOT EXISTS object_parts TEXT`);
+    await db.execute(sql`ALTER TABLE videos ADD COLUMN IF NOT EXISTS migrated_at TIMESTAMP`);
+    await db.execute(sql`ALTER TABLE videos ADD COLUMN IF NOT EXISTS hls_parts TEXT`);
 
     // 720p transcode worker columns (safe, additive)
     await db.execute(sql`ALTER TABLE videos ADD COLUMN IF NOT EXISTS low_parts TEXT`);
