@@ -87,24 +87,24 @@ function useAdminPush(adminToken: string | null) {
 }
 
 const NAV = [
-  { name: "الإحصائيات",       path: "/gab-ctrl-9x",                    icon: LayoutDashboard },
-  { name: "المستخدمين",        path: "/gab-ctrl-9x/users",              icon: Users },
-  { name: "الدورات",           path: "/gab-ctrl-9x/courses",            icon: GraduationCap },
-  { name: "الفيديوهات",        path: "/gab-ctrl-9x/videos",             icon: Video },
-  { name: "الأدوات",           path: "/gab-ctrl-9x/tools",              icon: Wrench },
-  { name: "تصنيفات الأدوات",   path: "/gab-ctrl-9x/tool-categories",    icon: FolderTree },
-  { name: "التصنيفات",         path: "/gab-ctrl-9x/categories",         icon: FolderTree },
-  { name: "خطط الأسعار",       path: "/gab-ctrl-9x/plans",              icon: CreditCard },
-  { name: "الاشتراكات",        path: "/gab-ctrl-9x/subscriptions",      icon: BadgeCheck },
-  { name: "تنبيهات الاشتراك",  path: "/gab-ctrl-9x/subscription-alerts",icon: AlertTriangle },
-  { name: "إرسال إشعار",       path: "/gab-ctrl-9x/send-notification",  icon: Megaphone },
-  { name: "Community GAB",     path: "/gab-ctrl-9x/community",          icon: Users },
-  { name: "سجل النشاطات",      path: "/gab-ctrl-9x/activity-log",       icon: Activity },
-  { name: "طلبات الدفع",       path: "/gab-ctrl-9x/payments",           icon: Banknote },
-  { name: "تغيير كلمة المرور", path: "/gab-ctrl-9x/change-password",    icon: KeyRound },
+  { name: "Tableau de bord",       path: "/gab-ctrl-9x",                     icon: LayoutDashboard },
+  { name: "Utilisateurs",          path: "/gab-ctrl-9x/users",               icon: Users },
+  { name: "Cours",                 path: "/gab-ctrl-9x/courses",             icon: GraduationCap },
+  { name: "Vidéos",                path: "/gab-ctrl-9x/videos",              icon: Video },
+  { name: "Outils",                path: "/gab-ctrl-9x/tools",               icon: Wrench },
+  { name: "Catégories d'outils",   path: "/gab-ctrl-9x/tool-categories",     icon: FolderTree },
+  { name: "Catégories",            path: "/gab-ctrl-9x/categories",          icon: FolderTree },
+  { name: "Plans tarifaires",      path: "/gab-ctrl-9x/plans",               icon: CreditCard },
+  { name: "Abonnements",           path: "/gab-ctrl-9x/subscriptions",       icon: BadgeCheck },
+  { name: "Alertes d'abonnement",  path: "/gab-ctrl-9x/subscription-alerts", icon: AlertTriangle },
+  { name: "Notifications",         path: "/gab-ctrl-9x/send-notification",   icon: Megaphone },
+  { name: "Communauté GAB",        path: "/gab-ctrl-9x/community",           icon: Users },
+  { name: "Journal d'activité",    path: "/gab-ctrl-9x/activity-log",        icon: Activity },
+  { name: "Paiements",             path: "/gab-ctrl-9x/payments",            icon: Banknote },
+  { name: "Mot de passe",          path: "/gab-ctrl-9x/change-password",     icon: KeyRound },
 ];
 
-/* ── Bell button (dark-sidebar variant) ─────────────────────────────────── */
+/* ── Bell button (light variant) ─────────────────────────────────────────── */
 function BellButton({
   subscribed, loading, subscribe, unsubscribe,
 }: {
@@ -113,16 +113,16 @@ function BellButton({
 }) {
   const [hov, setHov] = useState(false);
   const bg = subscribed
-    ? (hov ? "rgba(239,68,68,0.18)" : "rgba(34,197,94,0.15)")
-    : (hov ? "rgba(255,255,255,0.08)" : "transparent");
+    ? (hov ? "#FDF1F1" : "#EFFAF3")
+    : (hov ? "#F4F6FA" : "transparent");
   const col = subscribed
-    ? (hov ? "#F87171" : "#4ADE80")
-    : "#5B6478";
+    ? (hov ? "#B42318" : "#157347")
+    : "#98A2B3";
 
   return (
     <button
       type="button"
-      title={subscribed ? "إلغاء الإشعارات" : "تفعيل الإشعارات"}
+      title={subscribed ? "Désactiver les notifications" : "Activer les notifications"}
       disabled={loading || subscribed === null}
       onClick={subscribed ? unsubscribe : subscribe}
       onMouseEnter={() => setHov(true)}
@@ -163,7 +163,7 @@ function NavLinks({ location, onNavigate }: { location: string; onNavigate?: () 
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   ADMIN LAYOUT
+   ADMIN LAYOUT — Light ERP · French · LTR
 ═══════════════════════════════════════════════════════════════════════════ */
 export function AdminLayout({ children }: { children: ReactNode }) {
   const { admin, adminLogout } = useAuth();
@@ -204,19 +204,19 @@ export function AdminLayout({ children }: { children: ReactNode }) {
 
   const currentPageName = NAV.find(n =>
     n.path === "/gab-ctrl-9x" ? location === n.path : location.startsWith(n.path)
-  )?.name ?? "لوحة التحكم";
+  )?.name ?? "Administration";
 
   /* ── Unauthorized ──────────────────────────────────────────────────── */
   if (!admin) {
     return (
-      <div className="ad-shell" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh" }}>
+      <div className="ad-shell" dir="ltr" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh" }}>
         <div style={{ textAlign: "center" }}>
-          <div style={{ width: 64, height: 64, borderRadius: 18, background: "#FEF2F2", border: "1px solid #FECACA", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
-            <ShieldAlert size={30} color="#DC2626" />
+          <div style={{ width: 64, height: 64, borderRadius: 18, background: "#FDF1F1", border: "1px solid #F2CBCB", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+            <ShieldAlert size={30} color="#B42318" />
           </div>
-          <h2 style={{ fontSize: 18, fontWeight: 700, color: "#0F172A", marginBottom: 16 }}>غير مصرح لك بالدخول</h2>
+          <h2 style={{ fontSize: 18, fontWeight: 700, color: "#1F2937", marginBottom: 16 }}>Accès non autorisé</h2>
           <Link href="/gab-ctrl-9x/login">
-            <button className="ad-btn-primary">تسجيل دخول الإدارة</button>
+            <button className="ad-btn-primary">Connexion administrateur</button>
           </Link>
         </div>
       </div>
@@ -224,32 +224,32 @@ export function AdminLayout({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="ad-shell rtl" style={{ display: "flex" }}>
+    <div className="ad-shell" dir="ltr" style={{ display: "flex" }}>
 
       {/* ══════════════════════════════════════════════════════════
-          MOBILE HEADER
+          MOBILE HEADER — light
       ══════════════════════════════════════════════════════════ */}
       <header
         className="md:hidden"
         style={{
           position: "fixed", top: 0, left: 0, right: 0, zIndex: 40, height: 52,
-          background: "#17191E", borderBottom: "1px solid rgba(255,255,255,0.06)",
+          background: "#FFFFFF", borderBottom: "1px solid #E5EAF2",
           display: "flex", alignItems: "center", gap: 10, padding: "0 14px",
         }}
       >
         <button
           onClick={() => setDrawerOpen(true)}
-          style={{ width: 32, height: 32, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", color: "#5B6478", background: "transparent", border: "none", cursor: "pointer" }}
-          onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.06)")}
+          style={{ width: 32, height: 32, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", color: "#667085", background: "transparent", border: "none", cursor: "pointer" }}
+          onMouseEnter={e => (e.currentTarget.style.background = "#F4F6FA")}
           onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
         >
           <Menu size={18} />
         </button>
-        <span style={{ flex: 1, fontWeight: 600, fontSize: 13.5, color: "#F1F5F9" }}>{currentPageName}</span>
+        <span style={{ flex: 1, fontWeight: 600, fontSize: 13.5, color: "#1F2937" }}>{currentPageName}</span>
         {pushReady && <BellButton subscribed={subscribed} loading={loading} subscribe={subscribe} unsubscribe={unsubscribe} />}
         {iosDevice && !standalone && (
           <button onClick={dismissIosBanner}
-            style={{ width: 30, height: 30, borderRadius: 8, background: "rgba(249,115,22,0.15)", color: "#FB923C", border: "none", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+            style={{ width: 30, height: 30, borderRadius: 8, background: "#FFF4EC", color: "#C2570E", border: "none", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
             <PlusSquare size={14} />
           </button>
         )}
@@ -261,7 +261,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
       <div
         className="md:hidden"
         style={{
-          position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,0.60)",
+          position: "fixed", inset: 0, zIndex: 50, background: "rgba(15,23,42,0.40)",
           transition: "opacity 200ms", opacity: drawerOpen ? 1 : 0,
           pointerEvents: drawerOpen ? "auto" : "none",
         }}
@@ -269,55 +269,55 @@ export function AdminLayout({ children }: { children: ReactNode }) {
       />
 
       {/* ══════════════════════════════════════════════════════════
-          MOBILE DRAWER — dark sidebar
+          MOBILE DRAWER — light sidebar (slides from left)
       ══════════════════════════════════════════════════════════ */}
       <div
         ref={drawerRef}
         className="md:hidden"
         style={{
-          position: "fixed", top: 0, right: 0, bottom: 0, zIndex: 51, width: 256,
-          background: "#17191E", borderLeft: "1px solid rgba(255,255,255,0.06)",
-          boxShadow: "-8px 0 32px rgba(0,0,0,0.35)",
+          position: "fixed", top: 0, left: 0, bottom: 0, zIndex: 51, width: 256,
+          background: "#FFFFFF", borderRight: "1px solid #E5EAF2",
+          boxShadow: "8px 0 32px rgba(15,23,42,0.12)",
           display: "flex", flexDirection: "column",
-          transform: drawerOpen ? "translateX(0)" : "translateX(100%)",
+          transform: drawerOpen ? "translateX(0)" : "translateX(-100%)",
           transition: "transform 220ms cubic-bezier(.4,0,.2,1)",
         }}
       >
         {/* Drawer header */}
-        <div style={{ padding: "14px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ padding: "14px 14px", borderBottom: "1px solid #EEF2F7", display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ flex: 1 }}>
-            <p style={{ fontWeight: 700, fontSize: 13.5, color: "#F1F5F9" }}>GAB School</p>
-            <p style={{ fontSize: 11, color: "#5B6478", marginTop: 1 }}>{admin.username}</p>
+            <p style={{ fontWeight: 700, fontSize: 13.5, color: "#1E293B" }}>GAB School</p>
+            <p style={{ fontSize: 11, color: "#94A3B8", marginTop: 1 }}>{admin.username}</p>
           </div>
           {pushReady && <BellButton subscribed={subscribed} loading={loading} subscribe={subscribe} unsubscribe={unsubscribe} />}
           <button onClick={() => setDrawerOpen(false)}
-            style={{ width: 28, height: 28, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", color: "#4B5563", border: "none", background: "transparent", cursor: "pointer" }}
-            onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.06)")}
+            style={{ width: 28, height: 28, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", color: "#98A2B3", border: "none", background: "transparent", cursor: "pointer" }}
+            onMouseEnter={e => (e.currentTarget.style.background = "#F4F6FA")}
             onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
             <X size={15} />
           </button>
         </div>
 
         {pushReady && subscribed === false && (
-          <div className="ad-push-hint"><Bell size={12} style={{ flexShrink: 0, marginTop: 1 }} /><span>اضغط على الجرس لتلقّي إشعار عند كل تسجيل جديد</span></div>
+          <div className="ad-push-hint"><Bell size={12} style={{ flexShrink: 0, marginTop: 1 }} /><span>Activez la cloche pour recevoir une alerte à chaque inscription</span></div>
         )}
         {iosDevice && !standalone && (
-          <div className="ad-ios-hint"><Share size={12} style={{ flexShrink: 0, marginTop: 1 }} /><span>ثبّت التطبيق أولاً لتفعيل الإشعارات</span></div>
+          <div className="ad-ios-hint"><Share size={12} style={{ flexShrink: 0, marginTop: 1 }} /><span>Installez d'abord l'application pour activer les notifications</span></div>
         )}
 
         <nav style={{ flex: 1, padding: "10px 8px", overflowY: "auto", display: "flex", flexDirection: "column", gap: 1 }}>
           <NavLinks location={location} onNavigate={() => setDrawerOpen(false)} />
         </nav>
 
-        <div style={{ padding: "8px 8px 14px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+        <div style={{ padding: "8px 8px 14px", borderTop: "1px solid #EEF2F7" }}>
           <button className="ad-sidebar-logout" onClick={() => { setDrawerOpen(false); adminLogout(); }}>
-            <LogOut size={14} className="ad-nav-icon" />تسجيل الخروج
+            <LogOut size={14} className="ad-nav-icon" />Se déconnecter
           </button>
         </div>
       </div>
 
       {/* ══════════════════════════════════════════════════════════
-          DESKTOP SIDEBAR — dark navy
+          DESKTOP SIDEBAR — light
       ══════════════════════════════════════════════════════════ */}
       <aside className="ad-sidebar hidden md:flex">
         <div className="ad-sidebar-brand">
@@ -329,16 +329,16 @@ export function AdminLayout({ children }: { children: ReactNode }) {
         </div>
 
         {pushReady && subscribed === false && (
-          <div className="ad-push-hint"><Bell size={12} style={{ flexShrink: 0, marginTop: 1 }} /><span>اضغط على الجرس لتلقّي إشعار عند كل تسجيل</span></div>
+          <div className="ad-push-hint"><Bell size={12} style={{ flexShrink: 0, marginTop: 1 }} /><span>Activez la cloche pour recevoir une alerte à chaque inscription</span></div>
         )}
 
         <nav style={{ flex: 1, padding: "10px 8px", overflowY: "auto", display: "flex", flexDirection: "column", gap: 1 }}>
           <NavLinks location={location} />
         </nav>
 
-        <div style={{ padding: "8px 8px 16px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+        <div style={{ padding: "8px 8px 16px", borderTop: "1px solid #EEF2F7" }}>
           <button className="ad-sidebar-logout" onClick={adminLogout}>
-            <LogOut size={14} className="ad-nav-icon" />تسجيل الخروج
+            <LogOut size={14} className="ad-nav-icon" />Se déconnecter
           </button>
         </div>
       </aside>
@@ -356,21 +356,21 @@ export function AdminLayout({ children }: { children: ReactNode }) {
       </main>
 
       {/* ══════════════════════════════════════════════════════════
-          iOS BANNER
+          iOS BANNER — light
       ══════════════════════════════════════════════════════════ */}
       {showIosBanner && (
-        <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 50, background: "#17191E", borderTop: "1px solid rgba(255,255,255,0.06)", padding: 16, boxShadow: "0 -8px 32px rgba(0,0,0,0.4)" }}>
-          <button onClick={dismissIosBanner} style={{ position: "absolute", top: 12, left: 12, color: "#4B5563", background: "transparent", border: "none", cursor: "pointer" }}>
+        <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 50, background: "#FFFFFF", borderTop: "1px solid #E5EAF2", padding: 16, boxShadow: "0 -8px 32px rgba(15,23,42,0.10)" }}>
+          <button onClick={dismissIosBanner} style={{ position: "absolute", top: 12, right: 12, color: "#98A2B3", background: "transparent", border: "none", cursor: "pointer" }}>
             <X size={15} />
           </button>
-          <div style={{ display: "flex", gap: 12, paddingLeft: 28 }}>
-            <div style={{ width: 34, height: 34, borderRadius: 9, background: "rgba(249,115,22,0.15)", border: "1px solid rgba(249,115,22,0.25)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <div style={{ display: "flex", gap: 12, paddingRight: 28 }}>
+            <div style={{ width: 34, height: 34, borderRadius: 9, background: "#FFF4EC", border: "1px solid #F5CBA8", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <PlusSquare size={16} color="#F97316" />
             </div>
             <div>
-              <p style={{ fontWeight: 600, fontSize: 13, color: "#F1F5F9", marginBottom: 3 }}>ثبّت لوحة التحكم</p>
-              <p style={{ fontSize: 11.5, color: "#5B6478", lineHeight: 1.5 }}>
-                اضغط <Share size={11} style={{ display: "inline", verticalAlign: "middle" }} /> ثم <strong style={{ color: "#94A3B8" }}>"Add to Home Screen"</strong>
+              <p style={{ fontWeight: 600, fontSize: 13, color: "#1F2937", marginBottom: 3 }}>Installer le panneau d'administration</p>
+              <p style={{ fontSize: 11.5, color: "#667085", lineHeight: 1.5 }}>
+                Appuyez sur <Share size={11} style={{ display: "inline", verticalAlign: "middle" }} /> puis <strong style={{ color: "#344054" }}>« Sur l'écran d'accueil »</strong>
               </p>
             </div>
           </div>

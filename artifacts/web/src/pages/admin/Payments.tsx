@@ -95,7 +95,7 @@ export function AdminPayments() {
   };
 
   return (
-    <div className="space-y-6">
+    <div dir="rtl" className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">طلبات الدفع</h1>
         <Button variant="secondary" onClick={fetchSubmissions} disabled={loading}>

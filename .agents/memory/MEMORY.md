@@ -1,5 +1,7 @@
 # Memory Index
 
+- [Admin French/LTR light v4](admin-french-ltr-v4.md) — admin panel is light theme + French + LTR (dark sidebar rejected); still-Arabic admin pages need root dir="rtl" guard.
+
 - [S3 adapter write pitfall](s3-adapter-write-pitfall.md) — createWriteStream "finish" fires before MinIO upload completes, hiding errors; use putBuffer/upload.done(); img-optimize worker notes.
 
 - [VPS Dokploy ops](vps-dokploy-ops.md) — Dokploy env panel edits may not reach swarm; fix via docker service update, but redeploys revert it; VPS videos stream LIVE from Drive by owner decision.

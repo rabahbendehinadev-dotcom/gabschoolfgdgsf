@@ -47,7 +47,7 @@ export function AdminChangePassword() {
   };
 
   return (
-    <div className="max-w-lg mx-auto">
+    <div dir="rtl" className="max-w-lg mx-auto">
       <div className="mb-8 flex items-center gap-3">
         <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center text-primary">
           <KeyRound className="w-5 h-5" />

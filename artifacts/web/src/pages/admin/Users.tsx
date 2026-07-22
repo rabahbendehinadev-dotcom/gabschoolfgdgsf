@@ -24,6 +24,7 @@ type NotifFilter = "all" | "enabled" | "disabled";
 type ExtendedAdminUser = AdminUser & {
   fullName: string | null; lastVisitAt: string | null; deviceCount: number;
   courses: { playlistId: number; title: string }[]; subscriptionStartedAt: string | null;
+  phone?: string | null;
 };
 interface UserStats {
   total: number; vip: number; expired: number; expiringSoon: number;
@@ -43,13 +44,13 @@ function normalizeWA(phone: string) {
 function timeAgo(iso: string | null) {
   if (!iso) return "—";
   const d = Date.now() - new Date(iso).getTime(), m = Math.floor(d / 60000);
-  if (m < 1) return "الآن";
-  if (m < 60) return `${m}د`;
+  if (m < 1) return "maintenant";
+  if (m < 60) return `${m} min`;
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}س`;
+  if (h < 24) return `${h} h`;
   const dy = Math.floor(h / 24);
-  if (dy < 30) return `${dy}ي`;
-  return `${Math.floor(dy / 30)}ش`;
+  if (dy < 30) return `${dy} j`;
+  return `${Math.floor(dy / 30)} mois`;
 }
 function isActiveVip(u: ExtendedAdminUser) {
   return u.accountType === "vip" && (!u.subscriptionExpiresAt || new Date(u.subscriptionExpiresAt) > new Date());
@@ -66,13 +67,13 @@ function isExpiringSoon(u: ExtendedAdminUser) {
 /* ── Badges ───────────────────────────────────────────────────────────── */
 function AccountBadge({ user }: { user: ExtendedAdminUser }) {
   if (isActiveVip(user))  return <span className="ad-badge ad-badge-vip"><Crown size={9} />VIP</span>;
-  if (isExpiredVip(user)) return <span className="ad-badge ad-badge-expired">منتهي</span>;
-  return <span className="ad-badge ad-badge-normal">عادي</span>;
+  if (isExpiredVip(user)) return <span className="ad-badge ad-badge-expired">Expiré</span>;
+  return <span className="ad-badge ad-badge-normal">Standard</span>;
 }
 function StatusBadge({ isActive }: { isActive: boolean }) {
   return isActive
-    ? <span className="ad-badge ad-badge-active">نشط</span>
-    : <span className="ad-badge ad-badge-blocked">محظور</span>;
+    ? <span className="ad-badge ad-badge-active">Actif</span>
+    : <span className="ad-badge ad-badge-blocked">Bloqué</span>;
 }
 
 /* ── Sort icon ────────────────────────────────────────────────────────── */
@@ -82,17 +83,17 @@ function SortIco({ field, sortBy, sortDir }: { field: SortField; sortBy: SortFie
 }
 
 const BULK = [
-  { v: "grant_vip",           l: "منح VIP (365 يوم)" },
-  { v: "revoke_vip",          l: "إلغاء VIP" },
-  { v: "extend_subscription", l: "تمديد 30 يوم" },
-  { v: "grant_course",        l: "منح دورة..." },
-  { v: "revoke_course",       l: "إلغاء دورة..." },
-  { v: "reset_ip",            l: "تصفير IP" },
-  { v: "block",               l: "حظر" },
-  { v: "unblock",             l: "رفع الحظر" },
+  { v: "grant_vip",           l: "Accorder VIP (365 j)" },
+  { v: "revoke_vip",          l: "Retirer VIP" },
+  { v: "extend_subscription", l: "Prolonger de 30 j" },
+  { v: "grant_course",        l: "Accorder un cours…" },
+  { v: "revoke_course",       l: "Retirer un cours…" },
+  { v: "reset_ip",            l: "Réinitialiser IP" },
+  { v: "block",               l: "Bloquer" },
+  { v: "unblock",             l: "Débloquer" },
 ];
 const STATUS_LABELS: Record<StatusFilter, string> = {
-  all:"الكل", vip:"VIP", expired:"منتهي", expiring:"قريب", nonvip:"عادي", active:"نشط", blocked:"محظور", new:"جديد",
+  all:"Tous", vip:"VIP", expired:"Expiré", expiring:"Bientôt", nonvip:"Standard", active:"Actif", blocked:"Bloqué", new:"Nouveau",
 };
 
 /* ══════════════════════════════════════════════════════════════════════ */
@@ -166,7 +167,7 @@ export function AdminUsers() {
     }
     return [...r].sort((a, b) => {
       let c = 0;
-      if (sortBy === "username")    c = a.username.localeCompare(b.username, "ar");
+      if (sortBy === "username")    c = a.username.localeCompare(b.username, "fr");
       else if (sortBy === "createdAt") c = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
       else if (sortBy === "lastVisitAt") c = (a.lastVisitAt ?? "").localeCompare(b.lastVisitAt ?? "");
       else if (sortBy === "subscriptionExpiresAt") c = (a.subscriptionExpiresAt ?? "").localeCompare(b.subscriptionExpiresAt ?? "");
@@ -193,7 +194,7 @@ export function AdminUsers() {
   const handleBulk = async () => {
     if (!bulkAction || selectedIds.size === 0) return;
     const needsPl = bulkAction === "grant_course" || bulkAction === "revoke_course";
-    if (needsPl && !bulkPl) { toast({ title: "اختر دورة أولاً", variant: "destructive" }); return; }
+    if (needsPl && !bulkPl) { toast({ title: "Sélectionnez d'abord un cours", variant: "destructive" }); return; }
     setBulkLoading(true);
     try {
       const h = getAdminAuthHeaders()?.headers as Record<string, string> | undefined;
@@ -205,19 +206,19 @@ export function AdminUsers() {
         method: "POST", headers: { ...h, "Content-Type": "application/json" }, body: JSON.stringify(body),
       });
       const data = await res.json() as { affected?: number; message?: string };
-      if (!res.ok) throw new Error(data.message ?? "فشل");
-      toast({ title: `تم تطبيق العملية على ${data.affected ?? selectedIds.size} مستخدم` });
+      if (!res.ok) throw new Error(data.message ?? "Échec");
+      toast({ title: `Action appliquée à ${data.affected ?? selectedIds.size} utilisateur(s)` });
       deselAll(); setBulkAction(""); refetch(); fetchStats();
-    } catch (e) { toast({ title: e instanceof Error ? e.message : "خطأ", variant: "destructive" }); }
+    } catch (e) { toast({ title: e instanceof Error ? e.message : "Erreur", variant: "destructive" }); }
     finally { setBulkLoading(false); }
   };
 
   const handleExport = () => {
     const rows = selectedIds.size > 0 ? filtered.filter(u => selectedIds.has(u.id)) : filtered;
     const csv = [
-      ["ID","اسم المستخدم","البريد","الهاتف","الحساب","الاشتراك","الانتهاء","الحالة","الدورات","آخر دخول","التسجيل"].join(","),
+      ["ID","Utilisateur","E-mail","Téléphone","Compte","Abonnement","Expiration","Statut","Cours","Dernière visite","Inscription"].join(","),
       ...rows.map(u => [u.id,u.username,u.email,u.phone??"",u.accountType,u.subscriptionType,u.subscriptionExpiresAt??"",
-        u.isActive?"نشط":"محظور",u.courses.map(c=>c.title).join("|"),u.lastVisitAt??"",u.createdAt]
+        u.isActive?"Actif":"Bloqué",u.courses.map(c=>c.title).join("|"),u.lastVisitAt??"",u.createdAt]
         .map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")),
     ].join("\n");
     const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(new Blob(["\uFEFF"+csv], { type: "text/csv;charset=utf-8;" })), download: "users.csv" });
@@ -228,11 +229,11 @@ export function AdminUsers() {
     setTestingId(user.id);
     try {
       const r = await testPushMut.mutateAsync({ id: user.id });
-      if (r.attempted === 0) toast({ title: "لا يوجد اشتراك", variant: "destructive" });
-      else if (r.success > 0) toast({ title: `${r.success}/${r.attempted} جهاز ✓` });
-      else toast({ title: "فشل الإرسال", variant: "destructive" });
+      if (r.attempted === 0) toast({ title: "Aucun abonnement aux notifications", variant: "destructive" });
+      else if (r.success > 0) toast({ title: `${r.success}/${r.attempted} appareil(s) ✓` });
+      else toast({ title: "Échec de l'envoi", variant: "destructive" });
       refetch();
-    } catch { toast({ title: "تعذّر الإرسال", variant: "destructive" }); }
+    } catch { toast({ title: "Envoi impossible", variant: "destructive" }); }
     finally { setTestingId(null); }
   };
 
@@ -256,35 +257,35 @@ export function AdminUsers() {
       });
     } catch { /* ignore */ }
     updateMut.mutate({ id: editingUser.id, data: formData }, {
-      onSuccess: () => { toast({ title: "تم الحفظ" }); setEditingUser(null); refetch(); fetchStats(); },
+      onSuccess: () => { toast({ title: "Enregistré" }); setEditingUser(null); refetch(); fetchStats(); },
     });
   };
 
   const confirmResetIp = () => {
     if (!resetIpId) return;
     resetIpMut.mutate({ id: resetIpId }, {
-      onSuccess: () => { toast({ title: "تم تصفير IP" }); refetch(); setResetIpId(null); },
-      onError: () => { toast({ title: "خطأ", variant: "destructive" }); setResetIpId(null); },
+      onSuccess: () => { toast({ title: "IP réinitialisée" }); refetch(); setResetIpId(null); },
+      onError: () => { toast({ title: "Erreur", variant: "destructive" }); setResetIpId(null); },
     });
   };
 
   const handleBlock = async (user: ExtendedAdminUser) => {
-    if (!confirm("هل أنت متأكد؟")) return;
+    if (!confirm("Êtes-vous sûr ?")) return;
     setLoadingId(user.id);
     try {
       const h = getAdminAuthHeaders()?.headers || {};
       const res = await fetch(`/api/admin/users/${user.id}/block`, { method: "POST", headers: h as HeadersInit });
       if (!res.ok) throw new Error();
-      toast({ title: user.isActive ? "تم الحظر" : "تم رفع الحظر" });
+      toast({ title: user.isActive ? "Utilisateur bloqué" : "Utilisateur débloqué" });
       refetch(); fetchStats();
-    } catch { toast({ title: "خطأ", variant: "destructive" }); }
+    } catch { toast({ title: "Erreur", variant: "destructive" }); }
     finally { setLoadingId(null); }
   };
 
   const handleResetPw = async () => {
     setResetPwError(""); setResetPwSuccess("");
-    if (resetPwForm.newPassword !== resetPwForm.confirmPassword) { setResetPwError("كلمتا المرور غير متطابقتين"); return; }
-    if (resetPwForm.newPassword.length < 6) { setResetPwError("6 أحرف على الأقل"); return; }
+    if (resetPwForm.newPassword !== resetPwForm.confirmPassword) { setResetPwError("Les mots de passe ne correspondent pas"); return; }
+    if (resetPwForm.newPassword.length < 6) { setResetPwError("6 caractères minimum"); return; }
     setResetPwLoading(true);
     try {
       const token = localStorage.getItem("adminToken");
@@ -293,18 +294,18 @@ export function AdminUsers() {
         body: JSON.stringify({ newPassword: resetPwForm.newPassword }),
       });
       const data = await res.json() as { message?: string };
-      if (!res.ok) throw new Error(data.message || "خطأ");
-      setResetPwSuccess("تم التغيير بنجاح"); setResetPwForm({ newPassword: "", confirmPassword: "" });
-    } catch (err) { setResetPwError(err instanceof Error ? err.message : "خطأ"); }
+      if (!res.ok) throw new Error(data.message || "Erreur");
+      setResetPwSuccess("Mot de passe modifié avec succès"); setResetPwForm({ newPassword: "", confirmPassword: "" });
+    } catch (err) { setResetPwError(err instanceof Error ? err.message : "Erreur"); }
     finally { setResetPwLoading(false); }
   };
 
   const handleDelete = (user: ExtendedAdminUser) => {
-    if (!confirm(`حذف ${user.username} نهائيًا؟`)) return;
+    if (!confirm(`Supprimer ${user.username} définitivement ?`)) return;
     setLoadingId(user.id);
     deleteMut.mutate({ id: user.id }, {
-      onSuccess: () => { toast({ title: "تم الحذف" }); refetch(); fetchStats(); setLoadingId(null); },
-      onError: () => { toast({ title: "خطأ", variant: "destructive" }); setLoadingId(null); },
+      onSuccess: () => { toast({ title: "Utilisateur supprimé" }); refetch(); fetchStats(); setLoadingId(null); },
+      onError: () => { toast({ title: "Erreur", variant: "destructive" }); setLoadingId(null); },
     });
   };
 
@@ -312,41 +313,41 @@ export function AdminUsers() {
 
   /* ── STAT CARDS ──────────────────────────────────────────────────── */
   const statCards = [
-    { label: "الإجمالي",       v: stats?.total       ?? "—", on: () => { setStatusFilter("all"); setCourseFilter("all"); } },
-    { label: "VIP نشط",        v: stats?.vip          ?? "—", on: () => setStatusFilter("vip") },
-    { label: "غير VIP",        v: stats?.nonVip       ?? "—", on: () => setStatusFilter("nonvip") },
-    { label: "منتهي",          v: stats?.expired      ?? "—", on: () => setStatusFilter("expired") },
-    { label: "قريب الانتهاء",  v: stats?.expiringSoon ?? "—", on: () => setStatusFilter("expiring") },
-    { label: "جديد (30ي)",     v: stats?.newUsers     ?? "—", on: () => setStatusFilter("new") },
-    { label: "محظور",          v: stats?.blocked      ?? "—", on: () => setStatusFilter("blocked") },
-    { label: "إشعارات فعّالة", v: notifStats?.enabled ?? "—", on: () => setNotifFilter("enabled") },
+    { label: "Total",             v: stats?.total       ?? "—", on: () => { setStatusFilter("all"); setCourseFilter("all"); } },
+    { label: "VIP actifs",        v: stats?.vip          ?? "—", on: () => setStatusFilter("vip") },
+    { label: "Non-VIP",           v: stats?.nonVip       ?? "—", on: () => setStatusFilter("nonvip") },
+    { label: "Expirés",           v: stats?.expired      ?? "—", on: () => setStatusFilter("expired") },
+    { label: "Expirent bientôt",  v: stats?.expiringSoon ?? "—", on: () => setStatusFilter("expiring") },
+    { label: "Nouveaux (30 j)",   v: stats?.newUsers     ?? "—", on: () => setStatusFilter("new") },
+    { label: "Bloqués",           v: stats?.blocked      ?? "—", on: () => setStatusFilter("blocked") },
+    { label: "Notifs actives",    v: notifStats?.enabled ?? "—", on: () => setNotifFilter("enabled") },
   ];
 
   /* ════════════════════════════════════════════════════════════════ */
   return (
     <TooltipProvider delayDuration={120}>
-      <div dir="rtl" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <div dir="ltr" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
 
         {/* HEADER */}
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
           <div>
-            <h1 style={{ fontSize: 20, fontWeight: 700, color: "#0F172A", lineHeight: 1.2 }}>إدارة المستخدمين</h1>
-            <p style={{ fontSize: 13, color: "#64748B", marginTop: 3 }}>
-              {filtered.length} مستخدم{filtered.length !== (users?.length ?? 0) ? ` من أصل ${users?.length ?? 0}` : ""}
+            <h1 style={{ fontSize: 20, fontWeight: 700, color: "#1F2937", lineHeight: 1.2 }}>Gestion des utilisateurs</h1>
+            <p style={{ fontSize: 13, color: "#667085", marginTop: 3 }}>
+              {filtered.length} utilisateur{filtered.length > 1 ? "s" : ""}{filtered.length !== (users?.length ?? 0) ? ` sur ${users?.length ?? 0}` : ""}
             </p>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button type="button" onClick={() => { refetch(); fetchStats(); }} disabled={isFetching} className="ad-btn-sm">
-              <RefreshCcw size={13} className={isFetching ? "animate-spin" : ""} />تحديث
+              <RefreshCcw size={13} className={isFetching ? "animate-spin" : ""} />Actualiser
             </button>
             <button type="button" onClick={handleExport} className="ad-btn-sm">
-              <Download size={13} />تصدير CSV
+              <Download size={13} />Exporter CSV
             </button>
           </div>
         </div>
 
         {/* STAT CARDS */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: 10 }}>
           {statCards.map(c => (
             <button key={c.label} type="button" onClick={c.on} className="ad-stat">
               <div className="ad-stat-value">{c.v}</div>
@@ -358,11 +359,11 @@ export function AdminUsers() {
         {/* COURSE TABS */}
         {allPlaylists && allPlaylists.length > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
-            <span style={{ fontSize: 11, color: "#94A3B8", display: "flex", alignItems: "center", gap: 4, marginLeft: 2 }}>
-              <BookOpen size={12} />الدورة:
+            <span style={{ fontSize: 11, color: "#94A3B8", display: "flex", alignItems: "center", gap: 4, marginRight: 2 }}>
+              <BookOpen size={12} />Cours :
             </span>
             <button type="button" onClick={() => setCourseFilter("all")} className={`ad-course-tab${courseFilter === "all" ? " active" : ""}`}>
-              الكل
+              Tous
               <CountPill count={users?.length ?? 0} active={courseFilter === "all"} />
             </button>
             {allPlaylists.map(pl => {
@@ -381,9 +382,9 @@ export function AdminUsers() {
         {/* FILTER BAR */}
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
           <div style={{ position: "relative", flex: 1, minWidth: 220 }}>
-            <Search size={14} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", color: "#94A3B8", pointerEvents: "none" }} />
-            <input type="text" placeholder="بحث بالاسم أو البريد أو الهاتف..." value={search}
-              onChange={e => setSearch(e.target.value)} className="ad-input" style={{ paddingRight: 32 }} />
+            <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#98A2B3", pointerEvents: "none" }} />
+            <input type="text" placeholder="Rechercher par nom, e-mail ou téléphone…" value={search}
+              onChange={e => setSearch(e.target.value)} className="ad-input" style={{ paddingLeft: 32 }} />
           </div>
           <ChipGroup>
             {(Object.keys(STATUS_LABELS) as StatusFilter[]).map(v => (
@@ -397,7 +398,7 @@ export function AdminUsers() {
               <button key={v} type="button" onClick={() => setNotifFilter(v)} className={`ad-chip ${notifFilter === v ? "ad-chip-on" : "ad-chip-off"}`}>
                 {v === "enabled" && <BellRing size={11} />}
                 {v === "disabled" && <BellOff size={11} />}
-                {v === "all" ? "الكل" : v === "enabled" ? "إشعارات" : "بدون"}
+                {v === "all" ? "Toutes" : v === "enabled" ? "Notifs" : "Sans"}
               </button>
             ))}
           </ChipGroup>
@@ -406,23 +407,23 @@ export function AdminUsers() {
         {/* BULK BAR */}
         {selectedIds.size > 0 && (
           <div className="ad-bulk-bar">
-            <span style={{ fontSize: 13, fontWeight: 600, color: "#C2570E" }}>{selectedIds.size} محدد</span>
-            <button type="button" onClick={deselAll} style={{ fontSize: 11, color: "#9CA3AF", display: "flex", alignItems: "center", gap: 3, background: "none", border: "none", cursor: "pointer" }}>
-              <X size={11} />إلغاء
+            <span style={{ fontSize: 13, fontWeight: 600, color: "#C2570E" }}>{selectedIds.size} sélectionné{selectedIds.size > 1 ? "s" : ""}</span>
+            <button type="button" onClick={deselAll} style={{ fontSize: 11, color: "#98A2B3", display: "flex", alignItems: "center", gap: 3, background: "none", border: "none", cursor: "pointer" }}>
+              <X size={11} />Effacer
             </button>
-            <div style={{ width: 1, height: 16, background: "rgba(249,115,22,0.25)" }} />
+            <div style={{ width: 1, height: 16, background: "#F5CBA8" }} />
             <select className="ad-select" value={bulkAction} onChange={e => setBulkAction(e.target.value)}>
-              <option value="">اختر عملية...</option>
+              <option value="">Choisir une action…</option>
               {BULK.map(a => <option key={a.v} value={a.v}>{a.l}</option>)}
             </select>
             {(bulkAction === "grant_course" || bulkAction === "revoke_course") && (
               <select className="ad-select" value={bulkPl} onChange={e => setBulkPl(e.target.value ? Number(e.target.value) : "")}>
-                <option value="">الدورة...</option>
+                <option value="">Cours…</option>
                 {allPlaylists?.map(pl => <option key={pl.id} value={pl.id}>{pl.title}</option>)}
               </select>
             )}
             <button type="button" onClick={handleBulk} disabled={!bulkAction || bulkLoading} className="ad-btn-primary">
-              {bulkLoading && <Loader2 size={12} className="animate-spin" />}تطبيق
+              {bulkLoading && <Loader2 size={12} className="animate-spin" />}Appliquer
             </button>
           </div>
         )}
@@ -434,14 +435,14 @@ export function AdminUsers() {
             return (
               <div key={user.id} className="ad-card" style={{
                 padding: "14px 16px", opacity: user.isActive ? 1 : 0.65,
-                boxShadow: sel ? "inset 3px 0 0 #F97316, 0 1px 4px rgba(15,23,42,0.06)" : undefined,
-                background: sel ? "#FFF8F3" : "#fff",
+                boxShadow: sel ? "inset 3px 0 0 #F97316, 0 1px 4px rgba(16,24,40,0.06)" : undefined,
+                background: sel ? "#FFF7EF" : "#fff",
               }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 10 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
                     <Chk checked={sel} onChange={() => toggleSel(user.id)} />
                     <div>
-                      <button type="button" onClick={() => setDetailId(user.id)} style={{ fontWeight: 600, fontSize: 14, color: "#0F172A", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+                      <button type="button" onClick={() => setDetailId(user.id)} style={{ fontWeight: 600, fontSize: 14, color: "#1F2937", background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left" }}>
                         {user.username}
                       </button>
                       <div style={{ fontSize: 11, color: "#94A3B8" }}>{user.email}</div>
@@ -457,17 +458,17 @@ export function AdminUsers() {
                   </div>
                 )}
                 <div style={{ fontSize: 11, color: "#94A3B8", marginBottom: 10 }}>
-                  {user.lastVisitAt && <span>آخر دخول: {timeAgo(user.lastVisitAt)} · </span>}
-                  <span>مسجّل: {formatDate(user.createdAt)}</span>
+                  {user.lastVisitAt && <span>Dernière visite : {timeAgo(user.lastVisitAt)} · </span>}
+                  <span>Inscrit : {formatDate(user.createdAt)}</span>
                 </div>
-                <div style={{ display: "flex", gap: 2, paddingTop: 10, borderTop: "1px solid #F3F4F7" }}>
-                  <IBtn tip="تفاصيل"      onClick={() => setDetailId(user.id)}><Eye size={14} /></IBtn>
-                  <IBtn tip="تعديل"       onClick={() => handleEdit(user)}><Edit size={14} /></IBtn>
-                  <IBtn tip="كلمة المرور" onClick={() => { setResetPwUser(user); setResetPwError(""); setResetPwSuccess(""); setShowPw(false); setShowPwConfirm(false); setResetPwForm({ newPassword: "", confirmPassword: "" }); }}><KeyRound size={14} /></IBtn>
-                  <IBtn tip={user.isActive?"حظر":"رفع الحظر"} onClick={() => handleBlock(user)} disabled={loadingId===user.id}>
+                <div style={{ display: "flex", gap: 2, paddingTop: 10, borderTop: "1px solid #EEF2F7" }}>
+                  <IBtn tip="Détails"       onClick={() => setDetailId(user.id)}><Eye size={14} /></IBtn>
+                  <IBtn tip="Modifier"      onClick={() => handleEdit(user)}><Edit size={14} /></IBtn>
+                  <IBtn tip="Mot de passe"  onClick={() => { setResetPwUser(user); setResetPwError(""); setResetPwSuccess(""); setShowPw(false); setShowPwConfirm(false); setResetPwForm({ newPassword: "", confirmPassword: "" }); }}><KeyRound size={14} /></IBtn>
+                  <IBtn tip={user.isActive?"Bloquer":"Débloquer"} onClick={() => handleBlock(user)} disabled={loadingId===user.id}>
                     {user.isActive ? <ShieldOff size={14} /> : <ShieldCheck size={14} />}
                   </IBtn>
-                  <IBtn tip="حذف" danger onClick={() => handleDelete(user)} disabled={loadingId===user.id}><Trash2 size={14} /></IBtn>
+                  <IBtn tip="Supprimer" danger onClick={() => handleDelete(user)} disabled={loadingId===user.id}><Trash2 size={14} /></IBtn>
                 </div>
               </div>
             );
@@ -478,23 +479,23 @@ export function AdminUsers() {
         {/* ── DESKTOP TABLE ───────────────────────────────────────── */}
         <div className="hidden md:block ad-table-wrap">
           <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, textAlign: "right" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, textAlign: "left" }}>
               <thead>
                 <tr>
                   <th className="ad-th" style={{ width: 44 }}>
                     <Chk checked={allSel} onChange={allSel ? deselAll : selAll} />
                   </th>
-                  <TH onClick={() => toggleSort("username")} sort={<SortIco field="username" sortBy={sortBy} sortDir={sortDir} />}>المستخدم</TH>
-                  <TH>الهاتف</TH>
-                  <TH>الدورات</TH>
-                  <TH>الحساب</TH>
-                  <TH onClick={() => toggleSort("subscriptionExpiresAt")} sort={<SortIco field="subscriptionExpiresAt" sortBy={sortBy} sortDir={sortDir} />}>الاشتراك</TH>
-                  <TH onClick={() => toggleSort("lastVisitAt")} sort={<SortIco field="lastVisitAt" sortBy={sortBy} sortDir={sortDir} />}>آخر دخول</TH>
-                  <TH onClick={() => toggleSort("createdAt")} sort={<SortIco field="createdAt" sortBy={sortBy} sortDir={sortDir} />}>التسجيل</TH>
-                  <TH>الأجهزة</TH>
+                  <TH onClick={() => toggleSort("username")} sort={<SortIco field="username" sortBy={sortBy} sortDir={sortDir} />}>Utilisateur</TH>
+                  <TH>Téléphone</TH>
+                  <TH>Cours</TH>
+                  <TH>Compte</TH>
+                  <TH onClick={() => toggleSort("subscriptionExpiresAt")} sort={<SortIco field="subscriptionExpiresAt" sortBy={sortBy} sortDir={sortDir} />}>Abonnement</TH>
+                  <TH onClick={() => toggleSort("lastVisitAt")} sort={<SortIco field="lastVisitAt" sortBy={sortBy} sortDir={sortDir} />}>Dernière visite</TH>
+                  <TH onClick={() => toggleSort("createdAt")} sort={<SortIco field="createdAt" sortBy={sortBy} sortDir={sortDir} />}>Inscription</TH>
+                  <TH>Appareils</TH>
                   <TH>IP</TH>
-                  <TH>الحالة</TH>
-                  <th className="ad-th" style={{ position: "sticky", left: 0, zIndex: 2, borderRight: "1.5px solid #E8EBF0" }}>إجراءات</th>
+                  <TH>Statut</TH>
+                  <th className="ad-th" style={{ position: "sticky", right: 0, zIndex: 2, borderLeft: "1px solid #E5EAF2" }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -502,15 +503,15 @@ export function AdminUsers() {
                   const expired  = isExpiredVip(user);
                   const expiring = isExpiringSoon(user);
                   const sel = selectedIds.has(user.id);
-                  const evenBg = "#ffffff", oddBg = "#FAFBFD", selBg = "#FFF8F3";
+                  const evenBg = "#ffffff", oddBg = "#FBFCFE", selBg = "#FFF7EF";
                   const rowBg = sel ? selBg : idx % 2 === 0 ? evenBg : oddBg;
                   return (
                     <tr key={user.id} className={`ad-tr ${sel ? "ad-tr-selected" : idx%2===0 ? "ad-tr-even" : "ad-tr-odd"}`}
                       style={{ opacity: user.isActive ? 1 : 0.6 }}>
                       <td className="ad-td"><Chk checked={sel} onChange={() => toggleSel(user.id)} /></td>
                       <td className="ad-td">
-                        <button type="button" onClick={() => setDetailId(user.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "right" }}>
-                          <div style={{ fontWeight: 600, color: "#0F172A", whiteSpace: "nowrap" }}>{user.username}</div>
+                        <button type="button" onClick={() => setDetailId(user.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left" }}>
+                          <div style={{ fontWeight: 600, color: "#1F2937", whiteSpace: "nowrap" }}>{user.username}</div>
                           <div style={{ fontSize: 11, color: "#94A3B8", maxWidth: 170, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.email}</div>
                           {user.fullName && <div style={{ fontSize: 10.5, color: "#94A3B8" }}>{user.fullName}</div>}
                         </button>
@@ -518,9 +519,9 @@ export function AdminUsers() {
                       <td className="ad-td">
                         {user.phone ? (
                           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                            <span style={{ fontSize: 11.5, fontFamily: "monospace", color: "#374151", whiteSpace: "nowrap" }} dir="ltr">{user.phone}</span>
+                            <span style={{ fontSize: 11.5, fontFamily: "monospace", color: "#344054", whiteSpace: "nowrap" }} dir="ltr">{user.phone}</span>
                             <a href={`https://wa.me/${normalizeWA(user.phone)}`} target="_blank" rel="noopener noreferrer"
-                              style={{ width: 22, height: 22, borderRadius: "50%", background: "#F0FDF4", border: "1px solid #86EFAC", display: "flex", alignItems: "center", justifyContent: "center", color: "#15803D", flexShrink: 0, textDecoration: "none" }}>
+                              style={{ width: 22, height: 22, borderRadius: "50%", background: "#EFFAF3", border: "1px solid #BFE5CD", display: "flex", alignItems: "center", justifyContent: "center", color: "#157347", flexShrink: 0, textDecoration: "none" }}>
                               <MessageCircle size={11} />
                             </a>
                           </div>
@@ -536,9 +537,9 @@ export function AdminUsers() {
                       <td className="ad-td"><AccountBadge user={user} /></td>
                       <td className="ad-td">
                         <div style={{ fontSize: 12 }}>
-                          <span style={{ color: "#6B7280" }}>{user.subscriptionType}</span>
+                          <span style={{ color: "#667085" }}>{user.subscriptionType}</span>
                           {user.subscriptionExpiresAt && (
-                            <div style={{ marginTop: 2, fontWeight: 600, fontSize: 11, color: expired ? "#B91C1C" : expiring ? "#B45309" : "#15803D" }}>
+                            <div style={{ marginTop: 2, fontWeight: 600, fontSize: 11, color: expired ? "#B42318" : expiring ? "#B45309" : "#157347" }}>
                               {formatDate(user.subscriptionExpiresAt)}
                             </div>
                           )}
@@ -548,21 +549,21 @@ export function AdminUsers() {
                         {user.lastVisitAt ? (
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "#6B7280", cursor: "default", whiteSpace: "nowrap" }}>
-                                <Clock size={12} color="#9CA3AF" />{timeAgo(user.lastVisitAt)}
+                              <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "#667085", cursor: "default", whiteSpace: "nowrap" }}>
+                                <Clock size={12} color="#98A2B3" />{timeAgo(user.lastVisitAt)}
                               </span>
                             </TooltipTrigger>
                             <TooltipContent style={{ fontSize: 11 }}>{formatDate(user.lastVisitAt)}</TooltipContent>
                           </Tooltip>
                         ) : <Dash />}
                       </td>
-                      <td className="ad-td" style={{ fontSize: 12, color: "#6B7280", whiteSpace: "nowrap" }}>{formatDate(user.createdAt)}</td>
+                      <td className="ad-td" style={{ fontSize: 12, color: "#667085", whiteSpace: "nowrap" }}>{formatDate(user.createdAt)}</td>
                       <td className="ad-td">
-                        <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "#6B7280" }}>
+                        <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "#667085" }}>
                           {user.deviceCount > 0 ? user.deviceCount : "—"}
-                          {user.pushState === "enabled" && <BellRing size={11} color="#15803D" />}
+                          {user.pushState === "enabled" && <BellRing size={11} color="#157347" />}
                           {user.pushState === "denied"  && <BellOff  size={11} color="#B45309" />}
-                          {user.pushState === "broken"  && <BellOff  size={11} color="#B91C1C" />}
+                          {user.pushState === "broken"  && <BellOff  size={11} color="#B42318" />}
                         </span>
                       </td>
                       <td className="ad-td">
@@ -576,19 +577,19 @@ export function AdminUsers() {
                         ) : <Dash />}
                       </td>
                       <td className="ad-td"><StatusBadge isActive={user.isActive} /></td>
-                      <td className="ad-td" style={{ position: "sticky", left: 0, background: rowBg, borderRight: "1.5px solid #E8EBF0", zIndex: 1 }}>
+                      <td className="ad-td" style={{ position: "sticky", right: 0, background: rowBg, borderLeft: "1px solid #E5EAF2", zIndex: 1 }}>
                         <div style={{ display: "flex", gap: 1 }}>
-                          <IBtn tip="تفاصيل"        onClick={() => setDetailId(user.id)}><Eye size={13} /></IBtn>
-                          <IBtn tip="تعديل"         onClick={() => handleEdit(user)}><Edit size={13} /></IBtn>
-                          <IBtn tip="كلمة المرور"   onClick={() => { setResetPwUser(user); setResetPwError(""); setResetPwSuccess(""); setShowPw(false); setShowPwConfirm(false); setResetPwForm({ newPassword: "", confirmPassword: "" }); }}><KeyRound size={13} /></IBtn>
-                          <IBtn tip="تصفير IP"      onClick={() => setResetIpId(user.id)} disabled={user.ipCount === 0}><RefreshCw size={13} /></IBtn>
-                          <IBtn tip="إشعار تجريبي" onClick={() => handleTestPush(user)} disabled={testingId === user.id}>
+                          <IBtn tip="Détails"           onClick={() => setDetailId(user.id)}><Eye size={13} /></IBtn>
+                          <IBtn tip="Modifier"          onClick={() => handleEdit(user)}><Edit size={13} /></IBtn>
+                          <IBtn tip="Mot de passe"      onClick={() => { setResetPwUser(user); setResetPwError(""); setResetPwSuccess(""); setShowPw(false); setShowPwConfirm(false); setResetPwForm({ newPassword: "", confirmPassword: "" }); }}><KeyRound size={13} /></IBtn>
+                          <IBtn tip="Réinitialiser IP"  onClick={() => setResetIpId(user.id)} disabled={user.ipCount === 0}><RefreshCw size={13} /></IBtn>
+                          <IBtn tip="Notification test" onClick={() => handleTestPush(user)} disabled={testingId === user.id}>
                             {testingId === user.id ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
                           </IBtn>
-                          <IBtn tip={user.isActive?"حظر":"رفع الحظر"} onClick={() => handleBlock(user)} disabled={loadingId===user.id}>
+                          <IBtn tip={user.isActive?"Bloquer":"Débloquer"} onClick={() => handleBlock(user)} disabled={loadingId===user.id}>
                             {user.isActive ? <ShieldOff size={13} /> : <ShieldCheck size={13} />}
                           </IBtn>
-                          <IBtn tip="حذف" danger onClick={() => handleDelete(user)} disabled={loadingId===user.id}><Trash2 size={13} /></IBtn>
+                          <IBtn tip="Supprimer" danger onClick={() => handleDelete(user)} disabled={loadingId===user.id}><Trash2 size={13} /></IBtn>
                         </div>
                       </td>
                     </tr>
@@ -602,8 +603,8 @@ export function AdminUsers() {
           </div>
 
           {totalPages > 1 && (
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderTop: "1px solid #F3F4F7", fontSize: 12, color: "#6B7280" }}>
-              <span>صفحة {page} من {totalPages} — {filtered.length} نتيجة</span>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderTop: "1px solid #EEF2F7", fontSize: 12, color: "#667085" }}>
+              <span>Page {page} sur {totalPages} — {filtered.length} résultat{filtered.length > 1 ? "s" : ""}</span>
               <div style={{ display: "flex", gap: 4 }}>
                 <PBtn disabled={page===1} onClick={() => setPage(1)}>«</PBtn>
                 <PBtn disabled={page===1} onClick={() => setPage(p => p-1)}>‹</PBtn>
@@ -623,20 +624,20 @@ export function AdminUsers() {
 
         {/* Reset Password */}
         <Dialog open={!!resetPwUser} onOpenChange={o => { if (!o) setResetPwUser(null); }}>
-          <DialogContent>
-            <DialogHeader><DialogTitle style={{ fontSize: 15, color: "#0F172A" }}>كلمة المرور — {resetPwUser?.username}</DialogTitle></DialogHeader>
+          <DialogContent dir="ltr">
+            <DialogHeader><DialogTitle style={{ fontSize: 15, color: "#1F2937", textAlign: "left" }}>Mot de passe — {resetPwUser?.username}</DialogTitle></DialogHeader>
             <div style={{ display: "flex", flexDirection: "column", gap: 14, paddingTop: 8 }}>
               {[
-                { label: "كلمة المرور الجديدة", key: "newPassword" as const, show: showPw, toggle: () => setShowPw(v=>!v) },
-                { label: "تأكيد كلمة المرور",   key: "confirmPassword" as const, show: showPwConfirm, toggle: () => setShowPwConfirm(v=>!v) },
+                { label: "Nouveau mot de passe",     key: "newPassword" as const, show: showPw, toggle: () => setShowPw(v=>!v) },
+                { label: "Confirmer le mot de passe", key: "confirmPassword" as const, show: showPwConfirm, toggle: () => setShowPwConfirm(v=>!v) },
               ].map(f => (
                 <div key={f.key}>
-                  <Label style={{ fontSize: 12.5, color: "#374151", marginBottom: 5, display: "block" }}>{f.label}</Label>
+                  <Label style={{ fontSize: 12.5, color: "#344054", marginBottom: 5, display: "block" }}>{f.label}</Label>
                   <div style={{ position: "relative" }}>
-                    <input type={f.show?"text":"password"} className="ad-input" placeholder="6 أحرف على الأقل"
+                    <input type={f.show?"text":"password"} className="ad-input" placeholder="6 caractères minimum"
                       value={resetPwForm[f.key]} onChange={e => setResetPwForm({ ...resetPwForm, [f.key]: e.target.value })}
-                      style={{ paddingLeft: 36 }} />
-                    <button type="button" onClick={f.toggle} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#9CA3AF", background: "none", border: "none", cursor: "pointer" }}>
+                      style={{ paddingRight: 36 }} />
+                    <button type="button" onClick={f.toggle} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", color: "#98A2B3", background: "none", border: "none", cursor: "pointer" }}>
                       {f.show ? <EyeOff size={14} /> : <Eye size={14} />}
                     </button>
                   </div>
@@ -645,7 +646,7 @@ export function AdminUsers() {
               {resetPwError   && <Msg type="err">{resetPwError}</Msg>}
               {resetPwSuccess && <Msg type="ok">{resetPwSuccess}</Msg>}
               <button type="button" onClick={handleResetPw} disabled={resetPwLoading} className="ad-btn-primary" style={{ width: "100%", justifyContent: "center", height: 38 }}>
-                {resetPwLoading ? "جاري الحفظ..." : "تغيير كلمة المرور"}
+                {resetPwLoading ? "Enregistrement…" : "Changer le mot de passe"}
               </button>
             </div>
           </DialogContent>
@@ -653,16 +654,16 @@ export function AdminUsers() {
 
         {/* Edit User */}
         <Dialog open={!!editingUser} onOpenChange={o => !o && setEditingUser(null)}>
-          <DialogContent>
-            <DialogHeader><DialogTitle style={{ fontSize: 15, color: "#0F172A" }}>تعديل — {editingUser?.username}</DialogTitle></DialogHeader>
+          <DialogContent dir="ltr">
+            <DialogHeader><DialogTitle style={{ fontSize: 15, color: "#1F2937", textAlign: "left" }}>Modifier — {editingUser?.username}</DialogTitle></DialogHeader>
             <div style={{ display: "flex", flexDirection: "column", gap: 14, paddingTop: 8 }}>
               {[
-                { label: "نوع الحساب", key: "accountType" as const, opts: [{ v:"normal",l:"عادي" }, { v:"vip",l:"VIP" }] },
-                { label: "خطة الاشتراك", key: "subscriptionType" as const, opts: [{ v:"demo",l:"تجريبي" },{ v:"monthly",l:"شهري" },{ v:"annual",l:"سنوي" },{ v:"lifetime",l:"مدى الحياة" }] },
-                { label: "حالة الحساب", key: "isActive" as const, opts: [{ v:"true",l:"نشط" },{ v:"false",l:"موقوف" }] },
+                { label: "Type de compte", key: "accountType" as const, opts: [{ v:"normal",l:"Standard" }, { v:"vip",l:"VIP" }] },
+                { label: "Plan d'abonnement", key: "subscriptionType" as const, opts: [{ v:"demo",l:"Démo" },{ v:"monthly",l:"Mensuel" },{ v:"annual",l:"Annuel" },{ v:"lifetime",l:"À vie" }] },
+                { label: "Statut du compte", key: "isActive" as const, opts: [{ v:"true",l:"Actif" },{ v:"false",l:"Bloqué" }] },
               ].map(f => (
                 <div key={f.key}>
-                  <Label style={{ fontSize: 12.5, color: "#374151", marginBottom: 5, display: "block" }}>{f.label}</Label>
+                  <Label style={{ fontSize: 12.5, color: "#344054", marginBottom: 5, display: "block" }}>{f.label}</Label>
                   <select className="ad-select" style={{ width: "100%", height: 38 }}
                     value={f.key==="isActive" ? String(formData[f.key]) : String(formData[f.key]??"")}
                     onChange={e => setFormData({ ...formData, [f.key]: f.key==="isActive" ? e.target.value==="true" : e.target.value as "vip"|"normal"|"demo"|"monthly"|"annual"|"lifetime" })}>
@@ -671,28 +672,28 @@ export function AdminUsers() {
                 </div>
               ))}
               <div>
-                <Label style={{ fontSize: 12.5, color: "#374151", marginBottom: 5, display: "block" }}>رقم الهاتف</Label>
+                <Label style={{ fontSize: 12.5, color: "#344054", marginBottom: 5, display: "block" }}>Numéro de téléphone</Label>
                 <PhoneNumberInput value={formData.phone ?? undefined} onChange={v => setFormData({ ...formData, phone: v || undefined })} placeholder="5X XX XX XX XX" />
               </div>
               <div>
-                <Label style={{ fontSize: 12.5, color: "#374151", marginBottom: 5, display: "flex", alignItems: "center", gap: 5 }}>
-                  <GraduationCap size={13} />الدورات الممنوحة
+                <Label style={{ fontSize: 12.5, color: "#344054", marginBottom: 5, display: "flex", alignItems: "center", gap: 5 }}>
+                  <GraduationCap size={13} />Cours accordés
                 </Label>
                 {coursesLoading ? (
-                  <div style={{ height: 40, display: "flex", alignItems: "center", justifyContent: "center" }}><Loader2 size={16} className="animate-spin" style={{ color: "#9CA3AF" }} /></div>
+                  <div style={{ height: 40, display: "flex", alignItems: "center", justifyContent: "center" }}><Loader2 size={16} className="animate-spin" style={{ color: "#98A2B3" }} /></div>
                 ) : !allPlaylists?.length ? (
-                  <p style={{ fontSize: 12, color: "#9CA3AF" }}>لا توجد دورات</p>
+                  <p style={{ fontSize: 12, color: "#98A2B3" }}>Aucun cours disponible</p>
                 ) : (
-                  <div style={{ border: "1px solid #E8EBF0", borderRadius: 10, overflow: "hidden", maxHeight: 200, overflowY: "auto" }}>
+                  <div style={{ border: "1px solid #E5EAF2", borderRadius: 10, overflow: "hidden", maxHeight: 200, overflowY: "auto" }}>
                     {allPlaylists.map((pl, i) => {
                       const s = userCourseIds.includes(pl.id);
                       return (
                         <button key={pl.id} type="button" onClick={() => setUserCourseIds(p => s ? p.filter(x=>x!==pl.id) : [...p, pl.id])}
-                          style={{ width:"100%", display:"flex", alignItems:"center", gap:10, padding:"10px 14px", background: s ? "#FFF8F3" : i%2===0 ? "#fff" : "#FAFBFD", border:"none", borderBottom: i < allPlaylists.length-1 ? "1px solid #F3F4F7":"none", cursor:"pointer", textAlign:"right" }}>
-                          <span style={{ width:16, height:16, borderRadius:5, border: s?"none":"1.5px solid #D1D5DB", background: s?"#F97316":"transparent", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                          style={{ width:"100%", display:"flex", alignItems:"center", gap:10, padding:"10px 14px", background: s ? "#FFF7EF" : i%2===0 ? "#fff" : "#FBFCFE", border:"none", borderBottom: i < allPlaylists.length-1 ? "1px solid #EEF2F7":"none", cursor:"pointer", textAlign:"left" }}>
+                          <span style={{ width:16, height:16, borderRadius:5, border: s?"none":"1.5px solid #D8DFEA", background: s?"#F97316":"transparent", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
                             {s && <Check size={10} color="#fff" />}
                           </span>
-                          <span style={{ fontSize:13, color:"#374151" }}>{pl.title||`دورة #${pl.id}`}</span>
+                          <span style={{ fontSize:13, color:"#344054" }}>{pl.title||`Cours #${pl.id}`}</span>
                         </button>
                       );
                     })}
@@ -700,7 +701,7 @@ export function AdminUsers() {
                 )}
               </div>
               <button type="button" onClick={handleSave} disabled={updateMut.isPending} className="ad-btn-primary" style={{ width:"100%", justifyContent:"center", height:38 }}>
-                {updateMut.isPending ? "جاري الحفظ..." : "حفظ التغييرات"}
+                {updateMut.isPending ? "Enregistrement…" : "Enregistrer les modifications"}
               </button>
             </div>
           </DialogContent>
@@ -708,15 +709,15 @@ export function AdminUsers() {
 
         {/* Reset IP confirm */}
         <Dialog open={resetIpId !== null} onOpenChange={o => { if (!o) setResetIpId(null); }}>
-          <DialogContent>
-            <DialogHeader><DialogTitle style={{ fontSize: 15, color: "#0F172A" }}>تأكيد تصفير IP</DialogTitle></DialogHeader>
+          <DialogContent dir="ltr">
+            <DialogHeader><DialogTitle style={{ fontSize: 15, color: "#1F2937", textAlign: "left" }}>Réinitialiser l'adresse IP</DialogTitle></DialogHeader>
             <div style={{ display: "flex", flexDirection: "column", gap: 14, paddingTop: 8 }}>
-              <p style={{ fontSize: 13, color: "#475569" }}>سيتمكن المستخدم من الدخول من أي جهاز جديد.</p>
+              <p style={{ fontSize: 13, color: "#475467" }}>L'utilisateur pourra se connecter depuis un nouvel appareil.</p>
               <div style={{ display: "flex", gap: 10 }}>
                 <button type="button" onClick={confirmResetIp} disabled={resetIpMut.isPending} className="ad-btn-primary" style={{ flex:1, justifyContent:"center", height:38 }}>
-                  {resetIpMut.isPending ? "جاري..." : "تأكيد"}
+                  {resetIpMut.isPending ? "En cours…" : "Confirmer"}
                 </button>
-                <button type="button" onClick={() => setResetIpId(null)} className="ad-btn-sm" style={{ flex:1, justifyContent:"center", height:38 }}>إلغاء</button>
+                <button type="button" onClick={() => setResetIpId(null)} className="ad-btn-sm" style={{ flex:1, justifyContent:"center", height:38 }}>Annuler</button>
               </div>
             </div>
           </DialogContent>
@@ -751,7 +752,7 @@ function IBtn({ tip, onClick, disabled, danger, children }: { tip: string; onCli
 
 function Chk({ checked, onChange }: { checked: boolean; onChange: () => void }) {
   return (
-    <button type="button" onClick={onChange} style={{ background: "none", border: "none", cursor: "pointer", color: checked ? "#F97316" : "#CBD5E1", display: "flex" }}>
+    <button type="button" onClick={onChange} style={{ background: "none", border: "none", cursor: "pointer", color: checked ? "#F97316" : "#C3CCD9", display: "flex" }}>
       {checked ? <CheckSquare size={15} /> : <Square size={15} />}
     </button>
   );
@@ -767,22 +768,22 @@ function PBtn({ children, active, disabled, onClick }: { children: React.ReactNo
 
 function CountPill({ count, active }: { count: number; active: boolean }) {
   return (
-    <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 999, background: active ? "rgba(255,255,255,0.25)" : "#F3F4F6", color: active ? "#fff" : "#6B7280", fontWeight: 600 }}>
+    <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 999, background: active ? "rgba(255,255,255,0.25)" : "#F2F4F7", color: active ? "#fff" : "#667085", fontWeight: 600 }}>
       {count}
     </span>
   );
 }
 
 function ChipGroup({ children }: { children: React.ReactNode }) {
-  return <div style={{ display: "flex", background: "#F3F4F6", borderRadius: 9, padding: 3, gap: 2, flexWrap: "wrap" }}>{children}</div>;
+  return <div style={{ display: "flex", background: "#F2F4F7", borderRadius: 9, padding: 3, gap: 2, flexWrap: "wrap" }}>{children}</div>;
 }
 
-function Dash() { return <span style={{ color: "#D1D5DB", fontSize: 14 }}>—</span>; }
+function Dash() { return <span style={{ color: "#D8DFEA", fontSize: 14 }}>—</span>; }
 
 function Msg({ children, type }: { children: React.ReactNode; type: "err"|"ok" }) {
   const st = type === "err"
-    ? { color: "#B91C1C", background: "#FEF2F2", border: "1px solid #FECACA" }
-    : { color: "#15803D", background: "#F0FDF4", border: "1px solid #86EFAC" };
+    ? { color: "#B42318", background: "#FDF1F1", border: "1px solid #F2CBCB" }
+    : { color: "#157347", background: "#EFFAF3", border: "1px solid #BFE5CD" };
   return <p style={{ fontSize: 12, padding: "8px 12px", borderRadius: 8, ...st }}>{children}</p>;
 }
 
@@ -790,7 +791,7 @@ function EmptyState() {
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, color: "#94A3B8" }}>
       <Filter size={28} style={{ opacity: 0.3 }} />
-      <p style={{ fontSize: 13 }}>لا يوجد مستخدمون مطابقون</p>
+      <p style={{ fontSize: 13 }}>Aucun utilisateur trouvé</p>
     </div>
   );
 }
