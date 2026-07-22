@@ -238,7 +238,7 @@ export function Tools() {
             مكتبة الأدوات
           </div>
           <h1 className="text-4xl md:text-5xl font-extrabold mb-4 tracking-tight">
-            أدوات تساعدك على <span className="text-primary">التقدم</span>
+            TEST DEPLOY 123
           </h1>
           <p className="text-muted-foreground text-lg max-w-xl mx-auto mb-8">
             مجموعة من الأدوات والبرامج المنتقاة بعناية لمساعدتك في مسيرتك التعليمية والمهنية
