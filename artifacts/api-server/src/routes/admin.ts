@@ -2,7 +2,7 @@ import path from "path";
 import fs from "fs";
 import { Router, type IRouter } from "express";
 import multer from "multer";
-import { db, usersTable, videosTable, categoriesTable, playlistsTable, subscriptionPlansTable, visitLogsTable, activityLogsTable, notificationsTable, notificationRecipientsTable, pushSubscriptionsTable, adminPushSubscriptionsTable, communityPostsTable, communityCommentsTable, communityReportsTable, userCoursesTable, paymentSubmissionsTable } from "@workspace/db";
+import { db, usersTable, videosTable, categoriesTable, playlistsTable, subscriptionPlansTable, visitLogsTable, activityLogsTable, notificationsTable, notificationRecipientsTable, pushSubscriptionsTable, adminPushSubscriptionsTable, communityPostsTable, communityCommentsTable, communityReportsTable, userCoursesTable, paymentSubmissionsTable, planCoursesTable } from "@workspace/db";
 import { eq, sql, count, desc, asc, lt, and, gte, isNull, isNotNull, inArray, max, ilike, or } from "drizzle-orm";
 
 import { adminAuth } from "../middlewares/auth";
@@ -1612,7 +1612,13 @@ router.delete("/admin/playlists/:id", adminAuth, async (req, res) => {
 router.get("/admin/subscription-plans", adminAuth, async (_req, res) => {
   try {
     const plans = await db.select().from(subscriptionPlansTable);
-    res.json(plans);
+    const courseCounts = await db
+      .select({ planId: planCoursesTable.planId, count: count() })
+      .from(planCoursesTable)
+      .groupBy(planCoursesTable.planId);
+    const countMap = Object.fromEntries(courseCounts.map(r => [r.planId, r.count]));
+    const result = plans.map(p => ({ ...p, courseCount: countMap[p.id] ?? 0 }));
+    res.json(result);
   } catch (error: unknown) {
     res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" || "Failed to fetch plans" });
   }
@@ -1641,6 +1647,72 @@ router.delete("/admin/subscription-plans/:id", adminAuth, async (req, res) => {
     res.json({ message: "Plan deleted successfully" });
   } catch (error: unknown) {
     res.status(500).json({ message: error instanceof Error ? error.message : "Failed to delete plan" });
+  }
+});
+
+/* ── Plan courses ─────────────────────────────────────────────── */
+
+router.get("/admin/subscription-plans/:id/courses", adminAuth, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const rows = await db
+      .select({ playlistId: planCoursesTable.playlistId })
+      .from(planCoursesTable)
+      .where(eq(planCoursesTable.planId, id));
+    res.json(rows.map(r => r.playlistId));
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Failed to fetch plan courses" });
+  }
+});
+
+router.put("/admin/subscription-plans/:id/courses", adminAuth, async (req, res) => {
+  try {
+    const planId = Number(req.params.id);
+    const newPlaylistIds: number[] = Array.isArray(req.body) ? req.body.map(Number) : [];
+
+    const [plan] = await db.select().from(subscriptionPlansTable)
+      .where(eq(subscriptionPlansTable.id, planId)).limit(1);
+    if (!plan) { res.status(404).json({ message: "Plan not found" }); return; }
+
+    const oldRows = await db.select({ playlistId: planCoursesTable.playlistId })
+      .from(planCoursesTable).where(eq(planCoursesTable.planId, planId));
+    const oldIds = oldRows.map(r => r.playlistId);
+
+    const added   = newPlaylistIds.filter(id => !oldIds.includes(id));
+    const removed = oldIds.filter(id => !newPlaylistIds.includes(id));
+
+    await db.delete(planCoursesTable).where(eq(planCoursesTable.planId, planId));
+    if (newPlaylistIds.length > 0) {
+      await db.insert(planCoursesTable).values(newPlaylistIds.map(pid => ({ planId, playlistId: pid })));
+    }
+
+    const subscribers = await db
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(eq(usersTable.subscriptionType, plan.type));
+    const subIds = subscribers.map(u => u.id);
+
+    if (subIds.length > 0) {
+      if (added.length > 0) {
+        const existing = await db.select({ userId: userCoursesTable.userId, playlistId: userCoursesTable.playlistId })
+          .from(userCoursesTable)
+          .where(and(inArray(userCoursesTable.userId, subIds), inArray(userCoursesTable.playlistId, added)));
+        const existSet = new Set(existing.map(r => `${r.userId}:${r.playlistId}`));
+        const toInsert = subIds.flatMap(uid =>
+          added.filter(pid => !existSet.has(`${uid}:${pid}`)).map(pid => ({ userId: uid, playlistId: pid }))
+        );
+        if (toInsert.length > 0) await db.insert(userCoursesTable).values(toInsert);
+      }
+      if (removed.length > 0) {
+        await db.delete(userCoursesTable).where(
+          and(inArray(userCoursesTable.userId, subIds), inArray(userCoursesTable.playlistId, removed))
+        );
+      }
+    }
+
+    res.json({ message: "Plan courses updated", added: added.length, removed: removed.length, subscribers: subIds.length });
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Failed to update plan courses" });
   }
 });
 
