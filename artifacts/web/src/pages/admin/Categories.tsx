@@ -116,7 +116,7 @@ function SortableCategoryCard({
             {category.sortOrder + 1}
           </span>
           {category.isFeatured && (
-            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-500 text-black" title="En vedette">
+            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-500 text-white" title="En vedette">
               <Star className="w-3.5 h-3.5" />
             </span>
           )}

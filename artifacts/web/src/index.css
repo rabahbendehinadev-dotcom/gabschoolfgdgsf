@@ -129,305 +129,328 @@
   .app-phone-input .PhoneInput--disabled { opacity: 0.5; }
 
   /* ════════════════════════════════════════════════════════════════
-     ADMIN DESIGN SYSTEM  ·  v4  —  Light ERP (LTR · French)
+     ADMIN DESIGN SYSTEM  ·  v5  —  Premium SaaS/ERP (Stripe × Odoo)
+     LTR · French · Blue primary · Orange CTA only
 
      Palette:
-       Background  #F6F8FB   cool near-white page
-       Surface     #FFFFFF   cards, sidebar, tables
-       Surface-2   #F8FAFD   table headers, subtle wells
-       Border      #E5EAF2   hairlines  ·  strong #D8DFEA
-       Text        #1F2937 / #64748B / #94A3B8
-       Primary     #F97316   GAB orange — active nav + primary CTA only
-       Success     #157347 on #EFFAF3
-       Warning     #B45309 on #FFF8E6
-       Danger      #B42318 on #FDF1F1
-       VIP         #92400E on #FDF8E7
+       Page bg      #F8FAFC   near-white cool neutral
+       Sidebar      #F1F5F9   very light slate (not white, not dark)
+       Surface      #FFFFFF   cards, tables, modals
+       Surface-2    #F8FAFC   table headers, subtle wells
+       Border-L     #E2E8F0   light hairline (most dividers)
+       Border-M     #CBD5E1   medium (inputs, focus rings base)
+       Primary      #2563EB   blue — active nav, buttons, focus rings
+       Primary-h    #1D4ED8   blue hover
+       Primary-bg   #EFF6FF   blue tint background (active nav pill)
+       CTA (orange) #F97316   only for primary action buttons
+       CTA-h        #EA6C10   orange hover
+       Text-1       #0F172A   headings, primary content
+       Text-2       #475569   body text
+       Text-3       #94A3B8   muted / placeholders
+       Success      #15803D on #F0FDF4 · border #BBF7D0
+       Warning      #92400E on #FFFBEB · border #FDE68A
+       Danger       #9F1239 on #FFF1F2 · border #FECDD3
+       VIP          #3730A3 on #EEF2FF · border #C7D2FE
   ════════════════════════════════════════════════════════════════ */
 
   /* ── Shell ───────────────────────────────────────────────────── */
   .ad-shell {
-    background: #F6F8FB;
+    background: #F8FAFC;
     min-height: 100vh;
-    font-family: 'Outfit', 'Tajawal', sans-serif;
-    color: #1F2937;
+    font-family: 'Outfit', 'Inter', sans-serif;
+    color: #0F172A;
   }
 
-  /* ── Sidebar (light) ─────────────────────────────────────────── */
+  /* ── Sidebar ─────────────────────────────────────────────────── */
   .ad-sidebar {
-    background: #FFFFFF;
-    border-right: 1px solid #E5EAF2;
-    width: 224px;
+    background: #F1F5F9;
+    border-right: 1px solid #E2E8F0;
+    width: 232px;
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
   }
   .ad-sidebar-brand {
-    padding: 18px 16px 14px;
-    border-bottom: 1px solid #EEF2F7;
+    padding: 16px 14px 13px;
+    border-bottom: 1px solid #E2E8F0;
     display: flex;
     align-items: center;
     justify-content: space-between;
   }
-  .ad-sidebar-brand h1 { font-size: 14px; font-weight: 700; color: #1E293B; line-height: 1.2; letter-spacing: -0.01em; }
-  .ad-sidebar-brand p  { font-size: 11px; color: #94A3B8; margin-top: 2px; }
+  .ad-sidebar-brand h1 {
+    font-size: 13.5px; font-weight: 700;
+    color: #0F172A; line-height: 1.2; letter-spacing: -0.015em;
+  }
+  .ad-sidebar-brand p { font-size: 11px; color: #94A3B8; margin-top: 2px; }
+
+  /* section label inside nav */
+  .ad-nav-section {
+    font-size: 10px; font-weight: 700;
+    color: #94A3B8; letter-spacing: 0.08em; text-transform: uppercase;
+    padding: 14px 10px 4px;
+    user-select: none;
+  }
 
   /* ── Nav item ────────────────────────────────────────────────── */
   .ad-nav-item {
     position: relative;
-    display: flex;
-    align-items: center;
-    gap: 9px;
-    padding: 8px 12px;
-    border-radius: 8px;
-    font-size: 13px;
-    font-weight: 500;
-    color: #5A6478;
+    display: flex; align-items: center; gap: 9px;
+    padding: 7px 10px; border-radius: 7px;
+    font-size: 12.5px; font-weight: 500;
+    color: #475569;
     cursor: pointer;
-    transition: background 120ms ease, color 120ms ease;
-    text-decoration: none;
-    border: none;
-    background: transparent;
-    width: 100%;
-    text-align: left;
+    transition: background 110ms ease, color 110ms ease;
+    text-decoration: none; border: none;
+    background: transparent; width: 100%; text-align: left;
   }
-  .ad-nav-item:hover { background: #F4F6FA; color: #1E293B; }
-  .ad-nav-item:focus-visible { outline: 2px solid rgba(249,115,22,0.45); outline-offset: -2px; }
-  .ad-nav-item .ad-nav-icon { color: #9AA4B5; flex-shrink: 0; transition: color 120ms; }
-  .ad-nav-item:hover .ad-nav-icon { color: #64748B; }
+  .ad-nav-item:hover { background: #E2E8F0; color: #0F172A; }
+  .ad-nav-item:focus-visible { outline: 2px solid rgba(37,99,235,0.45); outline-offset: -2px; }
+  .ad-nav-item .ad-nav-icon { color: #94A3B8; flex-shrink: 0; transition: color 110ms; }
+  .ad-nav-item:hover .ad-nav-icon { color: #475569; }
 
   .ad-nav-item.is-active {
-    background: #FFF4EC;
-    color: #C2570E;
+    background: #DBEAFE;
+    color: #1D4ED8;
     font-weight: 600;
   }
   .ad-nav-item.is-active::before {
     content: '';
     position: absolute;
-    left: 0; top: 6px; bottom: 6px;
+    left: 0; top: 5px; bottom: 5px;
     width: 3px;
-    background: #F97316;
+    background: #2563EB;
     border-radius: 0 3px 3px 0;
   }
-  .ad-nav-item.is-active .ad-nav-icon { color: #F97316; }
+  .ad-nav-item.is-active .ad-nav-icon { color: #2563EB; }
 
   .ad-sidebar-logout {
-    width: 100%;
-    display: flex; align-items: center; gap: 9px;
-    padding: 8px 12px; border-radius: 8px;
-    font-size: 13px; font-weight: 500; color: #5A6478;
+    width: 100%; display: flex; align-items: center; gap: 9px;
+    padding: 7px 10px; border-radius: 7px;
+    font-size: 12.5px; font-weight: 500; color: #64748B;
     cursor: pointer; background: transparent; border: none;
-    transition: background 120ms, color 120ms;
-    text-align: left;
+    transition: background 110ms, color 110ms; text-align: left;
   }
-  .ad-sidebar-logout:hover { background: #FDF1F1; color: #B42318; }
-  .ad-sidebar-logout .ad-nav-icon { color: #9AA4B5; }
-  .ad-sidebar-logout:hover .ad-nav-icon { color: #B42318; }
+  .ad-sidebar-logout:hover { background: #FEE2E2; color: #9F1239; }
+  .ad-sidebar-logout .ad-nav-icon { color: #94A3B8; }
+  .ad-sidebar-logout:hover .ad-nav-icon { color: #9F1239; }
 
   /* ── Cards ───────────────────────────────────────────────────── */
   .ad-card {
     background: #FFFFFF;
-    border: 1px solid #E5EAF2;
-    box-shadow: 0 1px 2px rgba(16,24,40,0.04);
-    border-radius: 12px;
+    border: 1px solid #E2E8F0;
+    box-shadow: 0 1px 3px rgba(15,23,42,0.04), 0 1px 2px rgba(15,23,42,0.02);
+    border-radius: 10px;
   }
 
   /* ── Stat cards ──────────────────────────────────────────────── */
   .ad-stat {
     background: #FFFFFF;
-    border: 1px solid #E5EAF2;
-    box-shadow: 0 1px 2px rgba(16,24,40,0.04);
-    border-radius: 12px;
-    padding: 14px 16px;
-    cursor: pointer;
-    text-align: left;
+    border: 1px solid #E2E8F0;
+    box-shadow: 0 1px 3px rgba(15,23,42,0.04);
+    border-radius: 10px;
+    padding: 16px 18px;
+    cursor: pointer; text-align: left;
     transition: box-shadow 150ms ease, border-color 150ms ease, transform 150ms ease;
   }
   .ad-stat:hover {
-    box-shadow: 0 4px 12px rgba(16,24,40,0.08);
-    border-color: #D8DFEA;
+    box-shadow: 0 4px 14px rgba(15,23,42,0.08);
+    border-color: #CBD5E1;
     transform: translateY(-1px);
   }
-  .ad-stat:focus-visible { outline: 2px solid rgba(249,115,22,0.45); outline-offset: 1px; }
-  .ad-stat-value { font-size: 26px; font-weight: 700; color: #1F2937; line-height: 1.1; letter-spacing: -0.02em; }
-  .ad-stat-label { font-size: 11px; color: #94A3B8; margin-top: 5px; font-weight: 500; }
+  .ad-stat:focus-visible { outline: 2px solid rgba(37,99,235,0.4); outline-offset: 1px; }
+  .ad-stat-value { font-size: 24px; font-weight: 700; color: #0F172A; line-height: 1.1; letter-spacing: -0.025em; }
+  .ad-stat-label { font-size: 11px; color: #94A3B8; margin-top: 5px; font-weight: 500; letter-spacing: 0.01em; }
 
   /* ── Table ───────────────────────────────────────────────────── */
   .ad-table-wrap {
     background: #FFFFFF;
-    border: 1px solid #E5EAF2;
-    box-shadow: 0 1px 2px rgba(16,24,40,0.04);
-    border-radius: 12px;
+    border: 1px solid #E2E8F0;
+    box-shadow: 0 1px 3px rgba(15,23,42,0.04);
+    border-radius: 10px;
     overflow: hidden;
   }
   .ad-th {
-    padding: 11px 16px;
-    background: #F8FAFD;
+    padding: 10px 16px;
+    background: #F8FAFC;
     font-size: 10.5px; font-weight: 600;
-    color: #667085; text-transform: uppercase; letter-spacing: 0.06em;
+    color: #64748B; text-transform: uppercase; letter-spacing: 0.07em;
     white-space: nowrap; user-select: none;
-    border-bottom: 1px solid #E5EAF2;
+    border-bottom: 1px solid #E2E8F0;
     text-align: left;
   }
   .ad-th.sortable { cursor: pointer; }
-  .ad-th.sortable:hover { color: #344054; }
+  .ad-th.sortable:hover { color: #0F172A; }
 
-  .ad-tr { border-bottom: 1px solid #EEF2F7; transition: background 100ms ease; }
+  .ad-tr { border-bottom: 1px solid #F1F5F9; transition: background 90ms ease; }
   .ad-tr-even { background: #FFFFFF; }
-  .ad-tr-odd  { background: #FBFCFE; }
-  .ad-tr:hover { background: #F7F9FC !important; }
+  .ad-tr-odd  { background: #FAFBFC; }
+  .ad-tr:hover { background: #F0F7FF !important; }
   .ad-tr-selected {
-    background: #FFF7EF !important;
-    box-shadow: inset 3px 0 0 #F97316;
+    background: #EFF6FF !important;
+    box-shadow: inset 3px 0 0 #2563EB;
   }
-  .ad-td { padding: 11px 16px; }
+  .ad-td { padding: 11px 16px; font-size: 13px; color: #1E293B; }
 
   /* ── Badges ──────────────────────────────────────────────────── */
   .ad-badge {
     display: inline-flex; align-items: center; gap: 4px;
-    padding: 2px 9px; border-radius: 999px;
+    padding: 2px 8px; border-radius: 5px;
     font-size: 11px; font-weight: 600; border: 1px solid;
     line-height: 1.6; white-space: nowrap;
   }
-  .ad-badge-vip      { background: #FDF8E7; color: #92400E; border-color: #EFDCA8; }
-  .ad-badge-normal   { background: #F3F5F8; color: #5A6478; border-color: #DDE3EC; }
-  .ad-badge-expired  { background: #FDF1F1; color: #B42318; border-color: #F2CBCB; }
-  .ad-badge-active   { background: #EFFAF3; color: #157347; border-color: #BFE5CD; }
-  .ad-badge-blocked  { background: #FDF1F1; color: #B42318; border-color: #F2CBCB; }
-  .ad-badge-expiring { background: #FFF8E6; color: #B45309; border-color: #F0DCAA; }
-  .ad-badge-pending  { background: #FFF8E6; color: #B45309; border-color: #F0DCAA; }
-  .ad-badge-approved { background: #EFFAF3; color: #157347; border-color: #BFE5CD; }
-  .ad-badge-rejected { background: #FDF1F1; color: #B42318; border-color: #F2CBCB; }
+  .ad-badge-vip      { background: #EEF2FF; color: #3730A3; border-color: #C7D2FE; }
+  .ad-badge-normal   { background: #F8FAFC; color: #475569; border-color: #CBD5E1; }
+  .ad-badge-expired  { background: #FFF1F2; color: #9F1239; border-color: #FECDD3; }
+  .ad-badge-active   { background: #F0FDF4; color: #15803D; border-color: #BBF7D0; }
+  .ad-badge-blocked  { background: #FFF1F2; color: #9F1239; border-color: #FECDD3; }
+  .ad-badge-expiring { background: #FFFBEB; color: #92400E; border-color: #FDE68A; }
+  .ad-badge-pending  { background: #FFFBEB; color: #92400E; border-color: #FDE68A; }
+  .ad-badge-approved { background: #F0FDF4; color: #15803D; border-color: #BBF7D0; }
+  .ad-badge-rejected { background: #FFF1F2; color: #9F1239; border-color: #FECDD3; }
 
   /* ── Icon buttons ────────────────────────────────────────────── */
   .ad-ibtn {
     width: 30px; height: 30px;
     display: inline-flex; align-items: center; justify-content: center;
-    border-radius: 7px; border: none; background: transparent;
-    color: #98A2B3; cursor: pointer;
-    transition: background 110ms, color 110ms;
+    border-radius: 6px; border: 1px solid #E2E8F0; background: #FFFFFF;
+    color: #94A3B8; cursor: pointer;
+    transition: background 110ms, color 110ms, border-color 110ms;
     flex-shrink: 0;
   }
-  .ad-ibtn:hover:not(:disabled) { background: #F2F4F7; color: #344054; }
-  .ad-ibtn:focus-visible { outline: 2px solid rgba(249,115,22,0.45); outline-offset: 1px; }
-  .ad-ibtn.danger:hover:not(:disabled) { background: #FDF1F1; color: #B42318; }
-  .ad-ibtn:disabled { opacity: 0.25; pointer-events: none; }
+  .ad-ibtn:hover:not(:disabled) { background: #F1F5F9; border-color: #CBD5E1; color: #334155; }
+  .ad-ibtn:focus-visible { outline: 2px solid rgba(37,99,235,0.4); outline-offset: 1px; }
+  .ad-ibtn.danger:hover:not(:disabled) { background: #FFF1F2; border-color: #FECDD3; color: #9F1239; }
+  .ad-ibtn:disabled { opacity: 0.3; pointer-events: none; }
 
   /* ── Filter chips ────────────────────────────────────────────── */
   .ad-chip {
     display: inline-flex; align-items: center; gap: 5px;
-    height: 28px; padding: 0 10px;
+    height: 30px; padding: 0 11px;
     border-radius: 7px; font-size: 12px; font-weight: 500;
     cursor: pointer; white-space: nowrap;
-    border: 1px solid transparent;
-    transition: all 120ms ease;
-    background: transparent;
+    border: 1px solid #E2E8F0; background: #FFFFFF;
+    color: #64748B;
+    transition: all 110ms ease;
   }
-  .ad-chip-on  { background: #F97316; color: #FFFFFF; border-color: #F97316; }
-  .ad-chip-off { color: #667085; }
-  .ad-chip-off:hover { background: #F2F4F7; color: #1F2937; }
-  .ad-chip:focus-visible { outline: 2px solid rgba(249,115,22,0.45); outline-offset: 1px; }
+  .ad-chip:hover { background: #F1F5F9; border-color: #CBD5E1; color: #0F172A; }
+  .ad-chip-on  { background: #2563EB; color: #FFFFFF; border-color: #2563EB; }
+  .ad-chip-on:hover { background: #1D4ED8; border-color: #1D4ED8; color: #FFFFFF; }
+  .ad-chip:focus-visible { outline: 2px solid rgba(37,99,235,0.4); outline-offset: 1px; }
 
   /* ── Inputs ──────────────────────────────────────────────────── */
   .ad-input {
     height: 36px; width: 100%;
-    padding: 0 12px; border-radius: 8px;
-    border: 1px solid #D8DFEA; background: #FFFFFF;
-    font-size: 13.5px; color: #1F2937;
+    padding: 0 12px; border-radius: 7px;
+    border: 1px solid #CBD5E1; background: #FFFFFF;
+    font-size: 13px; color: #0F172A;
     transition: border-color 130ms, box-shadow 130ms;
   }
-  .ad-input:focus { outline: none; border-color: #F97316; box-shadow: 0 0 0 3px rgba(249,115,22,0.10); }
-  .ad-input::placeholder { color: #98A2B3; }
+  .ad-input:focus { outline: none; border-color: #2563EB; box-shadow: 0 0 0 3px rgba(37,99,235,0.12); }
+  .ad-input::placeholder { color: #94A3B8; }
 
   /* ── Buttons ─────────────────────────────────────────────────── */
   .ad-btn-sm {
     display: inline-flex; align-items: center; gap: 6px;
-    height: 34px; padding: 0 12px;
-    border-radius: 8px; border: 1px solid #D8DFEA;
-    background: #FFFFFF; font-size: 12.5px; font-weight: 500; color: #475467;
+    height: 34px; padding: 0 13px;
+    border-radius: 7px; border: 1px solid #E2E8F0;
+    background: #FFFFFF; font-size: 12.5px; font-weight: 500; color: #334155;
     cursor: pointer; white-space: nowrap;
-    transition: background 120ms, border-color 120ms;
-    box-shadow: 0 1px 2px rgba(16,24,40,0.04);
+    transition: background 110ms, border-color 110ms, color 110ms;
+    box-shadow: 0 1px 2px rgba(15,23,42,0.04);
   }
-  .ad-btn-sm:hover:not(:disabled) { background: #F8FAFD; border-color: #C3CCD9; color: #1F2937; }
-  .ad-btn-sm:focus-visible { outline: 2px solid rgba(249,115,22,0.45); outline-offset: 1px; }
-  .ad-btn-sm:disabled { opacity: 0.5; }
+  .ad-btn-sm:hover:not(:disabled) { background: #F1F5F9; border-color: #CBD5E1; color: #0F172A; }
+  .ad-btn-sm:focus-visible { outline: 2px solid rgba(37,99,235,0.4); outline-offset: 1px; }
+  .ad-btn-sm:disabled { opacity: 0.45; }
 
+  /* Primary CTA — Blue (actions: save, confirm, navigate) */
   .ad-btn-primary {
     display: inline-flex; align-items: center; gap: 6px;
     height: 36px; padding: 0 16px; border: none;
-    border-radius: 8px; background: #F97316; color: #FFFFFF;
+    border-radius: 7px; background: #2563EB; color: #FFFFFF;
     font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
-    transition: background 120ms, box-shadow 120ms;
-    box-shadow: 0 1px 2px rgba(249,115,22,0.25);
+    transition: background 110ms, box-shadow 110ms;
+    box-shadow: 0 1px 3px rgba(37,99,235,0.30);
   }
-  .ad-btn-primary:hover:not(:disabled) { background: #EA6C10; box-shadow: 0 3px 8px rgba(249,115,22,0.28); }
-  .ad-btn-primary:focus-visible { outline: 2px solid rgba(249,115,22,0.45); outline-offset: 2px; }
+  .ad-btn-primary:hover:not(:disabled) { background: #1D4ED8; box-shadow: 0 3px 10px rgba(37,99,235,0.30); }
+  .ad-btn-primary:focus-visible { outline: 2px solid rgba(37,99,235,0.5); outline-offset: 2px; }
   .ad-btn-primary:disabled { opacity: 0.5; }
+
+  /* CTA — Orange (important actions only: add, publish, send) */
+  .ad-btn-cta {
+    display: inline-flex; align-items: center; gap: 6px;
+    height: 36px; padding: 0 16px; border: none;
+    border-radius: 7px; background: #F97316; color: #FFFFFF;
+    font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
+    transition: background 110ms, box-shadow 110ms;
+    box-shadow: 0 1px 3px rgba(249,115,22,0.28);
+  }
+  .ad-btn-cta:hover:not(:disabled) { background: #EA6C10; box-shadow: 0 3px 10px rgba(249,115,22,0.30); }
+  .ad-btn-cta:focus-visible { outline: 2px solid rgba(249,115,22,0.5); outline-offset: 2px; }
+  .ad-btn-cta:disabled { opacity: 0.5; }
 
   /* ── Select ──────────────────────────────────────────────────── */
   .ad-select {
     height: 34px; padding: 0 10px;
-    border-radius: 8px; border: 1px solid #D8DFEA;
-    background: #FFFFFF; font-size: 12.5px; color: #344054;
-    transition: border-color 120ms;
+    border-radius: 7px; border: 1px solid #CBD5E1;
+    background: #FFFFFF; font-size: 12.5px; color: #334155;
+    transition: border-color 120ms, box-shadow 120ms;
   }
-  .ad-select:focus { outline: none; border-color: #F97316; }
+  .ad-select:focus { outline: none; border-color: #2563EB; box-shadow: 0 0 0 3px rgba(37,99,235,0.12); }
 
   /* ── Course tags / tabs ──────────────────────────────────────── */
   .ad-course-tag {
     display: inline-flex; align-items: center; gap: 3px;
     padding: 2px 7px; border-radius: 5px;
-    background: #FFF4EC; color: #C2570E;
-    border: 1px solid #F5CBA8;
-    font-size: 10.5px; font-weight: 500; white-space: nowrap;
+    background: #EFF6FF; color: #1D4ED8;
+    border: 1px solid #BFDBFE;
+    font-size: 10.5px; font-weight: 600; white-space: nowrap;
   }
   .ad-course-tab {
     display: inline-flex; align-items: center; gap: 5px;
-    padding: 5px 12px; border-radius: 8px;
+    padding: 5px 12px; border-radius: 7px;
     font-size: 12px; font-weight: 500;
-    border: 1px solid #D8DFEA; background: #FFFFFF;
-    color: #667085; cursor: pointer;
-    transition: all 130ms ease; white-space: nowrap;
+    border: 1px solid #E2E8F0; background: #FFFFFF;
+    color: #64748B; cursor: pointer;
+    transition: all 120ms ease; white-space: nowrap;
   }
-  .ad-course-tab.active { background: #F97316; color: #FFFFFF; border-color: #F97316; }
-  .ad-course-tab:not(.active):hover { border-color: rgba(249,115,22,0.35); color: #C2570E; }
+  .ad-course-tab.active { background: #2563EB; color: #FFFFFF; border-color: #2563EB; }
+  .ad-course-tab:not(.active):hover { border-color: #BFDBFE; color: #1D4ED8; background: #EFF6FF; }
 
   /* ── Bulk bar ────────────────────────────────────────────────── */
   .ad-bulk-bar {
     display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
-    background: #FFF7EF; border: 1px solid #F5CBA8;
+    background: #EFF6FF; border: 1px solid #BFDBFE;
     border-radius: 10px; padding: 10px 16px;
   }
 
-  /* ── Push hints (light sidebar context) ─────────────────────── */
+  /* ── Push / iOS hints ────────────────────────────────────────── */
   .ad-push-hint {
-    margin: 10px 10px 0;
-    padding: 8px 11px; border-radius: 8px;
-    background: #FFF8E6;
-    border: 1px solid #F0DCAA;
-    display: flex; gap: 7px;
-    font-size: 11px; color: #B45309;
+    margin: 8px 8px 0;
+    padding: 8px 11px; border-radius: 7px;
+    background: #FFFBEB; border: 1px solid #FDE68A;
+    display: flex; gap: 7px; font-size: 11px; color: #92400E;
   }
   .ad-ios-hint {
-    margin: 10px 10px 0;
-    padding: 8px 11px; border-radius: 8px;
-    background: #F0F5FF;
-    border: 1px solid #C9D9F5;
-    display: flex; gap: 7px;
-    font-size: 11px; color: #2563EB;
+    margin: 8px 8px 0;
+    padding: 8px 11px; border-radius: 7px;
+    background: #EFF6FF; border: 1px solid #BFDBFE;
+    display: flex; gap: 7px; font-size: 11px; color: #1D4ED8;
   }
 
   /* ── Pagination ──────────────────────────────────────────────── */
   .ad-pag-btn {
-    width: 28px; height: 28px; border-radius: 7px;
+    width: 28px; height: 28px; border-radius: 6px;
     display: flex; align-items: center; justify-content: center;
     font-size: 12px; cursor: pointer;
-    border: 1px solid #D8DFEA; background: #FFFFFF; color: #475467;
-    transition: all 110ms;
+    border: 1px solid #E2E8F0; background: #FFFFFF; color: #475569;
+    transition: all 100ms;
   }
-  .ad-pag-btn:hover:not(:disabled) { background: #F8FAFD; color: #1F2937; }
-  .ad-pag-btn.active { background: #F97316; color: #FFFFFF; border-color: #F97316; font-weight: 600; }
-  .ad-pag-btn:disabled { opacity: 0.35; pointer-events: none; }
+  .ad-pag-btn:hover:not(:disabled) { background: #F1F5F9; border-color: #CBD5E1; color: #0F172A; }
+  .ad-pag-btn.active { background: #2563EB; color: #FFFFFF; border-color: #2563EB; font-weight: 600; }
+  .ad-pag-btn:disabled { opacity: 0.3; pointer-events: none; }
+
+  /* ── Scrollbar inside admin ──────────────────────────────────── */
+  .ad-shell ::-webkit-scrollbar-thumb:hover { background: rgba(37,99,235,0.35); }
 }
 
 /* ── Animations ────────────────────────────────────────────────── */

@@ -136,7 +136,7 @@ export function AdminPlans() {
               plan.isHidden ? "opacity-70 border-dashed border-white/10" : ""
             }`}
           >
-            <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${plan.isHidden ? "from-gray-500 to-gray-600" : "from-primary to-amber-500"}`} />
+            <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${plan.isHidden ? "from-gray-400 to-gray-500" : "from-blue-500 to-blue-400"}`} />
 
             {plan.isHidden && (
               <div className="absolute top-3 left-3">

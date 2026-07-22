@@ -1,92 +1,182 @@
 import { useGetAdminStats } from "@workspace/api-client-react/src/generated/api";
 import { useAuth } from "@/lib/auth";
-import { Card } from "@/components/ui";
-import { Users, Crown, Video, Eye, CreditCard } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { Users, Crown, Video, Eye, CreditCard, TrendingUp, AlertCircle } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 
 export function AdminDashboard() {
   const { getAdminAuthHeaders } = useAuth();
   const { data: stats, isLoading } = useGetAdminStats({ request: getAdminAuthHeaders() });
 
-  if (isLoading) return <div>Chargement...</div>;
+  if (isLoading) return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 320 }}>
+      <div style={{ width: 28, height: 28, border: "3px solid #E2E8F0", borderTopColor: "#2563EB", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
+    </div>
+  );
   if (!stats) return null;
 
   const pieData = [
-    { name: 'VIP', value: stats.vipUsers, color: '#f59e0b' },
-    { name: 'Standard', value: stats.normalUsers, color: '#3f3f46' },
+    { name: "VIP", value: stats.vipUsers, color: "#2563EB" },
+    { name: "Standard", value: stats.normalUsers, color: "#CBD5E1" },
   ];
 
   const planData = [
-    { name: 'Essai', value: stats.demoSubscriptions, color: '#3f3f46' },
-    { name: 'Annuel', value: stats.annualSubscriptions, color: '#f97316' },
-    { name: 'À vie', value: stats.lifetimeSubscriptions, color: '#ef4444' },
+    { name: "Essai",  value: stats.demoSubscriptions },
+    { name: "Annuel", value: stats.annualSubscriptions },
+    { name: "À vie",  value: stats.lifetimeSubscriptions },
+  ];
+
+  const statCards = [
+    {
+      label: "Total utilisateurs",
+      value: stats.totalUsers,
+      icon: Users,
+      iconBg: "#EFF6FF",
+      iconColor: "#2563EB",
+      accent: "#2563EB",
+    },
+    {
+      label: "Utilisateurs VIP",
+      value: stats.vipUsers,
+      icon: Crown,
+      iconBg: "#EEF2FF",
+      iconColor: "#4F46E5",
+      accent: "#4F46E5",
+    },
+    {
+      label: "Leçons uploadées",
+      value: stats.totalVideos,
+      icon: Video,
+      iconBg: "#F0FDF4",
+      iconColor: "#15803D",
+      accent: "#15803D",
+    },
+    {
+      label: "Total visites",
+      value: stats.totalVisits,
+      icon: Eye,
+      iconBg: "#FFFBEB",
+      iconColor: "#92400E",
+      accent: "#D97706",
+    },
   ];
 
   return (
-    <div className="space-y-8">
-      <h1 className="text-3xl font-bold">Vue d'ensemble</h1>
+    <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { title: "Total utilisateurs", val: stats.totalUsers, icon: Users, color: "text-blue-500", bg: "bg-blue-500/10" },
-          { title: "Utilisateurs VIP", val: stats.vipUsers, icon: Crown, color: "text-amber-500", bg: "bg-amber-500/10" },
-          { title: "Leçons uploadées", val: stats.totalVideos, icon: Video, color: "text-green-500", bg: "bg-green-500/10" },
-          { title: "Total visites", val: stats.totalVisits, icon: Eye, color: "text-purple-500", bg: "bg-purple-500/10" },
-        ].map((item, i) => (
-          <Card key={i} className="p-6 flex items-center gap-4 bg-card border-white/5">
-            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${item.bg} ${item.color}`}>
-              <item.icon className="w-7 h-7" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">{item.title}</p>
-              <h3 className="text-3xl font-bold">{item.val}</h3>
-            </div>
-          </Card>
-        ))}
+      {/* Page header */}
+      <div>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: "#0F172A", letterSpacing: "-0.02em", margin: 0 }}>
+          Vue d'ensemble
+        </h1>
+        <p style={{ fontSize: 12.5, color: "#94A3B8", marginTop: 4 }}>
+          Statistiques globales de la plateforme GAB School
+        </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <Card className="p-6 border-white/5">
-          <h3 className="font-bold mb-6">Types de comptes</h3>
-          <div className="h-64">
+      {/* KPI stat cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14 }}>
+        {statCards.map((s, i) => {
+          const Icon = s.icon;
+          return (
+            <div key={i} className="ad-stat" style={{ borderTop: `3px solid ${s.accent}` }}>
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 8, background: s.iconBg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <Icon size={17} color={s.iconColor} />
+                </div>
+                <TrendingUp size={13} color="#94A3B8" />
+              </div>
+              <div className="ad-stat-value">{s.value.toLocaleString("fr-FR")}</div>
+              <div className="ad-stat-label">{s.label}</div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Charts row */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+
+        {/* Pie — account types */}
+        <div className="ad-card" style={{ padding: "20px 22px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
+            <div>
+              <div style={{ fontSize: 13.5, fontWeight: 600, color: "#0F172A" }}>Types de comptes</div>
+              <div style={{ fontSize: 11.5, color: "#94A3B8", marginTop: 2 }}>Répartition VIP / Standard</div>
+            </div>
+            <Users size={16} color="#94A3B8" />
+          </div>
+          <div style={{ height: 200 }}>
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
+                <Pie
+                  data={pieData}
+                  cx="50%" cy="50%"
+                  innerRadius={55} outerRadius={75}
+                  paddingAngle={4}
+                  dataKey="value"
+                >
                   {pieData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
-                <Tooltip contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a' }} />
+                <Tooltip
+                  contentStyle={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 12, color: "#0F172A", boxShadow: "0 4px 12px rgba(15,23,42,0.08)" }}
+                  itemStyle={{ color: "#475569" }}
+                />
               </PieChart>
             </ResponsiveContainer>
           </div>
-          <div className="flex justify-center gap-6 mt-4">
+          <div style={{ display: "flex", justifyContent: "center", gap: 20, marginTop: 8 }}>
             {pieData.map(d => (
-              <div key={d.name} className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: d.color }} />
-                <span className="text-sm">{d.name} ({d.value})</span>
+              <div key={d.name} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <div style={{ width: 10, height: 10, borderRadius: 3, background: d.color }} />
+                <span style={{ fontSize: 12, color: "#475569" }}>{d.name} <strong style={{ color: "#0F172A" }}>({d.value})</strong></span>
               </div>
             ))}
           </div>
-        </Card>
+        </div>
 
-        <Card className="p-6 border-white/5">
-          <h3 className="font-bold mb-6 flex items-center gap-2"><CreditCard className="w-5 h-5"/> Abonnements actifs</h3>
-          <div className="h-64">
+        {/* Bar — subscriptions */}
+        <div className="ad-card" style={{ padding: "20px 22px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
+            <div>
+              <div style={{ fontSize: 13.5, fontWeight: 600, color: "#0F172A" }}>Abonnements actifs</div>
+              <div style={{ fontSize: 11.5, color: "#94A3B8", marginTop: 2 }}>Par type de plan</div>
+            </div>
+            <CreditCard size={16} color="#94A3B8" />
+          </div>
+          <div style={{ height: 200 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={planData}>
-                <XAxis dataKey="name" stroke="#71717a" />
-                <YAxis stroke="#71717a" />
-                <Tooltip contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a' }} cursor={{ fill: '#27272a' }} />
-                <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                  {planData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Bar>
+              <BarChart data={planData} barSize={36}>
+                <XAxis
+                  dataKey="name"
+                  tick={{ fill: "#94A3B8", fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  tick={{ fill: "#94A3B8", fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={28}
+                />
+                <Tooltip
+                  contentStyle={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 12, color: "#0F172A", boxShadow: "0 4px 12px rgba(15,23,42,0.08)" }}
+                  itemStyle={{ color: "#475569" }}
+                  cursor={{ fill: "#F1F5F9" }}
+                />
+                <Bar dataKey="value" fill="#2563EB" radius={[5, 5, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
-        </Card>
+        </div>
+      </div>
+
+      {/* Quick info banner */}
+      <div style={{ background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 10, padding: "12px 18px", display: "flex", alignItems: "center", gap: 10 }}>
+        <AlertCircle size={15} color="#2563EB" style={{ flexShrink: 0 }} />
+        <p style={{ fontSize: 12.5, color: "#1D4ED8", margin: 0 }}>
+          Données en temps réel. Consultez la section <strong>Paiements</strong> pour valider les abonnements en attente.
+        </p>
       </div>
     </div>
   );

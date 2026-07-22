@@ -156,7 +156,7 @@ function SortableVideoCard({
             {video.accessType === "vip" && <Badge variant="vip" className="text-xs">VIP</Badge>}
             {video.accessType === "visitor" && <Badge variant="outline" className="text-xs border-green-500/40 text-green-400">Gratuit</Badge>}
             {video.migratedAt && (
-              <Badge variant="outline" className="text-xs border-amber-400/40 text-amber-300">
+              <Badge variant="outline" className="text-xs border-blue-400/40 text-blue-400">
                 <Zap className="w-3 h-3 mr-0.5" /> Rapide
               </Badge>
             )}
@@ -170,7 +170,7 @@ function SortableVideoCard({
               <Button
                 variant="outline"
                 size="icon"
-                className="border-amber-400/40 text-amber-300 hover:bg-amber-400/10"
+                className="border-blue-400/40 text-blue-400 hover:bg-blue-400/10"
                 title="Activer la lecture rapide"
                 disabled={isMigrating}
                 onClick={() => onMigrate(video)}
@@ -547,7 +547,7 @@ export function AdminVideos() {
         <div className="flex items-center gap-2 flex-wrap">
           <Button
             variant="outline"
-            className="gap-2 border-amber-500/40 text-amber-400 hover:bg-amber-500/10"
+            className="gap-2 border-blue-500/40 text-blue-400 hover:bg-blue-500/10"
             onClick={handleBulkMigrate}
             disabled={bulkMigrating}
           >
@@ -579,9 +579,9 @@ export function AdminVideos() {
           <span className="text-xs text-muted-foreground">Glissez pour ordonner les leçons — {orderedVideos.length} leçon(s)</span>
         )}
         {(categories ?? []).length === 0 && (
-          <span className="text-xs text-amber-400 flex items-center gap-1">
+          <span className="text-xs text-blue-500 flex items-center gap-1">
             Aucune catégorie pour ce cours —
-            <Link href={`/gab-ctrl-9x/categories?courseId=${courseId}`} className="underline hover:text-amber-300">
+            <Link href={`/gab-ctrl-9x/categories?courseId=${courseId}`} className="underline hover:text-blue-400">
               Ajouter une catégorie
             </Link>
           </span>
@@ -782,7 +782,7 @@ export function AdminVideos() {
               {/* VIP software link */}
               <div className="space-y-2 col-span-2">
                 <Label className="flex items-center gap-1.5">
-                  <span className="text-xs bg-orange-500/20 text-orange-400 px-1.5 py-0.5 rounded font-semibold">VIP</span>
+                  <span className="text-xs bg-indigo-500/15 text-indigo-500 px-1.5 py-0.5 rounded font-semibold">VIP</span>
                   Lien de téléchargement du logiciel (VIP uniquement)
                 </Label>
                 <Input dir="ltr" className="text-left" placeholder="https://..."
@@ -795,9 +795,9 @@ export function AdminVideos() {
               <div className="space-y-2 col-span-2">
                 <Label>Catégorie liée <span className="text-destructive">*</span></Label>
                 {(categories ?? []).length === 0 ? (
-                  <div className="flex items-center gap-2 p-3 rounded-lg border border-amber-500/20 bg-amber-500/5 text-sm text-amber-400">
+                  <div className="flex items-center gap-2 p-3 rounded-lg border border-blue-200 bg-blue-50 text-sm text-blue-600">
                     <span>Aucune catégorie pour ce cours —</span>
-                    <Link href={`/gab-ctrl-9x/categories?courseId=${courseId}`} className="underline hover:text-amber-300">
+                    <Link href={`/gab-ctrl-9x/categories?courseId=${courseId}`} className="underline hover:text-blue-500">
                       Ajouter une catégorie
                     </Link>
                   </div>

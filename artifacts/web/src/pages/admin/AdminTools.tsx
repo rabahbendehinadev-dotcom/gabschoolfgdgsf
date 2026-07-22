@@ -63,14 +63,14 @@ const EMPTY_FORM: ToolForm = {
 const ACCESS_OPTIONS = [
   { value: "free",         label: "Gratuit",            icon: <CheckCircle2 className="w-4 h-4 text-emerald-400" /> },
   { value: "password",     label: "Avec mot de passe",  icon: <KeyRound    className="w-4 h-4 text-blue-400"    /> },
-  { value: "vip",          label: "VIP seulement",      icon: <Crown       className="w-4 h-4 text-amber-400"   /> },
+  { value: "vip",          label: "VIP seulement",      icon: <Crown       className="w-4 h-4 text-indigo-400"  /> },
   { value: "vip_password", label: "VIP + mot de passe", icon: <Lock        className="w-4 h-4 text-purple-400"  /> },
 ];
 
 const ACCESS_BADGE: Record<string, string> = {
   free:         "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
   password:     "bg-blue-500/15   text-blue-400    border-blue-500/30",
-  vip:          "bg-amber-500/15  text-amber-400   border-amber-500/30",
+  vip:          "bg-indigo-500/15 text-indigo-400  border-indigo-500/30",
   vip_password: "bg-purple-500/15 text-purple-400  border-purple-500/30",
 };
 
@@ -300,7 +300,7 @@ export function AdminTools() {
                       </span>
                     )}
                     {!tool.isPublished && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border bg-orange-500/10 text-orange-400 border-orange-500/20">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border bg-slate-500/10 text-slate-500 border-slate-500/20">
                         <EyeOff className="w-3 h-3" /> Masqué
                       </span>
                     )}

@@ -4,7 +4,8 @@ import { useAuth } from "@/lib/auth";
 import {
   LayoutDashboard, Users, Video, FolderTree, CreditCard, LogOut,
   ShieldAlert, Activity, BadgeCheck, Banknote, KeyRound, Wrench,
-  Megaphone, Bell, BellOff, BellRing, X, Share, PlusSquare, Menu, AlertTriangle, GraduationCap,
+  Megaphone, Bell, BellOff, BellRing, X, Share, PlusSquare, Menu,
+  AlertTriangle, GraduationCap, MessageSquare,
 } from "lucide-react";
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
@@ -86,25 +87,44 @@ function useAdminPush(adminToken: string | null) {
   return { subscribed, loading, subscribe, unsubscribe };
 }
 
-const NAV = [
-  { name: "Tableau de bord",       path: "/gab-ctrl-9x",                     icon: LayoutDashboard },
-  { name: "Utilisateurs",          path: "/gab-ctrl-9x/users",               icon: Users },
-  { name: "Cours",                 path: "/gab-ctrl-9x/courses",             icon: GraduationCap },
-  { name: "Vidéos",                path: "/gab-ctrl-9x/videos",              icon: Video },
-  { name: "Outils",                path: "/gab-ctrl-9x/tools",               icon: Wrench },
-  { name: "Catégories d'outils",   path: "/gab-ctrl-9x/tool-categories",     icon: FolderTree },
-  { name: "Catégories",            path: "/gab-ctrl-9x/categories",          icon: FolderTree },
-  { name: "Plans tarifaires",      path: "/gab-ctrl-9x/plans",               icon: CreditCard },
-  { name: "Abonnements",           path: "/gab-ctrl-9x/subscriptions",       icon: BadgeCheck },
-  { name: "Alertes d'abonnement",  path: "/gab-ctrl-9x/subscription-alerts", icon: AlertTriangle },
-  { name: "Notifications",         path: "/gab-ctrl-9x/send-notification",   icon: Megaphone },
-  { name: "Communauté GAB",        path: "/gab-ctrl-9x/community",           icon: Users },
-  { name: "Journal d'activité",    path: "/gab-ctrl-9x/activity-log",        icon: Activity },
-  { name: "Paiements",             path: "/gab-ctrl-9x/payments",            icon: Banknote },
-  { name: "Mot de passe",          path: "/gab-ctrl-9x/change-password",     icon: KeyRound },
+/* ── Nav structure with sections (Odoo-style) ───────────────────────────── */
+const NAV_SECTIONS = [
+  {
+    section: "Gestion",
+    items: [
+      { name: "Tableau de bord",      path: "/gab-ctrl-9x",                     icon: LayoutDashboard },
+      { name: "Utilisateurs",         path: "/gab-ctrl-9x/users",               icon: Users },
+      { name: "Abonnements",          path: "/gab-ctrl-9x/subscriptions",       icon: BadgeCheck },
+      { name: "Paiements",            path: "/gab-ctrl-9x/payments",            icon: Banknote },
+    ],
+  },
+  {
+    section: "Contenu",
+    items: [
+      { name: "Cours",                path: "/gab-ctrl-9x/courses",             icon: GraduationCap },
+      { name: "Vidéos",               path: "/gab-ctrl-9x/videos",              icon: Video },
+      { name: "Catégories",           path: "/gab-ctrl-9x/categories",          icon: FolderTree },
+      { name: "Outils",               path: "/gab-ctrl-9x/tools",               icon: Wrench },
+      { name: "Cat. d'outils",        path: "/gab-ctrl-9x/tool-categories",     icon: FolderTree },
+      { name: "Communauté",           path: "/gab-ctrl-9x/community",           icon: MessageSquare },
+    ],
+  },
+  {
+    section: "Configuration",
+    items: [
+      { name: "Plans tarifaires",     path: "/gab-ctrl-9x/plans",               icon: CreditCard },
+      { name: "Alertes abonnement",   path: "/gab-ctrl-9x/subscription-alerts", icon: AlertTriangle },
+      { name: "Notifications",        path: "/gab-ctrl-9x/send-notification",   icon: Megaphone },
+      { name: "Journal d'activité",   path: "/gab-ctrl-9x/activity-log",        icon: Activity },
+      { name: "Mot de passe",         path: "/gab-ctrl-9x/change-password",     icon: KeyRound },
+    ],
+  },
 ];
 
-/* ── Bell button (light variant) ─────────────────────────────────────────── */
+/* flat list for breadcrumb lookup */
+const NAV_FLAT = NAV_SECTIONS.flatMap(s => s.items);
+
+/* ── Bell button ─────────────────────────────────────────────────────────── */
 function BellButton({
   subscribed, loading, subscribe, unsubscribe,
 }: {
@@ -112,12 +132,8 @@ function BellButton({
   subscribe: () => void; unsubscribe: () => void;
 }) {
   const [hov, setHov] = useState(false);
-  const bg = subscribed
-    ? (hov ? "#FDF1F1" : "#EFFAF3")
-    : (hov ? "#F4F6FA" : "transparent");
-  const col = subscribed
-    ? (hov ? "#B42318" : "#157347")
-    : "#98A2B3";
+  const bg  = subscribed ? (hov ? "#FEE2E2" : "#F0FDF4") : (hov ? "#E2E8F0" : "transparent");
+  const col = subscribed ? (hov ? "#9F1239" : "#15803D") : "#94A3B8";
 
   return (
     <button
@@ -128,42 +144,79 @@ function BellButton({
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
-        width: 30, height: 30, borderRadius: 8, border: "none", cursor: "pointer",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        background: bg, color: col, transition: "all 120ms",
+        width: 30, height: 30, borderRadius: 7,
+        border: "1px solid " + (subscribed ? (hov ? "#FECDD3" : "#BBF7D0") : "#E2E8F0"),
+        cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+        background: bg, color: col, transition: "all 120ms", flexShrink: 0,
       }}
     >
       {loading
-        ? <span style={{ width: 12, height: 12, border: "2px solid currentColor", borderTopColor: "transparent", borderRadius: "50%", display: "inline-block", animation: "spin 0.7s linear infinite" }} />
-        : subscribed ? <BellRing size={14} /> : <BellOff size={14} />}
+        ? <span style={{ width: 11, height: 11, border: "2px solid currentColor", borderTopColor: "transparent", borderRadius: "50%", display: "inline-block", animation: "spin 0.7s linear infinite" }} />
+        : subscribed ? <BellRing size={13} /> : <BellOff size={13} />}
     </button>
   );
 }
 
-/* ── NavLinks component ──────────────────────────────────────────────────── */
+/* ── Sidebar nav with grouped sections ──────────────────────────────────── */
 function NavLinks({ location, onNavigate }: { location: string; onNavigate?: () => void }) {
   return (
     <>
-      {NAV.map((item) => {
-        const isActive = item.path === "/gab-ctrl-9x"
-          ? location === item.path
-          : location.startsWith(item.path);
-        const Icon = item.icon;
-        return (
-          <Link key={item.path} href={item.path}>
-            <div onClick={onNavigate} className={`ad-nav-item${isActive ? " is-active" : ""}`}>
-              <Icon size={15} className="ad-nav-icon" />
-              <span>{item.name}</span>
-            </div>
-          </Link>
-        );
-      })}
+      {NAV_SECTIONS.map((group) => (
+        <div key={group.section}>
+          <div className="ad-nav-section">{group.section}</div>
+          {group.items.map((item) => {
+            const isActive = item.path === "/gab-ctrl-9x"
+              ? location === item.path
+              : location.startsWith(item.path);
+            const Icon = item.icon;
+            return (
+              <Link key={item.path} href={item.path}>
+                <div onClick={onNavigate} className={`ad-nav-item${isActive ? " is-active" : ""}`}>
+                  <Icon size={14} className="ad-nav-icon" />
+                  <span>{item.name}</span>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      ))}
     </>
   );
 }
 
+/* ── Brand logo block ────────────────────────────────────────────────────── */
+function SidebarBrand({ username, pushReady, subscribed, loading, subscribe, unsubscribe }: {
+  username: string;
+  pushReady: boolean;
+  subscribed: boolean | null;
+  loading: boolean;
+  subscribe: () => void;
+  unsubscribe: () => void;
+}) {
+  return (
+    <div className="ad-sidebar-brand">
+      <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+        <div style={{
+          width: 32, height: 32, borderRadius: 8,
+          background: "linear-gradient(135deg, #2563EB, #1D4ED8)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          color: "#fff", fontWeight: 800, fontSize: 14, letterSpacing: "-0.02em",
+          flexShrink: 0, boxShadow: "0 1px 4px rgba(37,99,235,0.35)",
+        }}>G</div>
+        <div>
+          <h1>GAB School</h1>
+          <p>{username}</p>
+        </div>
+      </div>
+      {pushReady && (
+        <BellButton subscribed={subscribed} loading={loading} subscribe={subscribe} unsubscribe={unsubscribe} />
+      )}
+    </div>
+  );
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
-   ADMIN LAYOUT — Light ERP · French · LTR
+   ADMIN LAYOUT — Premium ERP · LTR · French
 ═══════════════════════════════════════════════════════════════════════════ */
 export function AdminLayout({ children }: { children: ReactNode }) {
   const { admin, adminLogout } = useAuth();
@@ -202,7 +255,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     try { localStorage.setItem("admin-ios-banner-dismissed", "1"); } catch { /* */ }
   };
 
-  const currentPageName = NAV.find(n =>
+  const currentPageName = NAV_FLAT.find(n =>
     n.path === "/gab-ctrl-9x" ? location === n.path : location.startsWith(n.path)
   )?.name ?? "Administration";
 
@@ -211,10 +264,11 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     return (
       <div className="ad-shell" dir="ltr" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh" }}>
         <div style={{ textAlign: "center" }}>
-          <div style={{ width: 64, height: 64, borderRadius: 18, background: "#FDF1F1", border: "1px solid #F2CBCB", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
-            <ShieldAlert size={30} color="#B42318" />
+          <div style={{ width: 56, height: 56, borderRadius: 14, background: "#FFF1F2", border: "1px solid #FECDD3", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+            <ShieldAlert size={26} color="#9F1239" />
           </div>
-          <h2 style={{ fontSize: 18, fontWeight: 700, color: "#1F2937", marginBottom: 16 }}>Accès non autorisé</h2>
+          <h2 style={{ fontSize: 17, fontWeight: 700, color: "#0F172A", marginBottom: 6 }}>Accès non autorisé</h2>
+          <p style={{ fontSize: 12.5, color: "#64748B", marginBottom: 18 }}>Veuillez vous connecter pour accéder au panneau.</p>
           <Link href="/gab-ctrl-9x/login">
             <button className="ad-btn-primary">Connexion administrateur</button>
           </Link>
@@ -227,30 +281,33 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     <div className="ad-shell" dir="ltr" style={{ display: "flex" }}>
 
       {/* ══════════════════════════════════════════════════════════
-          MOBILE HEADER — light
+          MOBILE HEADER
       ══════════════════════════════════════════════════════════ */}
       <header
         className="md:hidden"
         style={{
           position: "fixed", top: 0, left: 0, right: 0, zIndex: 40, height: 52,
-          background: "#FFFFFF", borderBottom: "1px solid #E5EAF2",
+          background: "#FFFFFF", borderBottom: "1px solid #E2E8F0",
           display: "flex", alignItems: "center", gap: 10, padding: "0 14px",
+          boxShadow: "0 1px 3px rgba(15,23,42,0.06)",
         }}
       >
         <button
           onClick={() => setDrawerOpen(true)}
-          style={{ width: 32, height: 32, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", color: "#667085", background: "transparent", border: "none", cursor: "pointer" }}
-          onMouseEnter={e => (e.currentTarget.style.background = "#F4F6FA")}
+          style={{ width: 32, height: 32, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", color: "#64748B", background: "transparent", border: "1px solid #E2E8F0", cursor: "pointer" }}
+          onMouseEnter={e => (e.currentTarget.style.background = "#F1F5F9")}
           onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
         >
-          <Menu size={18} />
+          <Menu size={16} />
         </button>
-        <span style={{ flex: 1, fontWeight: 600, fontSize: 13.5, color: "#1F2937" }}>{currentPageName}</span>
+        {/* Logo */}
+        <div style={{ width: 26, height: 26, borderRadius: 6, background: "linear-gradient(135deg,#2563EB,#1D4ED8)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, fontSize: 12, flexShrink: 0 }}>G</div>
+        <span style={{ flex: 1, fontWeight: 600, fontSize: 13, color: "#0F172A" }}>{currentPageName}</span>
         {pushReady && <BellButton subscribed={subscribed} loading={loading} subscribe={subscribe} unsubscribe={unsubscribe} />}
         {iosDevice && !standalone && (
           <button onClick={dismissIosBanner}
-            style={{ width: 30, height: 30, borderRadius: 8, background: "#FFF4EC", color: "#C2570E", border: "none", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-            <PlusSquare size={14} />
+            style={{ width: 30, height: 30, borderRadius: 7, background: "#EFF6FF", color: "#2563EB", border: "1px solid #BFDBFE", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+            <PlusSquare size={13} />
           </button>
         )}
       </header>
@@ -261,7 +318,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
       <div
         className="md:hidden"
         style={{
-          position: "fixed", inset: 0, zIndex: 50, background: "rgba(15,23,42,0.40)",
+          position: "fixed", inset: 0, zIndex: 50, background: "rgba(15,23,42,0.35)",
           transition: "opacity 200ms", opacity: drawerOpen ? 1 : 0,
           pointerEvents: drawerOpen ? "auto" : "none",
         }}
@@ -269,32 +326,32 @@ export function AdminLayout({ children }: { children: ReactNode }) {
       />
 
       {/* ══════════════════════════════════════════════════════════
-          MOBILE DRAWER — light sidebar (slides from left)
+          MOBILE DRAWER
       ══════════════════════════════════════════════════════════ */}
       <div
         ref={drawerRef}
         className="md:hidden"
         style={{
-          position: "fixed", top: 0, left: 0, bottom: 0, zIndex: 51, width: 256,
-          background: "#FFFFFF", borderRight: "1px solid #E5EAF2",
+          position: "fixed", top: 0, left: 0, bottom: 0, zIndex: 51, width: 260,
+          background: "#F1F5F9", borderRight: "1px solid #E2E8F0",
           boxShadow: "8px 0 32px rgba(15,23,42,0.12)",
           display: "flex", flexDirection: "column",
           transform: drawerOpen ? "translateX(0)" : "translateX(-100%)",
           transition: "transform 220ms cubic-bezier(.4,0,.2,1)",
         }}
       >
-        {/* Drawer header */}
-        <div style={{ padding: "14px 14px", borderBottom: "1px solid #EEF2F7", display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ padding: "14px", borderBottom: "1px solid #E2E8F0", display: "flex", alignItems: "center", gap: 10, background: "#FFFFFF" }}>
+          <div style={{ width: 30, height: 30, borderRadius: 7, background: "linear-gradient(135deg,#2563EB,#1D4ED8)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, fontSize: 13, flexShrink: 0 }}>G</div>
           <div style={{ flex: 1 }}>
-            <p style={{ fontWeight: 700, fontSize: 13.5, color: "#1E293B" }}>GAB School</p>
+            <p style={{ fontWeight: 700, fontSize: 13, color: "#0F172A" }}>GAB School</p>
             <p style={{ fontSize: 11, color: "#94A3B8", marginTop: 1 }}>{admin.username}</p>
           </div>
           {pushReady && <BellButton subscribed={subscribed} loading={loading} subscribe={subscribe} unsubscribe={unsubscribe} />}
           <button onClick={() => setDrawerOpen(false)}
-            style={{ width: 28, height: 28, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", color: "#98A2B3", border: "none", background: "transparent", cursor: "pointer" }}
-            onMouseEnter={e => (e.currentTarget.style.background = "#F4F6FA")}
+            style={{ width: 28, height: 28, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", color: "#94A3B8", border: "1px solid #E2E8F0", background: "transparent", cursor: "pointer" }}
+            onMouseEnter={e => (e.currentTarget.style.background = "#F1F5F9")}
             onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
-            <X size={15} />
+            <X size={14} />
           </button>
         </div>
 
@@ -302,14 +359,14 @@ export function AdminLayout({ children }: { children: ReactNode }) {
           <div className="ad-push-hint"><Bell size={12} style={{ flexShrink: 0, marginTop: 1 }} /><span>Activez la cloche pour recevoir une alerte à chaque inscription</span></div>
         )}
         {iosDevice && !standalone && (
-          <div className="ad-ios-hint"><Share size={12} style={{ flexShrink: 0, marginTop: 1 }} /><span>Installez d'abord l'application pour activer les notifications</span></div>
+          <div className="ad-ios-hint"><Share size={12} style={{ flexShrink: 0, marginTop: 1 }} /><span>Installez l'app pour activer les notifications</span></div>
         )}
 
-        <nav style={{ flex: 1, padding: "10px 8px", overflowY: "auto", display: "flex", flexDirection: "column", gap: 1 }}>
+        <nav style={{ flex: 1, padding: "4px 8px 8px", overflowY: "auto", display: "flex", flexDirection: "column" }}>
           <NavLinks location={location} onNavigate={() => setDrawerOpen(false)} />
         </nav>
 
-        <div style={{ padding: "8px 8px 14px", borderTop: "1px solid #EEF2F7" }}>
+        <div style={{ padding: "8px 8px 16px", borderTop: "1px solid #E2E8F0" }}>
           <button className="ad-sidebar-logout" onClick={() => { setDrawerOpen(false); adminLogout(); }}>
             <LogOut size={14} className="ad-nav-icon" />Se déconnecter
           </button>
@@ -317,26 +374,27 @@ export function AdminLayout({ children }: { children: ReactNode }) {
       </div>
 
       {/* ══════════════════════════════════════════════════════════
-          DESKTOP SIDEBAR — light
+          DESKTOP SIDEBAR
       ══════════════════════════════════════════════════════════ */}
-      <aside className="ad-sidebar hidden md:flex">
-        <div className="ad-sidebar-brand">
-          <div>
-            <h1>GAB School</h1>
-            <p>{admin.username}</p>
-          </div>
-          {pushReady && <BellButton subscribed={subscribed} loading={loading} subscribe={subscribe} unsubscribe={unsubscribe} />}
-        </div>
+      <aside className="ad-sidebar hidden md:flex" style={{ position: "sticky", top: 0, height: "100vh" }}>
+        <SidebarBrand
+          username={admin.username}
+          pushReady={pushReady}
+          subscribed={subscribed}
+          loading={loading}
+          subscribe={subscribe}
+          unsubscribe={unsubscribe}
+        />
 
         {pushReady && subscribed === false && (
           <div className="ad-push-hint"><Bell size={12} style={{ flexShrink: 0, marginTop: 1 }} /><span>Activez la cloche pour recevoir une alerte à chaque inscription</span></div>
         )}
 
-        <nav style={{ flex: 1, padding: "10px 8px", overflowY: "auto", display: "flex", flexDirection: "column", gap: 1 }}>
+        <nav style={{ flex: 1, padding: "4px 8px 8px", overflowY: "auto", display: "flex", flexDirection: "column" }}>
           <NavLinks location={location} />
         </nav>
 
-        <div style={{ padding: "8px 8px 16px", borderTop: "1px solid #EEF2F7" }}>
+        <div style={{ padding: "8px 8px 16px", borderTop: "1px solid #E2E8F0" }}>
           <button className="ad-sidebar-logout" onClick={adminLogout}>
             <LogOut size={14} className="ad-nav-icon" />Se déconnecter
           </button>
@@ -350,27 +408,27 @@ export function AdminLayout({ children }: { children: ReactNode }) {
         className="flex-1 min-w-0 overflow-y-auto"
         style={{ paddingTop: 52, minHeight: "100vh" }}
       >
-        <div className="md:pt-0" style={{ maxWidth: 1320, margin: "0 auto", padding: "28px 24px 40px" }}>
+        <div className="md:pt-0" style={{ maxWidth: 1340, margin: "0 auto", padding: "28px 28px 48px" }}>
           {children}
         </div>
       </main>
 
       {/* ══════════════════════════════════════════════════════════
-          iOS BANNER — light
+          iOS BANNER
       ══════════════════════════════════════════════════════════ */}
       {showIosBanner && (
-        <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 50, background: "#FFFFFF", borderTop: "1px solid #E5EAF2", padding: 16, boxShadow: "0 -8px 32px rgba(15,23,42,0.10)" }}>
-          <button onClick={dismissIosBanner} style={{ position: "absolute", top: 12, right: 12, color: "#98A2B3", background: "transparent", border: "none", cursor: "pointer" }}>
-            <X size={15} />
+        <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 50, background: "#FFFFFF", borderTop: "1px solid #E2E8F0", padding: 16, boxShadow: "0 -8px 32px rgba(15,23,42,0.08)" }}>
+          <button onClick={dismissIosBanner} style={{ position: "absolute", top: 12, right: 12, color: "#94A3B8", background: "transparent", border: "none", cursor: "pointer" }}>
+            <X size={14} />
           </button>
           <div style={{ display: "flex", gap: 12, paddingRight: 28 }}>
-            <div style={{ width: 34, height: 34, borderRadius: 9, background: "#FFF4EC", border: "1px solid #F5CBA8", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <PlusSquare size={16} color="#F97316" />
+            <div style={{ width: 34, height: 34, borderRadius: 8, background: "#EFF6FF", border: "1px solid #BFDBFE", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <PlusSquare size={16} color="#2563EB" />
             </div>
             <div>
-              <p style={{ fontWeight: 600, fontSize: 13, color: "#1F2937", marginBottom: 3 }}>Installer le panneau d'administration</p>
-              <p style={{ fontSize: 11.5, color: "#667085", lineHeight: 1.5 }}>
-                Appuyez sur <Share size={11} style={{ display: "inline", verticalAlign: "middle" }} /> puis <strong style={{ color: "#344054" }}>« Sur l'écran d'accueil »</strong>
+              <p style={{ fontWeight: 600, fontSize: 13, color: "#0F172A", marginBottom: 3 }}>Installer le panneau d'administration</p>
+              <p style={{ fontSize: 11.5, color: "#64748B", lineHeight: 1.5 }}>
+                Appuyez sur <Share size={11} style={{ display: "inline", verticalAlign: "middle" }} /> puis <strong style={{ color: "#334155" }}>« Sur l'écran d'accueil »</strong>
               </p>
             </div>
           </div>

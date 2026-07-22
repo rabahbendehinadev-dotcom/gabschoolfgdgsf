@@ -59,7 +59,7 @@ function getStatus(u: SubUser): StatusColor {
 
 const STATUS_CONFIG: Record<StatusColor, { label: string; dotCls: string; badgeCls: string }> = {
   green:  { label: "Actif",            dotCls: "bg-emerald-500", badgeCls: "bg-emerald-50  text-emerald-700  border-emerald-200" },
-  yellow: { label: "Expire bientôt",   dotCls: "bg-amber-500",   badgeCls: "bg-amber-50    text-amber-700    border-amber-200"   },
+  yellow: { label: "Expire bientôt",   dotCls: "bg-yellow-500",  badgeCls: "bg-yellow-50   text-yellow-700   border-yellow-200"  },
   red:    { label: "Expiré",           dotCls: "bg-red-500",     badgeCls: "bg-red-50      text-red-700      border-red-200"     },
   gray:   { label: "Données manq.",    dotCls: "bg-gray-400",    badgeCls: "bg-gray-100    text-gray-600     border-gray-200"    },
 };
@@ -86,14 +86,14 @@ function DaysChip({ user }: { user: SubUser }) {
   if (user.daysLeft !== null) {
     if (user.daysLeft <= 0) {
       return (
-        <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-bold text-amber-700">
+        <span className="inline-flex items-center rounded-full bg-yellow-100 px-2.5 py-1 text-[11px] font-bold text-yellow-700">
           Aujourd'hui
         </span>
       );
     }
     if (user.isExpiringSoon) {
       return (
-        <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-bold text-amber-700">
+        <span className="inline-flex items-center rounded-full bg-yellow-100 px-2.5 py-1 text-[11px] font-bold text-yellow-700">
           {user.daysLeft} jour(s)
         </span>
       );
@@ -243,8 +243,8 @@ function SubSection({
     },
     {
       v: "soon", label: "Expire bientôt", data: soon,
-      activeCls: "bg-amber-500 text-white border-amber-500",
-      countCls: "bg-amber-100 text-amber-700",
+      activeCls: "bg-yellow-500 text-white border-yellow-500",
+      countCls: "bg-yellow-100 text-yellow-700",
     },
     {
       v: "expired", label: "Expirés", data: expired,
@@ -294,9 +294,9 @@ function SubSection({
       </div>
 
       {filter === "missing" && missing.length > 0 && (
-        <div className="flex items-start gap-2.5 px-5 py-3 bg-amber-50 border-b border-amber-100">
-          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-          <p className="text-sm text-amber-800">
+        <div className="flex items-start gap-2.5 px-5 py-3 bg-slate-50 border-b border-slate-100">
+          <AlertCircle className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
+          <p className="text-sm text-slate-700">
             Ces abonnés n'ont pas de date de début ni de fin dans la base de données.
             Veuillez mettre à jour leurs données depuis la page utilisateurs.
           </p>
@@ -481,9 +481,9 @@ export function AdminSubscriptionAlerts() {
             textCls="text-emerald-800" />
           <StatCard count={totalSoon} label="Expire bientôt"
             icon={Clock}
-            bg="bg-amber-50 border-amber-200"
-            iconCls="bg-amber-100 text-amber-700"
-            textCls="text-amber-800" />
+            bg="bg-yellow-50 border-yellow-200"
+            iconCls="bg-yellow-100 text-yellow-700"
+            textCls="text-yellow-800" />
           <StatCard count={totalExpired} label="Expiré"
             icon={AlertTriangle}
             bg="bg-red-50 border-red-200"

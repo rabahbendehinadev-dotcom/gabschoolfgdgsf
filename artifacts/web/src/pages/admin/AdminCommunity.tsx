@@ -56,7 +56,7 @@ function AvatarIcon({ username, imageUrl }: { username: string | null; imageUrl:
     );
   }
   return (
-    <div className="h-10 w-10 rounded-full bg-orange-100 border border-orange-200 flex items-center justify-center text-sm font-bold text-orange-600 shrink-0">
+    <div className="h-10 w-10 rounded-full bg-blue-100 border border-blue-200 flex items-center justify-center text-sm font-bold text-blue-700 shrink-0">
       {username?.charAt(0)?.toUpperCase() || "?"}
     </div>
   );
@@ -148,8 +148,8 @@ export function AdminCommunity() {
 
       {/* Header */}
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center shrink-0">
-          <MessageSquare className="w-5 h-5 text-orange-600" />
+        <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
+          <MessageSquare className="w-5 h-5 text-blue-600" />
         </div>
         <h2 className="text-2xl font-extrabold text-gray-900">Gestion de la Communauté GAB</h2>
       </div>
@@ -163,7 +163,7 @@ export function AdminCommunity() {
             onClick={() => { setTab(t); setPage(1); }}
             className={`rounded-t-lg px-5 py-2 text-sm font-bold transition-colors border-b-2 -mb-[3px] ${
               tab === t
-                ? "border-orange-500 text-orange-600 bg-orange-50"
+                ? "border-blue-500 text-blue-600 bg-blue-50"
                 : "border-transparent text-gray-500 hover:text-gray-800 hover:bg-gray-50"
             }`}
           >
@@ -182,13 +182,13 @@ export function AdminCommunity() {
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
               placeholder="Rechercher par contenu ou nom d'utilisateur..."
-              className="w-full h-10 rounded-xl border border-gray-300 bg-white text-gray-900 placeholder:text-gray-400 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent"
+              className="w-full h-10 rounded-xl border border-gray-300 bg-white text-gray-900 placeholder:text-gray-400 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
             />
           </div>
 
           {postsQ.isLoading ? (
             <div className="flex justify-center py-12">
-              <Loader2 className="h-7 w-7 animate-spin text-orange-500" />
+              <Loader2 className="h-7 w-7 animate-spin text-blue-500" />
             </div>
           ) : (postsQ.data?.posts ?? []).length === 0 ? (
             <div className="py-12 text-center text-gray-400 flex flex-col items-center gap-3">
@@ -228,7 +228,7 @@ export function AdminCommunity() {
                           </span>
                         )}
                         {post.isFeatured && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-xs font-semibold">
                             En vedette
                           </span>
                         )}
@@ -327,7 +327,7 @@ export function AdminCommunity() {
                 className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-colors border ${
                   reportStatus === s
                     ? s === "pending"
-                      ? "bg-orange-500 border-orange-500 text-white shadow-sm"
+                      ? "bg-blue-600 border-blue-600 text-white shadow-sm"
                       : s === "resolved"
                       ? "bg-green-600 border-green-600 text-white shadow-sm"
                       : "bg-gray-600 border-gray-600 text-white shadow-sm"
@@ -341,7 +341,7 @@ export function AdminCommunity() {
 
           {reportsQ.isLoading ? (
             <div className="flex justify-center py-12">
-              <Loader2 className="h-7 w-7 animate-spin text-orange-500" />
+              <Loader2 className="h-7 w-7 animate-spin text-blue-500" />
             </div>
           ) : (reportsQ.data?.reports ?? []).length === 0 ? (
             <div className="py-12 text-center flex flex-col items-center gap-3">
@@ -360,7 +360,7 @@ export function AdminCommunity() {
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex flex-wrap items-center gap-2 mb-2">
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-orange-100 text-orange-700 text-xs font-bold">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 text-xs font-bold">
                           <Flag className="h-3 w-3" />
                           {report.postId ? `Publication #${report.postId}` : `Commentaire #${report.commentId}`}
                         </span>

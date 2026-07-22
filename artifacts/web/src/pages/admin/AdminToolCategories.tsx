@@ -150,7 +150,7 @@ export function AdminToolCategories() {
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-base">{cat.name}</span>
                     {!cat.isVisible && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border bg-orange-500/10 text-orange-400 border-orange-500/20">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border bg-slate-500/10 text-slate-500 border-slate-500/20">
                         <EyeOff className="w-3 h-3" /> Masqué
                       </span>
                     )}

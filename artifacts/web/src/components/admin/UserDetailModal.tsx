@@ -79,7 +79,7 @@ export function UserDetailModal({ userId, onClose, getAdminAuthHeaders }: Props)
       <DialogContent dir="ltr" className="max-w-2xl max-h-[90vh] overflow-y-auto bg-white">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-base text-gray-900" style={{ textAlign: "left" }}>
-            <User className="w-4 h-4 text-orange-500" />
+            <User className="w-4 h-4 text-blue-500" />
             {loading ? "Chargement…" : detail ? `${detail.username}` : "Détails de l'utilisateur"}
           </DialogTitle>
         </DialogHeader>
@@ -102,7 +102,7 @@ export function UserDetailModal({ userId, onClose, getAdminAuthHeaders }: Props)
                 { v: "devices",  label: "Appareils", icon: <Smartphone className="w-3 h-3" /> },
                 { v: "payments", label: "Paiements", icon: <CreditCard className="w-3 h-3" /> },
               ].map(t => (
-                <TabsTrigger key={t.v} value={t.v} className="flex items-center gap-1 text-xs data-[state=active]:bg-white data-[state=active]:text-orange-600 data-[state=active]:shadow-sm rounded-md">
+                <TabsTrigger key={t.v} value={t.v} className="flex items-center gap-1 text-xs data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm rounded-md">
                   {t.icon}{t.label}
                 </TabsTrigger>
               ))}
@@ -171,8 +171,8 @@ export function UserDetailModal({ userId, onClose, getAdminAuthHeaders }: Props)
                   {detail.courses.map(c => (
                     <div key={c.playlistId} className="flex items-center justify-between rounded-xl border bg-white px-4 py-3" style={{ borderColor: "#E5EAF2" }}>
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "#FFF4EC", border: "1px solid #F5CBA8" }}>
-                          <GraduationCap className="w-4 h-4 text-orange-500" />
+                        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "#EFF6FF", border: "1px solid #BFDBFE" }}>
+                          <GraduationCap className="w-4 h-4 text-blue-500" />
                         </div>
                         <div>
                           <p className="text-sm font-medium" style={{ color: "#1F2937" }}>{c.title}</p>
@@ -192,7 +192,7 @@ export function UserDetailModal({ userId, onClose, getAdminAuthHeaders }: Props)
                 <div className="space-y-1">
                   {detail.recentActivity.map(a => (
                     <div key={a.id} className="flex items-start gap-3 rounded-lg border bg-white px-3 py-2.5 hover:bg-gray-50 transition-colors" style={{ borderColor: "#EEF2F7" }}>
-                      <div className="w-1.5 h-1.5 rounded-full bg-orange-400 mt-1.5 shrink-0" />
+                      <div className="w-1.5 h-1.5 rounded-full bg-blue-400 mt-1.5 shrink-0" />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-sm font-medium" style={{ color: "#1F2937" }}>{ACTION_LABELS[a.action] ?? a.action}</span>

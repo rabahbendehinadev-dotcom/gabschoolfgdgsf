@@ -79,7 +79,7 @@ function StatusBadge({ isActive }: { isActive: boolean }) {
 /* ── Sort icon ────────────────────────────────────────────────────────── */
 function SortIco({ field, sortBy, sortDir }: { field: SortField; sortBy: SortField; sortDir: "asc"|"desc" }) {
   if (sortBy !== field) return <ChevronsUpDown size={11} style={{ opacity: 0.3 }} />;
-  return sortDir === "asc" ? <ChevronUp size={11} color="#F97316" /> : <ChevronDown size={11} color="#F97316" />;
+  return sortDir === "asc" ? <ChevronUp size={11} color="#2563EB" /> : <ChevronDown size={11} color="#2563EB" />;
 }
 
 const BULK = [
@@ -407,11 +407,11 @@ export function AdminUsers() {
         {/* BULK BAR */}
         {selectedIds.size > 0 && (
           <div className="ad-bulk-bar">
-            <span style={{ fontSize: 13, fontWeight: 600, color: "#C2570E" }}>{selectedIds.size} sélectionné{selectedIds.size > 1 ? "s" : ""}</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "#1D4ED8" }}>{selectedIds.size} sélectionné{selectedIds.size > 1 ? "s" : ""}</span>
             <button type="button" onClick={deselAll} style={{ fontSize: 11, color: "#98A2B3", display: "flex", alignItems: "center", gap: 3, background: "none", border: "none", cursor: "pointer" }}>
               <X size={11} />Effacer
             </button>
-            <div style={{ width: 1, height: 16, background: "#F5CBA8" }} />
+            <div style={{ width: 1, height: 16, background: "#BFDBFE" }} />
             <select className="ad-select" value={bulkAction} onChange={e => setBulkAction(e.target.value)}>
               <option value="">Choisir une action…</option>
               {BULK.map(a => <option key={a.v} value={a.v}>{a.l}</option>)}
@@ -435,8 +435,8 @@ export function AdminUsers() {
             return (
               <div key={user.id} className="ad-card" style={{
                 padding: "14px 16px", opacity: user.isActive ? 1 : 0.65,
-                boxShadow: sel ? "inset 3px 0 0 #F97316, 0 1px 4px rgba(16,24,40,0.06)" : undefined,
-                background: sel ? "#FFF7EF" : "#fff",
+                boxShadow: sel ? "inset 3px 0 0 #2563EB, 0 1px 4px rgba(15,23,42,0.06)" : undefined,
+                background: sel ? "#EFF6FF" : "#fff",
               }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 10 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
@@ -503,7 +503,7 @@ export function AdminUsers() {
                   const expired  = isExpiredVip(user);
                   const expiring = isExpiringSoon(user);
                   const sel = selectedIds.has(user.id);
-                  const evenBg = "#ffffff", oddBg = "#FBFCFE", selBg = "#FFF7EF";
+                  const evenBg = "#ffffff", oddBg = "#FAFBFC", selBg = "#EFF6FF";
                   const rowBg = sel ? selBg : idx % 2 === 0 ? evenBg : oddBg;
                   return (
                     <tr key={user.id} className={`ad-tr ${sel ? "ad-tr-selected" : idx%2===0 ? "ad-tr-even" : "ad-tr-odd"}`}
@@ -689,8 +689,8 @@ export function AdminUsers() {
                       const s = userCourseIds.includes(pl.id);
                       return (
                         <button key={pl.id} type="button" onClick={() => setUserCourseIds(p => s ? p.filter(x=>x!==pl.id) : [...p, pl.id])}
-                          style={{ width:"100%", display:"flex", alignItems:"center", gap:10, padding:"10px 14px", background: s ? "#FFF7EF" : i%2===0 ? "#fff" : "#FBFCFE", border:"none", borderBottom: i < allPlaylists.length-1 ? "1px solid #EEF2F7":"none", cursor:"pointer", textAlign:"left" }}>
-                          <span style={{ width:16, height:16, borderRadius:5, border: s?"none":"1.5px solid #D8DFEA", background: s?"#F97316":"transparent", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                          style={{ width:"100%", display:"flex", alignItems:"center", gap:10, padding:"10px 14px", background: s ? "#EFF6FF" : i%2===0 ? "#fff" : "#FAFBFC", border:"none", borderBottom: i < allPlaylists.length-1 ? "1px solid #F1F5F9":"none", cursor:"pointer", textAlign:"left" }}>
+                          <span style={{ width:16, height:16, borderRadius:5, border: s?"none":"1.5px solid #CBD5E1", background: s?"#2563EB":"transparent", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
                             {s && <Check size={10} color="#fff" />}
                           </span>
                           <span style={{ fontSize:13, color:"#344054" }}>{pl.title||`Cours #${pl.id}`}</span>
@@ -752,7 +752,7 @@ function IBtn({ tip, onClick, disabled, danger, children }: { tip: string; onCli
 
 function Chk({ checked, onChange }: { checked: boolean; onChange: () => void }) {
   return (
-    <button type="button" onClick={onChange} style={{ background: "none", border: "none", cursor: "pointer", color: checked ? "#F97316" : "#C3CCD9", display: "flex" }}>
+    <button type="button" onClick={onChange} style={{ background: "none", border: "none", cursor: "pointer", color: checked ? "#2563EB" : "#CBD5E1", display: "flex" }}>
       {checked ? <CheckSquare size={15} /> : <Square size={15} />}
     </button>
   );
