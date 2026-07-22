@@ -30,23 +30,23 @@ import { Send, Megaphone, Loader2, Users, CheckCheck, Eye } from "lucide-react";
 type LinkKind = "none" | "community" | "lesson" | "custom";
 
 const AUDIENCE_LABELS: Record<string, string> = {
-  all: "كل المستخدمين",
-  vip: "VIP فقط",
-  normal: "العاديون فقط",
-  user: "مستخدم محدد",
-  category: "تصنيف",
+  all:      "Tous les utilisateurs",
+  vip:      "VIP seulement",
+  normal:   "Standard seulement",
+  user:     "Utilisateur spécifique",
+  category: "Catégorie",
 };
 
 const AUDIENCE_OPTIONS: { value: string; label: string }[] = [
-  { value: SendNotificationInputAudienceType.all, label: AUDIENCE_LABELS.all },
-  { value: SendNotificationInputAudienceType.vip, label: AUDIENCE_LABELS.vip },
+  { value: SendNotificationInputAudienceType.all,    label: AUDIENCE_LABELS.all },
+  { value: SendNotificationInputAudienceType.vip,    label: AUDIENCE_LABELS.vip },
   { value: SendNotificationInputAudienceType.normal, label: AUDIENCE_LABELS.normal },
-  { value: SendNotificationInputAudienceType.user, label: AUDIENCE_LABELS.user },
+  { value: SendNotificationInputAudienceType.user,   label: AUDIENCE_LABELS.user },
 ];
 
 function formatDateTime(iso: string) {
   const d = new Date(iso);
-  return d.toLocaleString("ar-DZ", { dateStyle: "medium", timeStyle: "short" });
+  return d.toLocaleString("fr-FR", { dateStyle: "medium", timeStyle: "short" });
 }
 
 export function AdminSendNotification() {
@@ -99,15 +99,15 @@ export function AdminSendNotification() {
 
   const submit = () => {
     if (!title.trim() || !body.trim()) {
-      toast({ title: "بيانات ناقصة", description: "الرجاء إدخال العنوان والنص.", variant: "destructive" });
+      toast({ title: "Données manquantes", description: "Veuillez saisir le titre et le contenu.", variant: "destructive" });
       return;
     }
     if (audienceType === SendNotificationInputAudienceType.user && !audienceValue.trim()) {
-      toast({ title: "مستخدم مطلوب", description: "أدخل معرّف المستخدم (ID) المستهدف.", variant: "destructive" });
+      toast({ title: "Utilisateur requis", description: "Saisissez l'identifiant de l'utilisateur cible.", variant: "destructive" });
       return;
     }
     if (linkKind === "lesson" && (!lessonId.trim() || Number.isNaN(Number(lessonId)))) {
-      toast({ title: "رقم الدرس مطلوب", description: "أدخل رقم الدرس (ID) الصحيح.", variant: "destructive" });
+      toast({ title: "ID de leçon requis", description: "Saisissez l'identifiant correct de la leçon.", variant: "destructive" });
       return;
     }
     if (linkKind === "custom") {
@@ -121,8 +121,8 @@ export function AdminSendNotification() {
         !/\s/.test(p);
       if (!safe) {
         toast({
-          title: "الرابط غير صالح",
-          description: "أدخل مساراً داخلياً يبدأ بـ / مثل: /community",
+          title: "Lien invalide",
+          description: "Saisissez un chemin interne commençant par / ex: /community",
           variant: "destructive",
         });
         return;
@@ -143,14 +143,14 @@ export function AdminSendNotification() {
       {
         onSuccess: (res) => {
           toast({
-            title: "تم الإرسال ✅",
-            description: `وصل الإشعار إلى ${res.recipientCount} مستخدم.`,
+            title: "Envoyé ✅",
+            description: `Notification envoyée à ${res.recipientCount} utilisateur(s).`,
           });
           resetForm();
           queryClient.invalidateQueries({ queryKey: listKey });
         },
         onError: () => {
-          toast({ title: "فشل الإرسال", description: "حدث خطأ أثناء إرسال الإشعار.", variant: "destructive" });
+          toast({ title: "Échec de l'envoi", description: "Une erreur est survenue lors de l'envoi.", variant: "destructive" });
         },
       },
     );
@@ -159,43 +159,43 @@ export function AdminSendNotification() {
   const rows = log?.items ?? [];
 
   return (
-    <div className="space-y-8 rtl" dir="rtl">
+    <div className="space-y-8">
       <div className="flex items-center gap-3">
         <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/20 text-primary">
           <Megaphone className="h-6 w-6" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold leading-tight">إرسال إشعار</h1>
-          <p className="text-sm text-muted-foreground">أرسل تنبيهاً إلى جمهور محدد من المستخدمين.</p>
+          <h1 className="text-2xl font-bold leading-tight">Envoyer une notification</h1>
+          <p className="text-sm text-muted-foreground">Envoyez une alerte à un public ciblé d'utilisateurs.</p>
         </div>
       </div>
 
       <Card className="space-y-5 p-6">
         <div className="space-y-2">
-          <Label htmlFor="notif-title">العنوان</Label>
+          <Label htmlFor="notif-title">Titre</Label>
           <Input
             id="notif-title"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="مثال: درس جديد متاح الآن"
+            placeholder="Ex: Nouvelle leçon disponible"
             maxLength={120}
           />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="notif-body">النص</Label>
+          <Label htmlFor="notif-body">Contenu</Label>
           <Textarea
             id="notif-body"
             value={body}
             onChange={(e) => setBody(e.target.value)}
-            placeholder="اكتب نص الإشعار هنا..."
+            placeholder="Saisissez le contenu de la notification..."
             rows={4}
           />
         </div>
 
         <div className="grid gap-5 sm:grid-cols-2">
           <div className="space-y-2">
-            <Label>الجمهور المستهدف</Label>
+            <Label>Public cible</Label>
             <Select value={audienceType} onValueChange={setAudienceType}>
               <SelectTrigger>
                 <SelectValue />
@@ -212,12 +212,12 @@ export function AdminSendNotification() {
 
           {audienceType === SendNotificationInputAudienceType.user && (
             <div className="space-y-2">
-              <Label htmlFor="audience-user">معرّف المستخدم (ID)</Label>
+              <Label htmlFor="audience-user">Identifiant utilisateur (ID)</Label>
               <Input
                 id="audience-user"
                 value={audienceValue}
                 onChange={(e) => setAudienceValue(e.target.value)}
-                placeholder="مثال: 42"
+                placeholder="Ex: 42"
                 dir="ltr"
                 className="text-left"
               />
@@ -227,28 +227,28 @@ export function AdminSendNotification() {
 
         <div className="grid gap-5 sm:grid-cols-2">
           <div className="space-y-2">
-            <Label>رابط الوجهة (اختياري)</Label>
+            <Label>Lien de destination (optionnel)</Label>
             <Select value={linkKind} onValueChange={(v) => setLinkKind(v as LinkKind)}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">بدون</SelectItem>
-                <SelectItem value="community">Community GAB</SelectItem>
-                <SelectItem value="lesson">درس محدد</SelectItem>
-                <SelectItem value="custom">رابط مخصص</SelectItem>
+                <SelectItem value="none">Aucun</SelectItem>
+                <SelectItem value="community">Communauté GAB</SelectItem>
+                <SelectItem value="lesson">Leçon spécifique</SelectItem>
+                <SelectItem value="custom">Lien personnalisé</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           {linkKind === "lesson" && (
             <div className="space-y-2">
-              <Label htmlFor="lesson-id">رقم الدرس (ID)</Label>
+              <Label htmlFor="lesson-id">ID de la leçon</Label>
               <Input
                 id="lesson-id"
                 value={lessonId}
                 onChange={(e) => setLessonId(e.target.value)}
-                placeholder="مثال: 7"
+                placeholder="Ex: 7"
                 dir="ltr"
                 className="text-left"
               />
@@ -257,12 +257,12 @@ export function AdminSendNotification() {
 
           {linkKind === "custom" && (
             <div className="space-y-2">
-              <Label htmlFor="custom-path">المسار</Label>
+              <Label htmlFor="custom-path">Chemin</Label>
               <Input
                 id="custom-path"
                 value={customPath}
                 onChange={(e) => setCustomPath(e.target.value)}
-                placeholder="مثال: /community"
+                placeholder="Ex: /community"
                 dir="ltr"
                 className="text-left"
               />
@@ -277,7 +277,7 @@ export function AdminSendNotification() {
             ) : (
               <Send className="h-4 w-4" />
             )}
-            إرسال الإشعار
+            Envoyer la notification
           </Button>
         </div>
       </Card>
@@ -285,7 +285,7 @@ export function AdminSendNotification() {
       <div className="space-y-3">
         <div className="flex items-center gap-2">
           <Users className="h-5 w-5 text-primary" />
-          <h2 className="text-lg font-bold">سجل الإشعارات المُرسلة</h2>
+          <h2 className="text-lg font-bold">Historique des notifications</h2>
         </div>
 
         <Card className="overflow-hidden">
@@ -295,27 +295,27 @@ export function AdminSendNotification() {
             </div>
           ) : rows.length === 0 ? (
             <div className="py-12 text-center text-sm text-muted-foreground">
-              لم يتم إرسال أي إشعار بعد.
+              Aucune notification envoyée.
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-right text-sm">
+              <table className="w-full text-left text-sm">
                 <thead className="border-b border-white/10 text-xs text-muted-foreground">
                   <tr>
-                    <th className="px-4 py-3 font-medium">العنوان</th>
-                    <th className="px-4 py-3 font-medium">الجمهور</th>
-                    <th className="px-4 py-3 font-medium">المُرسِل</th>
+                    <th className="px-4 py-3 font-medium">Titre</th>
+                    <th className="px-4 py-3 font-medium">Public</th>
+                    <th className="px-4 py-3 font-medium">Expéditeur</th>
                     <th className="px-4 py-3 font-medium">
                       <span className="inline-flex items-center gap-1">
-                        <CheckCheck className="h-3.5 w-3.5" /> وصلت
+                        <CheckCheck className="h-3.5 w-3.5" /> Reçus
                       </span>
                     </th>
                     <th className="px-4 py-3 font-medium">
                       <span className="inline-flex items-center gap-1">
-                        <Eye className="h-3.5 w-3.5" /> فُتحت
+                        <Eye className="h-3.5 w-3.5" /> Ouverts
                       </span>
                     </th>
-                    <th className="px-4 py-3 font-medium">الوقت</th>
+                    <th className="px-4 py-3 font-medium">Heure</th>
                   </tr>
                 </thead>
                 <tbody>

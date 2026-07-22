@@ -42,7 +42,7 @@ export function AdminToolCategories() {
     queryKey: ["admin-tool-categories"],
     queryFn: async () => {
       const res = await fetch(`${base}/api/admin/tool-categories`, { headers: getAdminAuthHeaders()?.headers });
-      if (!res.ok) throw new Error("فشل التحميل");
+      if (!res.ok) throw new Error("Échec du chargement");
       return res.json();
     },
   });
@@ -56,10 +56,10 @@ export function AdminToolCategories() {
         headers: { "Content-Type": "application/json", ...getAdminAuthHeaders()?.headers },
         body: JSON.stringify(data),
       });
-      if (!res.ok) throw new Error((await res.json()).message ?? "خطأ");
+      if (!res.ok) throw new Error((await res.json()).message ?? "Erreur");
     },
-    onSuccess: () => { invalidate(); setDialogOpen(false); toast({ title: "تمت إضافة التصنيف" }); },
-    onError: (e: Error) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
+    onSuccess: () => { invalidate(); setDialogOpen(false); toast({ title: "Catégorie ajoutée" }); },
+    onError: (e: Error) => toast({ title: "Erreur", description: e.message, variant: "destructive" }),
   });
 
   const updateMut = useMutation({
@@ -69,10 +69,10 @@ export function AdminToolCategories() {
         headers: { "Content-Type": "application/json", ...getAdminAuthHeaders()?.headers },
         body: JSON.stringify(data),
       });
-      if (!res.ok) throw new Error((await res.json()).message ?? "خطأ");
+      if (!res.ok) throw new Error((await res.json()).message ?? "Erreur");
     },
-    onSuccess: () => { invalidate(); setDialogOpen(false); toast({ title: "تم تحديث التصنيف" }); },
-    onError: (e: Error) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
+    onSuccess: () => { invalidate(); setDialogOpen(false); toast({ title: "Catégorie mise à jour" }); },
+    onError: (e: Error) => toast({ title: "Erreur", description: e.message, variant: "destructive" }),
   });
 
   const deleteMut = useMutation({
@@ -80,10 +80,10 @@ export function AdminToolCategories() {
       const res = await fetch(`${base}/api/admin/tool-categories/${id}`, {
         method: "DELETE", headers: getAdminAuthHeaders()?.headers,
       });
-      if (!res.ok) throw new Error((await res.json()).message ?? "خطأ");
+      if (!res.ok) throw new Error((await res.json()).message ?? "Erreur");
     },
-    onSuccess: () => { invalidate(); setDeleteId(null); toast({ title: "تم حذف التصنيف" }); },
-    onError: (e: Error) => toast({ title: "خطأ", description: e.message, variant: "destructive" }),
+    onSuccess: () => { invalidate(); setDeleteId(null); toast({ title: "Catégorie supprimée" }); },
+    onError: (e: Error) => toast({ title: "Erreur", description: e.message, variant: "destructive" }),
   });
 
   const toggleVisible = (cat: ToolCategory) =>
@@ -98,7 +98,7 @@ export function AdminToolCategories() {
 
   function handleSubmit() {
     if (!form.name.trim()) {
-      toast({ title: "اسم التصنيف مطلوب", variant: "destructive" }); return;
+      toast({ title: "Le nom de la catégorie est requis", variant: "destructive" }); return;
     }
     if (editing) updateMut.mutate({ id: editing.id, data: form });
     else createMut.mutate(form);
@@ -107,20 +107,20 @@ export function AdminToolCategories() {
   const isPending = createMut.isPending || updateMut.isPending;
 
   return (
-    <div className="space-y-6" dir="rtl">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <FolderTree className="w-7 h-7 text-primary" />
-            إدارة تصنيفات الأدوات
+            Gestion des catégories d'outils
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {cats.length} تصنيف — الترتيب هنا هو نفسه الذي يراه المستخدم
+            {cats.length} catégorie(s) — L'ordre ici est celui vu par l'utilisateur
           </p>
         </div>
         <Button onClick={openCreate} className="gap-2 shadow-md shadow-primary/20">
           <Plus className="w-4 h-4" />
-          تصنيف جديد
+          Nouvelle catégorie
         </Button>
       </div>
 
@@ -131,10 +131,10 @@ export function AdminToolCategories() {
       ) : cats.length === 0 ? (
         <Card className="glass-card p-16 text-center">
           <FolderTree className="w-14 h-14 text-muted-foreground/30 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold mb-2">لا توجد تصنيفات بعد</h3>
-          <p className="text-muted-foreground mb-6 text-sm">أضف تصنيفاً لتنظيم أدواتك</p>
+          <h3 className="text-lg font-semibold mb-2">Aucune catégorie</h3>
+          <p className="text-muted-foreground mb-6 text-sm">Ajoutez une catégorie pour organiser vos outils</p>
           <Button onClick={openCreate} className="gap-2">
-            <Plus className="w-4 h-4" /> أضف تصنيف
+            <Plus className="w-4 h-4" /> Ajouter une catégorie
           </Button>
         </Card>
       ) : (
@@ -151,17 +151,17 @@ export function AdminToolCategories() {
                     <span className="font-bold text-base">{cat.name}</span>
                     {!cat.isVisible && (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border bg-orange-500/10 text-orange-400 border-orange-500/20">
-                        <EyeOff className="w-3 h-3" /> مخفي
+                        <EyeOff className="w-3 h-3" /> Masqué
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">ترتيب العرض: {cat.sortOrder}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Ordre d'affichage : {cat.sortOrder}</p>
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
                   <button
                     onClick={() => toggleVisible(cat)}
-                    title={cat.isVisible ? "إخفاء التصنيف" : "إظهار التصنيف"}
+                    title={cat.isVisible ? "Masquer la catégorie" : "Afficher la catégorie"}
                     className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
                       cat.isVisible
                         ? "bg-emerald-500/10 text-emerald-400 hover:bg-red-500/10 hover:text-red-400"
@@ -171,11 +171,11 @@ export function AdminToolCategories() {
                     {cat.isVisible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                   </button>
                   <Button size="sm" variant="outline" onClick={() => openEdit(cat)} className="gap-1">
-                    <Edit className="w-3.5 h-3.5" /> تعديل
+                    <Edit className="w-3.5 h-3.5" /> Modifier
                   </Button>
                   <Button size="sm" variant="outline" onClick={() => setDeleteId(cat.id)}
                     className="gap-1 border-destructive/40 text-destructive hover:bg-destructive/10">
-                    <Trash2 className="w-3.5 h-3.5" /> حذف
+                    <Trash2 className="w-3.5 h-3.5" /> Supprimer
                   </Button>
                 </div>
               </div>
@@ -189,49 +189,49 @@ export function AdminToolCategories() {
         <div className="flex items-start gap-2 rounded-xl bg-muted/20 border border-border px-4 py-3 text-sm text-muted-foreground">
           <Link className="w-4 h-4 mt-0.5 shrink-0" />
           <span>
-            التصنيفات تُعرض للمستخدم بنفس ترتيب الرقم — غيّر رقم "ترتيب العرض" لتحديد الترتيب.
-            التصنيفات المخفية لا تظهر في الموقع لكن الأدوات المرتبطة بها تبقى متاحة.
+            Les catégories sont affichées dans l'ordre numérique — modifiez le champ "Ordre d'affichage" pour changer l'ordre.
+            Les catégories masquées n'apparaissent pas sur le site mais les outils liés restent accessibles.
           </span>
         </div>
       )}
 
       {/* Create / Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={open => { if (!open) setDialogOpen(false); }}>
-        <DialogContent className="sm:max-w-md" dir="rtl">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-start">
+            <DialogTitle className="flex items-center gap-2">
               <FolderTree className="w-5 h-5 text-primary" />
-              {editing ? "تعديل التصنيف" : "إضافة تصنيف جديد"}
+              {editing ? "Modifier la catégorie" : "Ajouter une catégorie"}
             </DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4 pt-2">
             <div className="space-y-1.5">
-              <Label>اسم التصنيف <span className="text-destructive">*</span></Label>
+              <Label>Nom de la catégorie <span className="text-destructive">*</span></Label>
               <Input
                 value={form.name}
                 onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                placeholder="مثال: صيانة، تصميم، برمجة..."
+                placeholder="Ex: Maintenance, Design, Programmation..."
                 autoFocus
               />
             </div>
 
             <div className="space-y-1.5">
-              <Label>ترتيب العرض</Label>
+              <Label>Ordre d'affichage</Label>
               <Input
                 type="number"
                 value={form.sortOrder}
                 onChange={e => setForm(f => ({ ...f, sortOrder: parseInt(e.target.value) || 0 }))}
                 placeholder="0"
               />
-              <p className="text-xs text-muted-foreground">الرقم الأصغر يظهر أولاً</p>
+              <p className="text-xs text-muted-foreground">Le plus petit numéro apparaît en premier</p>
             </div>
 
             <div className="flex items-center justify-between rounded-xl border border-border bg-muted/10 px-4 py-3">
               <div>
-                <Label className="text-sm font-medium">ظاهر للمستخدمين</Label>
+                <Label className="text-sm font-medium">Visible pour les utilisateurs</Label>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  {form.isVisible ? "يظهر في تبويبات الأدوات" : "مخفي من الموقع"}
+                  {form.isVisible ? "Affiché dans les onglets des outils" : "Masqué du site"}
                 </p>
               </div>
               <Switch checked={form.isVisible} onCheckedChange={v => setForm(f => ({ ...f, isVisible: v }))} />
@@ -241,29 +241,29 @@ export function AdminToolCategories() {
           <div className="flex gap-2 pt-2">
             <Button onClick={handleSubmit} disabled={isPending} className="flex-1 gap-2">
               {isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-              {editing ? "حفظ التعديلات" : "إضافة التصنيف"}
+              {editing ? "Enregistrer" : "Ajouter la catégorie"}
             </Button>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>إلغاء</Button>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Annuler</Button>
           </div>
         </DialogContent>
       </Dialog>
 
       {/* Delete Confirm */}
       <Dialog open={deleteId !== null} onOpenChange={open => { if (!open) setDeleteId(null); }}>
-        <DialogContent className="sm:max-w-sm" dir="rtl">
+        <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle className="text-start text-destructive">حذف التصنيف</DialogTitle>
+            <DialogTitle className="text-destructive">Supprimer la catégorie</DialogTitle>
           </DialogHeader>
           <p className="text-muted-foreground text-sm">
-            هل أنت متأكد؟ الأدوات المرتبطة بهذا التصنيف لن تُحذف لكن ستفقد تصنيفها.
+            Êtes-vous sûr ? Les outils liés ne seront pas supprimés mais perdront leur catégorie.
           </p>
           <div className="flex gap-2">
             <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)}
               disabled={deleteMut.isPending} className="flex-1 gap-2">
               {deleteMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-              حذف
+              Supprimer
             </Button>
-            <Button variant="outline" onClick={() => setDeleteId(null)}>إلغاء</Button>
+            <Button variant="outline" onClick={() => setDeleteId(null)}>Annuler</Button>
           </div>
         </DialogContent>
       </Dialog>

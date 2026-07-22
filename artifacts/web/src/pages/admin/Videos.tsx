@@ -23,28 +23,28 @@ interface DrivePart { label: string; url: string; }
 function validateDriveUrl(url: string): string | null {
   if (!url || !url.trim()) return null;
   if (!url.includes("drive.google.com") && !url.includes("docs.google.com")) {
-    return "يجب أن يكون رابط Google Drive صالحاً";
+    return "Le lien doit être un lien Google Drive valide";
   }
   if (/\/folders\/[a-zA-Z0-9_-]{10,}/.test(url)) {
-    return "هذا رابط مجلد وليس ملف فيديو. افتح المجلد واختر الفيديو وانسخ رابطه المباشر (file/d/...)";
+    return "C'est un lien de dossier, pas un fichier vidéo. Ouvrez le dossier, choisissez la vidéo et copiez son lien direct (file/d/...)";
   }
   const hasId =
     /\/d\/[a-zA-Z0-9_-]{10,}/.test(url) ||
     /[?&]id=[a-zA-Z0-9_-]{10,}/.test(url);
-  if (!hasId) return "لم يتم التعرف على صيغة رابط Google Drive";
+  if (!hasId) return "Format de lien Google Drive non reconnu";
   return null;
 }
 
-/* ── شاشة اختيار الدورة (عند دخول /videos بدون courseId) ── */
+/* ── Course picker (when /videos without courseId) ── */
 function CoursePickerScreen({ playlists }: { playlists: { id: number; title: string; description?: string | null; imageUrl?: string | null; videos?: unknown[] }[] }) {
   return (
-    <div className="space-y-6" dir="rtl">
+    <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold flex items-center gap-2">
           <Video className="w-7 h-7 text-primary" />
-          إدارة الفيديوهات
+          Gestion des vidéos
         </h1>
-        <p className="text-sm text-muted-foreground mt-1">اختر الدورة لإدارة فيديوهاتها</p>
+        <p className="text-sm text-muted-foreground mt-1">Choisissez un cours pour gérer ses vidéos</p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -72,12 +72,12 @@ function CoursePickerScreen({ playlists }: { playlists: { id: number; title: str
                 <p className="text-xs text-muted-foreground line-clamp-2 mb-3">{pl.description}</p>
               )}
               <div className="flex items-center justify-between text-xs text-muted-foreground mb-4">
-                <span>{pl.videos?.length ?? 0} درس</span>
+                <span>{pl.videos?.length ?? 0} leçon(s)</span>
               </div>
               <Link href={`/gab-ctrl-9x/videos?courseId=${pl.id}`}>
                 <Button className="w-full gap-2">
                   <Video className="w-4 h-4" />
-                  إدارة فيديوهات الدورة
+                  Gérer les vidéos du cours
                   <ArrowRight className="w-3.5 h-3.5" />
                 </Button>
               </Link>
@@ -89,9 +89,9 @@ function CoursePickerScreen({ playlists }: { playlists: { id: number; title: str
           <div className="col-span-full">
             <Card className="glass-card p-14 text-center">
               <GraduationCap className="w-12 h-12 mx-auto text-muted-foreground/30 mb-3" />
-              <p className="text-muted-foreground text-sm">لا توجد دورات. أنشئ دورة أولاً من صفحة إدارة الدورات.</p>
+              <p className="text-muted-foreground text-sm">Aucun cours. Créez d'abord un cours depuis la gestion des cours.</p>
               <Link href="/gab-ctrl-9x/courses">
-                <Button variant="outline" className="mt-4">الذهاب إلى إدارة الدورات</Button>
+                <Button variant="outline" className="mt-4">Aller à la gestion des cours</Button>
               </Link>
             </Card>
           </div>
@@ -130,7 +130,7 @@ function SortableVideoCard({
           {...attributes}
           {...listeners}
           className="absolute top-2 left-2 z-10 p-1.5 rounded-lg bg-black/50 text-white/50 hover:text-white hover:bg-black/70 cursor-grab active:cursor-grabbing transition-all opacity-0 group-hover:opacity-100"
-          title="اسحب لتغيير الترتيب"
+          title="Glisser pour réordonner"
         >
           <GripVertical className="w-4 h-4" />
         </div>
@@ -141,7 +141,7 @@ function SortableVideoCard({
             : <div className="w-full h-full flex items-center justify-center text-foreground/20"><ImageIcon className="w-12 h-12" /></div>
           }
           {!video.isVisible && (
-            <div className="absolute inset-0 bg-background/80 flex items-center justify-center font-bold text-destructive backdrop-blur-sm">مخفي</div>
+            <div className="absolute inset-0 bg-background/80 flex items-center justify-center font-bold text-destructive backdrop-blur-sm">Masqué</div>
           )}
           <div className="absolute top-2 right-2">
             <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-black/70 text-white text-xs font-bold border border-white/20">
@@ -154,24 +154,24 @@ function SortableVideoCard({
           <div className="flex gap-2 mb-2 flex-wrap">
             <Badge variant="outline" className="text-xs">{video.categoryName}</Badge>
             {video.accessType === "vip" && <Badge variant="vip" className="text-xs">VIP</Badge>}
-            {video.accessType === "visitor" && <Badge variant="outline" className="text-xs border-green-500/40 text-green-400">مجاني</Badge>}
+            {video.accessType === "visitor" && <Badge variant="outline" className="text-xs border-green-500/40 text-green-400">Gratuit</Badge>}
             {video.migratedAt && (
               <Badge variant="outline" className="text-xs border-amber-400/40 text-amber-300">
-                <Zap className="w-3 h-3 ml-0.5" /> تشغيل سريع
+                <Zap className="w-3 h-3 mr-0.5" /> Rapide
               </Badge>
             )}
           </div>
           <h3 className="font-bold line-clamp-1 mb-1">{video.title}</h3>
           <div className="mt-auto pt-4 flex gap-2 border-t border-white/5">
             <Button variant="secondary" className="flex-1 text-xs" onClick={() => onEdit(video)}>
-              <Edit className="w-3 h-3 ml-1" /> تعديل
+              <Edit className="w-3 h-3 mr-1" /> Modifier
             </Button>
             {!video.migratedAt && (
               <Button
                 variant="outline"
                 size="icon"
                 className="border-amber-400/40 text-amber-300 hover:bg-amber-400/10"
-                title="تفعيل التشغيل السريع"
+                title="Activer la lecture rapide"
                 disabled={isMigrating}
                 onClick={() => onMigrate(video)}
               >
@@ -200,7 +200,6 @@ export function AdminVideos() {
   const { data: playlists } = useGetAdminPlaylists(reqOpts);
   const currentCourse = courseId ? playlists?.find(p => p.id === courseId) : null;
 
-  /* ── جلب الفيديوهات مُصفَّاة حسب الدورة من الـ Backend ── */
   const authHeaders = getAdminAuthHeaders() as { headers?: Record<string, string> };
   const fetchHeaders = authHeaders.headers ?? {};
 
@@ -217,7 +216,6 @@ export function AdminVideos() {
     enabled: courseId !== null,
   });
 
-  /* ── جلب الأقسام مُصفَّاة حسب الدورة من الـ Backend ── */
   const { data: categories } = useQuery({
     queryKey: ["/api/admin/categories", courseId],
     queryFn: async () => {
@@ -240,7 +238,6 @@ export function AdminVideos() {
   const [bulkMigrating, setBulkMigrating] = useState(false);
   const [bulkProgress, setBulkProgress] = useState<{done: number; total: number} | null>(null);
 
-  /* ── DnD state ── */
   const [orderedVideos, setOrderedVideos] = useState<AdminVideo[]>([]);
   const [hasOrderChanges, setHasOrderChanges] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<number | "all">("all");
@@ -281,11 +278,11 @@ export function AdminVideos() {
       { data: { items } },
       {
         onSuccess: () => {
-          toast({ title: "✅ تم حفظ الترتيب بنجاح", className: "bg-green-600 text-white border-none" });
+          toast({ title: "✅ Ordre sauvegardé", className: "bg-green-600 text-white border-none" });
           setHasOrderChanges(false);
           refetch();
         },
-        onError: () => toast({ variant: "destructive", title: "حدث خطأ أثناء حفظ الترتيب" }),
+        onError: () => toast({ variant: "destructive", title: "Erreur lors de la sauvegarde de l'ordre" }),
       }
     );
   };
@@ -300,7 +297,6 @@ export function AdminVideos() {
     setHasOrderChanges(false);
   };
 
-  /* ── Dialog state ── */
   const [isOpen, setIsOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -376,10 +372,10 @@ export function AdminVideos() {
       const serveUrl = `/api/storage${objectPath}`;
       setFormData(prev => ({ ...prev, thumbnailUrl: serveUrl }));
       setPreviewUrl(serveUrl);
-      toast({ title: "تم رفع الصورة بنجاح" });
+      toast({ title: "Image téléversée avec succès" });
     } catch (err) {
       console.error("[upload] video thumbnail failed:", err);
-      toast({ variant: "destructive", title: "فشل رفع الصورة", description: err instanceof Error ? err.message : String(err) });
+      toast({ variant: "destructive", title: "Échec de l'upload", description: err instanceof Error ? err.message : String(err) });
       setPreviewUrl("");
     } finally {
       setUploading(false);
@@ -395,11 +391,11 @@ export function AdminVideos() {
 
   const handleSave = () => {
     if (!formData.playlistId) {
-      toast({ variant: "destructive", title: "يجب اختيار الدورة التابع لها الفيديو" });
+      toast({ variant: "destructive", title: "Veuillez choisir la formation liée à la vidéo" });
       return;
     }
     if (!formData.categoryId) {
-      toast({ variant: "destructive", title: "يجب اختيار القسم" });
+      toast({ variant: "destructive", title: "Veuillez choisir une catégorie" });
       return;
     }
     const newErrors: Record<number | "single", string> = {};
@@ -414,7 +410,7 @@ export function AdminVideos() {
     }
     if (Object.keys(newErrors).length > 0) {
       setDriveUrlErrors(newErrors);
-      toast({ variant: "destructive", title: "رابط Google Drive غير صالح", description: Object.values(newErrors)[0] });
+      toast({ variant: "destructive", title: "Lien Google Drive invalide", description: Object.values(newErrors)[0] });
       return;
     }
     setDriveUrlErrors({});
@@ -425,21 +421,21 @@ export function AdminVideos() {
       ? updateMut.mutateAsync({ id: editingId, data: finalForm })
       : createMut.mutateAsync({ data: finalForm });
     action.then(() => {
-      toast({ title: "تم الحفظ بنجاح" });
+      toast({ title: "Sauvegardé avec succès" });
       setIsOpen(false);
       refetch();
-    }).catch(() => toast({ variant: "destructive", title: "حدث خطأ" }));
+    }).catch(() => toast({ variant: "destructive", title: "Une erreur est survenue" }));
   };
 
   const handleDelete = (id: number) => {
-    if (!confirm("حذف الفيديو؟")) return;
-    deleteMut.mutate({ id }, { onSuccess: () => { toast({ title: "تم الحذف" }); refetch(); } });
+    if (!confirm("Supprimer cette vidéo ?")) return;
+    deleteMut.mutate({ id }, { onSuccess: () => { toast({ title: "Supprimé" }); refetch(); } });
   };
 
   const handleBulkMigrate = async () => {
     const unmigrated = (videos || []).filter(v => !v.migratedAt);
-    if (unmigrated.length === 0) { toast({ title: "كل الفيديوهات مرحّلة بالفعل ✓" }); return; }
-    if (!confirm(`ترحيل ${unmigrated.length} فيديو إلى التخزين السحابي؟\n\nسيتم النسخ تلقائياً واحداً تلو الآخر. لا تغلق الصفحة.`)) return;
+    if (unmigrated.length === 0) { toast({ title: "Toutes les vidéos sont déjà migrées ✓" }); return; }
+    if (!confirm(`Migrer ${unmigrated.length} vidéo(s) vers le stockage cloud ?\n\nLes copies seront faites une par une. Ne fermez pas la page.`)) return;
     setBulkMigrating(true);
     setBulkProgress({ done: 0, total: unmigrated.length });
     let done = 0;
@@ -448,28 +444,26 @@ export function AdminVideos() {
         await migrateMut.mutateAsync({ id: v.id });
         done++;
         setBulkProgress({ done, total: unmigrated.length });
-      } catch { /* نتابع بقية الفيديوهات */ }
+      } catch { /* continue */ }
     }
     setBulkMigrating(false);
     setBulkProgress(null);
-    toast({ title: `⚡ تم ترحيل ${done}/${unmigrated.length} فيديو بنجاح`, className: "bg-green-600 text-white border-none" });
+    toast({ title: `⚡ ${done}/${unmigrated.length} vidéo(s) migrées avec succès`, className: "bg-green-600 text-white border-none" });
     refetch();
   };
 
   const handleMigrate = (video: AdminVideo) => {
-    if (!confirm(`تفعيل التشغيل السريع لـ "${video.title}"؟\n\nسيتم نسخ الفيديو إلى التخزين السحابي.`)) return;
+    if (!confirm(`Activer la lecture rapide pour "${video.title}" ?\n\nLa vidéo sera copiée vers le stockage cloud.`)) return;
     setMigratingId(video.id);
     migrateMut.mutate(
       { id: video.id },
       {
         onSuccess: (data) => {
           const mb = Math.round(data.totalBytes / (1024 * 1024));
-          toast({ title: `⚡ تم تفعيل التشغيل السريع (${data.parts} ${data.parts === 1 ? "ملف" : "ملفات"} — ${mb} MB)`, className: "bg-green-600 text-white border-none" });
+          toast({ title: `⚡ Lecture rapide activée (${data.parts} fichier(s) — ${mb} MB)`, className: "bg-green-600 text-white border-none" });
           refetch();
         },
         onError: (err: unknown) => {
-          /* ApiError.data = body JSON من السيرفر:
-             { message, isRateLimit?, driveStatus?, failedPart?, totalParts? } */
           type MigrateErrData = {
             message?: string;
             isRateLimit?: boolean;
@@ -479,30 +473,29 @@ export function AdminVideos() {
           };
           const data = (err as { data?: MigrateErrData } | null)?.data;
           const serverMsg: string =
-            data?.message ?? (err instanceof Error ? err.message : "") ?? "خطأ غير معروف";
+            data?.message ?? (err instanceof Error ? err.message : "") ?? "Erreur inconnue";
           const isRateLimit = data?.isRateLimit === true;
           const driveStatus = data?.driveStatus ?? null;
           const failedPart = data?.failedPart;
           const totalParts = data?.totalParts;
 
-          /* تصنيف الخطأ بناءً على driveStatus الفعلي — لا keyword matching */
           const isAccessDenied = driveStatus === 403 && !isRateLimit;
           const isNotFound = driveStatus === 404;
           const isBadUrl = driveStatus === 400;
 
           const partInfo = failedPart && totalParts
-            ? `(الجزء ${failedPart} من ${totalParts})`
+            ? `(Partie ${failedPart} sur ${totalParts})`
             : "";
 
           const title = isRateLimit
-            ? `⏱ تجاوز حد الطلبات في Google Drive ${partInfo}`
+            ? `⏱ Limite de requêtes Google Drive dépassée ${partInfo}`
             : isAccessDenied
-              ? `🔒 Drive رفض الوصول ${partInfo}`
+              ? `🔒 Drive a refusé l'accès ${partInfo}`
               : isNotFound
-                ? `❌ ملف Drive غير موجود ${partInfo}`
+                ? `❌ Fichier Drive introuvable ${partInfo}`
                 : isBadUrl
-                  ? `⚠️ رابط Drive غير صالح ${partInfo}`
-                  : `❌ فشل الترحيل ${partInfo}`;
+                  ? `⚠️ Lien Drive invalide ${partInfo}`
+                  : `❌ Échec de la migration ${partInfo}`;
 
           toast({
             variant: "destructive",
@@ -511,7 +504,6 @@ export function AdminVideos() {
             duration: isRateLimit ? 12_000 : 10_000,
           });
 
-          /* سجّل الخطأ الكامل في console للـ debugging */
           console.error("[migrate] error detail:", {
             driveStatus,
             isRateLimit,
@@ -525,32 +517,31 @@ export function AdminVideos() {
     );
   };
 
-  /* ── إذا لم يُختر courseId → شاشة اختيار الدورة ── */
   if (!courseId) {
     return <CoursePickerScreen playlists={(playlists ?? []) as { id: number; title: string; description?: string | null; imageUrl?: string | null; videos?: unknown[] }[]} />;
   }
 
   return (
-    <div className="space-y-6" dir="rtl">
+    <div className="space-y-6">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Link href="/gab-ctrl-9x/videos" className="hover:text-foreground flex items-center gap-1 transition-colors">
           <Video className="w-3.5 h-3.5" />
-          الفيديوهات
+          Vidéos
         </Link>
         <span>/</span>
         <span className="text-foreground font-medium flex items-center gap-1">
           <GraduationCap className="w-3.5 h-3.5 text-primary" />
-          {currentCourse?.title ?? `دورة #${courseId}`}
+          {currentCourse?.title ?? `Cours #${courseId}`}
         </span>
       </div>
 
       {/* Header */}
       <div className="flex justify-between items-center gap-3 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold">{currentCourse?.title ?? `دورة #${courseId}`}</h1>
+          <h1 className="text-2xl font-bold">{currentCourse?.title ?? `Cours #${courseId}`}</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {videos?.length ?? 0} فيديو — اسحب الكروت لتغيير ترتيب الظهور
+            {videos?.length ?? 0} vidéo(s) — Glissez les cartes pour changer l'ordre d'affichage
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -562,36 +553,36 @@ export function AdminVideos() {
           >
             {bulkMigrating
               ? <><Loader2 className="w-4 h-4 animate-spin" /> {bulkProgress ? `${bulkProgress.done}/${bulkProgress.total}` : "..."}</>
-              : <><Zap className="w-4 h-4" /> ترحيل الكل</>
+              : <><Zap className="w-4 h-4" /> Tout migrer</>
             }
           </Button>
           <Button onClick={() => handleOpen()}>
-            <Plus className="w-4 h-4 ml-2" /> إضافة فيديو للدورة
+            <Plus className="w-4 h-4 mr-2" /> Ajouter une vidéo
           </Button>
         </div>
       </div>
 
-      {/* فلتر الأقسام */}
+      {/* Category filter */}
       <div className="flex items-center gap-3 flex-wrap">
-        <span className="text-sm font-medium text-foreground/70">تصفية حسب القسم:</span>
+        <span className="text-sm font-medium text-foreground/70">Filtrer par catégorie :</span>
         <select
           value={categoryFilter}
           onChange={(e) => setCategoryFilter(e.target.value === "all" ? "all" : Number(e.target.value))}
           className="h-9 rounded-md border border-white/10 bg-white/5 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
         >
-          <option value="all">كل الأقسام</option>
+          <option value="all">Toutes les catégories</option>
           {categories?.map(c => (
-            <option key={c.id} value={c.id}>{c.name}{c.isVisible ? "" : " (مخفي)"}</option>
+            <option key={c.id} value={c.id}>{c.name}{c.isVisible ? "" : " (masqué)"}</option>
           ))}
         </select>
         {categoryFilter !== "all" && (
-          <span className="text-xs text-muted-foreground">اسحب لترتيب دروس هذا القسم — {orderedVideos.length} درس</span>
+          <span className="text-xs text-muted-foreground">Glissez pour ordonner les leçons — {orderedVideos.length} leçon(s)</span>
         )}
         {(categories ?? []).length === 0 && (
           <span className="text-xs text-amber-400 flex items-center gap-1">
-            لا توجد أقسام لهذه الدورة —
+            Aucune catégorie pour ce cours —
             <Link href={`/gab-ctrl-9x/categories?courseId=${courseId}`} className="underline hover:text-amber-300">
-              أضف قسماً الآن
+              Ajouter une catégorie
             </Link>
           </span>
         )}
@@ -601,13 +592,13 @@ export function AdminVideos() {
       {hasOrderChanges && (
         <div className="flex items-center justify-between gap-4 bg-primary/10 border border-primary/30 rounded-xl px-5 py-3">
           <p className="text-sm font-medium text-primary">
-            🔀 تم تغيير الترتيب — احفظ التغييرات لتطبيقها على الموقع
+            🔀 Ordre modifié — sauvegardez pour l'appliquer sur le site
           </p>
           <div className="flex gap-2">
-            <Button variant="ghost" size="sm" onClick={handleCancelOrder} disabled={reorderMut.isPending}>إلغاء</Button>
+            <Button variant="ghost" size="sm" onClick={handleCancelOrder} disabled={reorderMut.isPending}>Annuler</Button>
             <Button size="sm" onClick={handleSaveOrder} disabled={reorderMut.isPending} className="gap-2">
               {reorderMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-              حفظ الترتيب
+              Sauvegarder l'ordre
             </Button>
           </div>
         </div>
@@ -634,38 +625,38 @@ export function AdminVideos() {
       {orderedVideos.length === 0 && videos !== undefined && (
         <div className="text-center py-16 text-muted-foreground">
           <Video className="w-12 h-12 mx-auto mb-3 opacity-20" />
-          <p>لا توجد فيديوهات في هذه الدورة بعد</p>
+          <p>Aucune vidéo dans ce cours</p>
           <Button className="mt-4" onClick={() => handleOpen()}>
-            <Plus className="w-4 h-4 ml-2" /> أضف أول فيديو
+            <Plus className="w-4 h-4 mr-2" /> Ajouter la première vidéo
           </Button>
         </div>
       )}
 
-      {/* Create/Edit Dialog */}
+      {/* Create / Edit Dialog */}
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editingId ? "تعديل الفيديو" : "إضافة فيديو جديد"}</DialogTitle>
+            <DialogTitle>{editingId ? "Modifier la vidéo" : "Ajouter une nouvelle vidéo"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
 
-            {/* الدورة التابعة — مقيَّدة بالدورة الحالية */}
+            {/* Linked course — locked to current */}
             <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-primary/8 border border-primary/20">
               <GraduationCap className="w-4 h-4 text-primary shrink-0" />
               <div className="flex-1">
-                <span className="text-xs text-muted-foreground block leading-none mb-0.5">الدورة التابعة لها</span>
-                <span className="text-sm font-semibold">{currentCourse?.title ?? `دورة #${courseId}`}</span>
+                <span className="text-xs text-muted-foreground block leading-none mb-0.5">Formation liée</span>
+                <span className="text-sm font-semibold">{currentCourse?.title ?? `Cours #${courseId}`}</span>
               </div>
-              <span className="text-xs text-muted-foreground bg-white/5 px-2 py-0.5 rounded">ثابت</span>
+              <span className="text-xs text-muted-foreground bg-white/5 px-2 py-0.5 rounded">Fixé</span>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2 col-span-2">
-                <Label>العنوان</Label>
+                <Label>Titre</Label>
                 <Input value={formData.title} onChange={e => setFormData({ ...formData, title: e.target.value })} />
               </div>
               <div className="space-y-2 col-span-2">
-                <Label>الوصف</Label>
+                <Label>Description</Label>
                 <textarea
                   className="flex min-h-[80px] w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   value={formData.description}
@@ -675,11 +666,11 @@ export function AdminVideos() {
 
               {/* Thumbnail */}
               <div className="space-y-3 col-span-2">
-                <Label>صورة الغلاف (Thumbnail)</Label>
+                <Label>Image de couverture (Thumbnail)</Label>
                 <div className="flex gap-2">
                   <Input
                     dir="ltr" className="text-left text-sm"
-                    placeholder="الصق رابط صورة مباشر (https://...) أو ارفع ملف أدناه"
+                    placeholder="Coller un lien direct (https://...) ou uploader ci-dessous"
                     value={formData.thumbnailUrl || ""}
                     onChange={e => {
                       const v = e.target.value;
@@ -699,7 +690,7 @@ export function AdminVideos() {
                 {previewUrl && (
                   <div className="relative rounded-xl overflow-hidden border border-white/10 aspect-video bg-black">
                     <img
-                      src={previewUrl} alt="preview"
+                      src={previewUrl} alt="aperçu"
                       className="w-full h-full object-cover"
                       onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
                     />
@@ -715,7 +706,7 @@ export function AdminVideos() {
                   className="w-full flex items-center justify-center gap-2 border border-dashed border-white/15 rounded-xl p-4 text-foreground/40 hover:border-primary/50 hover:text-primary hover:bg-primary/5 transition-all cursor-pointer disabled:opacity-50 text-sm"
                 >
                   {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                  {uploading ? "جاري الرفع..." : "أو ارفع صورة من جهازك (PNG, JPG, WEBP — 5MB)"}
+                  {uploading ? "Téléversement..." : "Ou uploader depuis votre appareil (PNG, JPG, WEBP — 5 Mo)"}
                 </button>
                 <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
               </div>
@@ -725,21 +716,21 @@ export function AdminVideos() {
                 <div className="flex items-center justify-between">
                   <Label className="flex items-center gap-1.5">
                     <Layers className="w-3.5 h-3.5 text-primary" />
-                    {driveParts.length > 0 ? `روابط الأجزاء (${driveParts.length} جزء)` : "رابط تضمين جوجل درايف (Embed URL)"}
+                    {driveParts.length > 0 ? `Liens des parties (${driveParts.length} partie(s))` : "Lien d'intégration Google Drive (Embed URL)"}
                   </Label>
                   {driveParts.length === 0 ? (
                     <button type="button"
-                      onClick={() => setDriveParts([{ label: "الجزء 1", url: formData.driveEmbedUrl }])}
+                      onClick={() => setDriveParts([{ label: "Partie 1", url: formData.driveEmbedUrl }])}
                       className="text-xs text-primary hover:text-primary/80 flex items-center gap-1 font-medium transition-colors"
                     >
-                      <Plus className="w-3.5 h-3.5" /> إضافة أجزاء متعددة
+                      <Plus className="w-3.5 h-3.5" /> Ajouter des parties multiples
                     </button>
                   ) : (
                     <button type="button"
                       onClick={() => { setFormData(p => ({ ...p, driveEmbedUrl: driveParts[0]?.url || "" })); setDriveParts([]); }}
                       className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
                     >
-                      <X className="w-3.5 h-3.5" /> رجوع لرابط واحد
+                      <X className="w-3.5 h-3.5" /> Retour à un lien unique
                     </button>
                   )}
                 </div>
@@ -758,7 +749,7 @@ export function AdminVideos() {
                     {driveParts.map((part, i) => (
                       <div key={i} className="space-y-1">
                         <div className="flex gap-2 items-center">
-                          <Input dir="rtl" className="w-28 shrink-0 text-sm" placeholder={`الجزء ${i + 1}`}
+                          <Input dir="ltr" className="w-28 shrink-0 text-sm" placeholder={`Partie ${i + 1}`}
                             value={part.label}
                             onChange={e => setDriveParts(ps => ps.map((p, j) => j === i ? { ...p, label: e.target.value } : p))}
                           />
@@ -779,10 +770,10 @@ export function AdminVideos() {
                       </div>
                     ))}
                     <button type="button"
-                      onClick={() => setDriveParts(ps => [...ps, { label: `الجزء ${ps.length + 1}`, url: "" }])}
+                      onClick={() => setDriveParts(ps => [...ps, { label: `Partie ${ps.length + 1}`, url: "" }])}
                       className="w-full text-sm text-primary hover:text-primary/80 flex items-center justify-center gap-1.5 py-1.5 rounded-lg border border-dashed border-primary/30 hover:border-primary/60 transition-colors mt-1"
                     >
-                      <Plus className="w-3.5 h-3.5" /> إضافة جزء جديد
+                      <Plus className="w-3.5 h-3.5" /> Ajouter une partie
                     </button>
                   </div>
                 )}
@@ -792,7 +783,7 @@ export function AdminVideos() {
               <div className="space-y-2 col-span-2">
                 <Label className="flex items-center gap-1.5">
                   <span className="text-xs bg-orange-500/20 text-orange-400 px-1.5 py-0.5 rounded font-semibold">VIP</span>
-                  رابط تحميل البرنامج (للـ VIP فقط)
+                  Lien de téléchargement du logiciel (VIP uniquement)
                 </Label>
                 <Input dir="ltr" className="text-left" placeholder="https://..."
                   value={formData.softwareLink ?? ""}
@@ -800,14 +791,14 @@ export function AdminVideos() {
                 />
               </div>
 
-              {/* القسم — مصفَّى لأقسام هذه الدورة فقط */}
+              {/* Category — filtered to this course */}
               <div className="space-y-2 col-span-2">
-                <Label>القسم التابع له <span className="text-destructive">*</span></Label>
+                <Label>Catégorie liée <span className="text-destructive">*</span></Label>
                 {(categories ?? []).length === 0 ? (
                   <div className="flex items-center gap-2 p-3 rounded-lg border border-amber-500/20 bg-amber-500/5 text-sm text-amber-400">
-                    <span>لا توجد أقسام لهذه الدورة —</span>
+                    <span>Aucune catégorie pour ce cours —</span>
                     <Link href={`/gab-ctrl-9x/categories?courseId=${courseId}`} className="underline hover:text-amber-300">
-                      أضف قسماً الآن
+                      Ajouter une catégorie
                     </Link>
                   </div>
                 ) : (
@@ -816,15 +807,15 @@ export function AdminVideos() {
                     value={formData.categoryId || ""}
                     onChange={e => setFormData({ ...formData, categoryId: parseInt(e.target.value) })}
                   >
-                    <option value="" disabled>اختر قسماً</option>
-                    {categories?.map(c => <option key={c.id} value={c.id}>{c.name}{c.isVisible ? "" : " (مخفي)"}</option>)}
+                    <option value="" disabled>Choisir une catégorie</option>
+                    {categories?.map(c => <option key={c.id} value={c.id}>{c.name}{c.isVisible ? "" : " (masqué)"}</option>)}
                   </select>
                 )}
               </div>
 
-              {/* رقم الجزء */}
+              {/* Part number */}
               <div className="space-y-2">
-                <Label>رقم الجزء</Label>
+                <Label>Numéro de partie</Label>
                 <Input
                   type="number" min={1} placeholder="1"
                   className="h-10 text-center"
@@ -836,7 +827,7 @@ export function AdminVideos() {
               {/* Access type + visibility */}
               <div className="space-y-4 pt-2">
                 <div className="space-y-2">
-                  <Label>مستوى الوصول</Label>
+                  <Label>Niveau d'accès</Label>
                   <select
                     className="flex h-10 w-full rounded-md border border-white/10 bg-background px-3 py-2 text-sm"
                     value={formData.accessType || "normal"}
@@ -845,22 +836,22 @@ export function AdminVideos() {
                       setFormData({ ...formData, accessType: at, isVipOnly: at === "vip" });
                     }}
                   >
-                    <option value="visitor">زائر (مجاني للجميع)</option>
-                    <option value="normal">عادي (مشتركون فقط)</option>
-                    <option value="vip">VIP (حسابات VIP فقط)</option>
+                    <option value="visitor">Visiteur (gratuit pour tous)</option>
+                    <option value="normal">Standard (abonnés seulement)</option>
+                    <option value="vip">VIP (comptes VIP uniquement)</option>
                   </select>
                 </div>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" checked={formData.isVisible}
                     onChange={e => setFormData({ ...formData, isVisible: e.target.checked })}
                     className="rounded bg-black border-white/20 text-primary w-4 h-4" />
-                  <span className="text-sm">مرئي للطلاب</span>
+                  <span className="text-sm">Visible pour les élèves</span>
                 </label>
               </div>
             </div>
 
             <Button className="w-full mt-4" onClick={handleSave} disabled={createMut.isPending || updateMut.isPending || uploading}>
-              {(createMut.isPending || updateMut.isPending) ? <Loader2 className="w-4 h-4 animate-spin" /> : "حفظ"}
+              {(createMut.isPending || updateMut.isPending) ? <Loader2 className="w-4 h-4 animate-spin" /> : "Enregistrer"}
             </Button>
           </div>
         </DialogContent>

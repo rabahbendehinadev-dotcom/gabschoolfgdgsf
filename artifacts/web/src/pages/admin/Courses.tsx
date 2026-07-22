@@ -4,7 +4,7 @@ import { useAuth } from "@/lib/auth";
 import { compressImageForUpload } from "@/lib/imageCompress";
 import { Card, Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label } from "@/components/ui";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Edit, Trash2, GraduationCap, Upload, X, Loader2, Eye, EyeOff, ImageIcon, Video, FolderTree } from "lucide-react";
+import { Plus, Edit, Trash2, GraduationCap, X, Loader2, Eye, EyeOff, ImageIcon, Video, FolderTree } from "lucide-react";
 import { useGetAdminPlaylists, useCreatePlaylist, useUpdatePlaylist, useDeletePlaylist } from "@workspace/api-client-react/src/generated/api";
 
 interface CourseForm {
@@ -68,10 +68,10 @@ export function AdminCourses() {
       }
       const { objectPath } = await resp.json() as { objectPath: string };
       setForm(prev => ({ ...prev, imageUrl: `/api/storage${objectPath}` }));
-      toast({ title: "✅ تم رفع الصورة", className: "bg-green-600 text-white border-none" });
+      toast({ title: "✅ Image téléversée", className: "bg-green-600 text-white border-none" });
     } catch (err) {
       console.error("[upload] course image failed:", err);
-      toast({ variant: "destructive", title: "فشل رفع الصورة", description: err instanceof Error ? err.message : String(err) });
+      toast({ variant: "destructive", title: "Échec de l'upload", description: err instanceof Error ? err.message : String(err) });
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = "";
@@ -80,7 +80,7 @@ export function AdminCourses() {
 
   const handleSave = () => {
     if (!form.title.trim()) {
-      toast({ variant: "destructive", title: "اسم الدورة مطلوب" });
+      toast({ variant: "destructive", title: "Le nom du cours est requis" });
       return;
     }
     const payload = {
@@ -96,38 +96,38 @@ export function AdminCourses() {
 
     action
       .then(() => {
-        toast({ title: editingId ? "تم تحديث الدورة" : "تم إنشاء الدورة", className: "bg-green-600 text-white border-none" });
+        toast({ title: editingId ? "Cours mis à jour" : "Cours créé", className: "bg-green-600 text-white border-none" });
         refetch();
         setIsOpen(false);
       })
-      .catch(() => toast({ variant: "destructive", title: "حدث خطأ أثناء الحفظ" }));
+      .catch(() => toast({ variant: "destructive", title: "Erreur lors de la sauvegarde" }));
   };
 
   const handleDelete = (id: number, title: string) => {
-    if (!confirm(`حذف دورة "${title}"؟ سيتم فصل الدروس المرتبطة بها.`)) return;
+    if (!confirm(`Supprimer le cours "${title}" ? Les leçons liées seront dissociées.`)) return;
     deleteMut.mutate({ id }, {
-      onSuccess: () => { toast({ title: "تم الحذف" }); refetch(); },
-      onError: () => toast({ variant: "destructive", title: "فشل الحذف" }),
+      onSuccess: () => { toast({ title: "Supprimé" }); refetch(); },
+      onError: () => toast({ variant: "destructive", title: "Échec de la suppression" }),
     });
   };
 
   const isPending = createMut.isPending || updateMut.isPending;
 
   return (
-    <div className="space-y-6" dir="rtl">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <GraduationCap className="w-6 h-6 text-primary" />
-            إدارة الدورات
+            Gestion des cours
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
-            أضف دوراتك وخصّص صورها — تظهر تلقائياً في صفحة الدورات
+            Ajoutez vos cours et personnalisez leurs images — ils apparaissent automatiquement sur la page des cours
           </p>
         </div>
         <Button onClick={() => handleOpen()} className="gap-2">
           <Plus className="w-4 h-4" />
-          دورة جديدة
+          Nouveau cours
         </Button>
       </div>
 
@@ -152,11 +152,11 @@ export function AdminCourses() {
                 {!pl.isVisible && (
                   <div className="absolute top-2 right-2 flex items-center gap-1 bg-black/60 text-yellow-400 text-[10px] font-bold px-2 py-1 rounded-lg">
                     <EyeOff className="w-3 h-3" />
-                    مخفي
+                    Masqué
                   </div>
                 )}
                 <div className="absolute bottom-2 left-2 bg-black/60 text-white text-[10px] font-semibold px-2 py-1 rounded-lg">
-                  {pl.videos?.length ?? 0} درس
+                  {pl.videos?.length ?? 0} leçon(s)
                 </div>
               </div>
 
@@ -169,20 +169,20 @@ export function AdminCourses() {
                   <Link href={`/gab-ctrl-9x/videos?courseId=${pl.id}`}>
                     <Button variant="outline" size="sm" className="w-full gap-1.5 text-xs">
                       <Video className="w-3.5 h-3.5" />
-                      الفيديوهات
+                      Vidéos
                     </Button>
                   </Link>
                   <Link href={`/gab-ctrl-9x/categories?courseId=${pl.id}`}>
                     <Button variant="outline" size="sm" className="w-full gap-1.5 text-xs">
                       <FolderTree className="w-3.5 h-3.5" />
-                      الأقسام
+                      Catégories
                     </Button>
                   </Link>
                 </div>
                 <div className="flex gap-2">
                   <Button variant="ghost" size="sm" className="flex-1 gap-1.5" onClick={() => handleOpen(pl)}>
                     <Edit className="w-3.5 h-3.5" />
-                    تعديل
+                    Modifier
                   </Button>
                   <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => handleDelete(pl.id, pl.title)}>
                     <Trash2 className="w-3.5 h-3.5" />
@@ -197,7 +197,7 @@ export function AdminCourses() {
           <div className="col-span-full">
             <Card className="glass-card p-14 text-center">
               <GraduationCap className="w-12 h-12 mx-auto text-muted-foreground/30 mb-3" />
-              <p className="text-muted-foreground text-sm">لا توجد دورات بعد. أضف أول دورة!</p>
+              <p className="text-muted-foreground text-sm">Aucun cours. Ajoutez votre premier cours !</p>
             </Card>
           </div>
         )}
@@ -206,15 +206,15 @@ export function AdminCourses() {
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent className="max-w-lg bg-background border border-white/10 max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editingId ? "تعديل الدورة" : "دورة جديدة"}</DialogTitle>
+            <DialogTitle>{editingId ? "Modifier le cours" : "Nouveau cours"}</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4 pt-2">
             <div className="space-y-2">
-              <Label>صورة الدورة</Label>
+              <Label>Image du cours</Label>
               {form.imageUrl ? (
                 <div className="relative rounded-xl overflow-hidden border border-white/10 aspect-video bg-black">
-                  <img src={form.imageUrl} alt="preview" className="w-full h-full object-cover" />
+                  <img src={form.imageUrl} alt="aperçu" className="w-full h-full object-cover" />
                   <button
                     type="button"
                     onClick={() => setForm(p => ({ ...p, imageUrl: "" }))}
@@ -234,20 +234,20 @@ export function AdminCourses() {
                     ? <Loader2 className="w-7 h-7 animate-spin" />
                     : <ImageIcon className="w-7 h-7" />
                   }
-                  <span className="text-sm">{uploading ? "جاري الرفع..." : "اضغط لرفع صورة الدورة"}</span>
+                  <span className="text-sm">{uploading ? "Téléversement..." : "Cliquer pour uploader l'image du cours"}</span>
                 </button>
               )}
               <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleUpload} />
               {!form.imageUrl && !uploading && (
                 <div className="flex items-center gap-2">
                   <div className="flex-1 h-px bg-white/10" />
-                  <span className="text-xs text-muted-foreground">أو</span>
+                  <span className="text-xs text-muted-foreground">ou</span>
                   <div className="flex-1 h-px bg-white/10" />
                 </div>
               )}
               {!form.imageUrl && (
                 <Input
-                  placeholder="الصق رابط صورة مباشر (https://...)"
+                  placeholder="Coller un lien image direct (https://...)"
                   dir="ltr" className="text-left text-sm"
                   value={form.imageUrl}
                   onChange={e => setForm(p => ({ ...p, imageUrl: e.target.value }))}
@@ -256,19 +256,19 @@ export function AdminCourses() {
             </div>
 
             <div className="space-y-2">
-              <Label>اسم الدورة *</Label>
+              <Label>Nom du cours *</Label>
               <Input
-                placeholder="مثال: دورة الفلاش والديكوداك"
+                placeholder="Ex: Cours Full Bias iPhone X"
                 value={form.title}
                 onChange={e => setForm(p => ({ ...p, title: e.target.value }))}
               />
             </div>
 
             <div className="space-y-2">
-              <Label>وصف الدورة</Label>
+              <Label>Description du cours</Label>
               <textarea
                 className="flex min-h-[70px] w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="وصف مختصر عن محتوى الدورة..."
+                placeholder="Brève description du contenu du cours..."
                 value={form.description}
                 onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
               />
@@ -276,7 +276,7 @@ export function AdminCourses() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>الترتيب</Label>
+                <Label>Ordre d'affichage</Label>
                 <Input
                   type="number" min={0}
                   value={form.sortOrder}
@@ -292,7 +292,7 @@ export function AdminCourses() {
                   />
                   <span className="text-sm flex items-center gap-1.5">
                     {form.isVisible ? <Eye className="w-4 h-4 text-green-400" /> : <EyeOff className="w-4 h-4 text-muted-foreground" />}
-                    {form.isVisible ? "مرئية للطلاب" : "مخفية"}
+                    {form.isVisible ? "Visible pour les élèves" : "Masqué"}
                   </span>
                 </label>
               </div>
@@ -300,9 +300,9 @@ export function AdminCourses() {
 
             <div className="flex gap-3 pt-2">
               <Button onClick={handleSave} className="flex-1" disabled={isPending}>
-                {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : (editingId ? "حفظ التغييرات" : "إنشاء الدورة")}
+                {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : (editingId ? "Enregistrer" : "Créer le cours")}
               </Button>
-              <Button variant="outline" onClick={() => setIsOpen(false)}>إلغاء</Button>
+              <Button variant="outline" onClick={() => setIsOpen(false)}>Annuler</Button>
             </div>
           </div>
         </DialogContent>

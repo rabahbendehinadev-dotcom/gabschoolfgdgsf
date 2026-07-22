@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Input } from "@/components/ui";
 import { Search, Eye, EyeOff, Pin, PinOff, Trash2, Loader2, Flag, CheckCircle, XCircle, MessageSquare } from "lucide-react";
 
 type AdminPost = {
@@ -38,11 +37,11 @@ type AdminReport = {
 function timeAgo(iso: string) {
   const diff = Date.now() - new Date(iso).getTime();
   const m = Math.floor(diff / 60000);
-  if (m < 1) return "الآن";
-  if (m < 60) return `قبل ${m} د`;
+  if (m < 1) return "À l'instant";
+  if (m < 60) return `il y a ${m} min`;
   const h = Math.floor(m / 60);
-  if (h < 24) return `قبل ${h} س`;
-  return `قبل ${Math.floor(h / 24)} ي`;
+  if (h < 24) return `il y a ${h} h`;
+  return `il y a ${Math.floor(h / 24)} j`;
 }
 
 function AvatarIcon({ username, imageUrl }: { username: string | null; imageUrl: string | null }) {
@@ -58,7 +57,7 @@ function AvatarIcon({ username, imageUrl }: { username: string | null; imageUrl:
   }
   return (
     <div className="h-10 w-10 rounded-full bg-orange-100 border border-orange-200 flex items-center justify-center text-sm font-bold text-orange-600 shrink-0">
-      {username?.charAt(0)?.toUpperCase() || "؟"}
+      {username?.charAt(0)?.toUpperCase() || "?"}
     </div>
   );
 }
@@ -80,7 +79,7 @@ export function AdminCommunity() {
       const params = new URLSearchParams({ limit: "20", page: String(page) });
       if (search.trim()) params.set("search", search.trim());
       const res = await fetch(`/api/admin/community/posts?${params}`, { headers: adminHeaders });
-      if (!res.ok) throw new Error("فشل تحميل المنشورات");
+      if (!res.ok) throw new Error("Échec du chargement des publications");
       return res.json() as Promise<{ posts: AdminPost[]; hasMore: boolean }>;
     },
     enabled: tab === "posts",
@@ -91,7 +90,7 @@ export function AdminCommunity() {
     queryFn: async () => {
       const params = new URLSearchParams({ limit: "30", page: String(page), status: reportStatus });
       const res = await fetch(`/api/admin/community/reports?${params}`, { headers: adminHeaders });
-      if (!res.ok) throw new Error("فشل تحميل البلاغات");
+      if (!res.ok) throw new Error("Échec du chargement des signalements");
       return res.json() as Promise<{ reports: AdminReport[]; hasMore: boolean }>;
     },
     enabled: tab === "reports",
@@ -104,13 +103,13 @@ export function AdminCommunity() {
         headers: { "Content-Type": "application/json", ...adminHeaders },
         body: JSON.stringify(body),
       });
-      if (!res.ok) throw new Error("فشل التحديث");
+      if (!res.ok) throw new Error("Échec de la mise à jour");
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-community-posts"] });
-      toast({ title: "تم التحديث" });
+      toast({ title: "Mis à jour" });
     },
-    onError: () => toast({ title: "فشل التحديث", variant: "destructive" }),
+    onError: () => toast({ title: "Échec de la mise à jour", variant: "destructive" }),
   });
 
   const deletePost = useMutation({
@@ -119,13 +118,13 @@ export function AdminCommunity() {
         method: "DELETE",
         headers: adminHeaders,
       });
-      if (!res.ok) throw new Error("فشل الحذف");
+      if (!res.ok) throw new Error("Échec de la suppression");
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-community-posts"] });
-      toast({ title: "تم حذف المنشور" });
+      toast({ title: "Publication supprimée" });
     },
-    onError: () => toast({ title: "فشل الحذف", variant: "destructive" }),
+    onError: () => toast({ title: "Échec de la suppression", variant: "destructive" }),
   });
 
   const resolveReport = useMutation({
@@ -135,24 +134,24 @@ export function AdminCommunity() {
         headers: { "Content-Type": "application/json", ...adminHeaders },
         body: JSON.stringify({ status }),
       });
-      if (!res.ok) throw new Error("فشل التحديث");
+      if (!res.ok) throw new Error("Échec de la mise à jour");
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-community-reports"] });
-      toast({ title: "تم تحديث البلاغ" });
+      toast({ title: "Signalement mis à jour" });
     },
-    onError: () => toast({ title: "فشل تحديث البلاغ", variant: "destructive" }),
+    onError: () => toast({ title: "Échec de la mise à jour", variant: "destructive" }),
   });
 
   return (
-    <div className="space-y-5 p-1" dir="rtl">
+    <div className="space-y-5 p-1">
 
       {/* Header */}
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center shrink-0">
           <MessageSquare className="w-5 h-5 text-orange-600" />
         </div>
-        <h2 className="text-2xl font-extrabold text-gray-900">إدارة Community GAB</h2>
+        <h2 className="text-2xl font-extrabold text-gray-900">Gestion de la Communauté GAB</h2>
       </div>
 
       {/* Tabs */}
@@ -168,7 +167,7 @@ export function AdminCommunity() {
                 : "border-transparent text-gray-500 hover:text-gray-800 hover:bg-gray-50"
             }`}
           >
-            {t === "posts" ? "المنشورات" : "البلاغات"}
+            {t === "posts" ? "Publications" : "Signalements"}
           </button>
         ))}
       </div>
@@ -178,13 +177,12 @@ export function AdminCommunity() {
         <div className="space-y-4">
           {/* Search */}
           <div className="relative">
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <input
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-              placeholder="بحث بالمحتوى أو اسم المستخدم…"
-              className="w-full h-10 rounded-xl border border-gray-300 bg-white text-gray-900 placeholder:text-gray-400 pr-10 pl-4 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent"
-              dir="rtl"
+              placeholder="Rechercher par contenu ou nom d'utilisateur..."
+              className="w-full h-10 rounded-xl border border-gray-300 bg-white text-gray-900 placeholder:text-gray-400 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent"
             />
           </div>
 
@@ -195,7 +193,7 @@ export function AdminCommunity() {
           ) : (postsQ.data?.posts ?? []).length === 0 ? (
             <div className="py-12 text-center text-gray-400 flex flex-col items-center gap-3">
               <MessageSquare className="h-10 w-10 text-gray-300" />
-              <p className="text-sm">لا توجد منشورات</p>
+              <p className="text-sm">Aucune publication</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -221,27 +219,27 @@ export function AdminCommunity() {
                         <span className="text-xs text-gray-400 font-mono">#{post.id}</span>
                         {post.isHidden && (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-xs font-semibold">
-                            <EyeOff className="h-3 w-3" /> مخفي
+                            <EyeOff className="h-3 w-3" /> Masqué
                           </span>
                         )}
                         {post.isPinned && (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold">
-                            <Pin className="h-3 w-3" /> مثبّت
+                            <Pin className="h-3 w-3" /> Épinglé
                           </span>
                         )}
                         {post.isFeatured && (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold">
-                            مميّز
+                            En vedette
                           </span>
                         )}
                       </div>
                       <p className="text-sm text-gray-800 line-clamp-3 break-words leading-relaxed">
-                        {post.content || <span className="italic text-gray-400">[منشور بدون نص]</span>}
+                        {post.content || <span className="italic text-gray-400">[Publication sans texte]</span>}
                       </p>
                       <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
-                        <span>{post.likesCount} إعجاب</span>
-                        <span>{post.commentsCount} تعليق</span>
-                        <span>{post.viewsCount} مشاهدة</span>
+                        <span>{post.likesCount} J'aime</span>
+                        <span>{post.commentsCount} Commentaire</span>
+                        <span>{post.viewsCount} Vue</span>
                       </div>
                     </div>
                   </div>
@@ -259,7 +257,7 @@ export function AdminCommunity() {
                       }`}
                     >
                       {post.isHidden ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
-                      {post.isHidden ? "إظهار" : "إخفاء"}
+                      {post.isHidden ? "Afficher" : "Masquer"}
                     </button>
                     <button
                       type="button"
@@ -272,12 +270,12 @@ export function AdminCommunity() {
                       }`}
                     >
                       {post.isPinned ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}
-                      {post.isPinned ? "إلغاء التثبيت" : "تثبيت"}
+                      {post.isPinned ? "Désépingler" : "Épingler"}
                     </button>
                     <button
                       type="button"
                       onClick={() => {
-                        if (confirm("هل أنت متأكد من حذف هذا المنشور؟")) {
+                        if (confirm("Supprimer cette publication ?")) {
                           deletePost.mutate(post.id);
                         }
                       }}
@@ -285,7 +283,7 @@ export function AdminCommunity() {
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 border bg-red-50 border-red-300 text-red-700 hover:bg-red-100"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
-                      حذف
+                      Supprimer
                     </button>
                   </div>
                 </div>
@@ -301,16 +299,16 @@ export function AdminCommunity() {
               disabled={page === 1}
               className="px-4 py-2 rounded-xl text-sm font-medium border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
-              السابق
+              Précédent
             </button>
-            <span className="text-sm font-semibold text-gray-700 px-2">صفحة {page}</span>
+            <span className="text-sm font-semibold text-gray-700 px-2">Page {page}</span>
             <button
               type="button"
               onClick={() => setPage((p) => p + 1)}
               disabled={!postsQ.data?.hasMore}
               className="px-4 py-2 rounded-xl text-sm font-medium border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
-              التالي
+              Suivant
             </button>
           </div>
         </div>
@@ -336,7 +334,7 @@ export function AdminCommunity() {
                     : "bg-white border-gray-300 text-gray-600 hover:bg-gray-50"
                 }`}
               >
-                {s === "pending" ? "قيد الانتظار" : s === "resolved" ? "تم الحل" : "مرفوض"}
+                {s === "pending" ? "En attente" : s === "resolved" ? "Résolu" : "Rejeté"}
               </button>
             ))}
           </div>
@@ -349,7 +347,7 @@ export function AdminCommunity() {
             <div className="py-12 text-center flex flex-col items-center gap-3">
               <Flag className="h-10 w-10 text-gray-300" />
               <p className="text-sm text-gray-400">
-                لا توجد بلاغات {reportStatus === "pending" ? "قيد الانتظار" : ""}
+                Aucun signalement {reportStatus === "pending" ? "en attente" : ""}
               </p>
             </div>
           ) : (
@@ -364,16 +362,16 @@ export function AdminCommunity() {
                       <div className="flex flex-wrap items-center gap-2 mb-2">
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-orange-100 text-orange-700 text-xs font-bold">
                           <Flag className="h-3 w-3" />
-                          {report.postId ? `منشور #${report.postId}` : `تعليق #${report.commentId}`}
+                          {report.postId ? `Publication #${report.postId}` : `Commentaire #${report.commentId}`}
                         </span>
                         <span className="text-xs text-gray-400">{timeAgo(report.createdAt)}</span>
                       </div>
 
                       <p className="text-sm text-gray-800 mb-1">
-                        <span className="text-gray-500 text-xs font-medium">بواسطة: </span>
+                        <span className="text-gray-500 text-xs font-medium">Par : </span>
                         <span className="font-semibold">{report.reporterUsername || "—"}</span>
                         {report.reporterEmail && (
-                          <span className="text-gray-400 text-xs mr-1.5">({report.reporterEmail})</span>
+                          <span className="text-gray-400 text-xs ml-1.5">({report.reporterEmail})</span>
                         )}
                       </p>
 
@@ -394,7 +392,7 @@ export function AdminCommunity() {
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 border bg-green-50 border-green-300 text-green-700 hover:bg-green-100"
                       >
                         <CheckCircle className="h-3.5 w-3.5" />
-                        تم الحل
+                        Résolu
                       </button>
                       <button
                         type="button"
@@ -403,7 +401,7 @@ export function AdminCommunity() {
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 border bg-gray-50 border-gray-300 text-gray-700 hover:bg-gray-100"
                       >
                         <XCircle className="h-3.5 w-3.5" />
-                        رفض
+                        Rejeter
                       </button>
                     </div>
                   )}
@@ -420,16 +418,16 @@ export function AdminCommunity() {
               disabled={page === 1}
               className="px-4 py-2 rounded-xl text-sm font-medium border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
-              السابق
+              Précédent
             </button>
-            <span className="text-sm font-semibold text-gray-700 px-2">صفحة {page}</span>
+            <span className="text-sm font-semibold text-gray-700 px-2">Page {page}</span>
             <button
               type="button"
               onClick={() => setPage((p) => p + 1)}
               disabled={!reportsQ.data?.hasMore}
               className="px-4 py-2 rounded-xl text-sm font-medium border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
-              التالي
+              Suivant
             </button>
           </div>
         </div>

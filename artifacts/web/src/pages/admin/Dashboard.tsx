@@ -8,30 +8,30 @@ export function AdminDashboard() {
   const { getAdminAuthHeaders } = useAuth();
   const { data: stats, isLoading } = useGetAdminStats({ request: getAdminAuthHeaders() });
 
-  if (isLoading) return <div>جاري التحميل...</div>;
+  if (isLoading) return <div>Chargement...</div>;
   if (!stats) return null;
 
   const pieData = [
     { name: 'VIP', value: stats.vipUsers, color: '#f59e0b' },
-    { name: 'عادي', value: stats.normalUsers, color: '#3f3f46' },
+    { name: 'Standard', value: stats.normalUsers, color: '#3f3f46' },
   ];
 
   const planData = [
-    { name: 'تجريبي', value: stats.demoSubscriptions, color: '#3f3f46' },
-    { name: 'سنوي', value: stats.annualSubscriptions, color: '#f97316' },
-    { name: 'مدى الحياة', value: stats.lifetimeSubscriptions, color: '#ef4444' },
+    { name: 'Essai', value: stats.demoSubscriptions, color: '#3f3f46' },
+    { name: 'Annuel', value: stats.annualSubscriptions, color: '#f97316' },
+    { name: 'À vie', value: stats.lifetimeSubscriptions, color: '#ef4444' },
   ];
 
   return (
-    <div dir="rtl" className="space-y-8">
-      <h1 className="text-3xl font-bold">نظرة عامة</h1>
+    <div className="space-y-8">
+      <h1 className="text-3xl font-bold">Vue d'ensemble</h1>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { title: "إجمالي المستخدمين", val: stats.totalUsers, icon: Users, color: "text-blue-500", bg: "bg-blue-500/10" },
-          { title: "مستخدمين VIP", val: stats.vipUsers, icon: Crown, color: "text-amber-500", bg: "bg-amber-500/10" },
-          { title: "الدروس المرفوعة", val: stats.totalVideos, icon: Video, color: "text-green-500", bg: "bg-green-500/10" },
-          { title: "إجمالي الزيارات", val: stats.totalVisits, icon: Eye, color: "text-purple-500", bg: "bg-purple-500/10" },
+          { title: "Total utilisateurs", val: stats.totalUsers, icon: Users, color: "text-blue-500", bg: "bg-blue-500/10" },
+          { title: "Utilisateurs VIP", val: stats.vipUsers, icon: Crown, color: "text-amber-500", bg: "bg-amber-500/10" },
+          { title: "Leçons uploadées", val: stats.totalVideos, icon: Video, color: "text-green-500", bg: "bg-green-500/10" },
+          { title: "Total visites", val: stats.totalVisits, icon: Eye, color: "text-purple-500", bg: "bg-purple-500/10" },
         ].map((item, i) => (
           <Card key={i} className="p-6 flex items-center gap-4 bg-card border-white/5">
             <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${item.bg} ${item.color}`}>
@@ -47,7 +47,7 @@ export function AdminDashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <Card className="p-6 border-white/5">
-          <h3 className="font-bold mb-6">أنواع الحسابات</h3>
+          <h3 className="font-bold mb-6">Types de comptes</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -71,7 +71,7 @@ export function AdminDashboard() {
         </Card>
 
         <Card className="p-6 border-white/5">
-          <h3 className="font-bold mb-6 flex items-center gap-2"><CreditCard className="w-5 h-5"/> الاشتراكات النشطة</h3>
+          <h3 className="font-bold mb-6 flex items-center gap-2"><CreditCard className="w-5 h-5"/> Abonnements actifs</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={planData}>

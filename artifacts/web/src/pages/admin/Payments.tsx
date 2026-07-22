@@ -23,9 +23,9 @@ interface PaymentSubmission {
 }
 
 const statusConfig = {
-  pending:  { label: "قيد المراجعة", color: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30" },
-  approved: { label: "مقبول",        color: "bg-green-500/20 text-green-400 border-green-500/30" },
-  rejected: { label: "مرفوض",        color: "bg-red-500/20 text-red-400 border-red-500/30" },
+  pending:  { label: "En attente",  color: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30" },
+  approved: { label: "Accepté",     color: "bg-green-500/20 text-green-400 border-green-500/30" },
+  rejected: { label: "Refusé",      color: "bg-red-500/20 text-red-400 border-red-500/30" },
 };
 
 export function AdminPayments() {
@@ -43,11 +43,11 @@ export function AdminPayments() {
     try {
       const headers = getAdminAuthHeaders()?.headers || {};
       const res = await fetch(`${API_BASE}/api/admin/payments`, { headers: headers as HeadersInit });
-      if (!res.ok) throw new Error("فشل جلب البيانات");
+      if (!res.ok) throw new Error("Échec du chargement");
       const data = await res.json();
       setSubmissions(data);
     } catch {
-      toast({ variant: "destructive", title: "فشل تحميل الطلبات" });
+      toast({ variant: "destructive", title: "Échec du chargement des demandes" });
     } finally {
       setLoading(false);
     }
@@ -68,11 +68,11 @@ export function AdminPayments() {
         body: JSON.stringify({ status, notes }),
       });
       if (!res.ok) throw new Error();
-      toast({ title: status === "approved" ? "تم القبول ✅" : "تم الرفض" });
+      toast({ title: status === "approved" ? "Accepté ✅" : "Refusé" });
       setNotesDialog(null);
       await fetchSubmissions();
     } catch {
-      toast({ variant: "destructive", title: "حدث خطأ" });
+      toast({ variant: "destructive", title: "Une erreur est survenue" });
     } finally {
       setProcessing(null);
     }
@@ -95,11 +95,11 @@ export function AdminPayments() {
   };
 
   return (
-    <div dir="rtl" className="space-y-6">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">طلبات الدفع</h1>
+        <h1 className="text-3xl font-bold">Demandes de paiement</h1>
         <Button variant="secondary" onClick={fetchSubmissions} disabled={loading}>
-          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "تحديث"}
+          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Actualiser"}
         </Button>
       </div>
 
@@ -113,7 +113,7 @@ export function AdminPayments() {
           >
             <div className="text-2xl font-bold">{counts[key]}</div>
             <div className="text-xs mt-1">
-              {key === "all" ? "الكل" : statusConfig[key].label}
+              {key === "all" ? "Tous" : statusConfig[key].label}
             </div>
           </button>
         ))}
@@ -127,7 +127,7 @@ export function AdminPayments() {
       ) : filtered.length === 0 ? (
         <Card className="p-12 text-center border-white/5 text-muted-foreground">
           <CreditCard className="w-12 h-12 mx-auto mb-4 opacity-30" />
-          <p>لا توجد طلبات</p>
+          <p>Aucune demande</p>
         </Card>
       ) : (
         <div className="space-y-4">
@@ -143,7 +143,7 @@ export function AdminPayments() {
                         onClick={() => setSelectedProof(sub.proofUrl!)}
                         className="w-20 h-20 rounded-xl overflow-hidden border border-white/10 bg-black/20 hover:border-primary/40 transition-colors flex items-center justify-center"
                       >
-                        <img src={sub.proofUrl} alt="إيصال" className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                        <img src={sub.proofUrl} alt="Reçu" className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
                         <ImageIcon className="w-8 h-8 text-muted-foreground" />
                       </button>
                     ) : (
@@ -173,7 +173,7 @@ export function AdminPayments() {
                           {formatDate(sub.createdAt)}
                         </div>
                         {sub.notes && (
-                          <p className="text-xs text-muted-foreground mt-1.5 italic">ملاحظة: {sub.notes}</p>
+                          <p className="text-xs text-muted-foreground mt-1.5 italic">Note : {sub.notes}</p>
                         )}
                       </div>
                       <div className="flex items-center gap-2 flex-wrap">
@@ -185,7 +185,7 @@ export function AdminPayments() {
                     <div className="flex gap-2 mt-3 flex-wrap">
                       {sub.proofUrl && (
                         <Button variant="ghost" size="sm" onClick={() => window.open(sub.proofUrl!, "_blank")}>
-                          <ExternalLink className="w-3.5 h-3.5 ml-1" /> فتح الإيصال
+                          <ExternalLink className="w-3.5 h-3.5 mr-1" /> Voir le reçu
                         </Button>
                       )}
                       <Button
@@ -194,7 +194,7 @@ export function AdminPayments() {
                         className="text-green-400 hover:text-green-300 hover:bg-green-500/10"
                         onClick={() => openWhatsApp(sub)}
                       >
-                        <MessageCircle className="w-3.5 h-3.5 ml-1" /> واتساب
+                        <MessageCircle className="w-3.5 h-3.5 mr-1" /> WhatsApp
                       </Button>
                       {sub.status !== "approved" && (
                         <Button
@@ -203,8 +203,8 @@ export function AdminPayments() {
                           onClick={() => updateStatus(sub.id, "approved")}
                           disabled={processing === sub.id}
                         >
-                          {processing === sub.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCheck className="w-3.5 h-3.5 ml-1" />}
-                          قبول
+                          {processing === sub.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCheck className="w-3.5 h-3.5 mr-1" />}
+                          Accepter
                         </Button>
                       )}
                       {sub.status !== "rejected" && (
@@ -215,7 +215,7 @@ export function AdminPayments() {
                           onClick={() => setNotesDialog({ id: sub.id, notes: sub.notes ?? "" })}
                           disabled={processing === sub.id}
                         >
-                          <X className="w-3.5 h-3.5 ml-1" /> رفض
+                          <X className="w-3.5 h-3.5 mr-1" /> Refuser
                         </Button>
                       )}
                     </div>
@@ -230,9 +230,9 @@ export function AdminPayments() {
       {/* Proof image modal */}
       <Dialog open={!!selectedProof} onOpenChange={() => setSelectedProof(null)}>
         <DialogContent className="max-w-2xl">
-          <DialogHeader><DialogTitle>إيصال الدفع</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Reçu de paiement</DialogTitle></DialogHeader>
           {selectedProof && (
-            <img src={selectedProof} alt="إيصال" className="w-full rounded-xl" />
+            <img src={selectedProof} alt="Reçu" className="w-full rounded-xl" />
           )}
         </DialogContent>
       </Dialog>
@@ -240,15 +240,15 @@ export function AdminPayments() {
       {/* Reject notes dialog */}
       <Dialog open={!!notesDialog} onOpenChange={() => setNotesDialog(null)}>
         <DialogContent>
-          <DialogHeader><DialogTitle>رفض الطلب</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Refuser la demande</DialogTitle></DialogHeader>
           {notesDialog && (
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">سبب الرفض (اختياري)</label>
+                <label className="text-sm font-medium">Motif de refus (optionnel)</label>
                 <Input
                   value={notesDialog.notes}
                   onChange={e => setNotesDialog({ ...notesDialog, notes: e.target.value })}
-                  placeholder="اكتب سبب الرفض..."
+                  placeholder="Saisissez le motif de refus..."
                 />
               </div>
               <Button
@@ -257,7 +257,7 @@ export function AdminPayments() {
                 onClick={() => updateStatus(notesDialog.id, "rejected", notesDialog.notes)}
                 disabled={processing === notesDialog.id}
               >
-                {processing === notesDialog.id ? <Loader2 className="w-4 h-4 animate-spin" /> : "تأكيد الرفض"}
+                {processing === notesDialog.id ? <Loader2 className="w-4 h-4 animate-spin" /> : "Confirmer le refus"}
               </Button>
             </div>
           )}

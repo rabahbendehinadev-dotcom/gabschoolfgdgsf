@@ -30,12 +30,11 @@ interface SubUser {
 
 type SectionFilter = "active" | "soon" | "expired" | "missing";
 
-// ─── Helpers ───────────────────────────────────────────────────────────────
-function formatArabicDate(iso: string | null | undefined): string {
-  if (!iso) return "غير محدد";
+function formatDate(iso: string | null | undefined): string {
+  if (!iso) return "Non défini";
   const d = new Date(iso);
-  if (isNaN(d.getTime()) || d.getFullYear() < 2020) return "غير محدد";
-  return new Intl.DateTimeFormat("ar-DZ", {
+  if (isNaN(d.getTime()) || d.getFullYear() < 2020) return "Non défini";
+  return new Intl.DateTimeFormat("fr-FR", {
     day: "numeric",
     month: "long",
     year: "numeric",
@@ -58,12 +57,11 @@ function getStatus(u: SubUser): StatusColor {
   return "green";
 }
 
-// ─── Status badge ──────────────────────────────────────────────────────────
 const STATUS_CONFIG: Record<StatusColor, { label: string; dotCls: string; badgeCls: string }> = {
-  green:  { label: "نشط",           dotCls: "bg-emerald-500",  badgeCls: "bg-emerald-50  text-emerald-700  border-emerald-200"  },
-  yellow: { label: "قريب الانتهاء", dotCls: "bg-amber-500",    badgeCls: "bg-amber-50    text-amber-700    border-amber-200"    },
-  red:    { label: "منتهي",         dotCls: "bg-red-500",      badgeCls: "bg-red-50      text-red-700      border-red-200"      },
-  gray:   { label: "بيانات ناقصة", dotCls: "bg-gray-400",     badgeCls: "bg-gray-100    text-gray-600     border-gray-200"     },
+  green:  { label: "Actif",            dotCls: "bg-emerald-500", badgeCls: "bg-emerald-50  text-emerald-700  border-emerald-200" },
+  yellow: { label: "Expire bientôt",   dotCls: "bg-amber-500",   badgeCls: "bg-amber-50    text-amber-700    border-amber-200"   },
+  red:    { label: "Expiré",           dotCls: "bg-red-500",     badgeCls: "bg-red-50      text-red-700      border-red-200"     },
+  gray:   { label: "Données manq.",    dotCls: "bg-gray-400",    badgeCls: "bg-gray-100    text-gray-600     border-gray-200"    },
 };
 
 function StatusBadge({ color }: { color: StatusColor }) {
@@ -76,13 +74,12 @@ function StatusBadge({ color }: { color: StatusColor }) {
   );
 }
 
-// ─── Days chip ─────────────────────────────────────────────────────────────
 function DaysChip({ user }: { user: SubUser }) {
   if (user.isMissingData) return <span className="text-sm text-gray-400">—</span>;
   if (user.isExpired && user.daysSinceExpiry !== null) {
     return (
       <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-1 text-[11px] font-bold text-red-700">
-        منذ {user.daysSinceExpiry} يوم
+        il y a {user.daysSinceExpiry} jour(s)
       </span>
     );
   }
@@ -90,41 +87,39 @@ function DaysChip({ user }: { user: SubUser }) {
     if (user.daysLeft <= 0) {
       return (
         <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-bold text-amber-700">
-          اليوم
+          Aujourd'hui
         </span>
       );
     }
     if (user.isExpiringSoon) {
       return (
         <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-bold text-amber-700">
-          {user.daysLeft} يوم
+          {user.daysLeft} jour(s)
         </span>
       );
     }
     return (
       <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700">
-        {user.daysLeft} يوم
+        {user.daysLeft} jour(s)
       </span>
     );
   }
   return <span className="text-sm text-gray-400">—</span>;
 }
 
-// ─── Date cell ─────────────────────────────────────────────────────────────
 function DateCell({ iso, derived, expired }: { iso: string | null; derived?: boolean; expired?: boolean }) {
-  const label = formatArabicDate(iso);
-  if (label === "غير محدد") {
-    return <span className="text-sm text-gray-400">غير محدد</span>;
+  const label = formatDate(iso);
+  if (label === "Non défini") {
+    return <span className="text-sm text-gray-400">Non défini</span>;
   }
   return (
     <div>
       <span className={`text-sm font-medium ${expired ? "text-red-600" : "text-gray-800"}`}>{label}</span>
-      {derived && <p className="text-[10px] text-gray-400 mt-0.5">(تقديري)</p>}
+      {derived && <p className="text-[10px] text-gray-400 mt-0.5">(estimé)</p>}
     </div>
   );
 }
 
-// ─── User table row ────────────────────────────────────────────────────────
 function UserRow({
   user,
   onRevoke,
@@ -137,13 +132,11 @@ function UserRow({
   const color = getStatus(user);
   return (
     <tr className={`border-b border-gray-100 last:border-0 transition-colors hover:bg-gray-50/70 ${user.driveRevokedAt ? "opacity-50" : ""}`}>
-      {/* User */}
       <td className="px-4 py-3.5 align-middle">
         <p className="font-semibold text-sm text-gray-900 leading-tight">{user.username}</p>
         <p className="text-xs text-gray-500 mt-0.5 truncate max-w-[200px]">{user.email}</p>
       </td>
 
-      {/* Phone */}
       <td className="px-4 py-3.5 align-middle">
         {user.phone ? (
           <div className="flex items-center gap-2">
@@ -152,7 +145,7 @@ function UserRow({
               href={`https://wa.me/${normalizeWhatsApp(user.phone)}`}
               target="_blank"
               rel="noopener noreferrer"
-              title="واتساب"
+              title="WhatsApp"
               className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-green-100 hover:bg-green-200 text-green-700 transition-colors shrink-0"
             >
               <MessageCircle className="w-3 h-3" />
@@ -163,34 +156,29 @@ function UserRow({
         )}
       </td>
 
-      {/* Start date */}
       <td className="px-4 py-3.5 align-middle">
         <DateCell iso={user.subscriptionStartedAt} derived={user.startDerived} />
       </td>
 
-      {/* End date */}
       <td className="px-4 py-3.5 align-middle">
         <DateCell iso={user.subscriptionExpiresAt} derived={user.endDerived} expired={user.isExpired} />
       </td>
 
-      {/* Days */}
       <td className="px-4 py-3.5 align-middle">
         <DaysChip user={user} />
       </td>
 
-      {/* Status */}
       <td className="px-4 py-3.5 align-middle">
         <StatusBadge color={color} />
       </td>
 
-      {/* Drive */}
       <td className="px-4 py-3.5 align-middle">
         {user.driveRevokedAt ? (
           <div>
             <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700">
-              <ShieldCheck className="w-3.5 h-3.5" /> تمت الإزالة
+              <ShieldCheck className="w-3.5 h-3.5" /> Révoqué
             </span>
-            <p className="text-[10px] text-gray-400 mt-0.5">{formatArabicDate(user.driveRevokedAt)}</p>
+            <p className="text-[10px] text-gray-400 mt-0.5">{formatDate(user.driveRevokedAt)}</p>
           </div>
         ) : (
           <button
@@ -199,7 +187,7 @@ function UserRow({
             className="inline-flex items-center gap-1.5 rounded-lg bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 text-xs font-semibold px-3 py-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {revoking ? <Loader2 className="w-3 h-3 animate-spin" /> : <ShieldX className="w-3 h-3" />}
-            إزالة Drive
+            Révoquer Drive
           </button>
         )}
       </td>
@@ -207,7 +195,6 @@ function UserRow({
   );
 }
 
-// ─── Section component ─────────────────────────────────────────────────────
 interface TabConfig {
   v: SectionFilter;
   label: string;
@@ -250,22 +237,22 @@ function SubSection({
 
   const TABS: TabConfig[] = [
     {
-      v: "active", label: "نشطة", data: active,
+      v: "active", label: "Actifs", data: active,
       activeCls: "bg-emerald-600 text-white border-emerald-600",
       countCls: "bg-emerald-100 text-emerald-700",
     },
     {
-      v: "soon", label: "قريبة الانتهاء", data: soon,
+      v: "soon", label: "Expire bientôt", data: soon,
       activeCls: "bg-amber-500 text-white border-amber-500",
       countCls: "bg-amber-100 text-amber-700",
     },
     {
-      v: "expired", label: "منتهية", data: expired,
+      v: "expired", label: "Expirés", data: expired,
       activeCls: "bg-red-600 text-white border-red-600",
       countCls: "bg-red-100 text-red-700",
     },
     {
-      v: "missing", label: "بيانات ناقصة", data: missing,
+      v: "missing", label: "Données manquantes", data: missing,
       activeCls: "bg-gray-600 text-white border-gray-600",
       countCls: "bg-gray-100 text-gray-600",
     },
@@ -273,16 +260,14 @@ function SubSection({
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-      {/* Section header */}
       <div className={`${headerBg} px-5 py-4 border-b border-gray-200`}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
             <CalendarDays className={`w-4.5 h-4.5 ${accentCls}`} />
             <h2 className="font-bold text-base text-gray-900">{title}</h2>
-            <span className="text-xs text-gray-500 font-normal">({users.length} مشترك)</span>
+            <span className="text-xs text-gray-500 font-normal">({users.length} abonné(s))</span>
           </div>
 
-          {/* Tab strip */}
           <div className="flex flex-wrap gap-1.5">
             {TABS.map(tab => (
               <button
@@ -308,22 +293,20 @@ function SubSection({
         </div>
       </div>
 
-      {/* Missing data notice */}
       {filter === "missing" && missing.length > 0 && (
         <div className="flex items-start gap-2.5 px-5 py-3 bg-amber-50 border-b border-amber-100">
           <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
           <p className="text-sm text-amber-800">
-            هؤلاء المشتركون لا يملكون تاريخ بداية ولا تاريخ نهاية في قاعدة البيانات.
-            يُرجى تحديث بياناتهم من صفحة المستخدمين.
+            Ces abonnés n'ont pas de date de début ni de fin dans la base de données.
+            Veuillez mettre à jour leurs données depuis la page utilisateurs.
           </p>
         </div>
       )}
 
-      {/* Revoke-all bar */}
       {filter === "expired" && pendingExpired > 0 && (
         <div className="flex items-center justify-between gap-3 px-5 py-3 bg-red-50 border-b border-red-100">
           <p className="text-sm font-semibold text-red-700">
-            {pendingExpired} مستخدم لم تُزَل صلاحياتهم من Google Drive بعد
+            {pendingExpired} utilisateur(s) dont les accès Google Drive n'ont pas encore été révoqués
           </p>
           <button
             onClick={onRevokeAll}
@@ -331,20 +314,19 @@ function SubSection({
             className="inline-flex items-center gap-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-4 py-2 transition-colors shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {revokeAllPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-            إزالة الجميع ({pendingExpired})
+            Révoquer tous ({pendingExpired})
           </button>
         </div>
       )}
 
-      {/* Table / Empty */}
       {displayed.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 gap-3">
           <CheckCircle2 className="w-10 h-10 text-gray-200" />
           <p className="text-sm text-gray-500">
-            {filter === "active"  && "لا يوجد مشتركون نشطون في هذا القسم"}
-            {filter === "soon"    && "لا يوجد مشتركون قريبون من الانتهاء"}
-            {filter === "expired" && "لا يوجد مشتركون منتهون — ممتاز!"}
-            {filter === "missing" && "جميع المشتركين لديهم بيانات كاملة ✓"}
+            {filter === "active"  && "Aucun abonné actif dans cette section"}
+            {filter === "soon"    && "Aucun abonné n'expire bientôt"}
+            {filter === "expired" && "Aucun abonné expiré — Excellent !"}
+            {filter === "missing" && "Tous les abonnés ont des données complètes ✓"}
           </p>
         </div>
       ) : (
@@ -352,15 +334,15 @@ function SubSection({
           <table className="w-full">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-100">
-                <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-wider text-gray-500">المستخدم</th>
-                <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-wider text-gray-500">الهاتف</th>
-                <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-wider text-gray-500">بداية الاشتراك</th>
-                <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-wider text-gray-500">نهاية الاشتراك</th>
-                <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-wider text-gray-500">
-                  {filter === "expired" ? "منذ الانتهاء" : "الأيام المتبقية"}
+                <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500">Utilisateur</th>
+                <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500">Téléphone</th>
+                <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500">Début</th>
+                <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500">Fin</th>
+                <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+                  {filter === "expired" ? "Depuis expiration" : "Jours restants"}
                 </th>
-                <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-wider text-gray-500">الحالة</th>
-                <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-wider text-gray-500">Drive</th>
+                <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500">Statut</th>
+                <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500">Drive</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -380,7 +362,6 @@ function SubSection({
   );
 }
 
-// ─── Summary stat card ─────────────────────────────────────────────────────
 function StatCard({
   count, label, icon: Icon, bg, iconCls, textCls,
 }: {
@@ -400,7 +381,6 @@ function StatCard({
   );
 }
 
-// ─── Page ──────────────────────────────────────────────────────────────────
 export function AdminSubscriptionAlerts() {
   const { getAdminAuthHeaders } = useAuth();
   const { toast } = useToast();
@@ -415,7 +395,7 @@ export function AdminSubscriptionAlerts() {
       const res = await fetch(`${API_BASE}/api/admin/users/expired`, {
         headers: authHeaders ?? {},
       });
-      if (!res.ok) throw new Error("فشل تحميل البيانات");
+      if (!res.ok) throw new Error("Échec du chargement des données");
       return res.json();
     },
   });
@@ -426,14 +406,14 @@ export function AdminSubscriptionAlerts() {
         method: "POST",
         headers: authHeaders ?? {},
       });
-      if (!res.ok) throw new Error("فشل");
+      if (!res.ok) throw new Error("Échec");
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-expired-users"] });
-      toast({ title: "✓ تم تسجيل إزالة صلاحية Google Drive" });
+      toast({ title: "✓ Accès Google Drive révoqué" });
     },
-    onError: () => toast({ title: "حدث خطأ", variant: "destructive" }),
+    onError: () => toast({ title: "Une erreur est survenue", variant: "destructive" }),
     onSettled: () => setRevokingId(null),
   });
 
@@ -443,14 +423,14 @@ export function AdminSubscriptionAlerts() {
         method: "POST",
         headers: authHeaders ?? {},
       });
-      if (!res.ok) throw new Error("فشل");
+      if (!res.ok) throw new Error("Échec");
       return res.json() as Promise<{ revoked: number }>;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["admin-expired-users"] });
-      toast({ title: `✓ تمت إزالة ${data.revoked} مستخدم من Google Drive` });
+      toast({ title: `✓ ${data.revoked} utilisateur(s) révoqué(s) de Google Drive` });
     },
-    onError: () => toast({ title: "حدث خطأ", variant: "destructive" }),
+    onError: () => toast({ title: "Une erreur est survenue", variant: "destructive" }),
   });
 
   const handleRevoke = (id: number) => {
@@ -468,14 +448,13 @@ export function AdminSubscriptionAlerts() {
   const totalMissing = allUsers.filter(u => u.isMissingData).length;
 
   return (
-    <div className="space-y-6 pb-10" dir="rtl">
+    <div className="space-y-6 pb-10">
 
-      {/* ── Page header ── */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">تنبيهات الاشتراكات</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Alertes d'abonnements</h1>
           <p className="text-sm text-gray-500 mt-1">
-            متابعة الاشتراكات الشهرية والسنوية — الأيام محسوبة تلقائياً من قاعدة البيانات
+            Suivi des abonnements mensuels et annuels — jours calculés automatiquement
           </p>
         </div>
         <button
@@ -484,34 +463,33 @@ export function AdminSubscriptionAlerts() {
           className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-sm font-semibold px-4 py-2.5 shadow-sm transition-colors disabled:opacity-60"
         >
           <RefreshCw className={`w-4 h-4 ${isRefetching ? "animate-spin text-primary" : ""}`} />
-          تحديث البيانات
+          Actualiser les données
         </button>
       </div>
 
-      {/* ── Summary stats ── */}
       {!isLoading && allUsers.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-          <StatCard count={allUsers.length} label="إجمالي المشتركين"
+          <StatCard count={allUsers.length} label="Total abonnés"
             icon={CalendarDays}
             bg="bg-white border-gray-200"
             iconCls="bg-gray-100 text-gray-600"
             textCls="text-gray-900" />
-          <StatCard count={totalActive} label="نشط"
+          <StatCard count={totalActive} label="Actif"
             icon={CheckCircle2}
             bg="bg-emerald-50 border-emerald-200"
             iconCls="bg-emerald-100 text-emerald-700"
             textCls="text-emerald-800" />
-          <StatCard count={totalSoon} label="قريب الانتهاء"
+          <StatCard count={totalSoon} label="Expire bientôt"
             icon={Clock}
             bg="bg-amber-50 border-amber-200"
             iconCls="bg-amber-100 text-amber-700"
             textCls="text-amber-800" />
-          <StatCard count={totalExpired} label="منتهي"
+          <StatCard count={totalExpired} label="Expiré"
             icon={AlertTriangle}
             bg="bg-red-50 border-red-200"
             iconCls="bg-red-100 text-red-700"
             textCls="text-red-800" />
-          <StatCard count={totalMissing} label="بيانات ناقصة"
+          <StatCard count={totalMissing} label="Données manquantes"
             icon={AlertCircle}
             bg="bg-gray-50 border-gray-200"
             iconCls="bg-gray-100 text-gray-500"
@@ -519,17 +497,15 @@ export function AdminSubscriptionAlerts() {
         </div>
       )}
 
-      {/* ── Loading ── */}
       {isLoading ? (
         <div className="flex items-center justify-center py-24 gap-3 text-gray-500">
           <Loader2 className="w-5 h-5 animate-spin" />
-          <span className="text-sm">جاري تحميل البيانات...</span>
+          <span className="text-sm">Chargement des données...</span>
         </div>
       ) : (
         <div className="space-y-5">
-          {/* Monthly */}
           <SubSection
-            title="الاشتراكات الشهرية"
+            title="Abonnements mensuels"
             accentCls="text-blue-600"
             headerBg="bg-blue-50/60"
             users={monthly}
@@ -539,9 +515,8 @@ export function AdminSubscriptionAlerts() {
             revokeAllPending={revokeAllMut.isPending}
           />
 
-          {/* Annual */}
           <SubSection
-            title="الاشتراكات السنوية"
+            title="Abonnements annuels"
             accentCls="text-violet-600"
             headerBg="bg-violet-50/60"
             users={annual}

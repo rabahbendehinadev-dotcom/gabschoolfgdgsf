@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "@/lib/auth";
-import { Card, Badge, Input } from "@/components/ui";
+import { Card, Input } from "@/components/ui";
 import { Search } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
@@ -22,42 +22,41 @@ type ActivityLogEntry = {
 };
 
 const ACTION_LABELS: Record<string, { label: string; color: string }> = {
-  user_registered: { label: "تسجيل جديد", color: "bg-green-500/20 text-green-400" },
-  user_login: { label: "تسجيل دخول", color: "bg-blue-500/20 text-blue-400" },
-  user_blocked: { label: "حظر مستخدم", color: "bg-red-500/20 text-red-400" },
-  user_unblocked: { label: "رفع حظر", color: "bg-yellow-500/20 text-yellow-400" },
-  user_deleted: { label: "حذف مستخدم", color: "bg-red-700/30 text-red-300" },
-  subscription_deleted: { label: "إلغاء اشتراك", color: "bg-orange-500/20 text-orange-400" },
-  subscription_changed: { label: "تغيير اشتراك", color: "bg-purple-500/20 text-purple-400" },
-  ip_reset: { label: "تصفير IP", color: "bg-cyan-500/20 text-cyan-400" },
-  // أحداث حماية الفيديو والوصول المشبوه
-  screenshot_attempt: { label: "محاولة تصوير الشاشة", color: "bg-red-500/20 text-red-400" },
-  external_open_attempt: { label: "محاولة فتح رابط خارجي", color: "bg-red-600/25 text-red-300" },
-  copy_link_attempt: { label: "محاولة نسخ الرابط", color: "bg-orange-500/20 text-orange-400" },
-  devtools_attempt: { label: "محاولة فتح أدوات المطور", color: "bg-rose-500/20 text-rose-400" },
-  screen_capture_attempt: { label: "محاولة تسجيل الشاشة", color: "bg-red-600/25 text-red-300" },
-  locked_video_attempt: { label: "مشاهدة فيديو غير مفعّل", color: "bg-amber-500/20 text-amber-400" },
-  frequent_ip_change: { label: "تغيّر متكرر لعنوان IP", color: "bg-fuchsia-500/20 text-fuchsia-400" },
-  frequent_device_change: { label: "تغيّر متكرر للأجهزة", color: "bg-violet-500/20 text-violet-400" },
-  community_post_hide: { label: "إخفاء منشور", color: "bg-slate-500/20 text-slate-300" },
-  community_post_show: { label: "إظهار منشور", color: "bg-green-500/20 text-green-400" },
-  community_post_pin: { label: "تثبيت منشور", color: "bg-blue-500/20 text-blue-400" },
-  community_post_unpin: { label: "إلغاء تثبيت منشور", color: "bg-blue-500/10 text-blue-300" },
-  community_post_update: { label: "تعديل منشور", color: "bg-yellow-500/20 text-yellow-400" },
-  community_post_delete: { label: "حذف منشور (أدمن)", color: "bg-red-600/25 text-red-300" },
-  community_comment_delete: { label: "حذف تعليق (أدمن)", color: "bg-red-500/20 text-red-400" },
+  user_registered:         { label: "Inscription",                      color: "bg-green-500/20 text-green-400" },
+  user_login:              { label: "Connexion",                        color: "bg-blue-500/20 text-blue-400" },
+  user_blocked:            { label: "Blocage utilisateur",              color: "bg-red-500/20 text-red-400" },
+  user_unblocked:          { label: "Déblocage utilisateur",            color: "bg-yellow-500/20 text-yellow-400" },
+  user_deleted:            { label: "Suppression utilisateur",          color: "bg-red-700/30 text-red-300" },
+  subscription_deleted:    { label: "Abonnement annulé",                color: "bg-orange-500/20 text-orange-400" },
+  subscription_changed:    { label: "Abonnement modifié",               color: "bg-purple-500/20 text-purple-400" },
+  ip_reset:                { label: "Réinitialisation IP",              color: "bg-cyan-500/20 text-cyan-400" },
+  screenshot_attempt:      { label: "Tentative de capture d'écran",     color: "bg-red-500/20 text-red-400" },
+  external_open_attempt:   { label: "Tentative d'ouverture de lien",    color: "bg-red-600/25 text-red-300" },
+  copy_link_attempt:       { label: "Tentative de copie de lien",       color: "bg-orange-500/20 text-orange-400" },
+  devtools_attempt:        { label: "Tentative outils développeur",     color: "bg-rose-500/20 text-rose-400" },
+  screen_capture_attempt:  { label: "Tentative d'enregistrement",       color: "bg-red-600/25 text-red-300" },
+  locked_video_attempt:    { label: "Accès vidéo non activé",           color: "bg-amber-500/20 text-amber-400" },
+  frequent_ip_change:      { label: "Changement fréquent d'IP",         color: "bg-fuchsia-500/20 text-fuchsia-400" },
+  frequent_device_change:  { label: "Changement fréquent d'appareil",   color: "bg-violet-500/20 text-violet-400" },
+  community_post_hide:     { label: "Publication masquée",              color: "bg-slate-500/20 text-slate-300" },
+  community_post_show:     { label: "Publication affichée",             color: "bg-green-500/20 text-green-400" },
+  community_post_pin:      { label: "Publication épinglée",             color: "bg-blue-500/20 text-blue-400" },
+  community_post_unpin:    { label: "Désépinglée",                      color: "bg-blue-500/10 text-blue-300" },
+  community_post_update:   { label: "Publication modifiée",             color: "bg-yellow-500/20 text-yellow-400" },
+  community_post_delete:   { label: "Publication supprimée (admin)",    color: "bg-red-600/25 text-red-300" },
+  community_comment_delete:{ label: "Commentaire supprimé (admin)",     color: "bg-red-500/20 text-red-400" },
 };
 
 const DEVICE_LABELS: Record<string, string> = {
-  mobile: "هاتف",
-  tablet: "جهاز لوحي",
-  desktop: "حاسوب",
-  unknown: "غير معروف",
+  mobile:  "Mobile",
+  tablet:  "Tablette",
+  desktop: "Ordinateur",
+  unknown: "Inconnu",
 };
 
 function formatDateTime(iso: string) {
   const d = new Date(iso);
-  return d.toLocaleString("ar-DZ", { dateStyle: "medium", timeStyle: "short" });
+  return d.toLocaleString("fr-FR", { dateStyle: "medium", timeStyle: "short" });
 }
 
 export function AdminActivityLog() {
@@ -72,7 +71,7 @@ export function AdminActivityLog() {
       const res = await fetch(`${API_BASE}/api/admin/activity-logs?limit=200`, {
         headers: headers as HeadersInit,
       });
-      if (!res.ok) throw new Error("فشل تحميل السجلات");
+      if (!res.ok) throw new Error("Échec du chargement des logs");
       return res.json();
     },
     refetchInterval: 30000,
@@ -101,12 +100,12 @@ export function AdminActivityLog() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">سجل النشاطات</h1>
+        <h1 className="text-3xl font-bold">Journal d'activité</h1>
         <div className="relative w-72">
-          <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
-            placeholder="بحث بالاسم، الحدث، التفاصيل..."
-            className="pl-4 pr-9"
+            placeholder="Rechercher par nom, événement, détails..."
+            className="pl-9"
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
@@ -115,24 +114,24 @@ export function AdminActivityLog() {
 
       <Card className="border-white/5 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm text-right">
+          <table className="w-full text-sm text-left">
             <thead className="text-xs text-muted-foreground bg-white/5 border-b border-white/10 uppercase">
               <tr>
-                <th className="px-4 py-4">التاريخ والوقت</th>
-                <th className="px-4 py-4">المستخدم</th>
-                <th className="px-4 py-4">البريد الإلكتروني</th>
-                <th className="px-4 py-4">واتساب</th>
-                <th className="px-4 py-4">الحدث</th>
-                <th className="px-4 py-4">الفيديو</th>
-                <th className="px-4 py-4">الجهاز</th>
-                <th className="px-4 py-4">التفاصيل</th>
-                <th className="px-4 py-4 text-left">IP</th>
+                <th className="px-4 py-4">Date et heure</th>
+                <th className="px-4 py-4">Utilisateur</th>
+                <th className="px-4 py-4">Email</th>
+                <th className="px-4 py-4">WhatsApp</th>
+                <th className="px-4 py-4">Événement</th>
+                <th className="px-4 py-4">Vidéo</th>
+                <th className="px-4 py-4">Appareil</th>
+                <th className="px-4 py-4">Détails</th>
+                <th className="px-4 py-4">IP</th>
               </tr>
             </thead>
             <tbody>
               {isLoading && (
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">جارٍ التحميل...</td>
+                  <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">Chargement...</td>
                 </tr>
               )}
               {filtered?.map(log => (
@@ -150,7 +149,7 @@ export function AdminActivityLog() {
                   <td className="px-4 py-3 text-xs text-muted-foreground max-w-[180px] truncate">
                     {log.email || "—"}
                   </td>
-                  <td className="px-4 py-3 font-mono text-xs text-muted-foreground whitespace-nowrap" dir="ltr">
+                  <td className="px-4 py-3 font-mono text-xs text-muted-foreground whitespace-nowrap">
                     {log.phone || "—"}
                   </td>
                   <td className="px-4 py-3">
@@ -165,7 +164,7 @@ export function AdminActivityLog() {
                   <td className="px-4 py-3 text-muted-foreground text-xs max-w-xs truncate">
                     {log.details || "—"}
                   </td>
-                  <td className="px-4 py-3 font-mono text-xs text-left text-muted-foreground">
+                  <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
                     {log.ipAddress || "—"}
                   </td>
                 </tr>
@@ -173,7 +172,7 @@ export function AdminActivityLog() {
               {!isLoading && filtered?.length === 0 && (
                 <tr>
                   <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
-                    لا توجد نتائج
+                    Aucun résultat
                   </td>
                 </tr>
               )}

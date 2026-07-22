@@ -19,11 +19,11 @@ export function AdminChangePassword() {
     setError("");
 
     if (form.newPassword !== form.confirmPassword) {
-      setError("كلمة المرور الجديدة وتأكيدها غير متطابقتين");
+      setError("Les mots de passe ne correspondent pas");
       return;
     }
     if (form.newPassword.length < 6) {
-      setError("كلمة المرور الجديدة يجب أن تكون 6 أحرف على الأقل");
+      setError("Le mot de passe doit contenir au moins 6 caractères");
       return;
     }
 
@@ -36,44 +36,44 @@ export function AdminChangePassword() {
         body: JSON.stringify({ currentPassword: form.currentPassword, newPassword: form.newPassword }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "حدث خطأ");
-      setSuccess("تم تغيير كلمة المرور بنجاح");
+      if (!res.ok) throw new Error(data.message || "Une erreur est survenue");
+      setSuccess("Mot de passe modifié avec succès");
       setForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "حدث خطأ غير متوقع");
+      setError(err instanceof Error ? err.message : "Une erreur inattendue est survenue");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div dir="rtl" className="max-w-lg mx-auto">
+    <div className="max-w-lg mx-auto">
       <div className="mb-8 flex items-center gap-3">
         <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center text-primary">
           <KeyRound className="w-5 h-5" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold">تغيير كلمة المرور</h1>
-          <p className="text-sm text-muted-foreground">تغيير كلمة مرور حساب الأدمن</p>
+          <h1 className="text-2xl font-bold">Changer le mot de passe</h1>
+          <p className="text-sm text-muted-foreground">Modifier le mot de passe du compte administrateur</p>
         </div>
       </div>
 
       <div className="bg-card border border-white/10 rounded-2xl p-8">
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="space-y-2">
-            <Label>كلمة المرور الحالية</Label>
+            <Label>Mot de passe actuel</Label>
             <div className="relative">
               <Input
                 type={showCurrent ? "text" : "password"}
-                placeholder="أدخل كلمة المرور الحالية"
+                placeholder="Entrez le mot de passe actuel"
                 value={form.currentPassword}
                 onChange={e => setForm({ ...form, currentPassword: e.target.value })}
                 required
-                className="pl-10"
+                className="pr-10"
               />
               <button
                 type="button"
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 onClick={() => setShowCurrent(v => !v)}
               >
                 {showCurrent ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -82,19 +82,19 @@ export function AdminChangePassword() {
           </div>
 
           <div className="space-y-2">
-            <Label>كلمة المرور الجديدة</Label>
+            <Label>Nouveau mot de passe</Label>
             <div className="relative">
               <Input
                 type={showNew ? "text" : "password"}
-                placeholder="أدخل كلمة المرور الجديدة (6 أحرف على الأقل)"
+                placeholder="Entrez le nouveau mot de passe (6 caractères min.)"
                 value={form.newPassword}
                 onChange={e => setForm({ ...form, newPassword: e.target.value })}
                 required
-                className="pl-10"
+                className="pr-10"
               />
               <button
                 type="button"
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 onClick={() => setShowNew(v => !v)}
               >
                 {showNew ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -103,19 +103,19 @@ export function AdminChangePassword() {
           </div>
 
           <div className="space-y-2">
-            <Label>تأكيد كلمة المرور الجديدة</Label>
+            <Label>Confirmer le nouveau mot de passe</Label>
             <div className="relative">
               <Input
                 type={showConfirm ? "text" : "password"}
-                placeholder="أعد إدخال كلمة المرور الجديدة"
+                placeholder="Répétez le nouveau mot de passe"
                 value={form.confirmPassword}
                 onChange={e => setForm({ ...form, confirmPassword: e.target.value })}
                 required
-                className="pl-10"
+                className="pr-10"
               />
               <button
                 type="button"
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 onClick={() => setShowConfirm(v => !v)}
               >
                 {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -138,7 +138,7 @@ export function AdminChangePassword() {
           )}
 
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "جاري الحفظ..." : "تغيير كلمة المرور"}
+            {loading ? "Enregistrement..." : "Changer le mot de passe"}
           </Button>
         </form>
       </div>

@@ -37,7 +37,7 @@ export function AdminSubscriptions() {
     queryKey: ["admin-subscriptions"],
     queryFn: async () => {
       const res = await fetch(`${API_BASE}/api/admin/subscriptions`, { headers: headers as HeadersInit });
-      if (!res.ok) throw new Error("فشل تحميل الاشتراكات");
+      if (!res.ok) throw new Error("Échec du chargement des abonnements");
       return res.json();
     },
   });
@@ -56,62 +56,62 @@ export function AdminSubscriptions() {
   const expiringSoon = users?.filter(u => u.isExpiringSoon).length ?? 0;
 
   const handleDeleteSub = async (user: SubUser) => {
-    if (!confirm(`هل أنت متأكد من حذف اشتراك ${user.username} وإعادته للنسخة التجريبية؟`)) return;
+    if (!confirm(`Supprimer l'abonnement de ${user.username} et retourner en version d'essai ?`)) return;
     setLoadingId(user.id);
     try {
       const res = await fetch(`${API_BASE}/api/admin/users/${user.id}/subscription`, {
         method: "DELETE",
         headers: headers as HeadersInit,
       });
-      if (!res.ok) throw new Error("فشل الطلب");
-      toast({ title: "تم إلغاء الاشتراك وإعادة المستخدم للنسخة التجريبية" });
+      if (!res.ok) throw new Error("Échec de la requête");
+      toast({ title: "Abonnement annulé, retour en version d'essai" });
       refetch();
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });
     } catch {
-      toast({ title: "حدث خطأ", variant: "destructive" });
+      toast({ title: "Une erreur est survenue", variant: "destructive" });
     } finally {
       setLoadingId(null);
     }
   };
 
   const subBadge = (type: string) => {
-    if (type === "lifetime") return <Badge className="bg-purple-500/20 text-purple-400 border-0">مدى الحياة</Badge>;
-    if (type === "annual") return <Badge className="bg-blue-500/20 text-blue-400 border-0">سنوي</Badge>;
-    return <Badge variant="secondary">تجريبي</Badge>;
+    if (type === "lifetime") return <Badge className="bg-purple-500/20 text-purple-400 border-0">À vie</Badge>;
+    if (type === "annual") return <Badge className="bg-blue-500/20 text-blue-400 border-0">Annuel</Badge>;
+    return <Badge variant="secondary">Essai</Badge>;
   };
 
   return (
-    <div dir="rtl" className="space-y-6">
-      <h1 className="text-3xl font-bold">إدارة الاشتراكات</h1>
+    <div className="space-y-6">
+      <h1 className="text-3xl font-bold">Gestion des abonnements</h1>
 
       <div className="grid grid-cols-3 gap-4">
         <Card className="p-4 border-white/5 flex items-center gap-3">
           <CheckCircle className="w-8 h-8 text-green-400 shrink-0" />
           <div>
             <p className="text-2xl font-bold">{users?.length ?? "—"}</p>
-            <p className="text-sm text-muted-foreground">إجمالي المستخدمين</p>
+            <p className="text-sm text-muted-foreground">Total utilisateurs</p>
           </div>
         </Card>
         <Card className="p-4 border-white/5 flex items-center gap-3">
           <Clock className="w-8 h-8 text-yellow-400 shrink-0" />
           <div>
             <p className="text-2xl font-bold text-yellow-400">{expiringSoon}</p>
-            <p className="text-sm text-muted-foreground">تنتهي خلال 7 أيام</p>
+            <p className="text-sm text-muted-foreground">Expire dans 7 jours</p>
           </div>
         </Card>
         <Card className="p-4 border-white/5 flex items-center gap-3">
           <AlertTriangle className="w-8 h-8 text-red-400 shrink-0" />
           <div>
             <p className="text-2xl font-bold text-red-400">{expired}</p>
-            <p className="text-sm text-muted-foreground">اشتراكات منتهية</p>
+            <p className="text-sm text-muted-foreground">Abonnements expirés</p>
           </div>
         </Card>
       </div>
 
       <div className="flex gap-3 flex-wrap items-center">
         <div className="relative w-72">
-          <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input placeholder="بحث بالاسم أو الإيميل..." className="pl-4 pr-9" value={search} onChange={e => setSearch(e.target.value)} />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input placeholder="Rechercher par nom ou email..." className="pl-9" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <div className="flex gap-2">
           {(["all", "expired", "expiring"] as FilterMode[]).map(f => (
@@ -121,7 +121,7 @@ export function AdminSubscriptions() {
               variant={filter === f ? "default" : "outline"}
               onClick={() => setFilter(f)}
             >
-              {f === "all" ? "الكل" : f === "expired" ? "منتهية" : "تنتهي قريبًا"}
+              {f === "all" ? "Tous" : f === "expired" ? "Expirés" : "Expire bientôt"}
             </Button>
           ))}
         </div>
@@ -129,15 +129,15 @@ export function AdminSubscriptions() {
 
       <Card className="border-white/5 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm text-right">
+          <table className="w-full text-sm text-left">
             <thead className="text-xs text-muted-foreground bg-white/5 border-b border-white/10 uppercase">
               <tr>
-                <th className="px-4 py-4">المستخدم</th>
-                <th className="px-4 py-4">نوع الحساب</th>
-                <th className="px-4 py-4">خطة الاشتراك</th>
-                <th className="px-4 py-4">تاريخ الانتهاء</th>
-                <th className="px-4 py-4">الحالة</th>
-                <th className="px-4 py-4">إجراءات</th>
+                <th className="px-4 py-4">Utilisateur</th>
+                <th className="px-4 py-4">Type de compte</th>
+                <th className="px-4 py-4">Plan d'abonnement</th>
+                <th className="px-4 py-4">Date d'expiration</th>
+                <th className="px-4 py-4">Statut</th>
+                <th className="px-4 py-4">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -162,18 +162,18 @@ export function AdminSubscriptions() {
                   </td>
                   <td className="px-4 py-4">
                     {user.isExpired ? (
-                      <Badge variant="destructive">منتهية</Badge>
+                      <Badge variant="destructive">Expiré</Badge>
                     ) : user.isExpiringSoon ? (
-                      <Badge className="bg-yellow-500/20 text-yellow-400 border-0">تنتهي قريبًا</Badge>
+                      <Badge className="bg-yellow-500/20 text-yellow-400 border-0">Expire bientôt</Badge>
                     ) : (
-                      <Badge className="bg-green-500/20 text-green-400 border-0">نشطة</Badge>
+                      <Badge className="bg-green-500/20 text-green-400 border-0">Actif</Badge>
                     )}
                   </td>
                   <td className="px-4 py-4">
                     <Button
                       variant="ghost"
                       size="icon"
-                      title="حذف الاشتراك"
+                      title="Supprimer l'abonnement"
                       onClick={() => handleDeleteSub(user)}
                       disabled={loadingId === user.id}
                     >
@@ -185,7 +185,7 @@ export function AdminSubscriptions() {
               {filtered?.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
-                    لا توجد نتائج
+                    Aucun résultat
                   </td>
                 </tr>
               )}
