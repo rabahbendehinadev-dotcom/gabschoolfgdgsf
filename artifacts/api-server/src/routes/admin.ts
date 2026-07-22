@@ -779,7 +779,9 @@ router.get("/admin/users/:id/detail", adminAuth, async (req, res) => {
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, id)).limit(1);
     if (!user) { res.status(404).json({ message: "User not found" }); return; }
 
-    const [courses, recentActivity, payments, devices, recentVisits] = await Promise.all([
+    const [
+      coursesResult, activityResult, paymentsResult, devicesResult, visitsResult,
+    ] = await Promise.allSettled([
       db.select({
         playlistId: userCoursesTable.playlistId,
         title: playlistsTable.title,
@@ -788,8 +790,14 @@ router.get("/admin/users/:id/detail", adminAuth, async (req, res) => {
         .leftJoin(playlistsTable, eq(userCoursesTable.playlistId, playlistsTable.id))
         .where(eq(userCoursesTable.userId, id)),
 
-      db.select().from(activityLogsTable)
-        .where(eq(activityLogsTable.userId, id))
+      db.select({
+        id: activityLogsTable.id,
+        action: activityLogsTable.action,
+        details: activityLogsTable.details,
+        videoTitle: activityLogsTable.videoTitle,
+        createdAt: activityLogsTable.createdAt,
+      }).from(activityLogsTable)
+        .where(and(isNotNull(activityLogsTable.userId), eq(activityLogsTable.userId, id)))
         .orderBy(desc(activityLogsTable.createdAt))
         .limit(30),
 
@@ -802,10 +810,16 @@ router.get("/admin/users/:id/detail", adminAuth, async (req, res) => {
         .orderBy(desc(pushSubscriptionsTable.lastSeenAt)),
 
       db.select().from(visitLogsTable)
-        .where(eq(visitLogsTable.userId, id))
+        .where(and(isNotNull(visitLogsTable.userId), eq(visitLogsTable.userId, id)))
         .orderBy(desc(visitLogsTable.visitedAt))
         .limit(20),
     ]);
+
+    const courses       = coursesResult.status  === "fulfilled" ? coursesResult.value  : [];
+    const recentActivity = activityResult.status === "fulfilled" ? activityResult.value : [];
+    const payments      = paymentsResult.status  === "fulfilled" ? paymentsResult.value : [];
+    const devices       = devicesResult.status   === "fulfilled" ? devicesResult.value  : [];
+    const recentVisits  = visitsResult.status    === "fulfilled" ? visitsResult.value   : [];
 
     const ip = effectiveIpState(user);
 
