@@ -471,8 +471,11 @@ async function authorizeStreamRequest(
       hlsParts: videosTable.hlsParts,
       objectParts: videosTable.objectParts,
       lowParts: videosTable.lowParts,
+      playlistId: videosTable.playlistId,
+      categoryLinkedPlaylistId: categoriesTable.linkedPlaylistId,
     })
     .from(videosTable)
+    .leftJoin(categoriesTable, eq(videosTable.categoryId, categoriesTable.id))
     .where(eq(videosTable.id, id))
     .limit(1);
 
@@ -486,7 +489,38 @@ async function authorizeStreamRequest(
     return null;
   }
 
-  // Fresh entitlement re-check, mirroring GET /videos/:id.
+  // ── Course access check (defense-in-depth re-verify, primary gate is GET /videos/:id) ──
+  // If the video belongs to a course (via direct playlistId or category linkedPlaylistId),
+  // the user MUST have an explicit entry in user_courses — VIP/subscription is NOT enough.
+  const coursePlaylistId = video.playlistId ?? video.categoryLinkedPlaylistId ?? null;
+  if (coursePlaylistId) {
+    if (!payload.userId) {
+      console.warn(`[${logTag}] DENY 403: course video, no userId in token`, { videoId: id, coursePlaylistId });
+      res.status(403).end();
+      return null;
+    }
+    const [courseAccess] = await db
+      .select({ playlistId: userCoursesTable.playlistId })
+      .from(userCoursesTable)
+      .where(and(
+        eq(userCoursesTable.userId, payload.userId),
+        eq(userCoursesTable.playlistId, coursePlaylistId),
+      ))
+      .limit(1);
+    if (!courseAccess) {
+      console.warn(`[${logTag}] DENY 403: course access revoked or missing`, {
+        videoId: id,
+        coursePlaylistId,
+        userId: payload.userId,
+      });
+      res.status(403).end();
+      return null;
+    }
+    // Explicit course access confirmed — skip VIP/subscription check entirely
+    return { id, part, video };
+  }
+
+  // ── Non-course video: check VIP / subscription ──
   const accessType = video.accessType || "normal";
   if (accessType === "vip" || accessType === "normal") {
     const [u] = payload.userId

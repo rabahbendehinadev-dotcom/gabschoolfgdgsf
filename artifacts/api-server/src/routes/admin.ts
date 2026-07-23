@@ -779,10 +779,14 @@ router.put("/admin/users/:id/courses", adminAuth, async (req, res) => {
     const newSet = new Set(playlistIds);
     const toAdd = playlistIds.filter(p => !existingSet.has(p));
     const toRemove = [...existingSet].filter(p => !newSet.has(p));
-    await db.delete(userCoursesTable).where(eq(userCoursesTable.userId, id));
-    if (playlistIds.length > 0) {
+    // Diff-based: only delete removed, only insert added — preserves grantedAt/grantedBy/grantSource for unchanged
+    if (toRemove.length > 0) {
+      await db.delete(userCoursesTable)
+        .where(and(eq(userCoursesTable.userId, id), inArray(userCoursesTable.playlistId, toRemove)));
+    }
+    if (toAdd.length > 0) {
       await db.insert(userCoursesTable).values(
-        playlistIds.map(pid => ({ userId: id, playlistId: pid, grantedBy: adminName, grantSource: "manual" }))
+        toAdd.map(pid => ({ userId: id, playlistId: pid, grantedBy: adminName, grantSource: "manual" }))
       );
     }
     if (toAdd.length > 0) {

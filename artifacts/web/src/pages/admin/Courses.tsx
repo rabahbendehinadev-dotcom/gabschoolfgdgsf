@@ -1,10 +1,10 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Link } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { compressImageForUpload } from "@/lib/imageCompress";
 import { Card, Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label } from "@/components/ui";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Edit, Trash2, GraduationCap, X, Loader2, Eye, EyeOff, ImageIcon, Video, FolderTree } from "lucide-react";
+import { Plus, Edit, Trash2, GraduationCap, X, Loader2, Eye, EyeOff, ImageIcon, Video, FolderTree, ShieldAlert, RefreshCw, AlertTriangle, CheckCircle2, ChevronDown, ChevronRight } from "lucide-react";
 import { useGetAdminPlaylists, useCreatePlaylist, useUpdatePlaylist, useDeletePlaylist } from "@workspace/api-client-react/src/generated/api";
 
 interface CourseForm {
@@ -18,6 +18,43 @@ interface CourseForm {
 const DEFAULT_FORM: CourseForm = {
   title: "", description: "", imageUrl: "",
   sortOrder: 0, isVisible: true,
+};
+
+interface AuditRow {
+  id: number;
+  user_id: number;
+  playlist_id: number;
+  granted_at: string | null;
+  granted_by: string | null;
+  grant_source: string | null;
+  reason: string | null;
+  status: string | null;
+  username: string;
+  email: string;
+  account_type: string;
+  playlist_title: string | null;
+  classification: "tracked" | "legacy_no_tracking" | "auto_migration";
+  suspicious: boolean;
+}
+
+interface AuditReport {
+  total: number;
+  suspicious: number;
+  tracked: number;
+  rows: AuditRow[];
+}
+
+const CLASS_LABELS: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
+  tracked: { label: "موثّق", color: "#16A34A", icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
+  legacy_no_tracking: { label: "قديم / بدون تتبع", color: "#D97706", icon: <AlertTriangle className="w-3.5 h-3.5" /> },
+  auto_migration: { label: "منح تلقائي (migration)", color: "#DC2626", icon: <ShieldAlert className="w-3.5 h-3.5" /> },
+};
+
+const SOURCE_LABELS: Record<string, string> = {
+  manual: "يدوي",
+  migration: "migration تلقائي",
+  bulk: "منح جماعي",
+  "": "—",
 };
 
 export function AdminCourses() {
@@ -35,6 +72,38 @@ export function AdminCourses() {
   const [form, setForm] = useState<CourseForm>(DEFAULT_FORM);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Audit state
+  const [auditOpen, setAuditOpen] = useState(false);
+  const [auditData, setAuditData] = useState<AuditReport | null>(null);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditFilter, setAuditFilter] = useState<"all" | "suspicious">("suspicious");
+  const [revoking, setRevoking] = useState<number | null>(null);
+
+  const fetchAudit = useCallback(async () => {
+    setAuditLoading(true);
+    try {
+      const h = getAdminAuthHeaders()?.headers as Record<string, string>;
+      const r = await fetch("/api/admin/course-access-report", { headers: h });
+      if (r.ok) setAuditData(await r.json() as AuditReport);
+    } catch { /* ignore */ } finally { setAuditLoading(false); }
+  }, [getAdminAuthHeaders]);
+
+  useEffect(() => { if (auditOpen) fetchAudit(); }, [auditOpen, fetchAudit]);
+
+  const handleRevoke = async (row: AuditRow) => {
+    if (!confirm(`نزع دورة "${row.playlist_title ?? row.playlist_id}" من "${row.username}"؟`)) return;
+    setRevoking(row.id);
+    try {
+      const h = getAdminAuthHeaders()?.headers as Record<string, string>;
+      const r = await fetch(`/api/admin/users/${row.user_id}/revoke-course/${row.playlist_id}`, { method: "DELETE", headers: h });
+      if (!r.ok) throw new Error();
+      toast({ title: "تم نزع الدورة" });
+      fetchAudit();
+    } catch {
+      toast({ variant: "destructive", title: "فشل النزع" });
+    } finally { setRevoking(null); }
+  };
 
   const handleOpen = (pl?: typeof playlists extends (infer T)[] | undefined ? T : never) => {
     if (pl) {
@@ -113,6 +182,10 @@ export function AdminCourses() {
 
   const isPending = createMut.isPending || updateMut.isPending;
 
+  const filteredRows = (auditData?.rows ?? []).filter(r =>
+    auditFilter === "all" ? true : r.suspicious
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -125,11 +198,118 @@ export function AdminCourses() {
             Ajoutez vos cours et personnalisez leurs images — ils apparaissent automatiquement sur la page des cours
           </p>
         </div>
-        <Button onClick={() => handleOpen()} className="gap-2">
-          <Plus className="w-4 h-4" />
-          Nouveau cours
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setAuditOpen(o => !o)} className="gap-2 text-amber-600 border-amber-300 hover:bg-amber-50">
+            <ShieldAlert className="w-4 h-4" />
+            تدقيق الصلاحيات
+            {auditOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+          </Button>
+          <Button onClick={() => handleOpen()} className="gap-2">
+            <Plus className="w-4 h-4" />
+            Nouveau cours
+          </Button>
+        </div>
       </div>
+
+      {/* ── Course Access Audit Section ─────────────────────────────────── */}
+      {auditOpen && (
+        <div style={{ border: "1px solid #FDE68A", borderRadius: 14, background: "#FFFBEB", padding: "18px 20px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }} dir="rtl">
+              <ShieldAlert style={{ width: 18, height: 18, color: "#D97706" }} />
+              <div>
+                <p style={{ fontWeight: 700, fontSize: 14, color: "#92400E", margin: 0 }}>تدقيق صلاحيات الدورات</p>
+                <p style={{ fontSize: 12, color: "#B45309", margin: 0 }}>
+                  {auditLoading ? "جاري التحليل..." : auditData
+                    ? `إجمالي: ${auditData.total} منحة — مشبوهة: ${auditData.suspicious} — موثّقة: ${auditData.tracked}`
+                    : ""}
+                </p>
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <button type="button" onClick={fetchAudit} disabled={auditLoading}
+                style={{ background: "none", border: "1px solid #D97706", color: "#D97706", borderRadius: 8, padding: "4px 10px", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 5 }}>
+                <RefreshCw style={{ width: 12, height: 12 }} />
+                تحديث
+              </button>
+              <div style={{ display: "flex", borderRadius: 8, overflow: "hidden", border: "1px solid #D97706" }}>
+                {(["suspicious", "all"] as const).map(f => (
+                  <button key={f} type="button" onClick={() => setAuditFilter(f)}
+                    style={{ padding: "4px 12px", fontSize: 12, cursor: "pointer", border: "none", background: auditFilter === f ? "#D97706" : "transparent", color: auditFilter === f ? "#fff" : "#D97706", fontWeight: auditFilter === f ? 700 : 400 }}>
+                    {f === "suspicious" ? "المشبوهة" : "الكل"}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {auditLoading ? (
+            <div style={{ display: "flex", justifyContent: "center", padding: "24px 0" }}>
+              <Loader2 style={{ width: 24, height: 24, color: "#D97706" }} className="animate-spin" />
+            </div>
+          ) : filteredRows.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "24px 0", color: "#92400E", fontSize: 13 }} dir="rtl">
+              {auditData ? (auditFilter === "suspicious" ? "✅ لا توجد منح مشبوهة — الصلاحيات نظيفة" : "لا توجد منح مسجّلة") : "اضغط تحديث لجلب البيانات"}
+            </div>
+          ) : (
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }} dir="rtl">
+                <thead>
+                  <tr style={{ borderBottom: "1px solid #FDE68A" }}>
+                    {["المستخدم", "الدورة", "مصدر المنح", "التصنيف", "تاريخ المنح", "بواسطة", "إجراء"].map(h => (
+                      <th key={h} style={{ padding: "6px 10px", textAlign: "right", color: "#92400E", fontWeight: 700, whiteSpace: "nowrap" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredRows.map((row, i) => {
+                    const cls = CLASS_LABELS[row.classification] ?? CLASS_LABELS.tracked;
+                    return (
+                      <tr key={row.id} style={{ borderBottom: "1px solid #FEF3C7", background: i % 2 === 0 ? "#FFFBEB" : "#FFF9E6" }}>
+                        <td style={{ padding: "7px 10px" }}>
+                          <div style={{ fontWeight: 600, color: "#1F2937" }}>{row.username}</div>
+                          <div style={{ color: "#6B7280", fontSize: 11 }}>{row.email}</div>
+                          <div style={{ marginTop: 2 }}>
+                            <span style={{ fontSize: 10, background: row.account_type === "vip" ? "#FEF3C7" : "#F3F4F6", color: row.account_type === "vip" ? "#D97706" : "#6B7280", borderRadius: 4, padding: "1px 6px", fontWeight: 600 }}>
+                              {row.account_type === "vip" ? "VIP" : "عادي"}
+                            </span>
+                          </div>
+                        </td>
+                        <td style={{ padding: "7px 10px", color: "#374151", fontWeight: 500 }}>
+                          {row.playlist_title ?? `#${row.playlist_id}`}
+                        </td>
+                        <td style={{ padding: "7px 10px", color: "#6B7280" }}>
+                          {SOURCE_LABELS[row.grant_source ?? ""] ?? row.grant_source ?? "—"}
+                        </td>
+                        <td style={{ padding: "7px 10px" }}>
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: cls.color, fontWeight: 600, fontSize: 11.5 }}>
+                            {cls.icon}
+                            {cls.label}
+                          </span>
+                        </td>
+                        <td style={{ padding: "7px 10px", color: "#9CA3AF", whiteSpace: "nowrap" }}>
+                          {row.granted_at ? new Date(row.granted_at).toLocaleDateString("ar-DZ") : "—"}
+                        </td>
+                        <td style={{ padding: "7px 10px", color: "#6B7280" }}>
+                          {row.granted_by ?? "—"}
+                        </td>
+                        <td style={{ padding: "7px 10px" }}>
+                          <button type="button" onClick={() => handleRevoke(row)}
+                            disabled={revoking === row.id}
+                            style={{ background: row.suspicious ? "#FEF2F2" : "#F9FAFB", color: row.suspicious ? "#DC2626" : "#6B7280", border: `1px solid ${row.suspicious ? "#FECACA" : "#E5E7EB"}`, borderRadius: 6, padding: "3px 10px", fontSize: 11.5, cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+                            {revoking === row.id ? <Loader2 style={{ width: 11, height: 11 }} className="animate-spin" /> : <Trash2 style={{ width: 11, height: 11 }} />}
+                            نزع
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {(playlists ?? []).map(pl => {

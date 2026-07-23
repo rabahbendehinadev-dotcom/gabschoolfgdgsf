@@ -3,6 +3,12 @@ name: Course access strict control
 description: How course access is enforced, what was the security bug, and the new audit/RBAC system.
 ---
 
+## Stream-level course gate (authorizeStreamRequest)
+`authorizeStreamRequest` (used by /videos/:id/stream/:part and HLS endpoints) now
+re-checks `user_courses` for course-linked videos BEFORE the VIP/subscription check.
+Added `playlistId` + `categoryLinkedPlaylistId` (via left join with categories) to
+the SELECT inside that function. Course videos require explicit DB entry even at byte-streaming level.
+
 ## The bug that was fixed
 `index.ts` had a migration that ran on EVERY server restart and granted playlist 5 (Flash & Decoding) to ALL users with `account_type = 'vip'`. This was the root cause of new accounts getting automatic course access after an admin activated their VIP status and the server restarted.
 

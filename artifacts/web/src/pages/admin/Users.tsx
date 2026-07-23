@@ -239,6 +239,7 @@ export function AdminUsers() {
 
   const handleEdit = async (user: ExtendedAdminUser) => {
     setEditingUser(user);
+    setUserCourseIds([]); // Reset immediately — prevents stale data from previous user
     setFormData({ accountType: user.accountType, subscriptionType: user.subscriptionType, isActive: user.isActive, phone: (user as ExtendedAdminUser & { phone?: string }).phone ?? undefined });
     setCoursesLoading(true);
     try {
