@@ -238,6 +238,27 @@ async function runMigrations() {
     await db.execute(sql`ALTER TABLE admins ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true`);
     await db.execute(sql`ALTER TABLE admins ADD COLUMN IF NOT EXISTS permissions TEXT`);
 
+    // ── user_courses: adminId + adminRole for full attribution tracking ───────
+    await db.execute(sql`ALTER TABLE user_courses ADD COLUMN IF NOT EXISTS admin_id INTEGER`);
+    await db.execute(sql`ALTER TABLE user_courses ADD COLUMN IF NOT EXISTS admin_role TEXT`);
+
+    // ── admin_course_permissions table ────────────────────────────────────────
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS admin_course_permissions (
+        id SERIAL PRIMARY KEY,
+        admin_id INTEGER NOT NULL,
+        playlist_id INTEGER NOT NULL,
+        can_grant_access BOOLEAN NOT NULL DEFAULT true,
+        can_remove_access BOOLEAN NOT NULL DEFAULT true,
+        can_view_users BOOLEAN NOT NULL DEFAULT true,
+        can_manage_videos BOOLEAN NOT NULL DEFAULT false,
+        can_manage_categories BOOLEAN NOT NULL DEFAULT false,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        created_by INTEGER,
+        UNIQUE(admin_id, playlist_id)
+      )
+    `);
+
     console.log("[migrations] Schema up to date.");
   } catch (err) {
     console.error("[migrations] Migration error:", err);

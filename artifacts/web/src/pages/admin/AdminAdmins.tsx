@@ -3,7 +3,7 @@ import { useAuth } from "@/lib/auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Shield, Plus, Edit2, Trash2, Mail, User, Clock, Globe,
-  Eye, EyeOff, CheckCircle, XCircle, RefreshCw, Lock, Unlock,
+  Eye, EyeOff, CheckCircle, XCircle, RefreshCw, Lock, Unlock, GraduationCap, X,
 } from "lucide-react";
 
 /* ── Constants ──────────────────────────────────────────────────────────── */
@@ -59,6 +59,20 @@ interface AdminRow {
   last_login_at: string | null;
   last_login_ip: string | null;
 }
+
+interface CoursePerm {
+  id: number;
+  admin_id: number;
+  playlist_id: number;
+  playlist_title: string | null;
+  can_grant_access: boolean;
+  can_remove_access: boolean;
+  can_view_users: boolean;
+  can_manage_videos: boolean;
+  can_manage_categories: boolean;
+}
+
+interface Playlist { id: number; title: string; }
 
 interface FormState {
   username: string;
@@ -129,6 +143,26 @@ export function AdminAdmins() {
   const [deleteTarget, setDeleteTarget] = useState<AdminRow | null>(null);
   const [toggleTarget, setToggleTarget] = useState<AdminRow | null>(null);
 
+  /* ── Course permissions modal state ── */
+  const [coursePermsTarget, setCoursePermsTarget] = useState<AdminRow | null>(null);
+  const [coursePerms, setCoursePerms] = useState<CoursePerm[]>([]);
+  const [coursePermsLoading, setCoursePermsLoading] = useState(false);
+  const [coursePermsError, setCoursePermsError] = useState<string | null>(null);
+  const [addPlaylistId, setAddPlaylistId] = useState<string>("");
+  const [addingCourse, setAddingCourse] = useState(false);
+
+  /* ── Fetch all playlists (for course perms modal) ── */
+  const { data: allPlaylists = [] } = useQuery<Playlist[]>({
+    queryKey: ["admin-playlists-list"],
+    queryFn: async () => {
+      const r = await fetch("/api/admin/playlists", { headers });
+      if (!r.ok) return [];
+      const d = await r.json();
+      return Array.isArray(d) ? d : (d as any).playlists ?? [];
+    },
+    enabled: isSuperAdmin,
+  });
+
   /* ── Mutations ── */
   const createMut = useMutation({
     mutationFn: async (body: object) => {
@@ -178,6 +212,50 @@ export function AdminAdmins() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-admins-list"] }); setToggleTarget(null); },
     onError: (e: Error) => setFormError(e.message),
   });
+
+  /* ── Course perms helpers ── */
+  async function openCoursePerms(row: AdminRow) {
+    setCoursePermsTarget(row);
+    setCoursePermsError(null);
+    setAddPlaylistId("");
+    setCoursePermsLoading(true);
+    try {
+      const r = await fetch(`/api/admin/admins/${row.id}/course-permissions`, { headers });
+      const d = await r.json();
+      setCoursePerms(Array.isArray(d) ? d : []);
+    } catch {
+      setCoursePermsError("Erreur de chargement");
+    } finally {
+      setCoursePermsLoading(false);
+    }
+  }
+
+  async function handleAddCoursePerm() {
+    if (!coursePermsTarget || !addPlaylistId) return;
+    setAddingCourse(true); setCoursePermsError(null);
+    try {
+      const r = await fetch(`/api/admin/admins/${coursePermsTarget.id}/course-permissions`, {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ playlistId: Number(addPlaylistId) }),
+      });
+      if (!r.ok) { const d = await r.json(); setCoursePermsError(d.message || "Erreur"); return; }
+      setAddPlaylistId("");
+      const r2 = await fetch(`/api/admin/admins/${coursePermsTarget.id}/course-permissions`, { headers });
+      setCoursePerms(await r2.json());
+    } catch { setCoursePermsError("Erreur réseau"); }
+    finally { setAddingCourse(false); }
+  }
+
+  async function handleRemoveCoursePerm(playlistId: number) {
+    if (!coursePermsTarget) return;
+    try {
+      await fetch(`/api/admin/admins/${coursePermsTarget.id}/course-permissions/${playlistId}`, {
+        method: "DELETE", headers,
+      });
+      setCoursePerms(prev => prev.filter(p => p.playlist_id !== playlistId));
+    } catch { setCoursePermsError("Erreur lors de la suppression"); }
+  }
 
   /* ── Helpers ── */
   function openCreate() {
@@ -377,6 +455,12 @@ export function AdminAdmins() {
                             style={{ width: 28, height: 28, borderRadius: 6, border: "1px solid #E2E8F0", background: "#F8FAFC", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#475569" }}>
                             <Edit2 size={12} />
                           </button>
+                          {row.role !== "super_admin" && (
+                            <button onClick={() => openCoursePerms(row)} title="Cours autorisés"
+                              style={{ width: 28, height: 28, borderRadius: 6, border: "1px solid #BAE6FD", background: "#F0F9FF", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#0369A1" }}>
+                              <GraduationCap size={12} />
+                            </button>
+                          )}
                           {row.id !== currentAdminId && (
                             <>
                               <button
@@ -627,6 +711,100 @@ export function AdminAdmins() {
                 style={{ padding: "8px 20px", borderRadius: 7, border: "none", background: "#9F1239", color: "#fff", fontSize: 13, fontWeight: 600, cursor: deleteMut.isPending ? "not-allowed" : "pointer" }}
               >
                 {deleteMut.isPending ? "En cours..." : "Supprimer définitivement"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ COURSE PERMISSIONS MODAL ══════════════════════════════════════ */}
+      {coursePermsTarget && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "28px 16px", overflowY: "auto" }}>
+          <div style={{ background: "#fff", borderRadius: 14, padding: 26, width: "100%", maxWidth: 520, boxShadow: "0 24px 64px rgba(0,0,0,0.18)", marginBottom: 20 }}>
+            {/* Header */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 34, height: 34, borderRadius: 9, background: "#F0F9FF", border: "1px solid #BAE6FD", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <GraduationCap size={16} color="#0369A1" />
+                </div>
+                <div>
+                  <h2 style={{ fontSize: 15, fontWeight: 700, color: "#0F172A", margin: 0 }}>Cours autorisés</h2>
+                  <p style={{ fontSize: 11.5, color: "#64748B", margin: 0 }}>{coursePermsTarget.display_name ?? coursePermsTarget.username} — {coursePermsTarget.role}</p>
+                </div>
+              </div>
+              <button onClick={() => setCoursePermsTarget(null)}
+                style={{ width: 28, height: 28, borderRadius: 6, border: "1px solid #E2E8F0", background: "#F8FAFC", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#64748B" }}>
+                <X size={13} />
+              </button>
+            </div>
+
+            <div style={{ background: "#FFF7ED", border: "1px solid #FED7AA", borderRadius: 8, padding: "9px 13px", marginBottom: 18, fontSize: 12, color: "#92400E" }}>
+              📌 سيستطيع هذا المسؤول منح ونزع الدورات المدرجة هنا فقط. Super Admin يملك صلاحية جميع الدورات تلقائياً.
+            </div>
+
+            {/* Add course */}
+            <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+              <select
+                value={addPlaylistId}
+                onChange={e => setAddPlaylistId(e.target.value)}
+                style={{ flex: 1, padding: "8px 10px", borderRadius: 7, border: "1px solid #CBD5E1", fontSize: 13, background: "#fff", color: "#0F172A" }}
+              >
+                <option value="">-- اختر دورة لإضافتها --</option>
+                {allPlaylists.filter(p => !coursePerms.some(cp => cp.playlist_id === p.id)).map(p => (
+                  <option key={p.id} value={p.id}>{p.title}</option>
+                ))}
+              </select>
+              <button
+                onClick={handleAddCoursePerm}
+                disabled={!addPlaylistId || addingCourse}
+                style={{ padding: "8px 14px", borderRadius: 7, border: "none", background: addPlaylistId ? "#0369A1" : "#E2E8F0", color: addPlaylistId ? "#fff" : "#94A3B8", fontSize: 12, fontWeight: 600, cursor: addPlaylistId ? "pointer" : "not-allowed", whiteSpace: "nowrap" }}
+              >
+                {addingCourse ? "..." : "+ إضافة"}
+              </button>
+            </div>
+
+            {coursePermsError && (
+              <p style={{ fontSize: 12, color: "#9F1239", background: "#FFF1F2", border: "1px solid #FECDD3", borderRadius: 6, padding: "8px 12px", marginBottom: 12 }}>{coursePermsError}</p>
+            )}
+
+            {/* List */}
+            {coursePermsLoading ? (
+              <p style={{ textAlign: "center", color: "#94A3B8", fontSize: 13, padding: 24 }}>Chargement...</p>
+            ) : coursePerms.length === 0 ? (
+              <div style={{ textAlign: "center", padding: 24, border: "2px dashed #E2E8F0", borderRadius: 10 }}>
+                <GraduationCap size={28} color="#CBD5E1" style={{ margin: "0 auto 8px" }} />
+                <p style={{ fontSize: 13, color: "#94A3B8", margin: 0 }}>ليس لهذا المسؤول أي دورة مضافة.</p>
+                <p style={{ fontSize: 11.5, color: "#CBD5E1", margin: "4px 0 0" }}>أضف دورة من القائمة أعلاه.</p>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 280, overflowY: "auto" }}>
+                {coursePerms.map(cp => (
+                  <div key={cp.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 12px", borderRadius: 8, border: "1px solid #E0F2FE", background: "#F0F9FF", gap: 10 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <GraduationCap size={13} color="#0369A1" />
+                      <span style={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>{cp.playlist_title ?? `Cours #${cp.playlist_id}`}</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ fontSize: 10.5, color: "#64748B" }}>
+                        {[cp.can_grant_access && "منح", cp.can_remove_access && "نزع", cp.can_view_users && "عرض"].filter(Boolean).join(" · ")}
+                      </span>
+                      <button
+                        onClick={() => handleRemoveCoursePerm(cp.playlist_id)}
+                        style={{ width: 24, height: 24, borderRadius: 5, border: "1px solid #FECDD3", background: "#FFF1F2", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#9F1239", flexShrink: 0 }}
+                        title="Retirer cette permission"
+                      >
+                        <X size={11} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ marginTop: 18, display: "flex", justifyContent: "flex-end" }}>
+              <button onClick={() => setCoursePermsTarget(null)}
+                style={{ padding: "8px 20px", borderRadius: 7, border: "1px solid #E2E8F0", background: "#F8FAFC", fontSize: 13, fontWeight: 500, cursor: "pointer" }}>
+                Fermer
               </button>
             </div>
           </div>

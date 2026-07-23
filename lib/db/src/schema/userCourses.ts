@@ -6,6 +6,8 @@ export const userCoursesTable = pgTable("user_courses", {
   playlistId: integer("playlist_id").notNull(),
   grantedAt: timestamp("granted_at").notNull().defaultNow(),
   grantedBy: text("granted_by"),
+  adminId: integer("admin_id"),
+  adminRole: text("admin_role"),
   grantSource: text("grant_source").default("manual"),
   reason: text("reason"),
   expiresAt: timestamp("expires_at"),

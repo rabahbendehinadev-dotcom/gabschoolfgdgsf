@@ -23,3 +23,4 @@ export * from "./planCourses";
 export * from "./toolCategories";
 export * from "./tools";
 export * from "./courseAccessLogs";
+export * from "./adminCoursePermissions";

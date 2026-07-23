@@ -2,13 +2,12 @@ import path from "path";
 import fs from "fs";
 import { Router, type IRouter } from "express";
 import multer from "multer";
-import { db, usersTable, videosTable, categoriesTable, playlistsTable, subscriptionPlansTable, visitLogsTable, activityLogsTable, notificationsTable, notificationRecipientsTable, pushSubscriptionsTable, adminPushSubscriptionsTable, communityPostsTable, communityCommentsTable, communityReportsTable, userCoursesTable, paymentSubmissionsTable, planCoursesTable, courseAccessLogsTable } from "@workspace/db";
+import { db, usersTable, videosTable, categoriesTable, playlistsTable, subscriptionPlansTable, visitLogsTable, activityLogsTable, notificationsTable, notificationRecipientsTable, pushSubscriptionsTable, adminPushSubscriptionsTable, communityPostsTable, communityCommentsTable, communityReportsTable, userCoursesTable, paymentSubmissionsTable, planCoursesTable, courseAccessLogsTable, adminsTable, adminCoursePermissionsTable } from "@workspace/db";
 import { eq, sql, count, desc, asc, lt, and, gte, isNull, isNotNull, inArray, max, ilike, or } from "drizzle-orm";
 
 import { adminAuth } from "../middlewares/auth";
 import { effectiveIpState } from "../lib/ipPolicy";
 import { hashPassword, comparePassword } from "../lib/auth";
-import { adminsTable } from "@workspace/db";
 import { createNotification, type AudienceType, type TargetType } from "../lib/notifications";
 import { sendPushToUsers, getVapidPublicKey } from "../lib/webPush";
 import { sendPushToAdmins } from "../lib/adminWebPush";
@@ -47,6 +46,21 @@ const CreateSubscriptionPlanBody = zod.object({
 });
 
 interface AdminCtx { adminId?: number; adminName?: string; adminRole?: string }
+
+function adminDisplayName(req: import("express").Request): string {
+  return req.admin!.displayName ?? req.admin!.username;
+}
+
+async function hasAdminCoursePermission(
+  adminId: number, role: string, playlistId: number, field: "canGrantAccess" | "canRemoveAccess" | "canViewUsers" | "canManageVideos" | "canManageCategories" = "canGrantAccess"
+): Promise<boolean> {
+  if (role === "super_admin") return true;
+  const [perm] = await db.select().from(adminCoursePermissionsTable)
+    .where(and(eq(adminCoursePermissionsTable.adminId, adminId), eq(adminCoursePermissionsTable.playlistId, playlistId)))
+    .limit(1);
+  if (!perm) return false;
+  return perm[field] === true;
+}
 
 async function logActivity(
   userId: number | null,
@@ -803,7 +817,7 @@ router.get("/admin/users/:id/courses", adminAuth, async (req, res) => {
 router.put("/admin/users/:id/courses", adminAuth, async (req, res) => {
   try {
     const id = Number(req.params.id);
-    const adminName = req.admin!.username;
+    const adminName = adminDisplayName(req);
     const playlistIds: number[] = zod.array(zod.number()).parse(req.body);
     const existing = await db.select({ playlistId: userCoursesTable.playlistId })
       .from(userCoursesTable).where(eq(userCoursesTable.userId, id));
@@ -818,7 +832,7 @@ router.put("/admin/users/:id/courses", adminAuth, async (req, res) => {
     }
     if (toAdd.length > 0) {
       await db.insert(userCoursesTable).values(
-        toAdd.map(pid => ({ userId: id, playlistId: pid, grantedBy: adminName, grantSource: "manual" }))
+        toAdd.map(pid => ({ userId: id, playlistId: pid, grantedBy: adminName, adminId: req.admin!.id, adminRole: req.admin!.role, grantSource: "manual" }))
       );
     }
     if (toAdd.length > 0) {
@@ -841,7 +855,7 @@ router.put("/admin/users/:id/courses", adminAuth, async (req, res) => {
   }
 });
 
-// POST /admin/users/:id/grant-course — grant a single course with full tracking
+// POST /admin/users/:id/grant-course — grant a single course with full tracking + permission check
 const GrantCourseBody = zod.object({
   playlistId: zod.number(),
   reason: zod.string().optional(),
@@ -852,11 +866,18 @@ router.post("/admin/users/:id/grant-course", adminAuth, async (req, res) => {
     const userId = Number(req.params.id);
     if (!Number.isFinite(userId)) { res.status(400).json({ message: "userId غير صالح" }); return; }
     const { playlistId, reason, expiresAt } = GrantCourseBody.parse(req.body);
-    const adminName = req.admin!.username;
+    const adminName = adminDisplayName(req);
     const adminRole = req.admin!.role;
+    const adminId = req.admin!.id;
 
     if (adminRole === "support") {
       res.status(403).json({ message: "ليس لديك صلاحية منح الدورات. دور Support لا يملك هذه الصلاحية." });
+      return;
+    }
+
+    const allowed = await hasAdminCoursePermission(adminId, adminRole, playlistId, "canGrantAccess");
+    if (!allowed) {
+      res.status(403).json({ message: "ليس لديك صلاحية لمنح هذه الدورة. تواصل مع Super Admin لإضافة الصلاحية." });
       return;
     }
 
@@ -876,18 +897,21 @@ router.post("/admin/users/:id/grant-course", adminAuth, async (req, res) => {
 
     const expiresAtDate = expiresAt ? new Date(expiresAt) : null;
     await db.insert(userCoursesTable).values({
-      userId, playlistId, grantedBy: adminName, grantSource: "manual",
-      reason: reason ?? null, expiresAt: expiresAtDate, status: "active",
+      userId, playlistId,
+      grantedBy: adminName, adminId, adminRole,
+      grantSource: "manual", reason: reason ?? null,
+      expiresAt: expiresAtDate, status: "active",
     });
     await db.insert(courseAccessLogsTable).values({
       userId, playlistId, action: "grant",
-      adminId: req.admin!.id, adminName, adminRole,
+      adminId, adminName, adminRole,
       grantSource: "manual", reason: reason ?? null,
       ip: req.ip ?? null, userAgent: req.headers["user-agent"] ?? null,
       extraData: { userEmail: user.email, username: user.username, playlistTitle: playlist.title },
     });
     await logActivity(userId, adminName, "grant_course",
-      `منح دورة "${playlist.title}" للمستخدم ${user.username} (${user.email}). السبب: ${reason ?? "—"}`);
+      `منح دورة "${playlist.title}" للمستخدم ${user.username} (${user.email}). السبب: ${reason ?? "—"}`,
+      req.ip, adminCtxFrom(req));
 
     res.json({ ok: true, message: `تم منح دورة "${playlist.title}" للمستخدم ${user.username}` });
   } catch (error: unknown) {
@@ -895,7 +919,7 @@ router.post("/admin/users/:id/grant-course", adminAuth, async (req, res) => {
   }
 });
 
-// DELETE /admin/users/:id/revoke-course/:playlistId — revoke a course with full tracking
+// DELETE /admin/users/:id/revoke-course/:playlistId — revoke a course with full tracking + permission check
 router.delete("/admin/users/:id/revoke-course/:playlistId", adminAuth, async (req, res) => {
   try {
     const userId = Number(req.params.id);
@@ -903,11 +927,18 @@ router.delete("/admin/users/:id/revoke-course/:playlistId", adminAuth, async (re
     if (!Number.isFinite(userId) || !Number.isFinite(playlistId)) {
       res.status(400).json({ message: "معرّف غير صالح" }); return;
     }
-    const adminName = req.admin!.username;
+    const adminName = adminDisplayName(req);
     const adminRole = req.admin!.role;
+    const adminId = req.admin!.id;
 
     if (adminRole === "support") {
       res.status(403).json({ message: "ليس لديك صلاحية نزع الدورات. دور Support لا يملك هذه الصلاحية." });
+      return;
+    }
+
+    const allowed = await hasAdminCoursePermission(adminId, adminRole, playlistId, "canRemoveAccess");
+    if (!allowed) {
+      res.status(403).json({ message: "ليس لديك صلاحية لنزع هذه الدورة. تواصل مع Super Admin." });
       return;
     }
 
@@ -924,13 +955,14 @@ router.delete("/admin/users/:id/revoke-course/:playlistId", adminAuth, async (re
 
     await db.insert(courseAccessLogsTable).values({
       userId, playlistId, action: "revoke",
-      adminId: req.admin!.id, adminName, adminRole,
+      adminId, adminName, adminRole,
       grantSource: "manual",
       ip: req.ip ?? null, userAgent: req.headers["user-agent"] ?? null,
       extraData: { userEmail: user?.email, username: user?.username, playlistTitle: playlist?.title },
     });
     await logActivity(userId, adminName, "revoke_course",
-      `نزع دورة "${playlist?.title ?? playlistId}" من المستخدم ${user?.username ?? userId}`);
+      `نزع دورة "${playlist?.title ?? playlistId}" من المستخدم ${user?.username ?? userId}`,
+      req.ip, adminCtxFrom(req));
 
     res.json({ ok: true, message: `تم نزع الدورة من المستخدم ${user?.username ?? userId}` });
   } catch (error: unknown) {
@@ -1107,6 +1139,92 @@ router.delete("/admin/admins/:id", adminAuth, async (req, res) => {
   }
 });
 
+// GET /admin/my-permissions/courses — returns which playlists this admin can manage (grant/revoke)
+router.get("/admin/my-permissions/courses", adminAuth, async (req, res) => {
+  try {
+    if (req.admin!.role === "super_admin") {
+      res.json({ all: true, playlistIds: [] });
+      return;
+    }
+    const perms = await db.select({ playlistId: adminCoursePermissionsTable.playlistId })
+      .from(adminCoursePermissionsTable)
+      .where(and(
+        eq(adminCoursePermissionsTable.adminId, req.admin!.id),
+        eq(adminCoursePermissionsTable.canGrantAccess, true)
+      ));
+    res.json({ all: false, playlistIds: perms.map(p => p.playlistId) });
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
+// GET /admin/admins/:id/course-permissions — list course permissions for an admin
+router.get("/admin/admins/:id/course-permissions", adminAuth, async (req, res) => {
+  try {
+    const adminId = Number(req.params.id);
+    const rows = await db.execute(sql`
+      SELECT acp.id, acp.admin_id, acp.playlist_id, p.title AS playlist_title,
+             acp.can_grant_access, acp.can_remove_access, acp.can_view_users,
+             acp.can_manage_videos, acp.can_manage_categories, acp.created_at
+      FROM admin_course_permissions acp
+      LEFT JOIN playlists p ON p.id = acp.playlist_id
+      WHERE acp.admin_id = ${adminId}
+      ORDER BY acp.created_at DESC
+    `);
+    res.json(rows.rows);
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
+// POST /admin/admins/:id/course-permissions — grant a course permission to an admin (super_admin only)
+router.post("/admin/admins/:id/course-permissions", adminAuth, async (req, res) => {
+  try {
+    if (req.admin!.role !== "super_admin") {
+      res.status(403).json({ message: "فقط Super Admin يمكنه تعيين صلاحيات الدورات للمسؤولين" });
+      return;
+    }
+    const targetAdminId = Number(req.params.id);
+    const { playlistId, canGrantAccess = true, canRemoveAccess = true, canViewUsers = true, canManageVideos = false, canManageCategories = false } = req.body;
+    if (!playlistId) { res.status(400).json({ message: "playlistId مطلوب" }); return; }
+
+    await db.execute(sql`
+      INSERT INTO admin_course_permissions (admin_id, playlist_id, can_grant_access, can_remove_access, can_view_users, can_manage_videos, can_manage_categories, created_by)
+      VALUES (${targetAdminId}, ${playlistId}, ${canGrantAccess}, ${canRemoveAccess}, ${canViewUsers}, ${canManageVideos}, ${canManageCategories}, ${req.admin!.id})
+      ON CONFLICT (admin_id, playlist_id) DO UPDATE SET
+        can_grant_access = EXCLUDED.can_grant_access,
+        can_remove_access = EXCLUDED.can_remove_access,
+        can_view_users = EXCLUDED.can_view_users,
+        can_manage_videos = EXCLUDED.can_manage_videos,
+        can_manage_categories = EXCLUDED.can_manage_categories
+    `);
+    await logActivity(null, adminDisplayName(req), "assign_course_permission",
+      `أضاف صلاحية الدورة #${playlistId} للمسؤول #${targetAdminId}`, req.ip, adminCtxFrom(req));
+    res.json({ ok: true });
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
+// DELETE /admin/admins/:id/course-permissions/:playlistId — remove a course permission (super_admin only)
+router.delete("/admin/admins/:id/course-permissions/:playlistId", adminAuth, async (req, res) => {
+  try {
+    if (req.admin!.role !== "super_admin") {
+      res.status(403).json({ message: "فقط Super Admin يمكنه إزالة صلاحيات الدورات" });
+      return;
+    }
+    const targetAdminId = Number(req.params.id);
+    const playlistId = Number(req.params.playlistId);
+    await db.delete(adminCoursePermissionsTable)
+      .where(and(eq(adminCoursePermissionsTable.adminId, targetAdminId), eq(adminCoursePermissionsTable.playlistId, playlistId)));
+    await logActivity(null, adminDisplayName(req), "remove_course_permission",
+      `أزال صلاحية الدورة #${playlistId} من المسؤول #${targetAdminId}`, req.ip, adminCtxFrom(req));
+    res.json({ ok: true });
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
 // GET /admin/admin-audit-log — admin-specific activity log
 router.get("/admin/admin-audit-log", adminAuth, async (req, res) => {
   try {
@@ -1204,9 +1322,17 @@ router.get("/admin/users/:id/detail", adminAuth, async (req, res) => {
       pushPermission: user.pushPermission,
       pushSupported: user.pushSupported,
       courses: courses.map(c => ({
+        id: c.id,
         playlistId: c.playlistId,
         title: c.title ?? `دورة #${c.playlistId}`,
         grantedAt: c.grantedAt?.toISOString() ?? null,
+        grantedBy: c.grantedBy ?? null,
+        adminId: (c as any).adminId ?? null,
+        adminRole: (c as any).adminRole ?? null,
+        grantSource: c.grantSource ?? null,
+        reason: c.reason ?? null,
+        expiresAt: c.expiresAt?.toISOString() ?? null,
+        status: c.status ?? null,
       })),
       recentActivity: recentActivity.map(a => ({
         id: a.id,

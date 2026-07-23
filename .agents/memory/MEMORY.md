@@ -4,6 +4,7 @@
 
 - [S3 adapter write pitfall](s3-adapter-write-pitfall.md) — createWriteStream "finish" fires before MinIO upload completes, hiding errors; use putBuffer/upload.done(); img-optimize worker notes.
 
+- [Admin course permissions](admin-course-permissions.md) — grantedBy bug: courses.map() was dropping fields; admin_course_permissions table for per-admin course enforcement; super_admin bypasses.
 - [VPS Dokploy ops](vps-dokploy-ops.md) — Dokploy env panel edits may not reach swarm; fix via docker service update, but redeploys revert it; VPS videos stream LIVE from Drive by owner decision.
 - [GCS video migration](gcs-video-migration.md) — ALL video bytes (MP4 + HLS segments) proxied through server; NO presigned storage.googleapis.com URLs ever reach the browser; Drive IDs/objectPaths never reach client; deterministic paths ⇒ race losers must not delete.
 - [Connector lookup dev filter](connector-lookup-dev-filter.md) — connectors v2 API with connector_names filter returns 0 items in dev for prod-scoped connections; list all + filter client-side.

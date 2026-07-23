@@ -5,8 +5,10 @@ import { formatDate } from "@/lib/utils";
 import {
   User, GraduationCap, Activity, Smartphone, CreditCard,
   MapPin, Calendar, CheckCircle2, XCircle, Eye,
-  Crown, Plus, Trash2, ShieldAlert, Clock, BookOpen, AlertTriangle,
+  Crown, Plus, Trash2, ShieldAlert, Clock, BookOpen, AlertTriangle, Lock,
 } from "lucide-react";
+
+interface MyPermissions { all: boolean; playlistIds: number[] }
 
 interface CourseAccess {
   id: number;
@@ -14,6 +16,8 @@ interface CourseAccess {
   title: string | null;
   grantedAt: string | null;
   grantedBy: string | null;
+  adminId: number | null;
+  adminRole: string | null;
   grantSource: string | null;
   reason: string | null;
   expiresAt: string | null;
@@ -82,6 +86,7 @@ export function UserDetailModal({ userId, onClose, getAdminAuthHeaders }: Props)
   const [error, setError] = useState<string | null>(null);
 
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  const [myPermissions, setMyPermissions] = useState<MyPermissions>({ all: true, playlistIds: [] });
   const [grantModal, setGrantModal] = useState(false);
   const [grantPlaylistId, setGrantPlaylistId] = useState<string>("");
   const [grantReason, setGrantReason] = useState("");
@@ -115,6 +120,10 @@ export function UserDetailModal({ userId, onClose, getAdminAuthHeaders }: Props)
         setPlaylists(arr);
       })
       .catch(() => {});
+    fetch("/api/admin/my-permissions/courses", { headers })
+      .then(r => r.ok ? r.json() : { all: true, playlistIds: [] })
+      .then((p: MyPermissions) => setMyPermissions(p))
+      .catch(() => setMyPermissions({ all: true, playlistIds: [] }));
   }, [userId]);
 
   const handleGrant = async () => {
@@ -160,7 +169,11 @@ export function UserDetailModal({ userId, onClose, getAdminAuthHeaders }: Props)
   const isExpired = detail?.subscriptionExpiresAt ? new Date(detail.subscriptionExpiresAt) < now : false;
   const isActiveVip = detail?.accountType === "vip" && !isExpired;
 
-  const availablePlaylists = playlists.filter(
+  const permittedPlaylists = myPermissions.all
+    ? playlists
+    : playlists.filter(p => myPermissions.playlistIds.includes(p.id));
+
+  const availablePlaylists = permittedPlaylists.filter(
     p => !detail?.courses.some(c => c.playlistId === p.id)
   );
 
@@ -314,7 +327,10 @@ export function UserDetailModal({ userId, onClose, getAdminAuthHeaders }: Props)
 
                           <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs pt-1 border-t" style={{ borderColor: "#E5E7EB" }}>
                             <span style={{ color: "#6B7280" }}>
-                              👤 <span className="font-medium text-gray-800">{c.grantedBy ?? "غير معروف"}</span>
+                              👤 {c.grantedBy
+                                ? <span className="font-medium text-gray-800">{c.grantedBy}{(c as any).adminRole ? <span className="text-gray-400 font-normal"> — {(c as any).adminRole === "super_admin" ? "Super Admin" : (c as any).adminRole === "subscription_manager" ? "Subscription Manager" : (c as any).adminRole}</span> : null}</span>
+                                : <span className="text-gray-400 italic text-xs">عملية قديمة — المسؤول غير مسجل</span>
+                              }
                             </span>
                             <span style={{ color: "#6B7280" }}>
                               📋 {GRANT_SOURCE_LABELS[c.grantSource ?? ""] ?? c.grantSource ?? "—"}
