@@ -70,8 +70,7 @@ router.post("/storage/uploads/request-url", async (req: Request, res: Response) 
   }
   try {
     const { name, size, contentType } = parsed.data;
-    const uploadURL = await objectStorageService.getObjectEntityUploadURL();
-    const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
+    const { uploadURL, objectPath } = await objectStorageService.getObjectEntityUploadURL();
     res.json({ uploadURL, objectPath, metadata: { name, size, contentType } });
   } catch (error) {
     console.error("Error generating upload URL:", error);
@@ -126,8 +125,7 @@ router.post(
     }
     try {
       console.log("[upload:debug] calling getObjectEntityUploadURL …");
-      const uploadURL = await objectStorageService.getObjectEntityUploadURL();
-      const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
+      const { uploadURL, objectPath } = await objectStorageService.getObjectEntityUploadURL();
       console.log("[upload:debug] uploadURL ok, objectPath:", objectPath);
 
       console.log("[upload:debug] PUT to storage, size:", buffer.byteLength, "mime:", effectiveMime);
@@ -143,7 +141,10 @@ router.post(
       }
 
       console.log("[upload:debug] ✓ success:", objectPath);
-      res.json({ objectPath });
+      res.json({
+        objectPath,
+        publicUrl: `/api/storage${objectPath}`,
+      });
     } catch (err) {
       console.error("[upload:debug] ✗ error:", err);
       res.status(500).json({ error: err instanceof Error ? err.message : "Upload failed" });

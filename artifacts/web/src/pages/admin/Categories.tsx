@@ -342,15 +342,21 @@ export function AdminCategories() {
         const detail = await resp.json().catch(() => ({})) as { error?: string };
         throw new Error(detail.error ?? `HTTP ${resp.status}`);
       }
-      const { objectPath } = await resp.json() as { objectPath: string };
-      const imageUrl = `/api/storage${objectPath}`;
+      const data = await resp.json() as { objectPath: string; publicUrl?: string };
+      // Prefer the server-provided publicUrl. Fall back to building it from
+      // objectPath, but guard against the server ever returning an absolute
+      // internal URL (e.g. http://minio:9000/...) which must never reach the browser.
+      const rawPath = data.publicUrl ?? data.objectPath;
+      const imageUrl = /^https?:\/\//i.test(rawPath)
+        ? `/api/storage${data.objectPath}`  // objectPath is always relative
+        : rawPath;
       setForm(f => ({ ...f, imageUrl, thumbnailUrl: "" }));
       fetch("/api/admin/images/generate-thumbnail", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sourcePath: objectPath }),
-      }).then(r => r.ok ? r.json() : null).then(data => {
-        if (data?.thumbnailUrl) setForm(f => ({ ...f, thumbnailUrl: data.thumbnailUrl }));
+        body: JSON.stringify({ sourcePath: data.objectPath }),
+      }).then(r => r.ok ? r.json() : null).then(thumb => {
+        if (thumb?.thumbnailUrl) setForm(f => ({ ...f, thumbnailUrl: thumb.thumbnailUrl }));
       }).catch(() => { /* best-effort */ });
       toast({ title: "Image téléversée" });
     } catch (err) {

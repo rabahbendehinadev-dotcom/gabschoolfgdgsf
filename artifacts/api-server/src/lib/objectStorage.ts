@@ -153,7 +153,7 @@ export class ObjectStorageService {
     return new Response(webStream, { headers });
   }
 
-  async getObjectEntityUploadURL(): Promise<string> {
+  async getObjectEntityUploadURL(): Promise<{ uploadURL: string; objectPath: string }> {
     const privateObjectDir = this.getPrivateObjectDir();
     if (!privateObjectDir) {
       throw new Error(
@@ -162,16 +162,21 @@ export class ObjectStorageService {
     }
 
     const objectId = randomUUID();
+    // Derive the canonical relative path BEFORE signing — so callers never
+    // need to parse it back out of a provider-specific presigned URL.
+    const objectPath = `/objects/uploads/${objectId}`;
     const fullPath = `${privateObjectDir}/uploads/${objectId}`;
 
     const { bucketName, objectName } = parseObjectPath(fullPath);
 
-    return signObjectURL({
+    const uploadURL = await signObjectURL({
       bucketName,
       objectName,
       method: "PUT",
       ttlSec: 900,
     });
+
+    return { uploadURL, objectPath };
   }
 
   async getObjectEntityFile(objectPath: string): Promise<File | S3File> {
