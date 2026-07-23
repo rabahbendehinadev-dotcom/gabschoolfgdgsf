@@ -2,7 +2,7 @@ import path from "path";
 import fs from "fs";
 import { Router, type IRouter } from "express";
 import multer from "multer";
-import { db, usersTable, videosTable, categoriesTable, playlistsTable, subscriptionPlansTable, visitLogsTable, activityLogsTable, notificationsTable, notificationRecipientsTable, pushSubscriptionsTable, adminPushSubscriptionsTable, communityPostsTable, communityCommentsTable, communityReportsTable, userCoursesTable, paymentSubmissionsTable, planCoursesTable } from "@workspace/db";
+import { db, usersTable, videosTable, categoriesTable, playlistsTable, subscriptionPlansTable, visitLogsTable, activityLogsTable, notificationsTable, notificationRecipientsTable, pushSubscriptionsTable, adminPushSubscriptionsTable, communityPostsTable, communityCommentsTable, communityReportsTable, userCoursesTable, paymentSubmissionsTable, planCoursesTable, courseAccessLogsTable } from "@workspace/db";
 import { eq, sql, count, desc, asc, lt, and, gte, isNull, isNotNull, inArray, max, ilike, or } from "drizzle-orm";
 
 import { adminAuth } from "../middlewares/auth";
@@ -342,7 +342,15 @@ router.post("/admin/users/bulk-action", adminAuth, async (req, res) => {
       const existingIds = new Set(existing.map(r => r.userId));
       const toInsert = userIds.filter(uid => !existingIds.has(uid));
       if (toInsert.length > 0) {
-        await db.insert(userCoursesTable).values(toInsert.map(uid => ({ userId: uid, playlistId: pid })));
+        await db.insert(userCoursesTable).values(toInsert.map(uid => ({
+          userId: uid, playlistId: pid, grantedBy: adminName, grantSource: "manual",
+        })));
+        await db.insert(courseAccessLogsTable).values(toInsert.map(uid => ({
+          userId: uid, playlistId: pid, action: "grant",
+          adminId: req.admin!.id, adminName, adminRole: req.admin!.role,
+          grantSource: "manual",
+          ip: req.ip ?? null, userAgent: req.headers["user-agent"] ?? null,
+        })));
       }
       await logActivity(null, adminName, "bulk_grant_course", `منح الدورة ${pid} لـ ${toInsert.length} مستخدم`);
     } else if (action === "revoke_course") {
@@ -350,6 +358,12 @@ router.post("/admin/users/bulk-action", adminAuth, async (req, res) => {
       if (!pid) { res.status(400).json({ message: "playlistId مطلوب" }); return; }
       await db.delete(userCoursesTable)
         .where(and(inArray(userCoursesTable.userId, userIds), eq(userCoursesTable.playlistId, pid)));
+      await db.insert(courseAccessLogsTable).values(userIds.map(uid => ({
+        userId: uid, playlistId: pid, action: "revoke",
+        adminId: req.admin!.id, adminName, adminRole: req.admin!.role,
+        grantSource: "manual",
+        ip: req.ip ?? null, userAgent: req.headers["user-agent"] ?? null,
+      })));
       await logActivity(null, adminName, "bulk_revoke_course", `إلغاء الدورة ${pid} من ${userIds.length} مستخدم`);
     } else if (action === "grant_vip") {
       const days = body.days ?? 365;
@@ -753,17 +767,264 @@ router.get("/admin/users/:id/courses", adminAuth, async (req, res) => {
   }
 });
 
-// PUT /admin/users/:id/courses — replace the full set of granted courses
+// PUT /admin/users/:id/courses — replace the full set of granted courses (legacy endpoint, use POST/DELETE for tracked ops)
 router.put("/admin/users/:id/courses", adminAuth, async (req, res) => {
   try {
     const id = Number(req.params.id);
+    const adminName = req.admin!.username;
     const playlistIds: number[] = zod.array(zod.number()).parse(req.body);
+    const existing = await db.select({ playlistId: userCoursesTable.playlistId })
+      .from(userCoursesTable).where(eq(userCoursesTable.userId, id));
+    const existingSet = new Set(existing.map(r => r.playlistId));
+    const newSet = new Set(playlistIds);
+    const toAdd = playlistIds.filter(p => !existingSet.has(p));
+    const toRemove = [...existingSet].filter(p => !newSet.has(p));
     await db.delete(userCoursesTable).where(eq(userCoursesTable.userId, id));
     if (playlistIds.length > 0) {
       await db.insert(userCoursesTable).values(
-        playlistIds.map(pid => ({ userId: id, playlistId: pid }))
+        playlistIds.map(pid => ({ userId: id, playlistId: pid, grantedBy: adminName, grantSource: "manual" }))
       );
     }
+    if (toAdd.length > 0) {
+      await db.insert(courseAccessLogsTable).values(toAdd.map(pid => ({
+        userId: id, playlistId: pid, action: "grant",
+        adminId: req.admin!.id, adminName, adminRole: req.admin!.role,
+        grantSource: "manual", reason: "put_replace",
+      })));
+    }
+    if (toRemove.length > 0) {
+      await db.insert(courseAccessLogsTable).values(toRemove.map(pid => ({
+        userId: id, playlistId: pid, action: "revoke",
+        adminId: req.admin!.id, adminName, adminRole: req.admin!.role,
+        grantSource: "manual", reason: "put_replace",
+      })));
+    }
+    res.json({ ok: true });
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
+// POST /admin/users/:id/grant-course — grant a single course with full tracking
+const GrantCourseBody = zod.object({
+  playlistId: zod.number(),
+  reason: zod.string().optional(),
+  expiresAt: zod.string().optional().nullable(),
+});
+router.post("/admin/users/:id/grant-course", adminAuth, async (req, res) => {
+  try {
+    const userId = Number(req.params.id);
+    if (!Number.isFinite(userId)) { res.status(400).json({ message: "userId غير صالح" }); return; }
+    const { playlistId, reason, expiresAt } = GrantCourseBody.parse(req.body);
+    const adminName = req.admin!.username;
+    const adminRole = req.admin!.role;
+
+    if (adminRole === "support") {
+      res.status(403).json({ message: "ليس لديك صلاحية منح الدورات. دور Support لا يملك هذه الصلاحية." });
+      return;
+    }
+
+    const [user] = await db.select({ id: usersTable.id, username: usersTable.username, email: usersTable.email })
+      .from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+    if (!user) { res.status(404).json({ message: "المستخدم غير موجود" }); return; }
+
+    const [playlist] = await db.select({ id: playlistsTable.id, title: playlistsTable.title })
+      .from(playlistsTable).where(eq(playlistsTable.id, playlistId)).limit(1);
+    if (!playlist) { res.status(404).json({ message: "الدورة غير موجودة" }); return; }
+
+    const [existing] = await db.select({ id: userCoursesTable.id })
+      .from(userCoursesTable)
+      .where(and(eq(userCoursesTable.userId, userId), eq(userCoursesTable.playlistId, playlistId)))
+      .limit(1);
+    if (existing) { res.status(409).json({ message: "المستخدم يملك هذه الدورة بالفعل" }); return; }
+
+    const expiresAtDate = expiresAt ? new Date(expiresAt) : null;
+    await db.insert(userCoursesTable).values({
+      userId, playlistId, grantedBy: adminName, grantSource: "manual",
+      reason: reason ?? null, expiresAt: expiresAtDate, status: "active",
+    });
+    await db.insert(courseAccessLogsTable).values({
+      userId, playlistId, action: "grant",
+      adminId: req.admin!.id, adminName, adminRole,
+      grantSource: "manual", reason: reason ?? null,
+      ip: req.ip ?? null, userAgent: req.headers["user-agent"] ?? null,
+      extraData: { userEmail: user.email, username: user.username, playlistTitle: playlist.title },
+    });
+    await logActivity(userId, adminName, "grant_course",
+      `منح دورة "${playlist.title}" للمستخدم ${user.username} (${user.email}). السبب: ${reason ?? "—"}`);
+
+    res.json({ ok: true, message: `تم منح دورة "${playlist.title}" للمستخدم ${user.username}` });
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
+// DELETE /admin/users/:id/revoke-course/:playlistId — revoke a course with full tracking
+router.delete("/admin/users/:id/revoke-course/:playlistId", adminAuth, async (req, res) => {
+  try {
+    const userId = Number(req.params.id);
+    const playlistId = Number(req.params.playlistId);
+    if (!Number.isFinite(userId) || !Number.isFinite(playlistId)) {
+      res.status(400).json({ message: "معرّف غير صالح" }); return;
+    }
+    const adminName = req.admin!.username;
+    const adminRole = req.admin!.role;
+
+    if (adminRole === "support") {
+      res.status(403).json({ message: "ليس لديك صلاحية نزع الدورات. دور Support لا يملك هذه الصلاحية." });
+      return;
+    }
+
+    const [user] = await db.select({ id: usersTable.id, username: usersTable.username, email: usersTable.email })
+      .from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+    const [playlist] = await db.select({ id: playlistsTable.id, title: playlistsTable.title })
+      .from(playlistsTable).where(eq(playlistsTable.id, playlistId)).limit(1);
+
+    const deleted = await db.delete(userCoursesTable)
+      .where(and(eq(userCoursesTable.userId, userId), eq(userCoursesTable.playlistId, playlistId)))
+      .returning({ id: userCoursesTable.id });
+
+    if (deleted.length === 0) { res.status(404).json({ message: "لم يتم العثور على الصلاحية" }); return; }
+
+    await db.insert(courseAccessLogsTable).values({
+      userId, playlistId, action: "revoke",
+      adminId: req.admin!.id, adminName, adminRole,
+      grantSource: "manual",
+      ip: req.ip ?? null, userAgent: req.headers["user-agent"] ?? null,
+      extraData: { userEmail: user?.email, username: user?.username, playlistTitle: playlist?.title },
+    });
+    await logActivity(userId, adminName, "revoke_course",
+      `نزع دورة "${playlist?.title ?? playlistId}" من المستخدم ${user?.username ?? userId}`);
+
+    res.json({ ok: true, message: `تم نزع الدورة من المستخدم ${user?.username ?? userId}` });
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
+// GET /admin/course-access-logs — full audit trail
+router.get("/admin/course-access-logs", adminAuth, async (req, res) => {
+  try {
+    const limit = Math.min(Number(req.query.limit ?? 100), 500);
+    const offset = Number(req.query.offset ?? 0);
+    const userId = req.query.userId ? Number(req.query.userId) : null;
+    const playlistId = req.query.playlistId ? Number(req.query.playlistId) : null;
+
+    const rows = await db.execute(sql`
+      SELECT
+        cal.id, cal.action, cal.admin_name, cal.admin_role, cal.grant_source,
+        cal.reason, cal.ip, cal.created_at, cal.extra_data,
+        u.username AS user_username, u.email AS user_email,
+        p.title AS playlist_title
+      FROM course_access_logs cal
+      LEFT JOIN users u ON u.id = cal.user_id
+      LEFT JOIN playlists p ON p.id = cal.playlist_id
+      ${userId ? sql`WHERE cal.user_id = ${userId}` : playlistId ? sql`WHERE cal.playlist_id = ${playlistId}` : sql``}
+      ORDER BY cal.created_at DESC
+      LIMIT ${limit} OFFSET ${offset}
+    `);
+    res.json(rows.rows);
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
+// GET /admin/course-access-report — identify potentially unauthorized grants
+router.get("/admin/course-access-report", adminAuth, async (req, res) => {
+  try {
+    const rows = await db.execute(sql`
+      SELECT
+        uc.id, uc.user_id, uc.playlist_id, uc.granted_at,
+        uc.granted_by, uc.grant_source, uc.reason, uc.status,
+        u.username, u.email, u.account_type, u.created_at AS user_created_at,
+        p.title AS playlist_title,
+        CASE
+          WHEN uc.granted_by IS NULL AND uc.grant_source = 'manual' THEN 'legacy_no_tracking'
+          WHEN uc.grant_source = 'migration' THEN 'auto_migration'
+          ELSE 'tracked'
+        END AS classification
+      FROM user_courses uc
+      JOIN users u ON u.id = uc.user_id
+      LEFT JOIN playlists p ON p.id = uc.playlist_id
+      ORDER BY uc.granted_at DESC
+    `);
+    const classified = (rows.rows as any[]).map(r => ({
+      ...r,
+      suspicious: r.classification === "legacy_no_tracking" || r.classification === "auto_migration",
+    }));
+    res.json({
+      total: classified.length,
+      suspicious: classified.filter(r => r.suspicious).length,
+      tracked: classified.filter(r => !r.suspicious).length,
+      rows: classified,
+    });
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
+// GET /admin/admins — list all admins (without password hashes)
+router.get("/admin/admins", adminAuth, async (req, res) => {
+  try {
+    const rows = await db.execute(sql`
+      SELECT id, username, display_name, role, last_login_at, last_login_ip
+      FROM admins ORDER BY id ASC
+    `);
+    res.json(rows.rows);
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
+// POST /admin/admins — create a new admin (super_admin only)
+const CreateAdminBody = zod.object({
+  username: zod.string().min(3).max(50),
+  password: zod.string().min(8),
+  displayName: zod.string().optional(),
+  role: zod.enum(["super_admin", "subscription_manager", "support"]).default("support"),
+});
+router.post("/admin/admins", adminAuth, async (req, res) => {
+  try {
+    if (req.admin!.role !== "super_admin") {
+      res.status(403).json({ message: "فقط Super Admin يمكنه إنشاء حسابات إدارية جديدة" });
+      return;
+    }
+    const body = CreateAdminBody.parse(req.body);
+    const passwordHash = await hashPassword(body.password);
+    const [created] = await db.insert(adminsTable).values({
+      username: body.username,
+      passwordHash,
+      displayName: body.displayName ?? null,
+      role: body.role,
+    } as any).returning({ id: adminsTable.id, username: adminsTable.username });
+    await logActivity(null, req.admin!.username, "create_admin",
+      `أنشأ حساب إداري جديد: ${body.username} (دور: ${body.role})`);
+    res.status(201).json({ ok: true, admin: created });
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
+// PATCH /admin/admins/:id — update admin role or display name (super_admin only)
+router.patch("/admin/admins/:id", adminAuth, async (req, res) => {
+  try {
+    if (req.admin!.role !== "super_admin") {
+      res.status(403).json({ message: "فقط Super Admin يمكنه تعديل حسابات المسؤولين" });
+      return;
+    }
+    const id = Number(req.params.id);
+    const { role, displayName } = zod.object({
+      role: zod.enum(["super_admin", "subscription_manager", "support"]).optional(),
+      displayName: zod.string().optional().nullable(),
+    }).parse(req.body);
+    await db.execute(sql`
+      UPDATE admins SET
+        role = COALESCE(${role ?? null}, role),
+        display_name = ${displayName !== undefined ? (displayName ?? null) : sql`display_name`}
+      WHERE id = ${id}
+    `);
+    await logActivity(null, req.admin!.username, "update_admin",
+      `تعديل حساب مسؤول #${id}: role=${role ?? "—"}, displayName=${displayName ?? "—"}`);
     res.json({ ok: true });
   } catch (error: unknown) {
     res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" });
@@ -783,9 +1044,15 @@ router.get("/admin/users/:id/detail", adminAuth, async (req, res) => {
       coursesResult, activityResult, paymentsResult, devicesResult, visitsResult,
     ] = await Promise.allSettled([
       db.select({
+        id: userCoursesTable.id,
         playlistId: userCoursesTable.playlistId,
         title: playlistsTable.title,
         grantedAt: userCoursesTable.grantedAt,
+        grantedBy: userCoursesTable.grantedBy,
+        grantSource: userCoursesTable.grantSource,
+        reason: userCoursesTable.reason,
+        expiresAt: userCoursesTable.expiresAt,
+        status: userCoursesTable.status,
       }).from(userCoursesTable)
         .leftJoin(playlistsTable, eq(userCoursesTable.playlistId, playlistsTable.id))
         .where(eq(userCoursesTable.userId, id)),

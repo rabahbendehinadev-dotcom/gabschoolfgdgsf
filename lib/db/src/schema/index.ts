@@ -22,3 +22,4 @@ export * from "./userCourses";
 export * from "./planCourses";
 export * from "./toolCategories";
 export * from "./tools";
+export * from "./courseAccessLogs";

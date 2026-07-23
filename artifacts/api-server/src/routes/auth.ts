@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { sendPushToAdmins } from "../lib/adminWebPush";
 import { db, usersTable, adminsTable, subscriptionPlansTable, activityLogsTable } from "@workspace/db";
-import { eq, and, gte } from "drizzle-orm";
+import { eq, and, gte, sql } from "drizzle-orm";
 
 import { hashPassword, comparePassword, generateToken, generateAdminToken } from "../lib/auth";
 import { applyVipIpPolicy, getClientIp, VIP_IP_LIMIT_MESSAGE } from "../lib/ipPolicy";
@@ -272,9 +272,17 @@ router.post("/auth/admin-login", async (req, res) => {
 
     const token = generateAdminToken({ adminId: admin.id });
 
+    const clientIp = (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ?? req.ip ?? null;
+    await db.execute(sql`UPDATE admins SET last_login_at = NOW(), last_login_ip = ${clientIp} WHERE id = ${admin.id}`);
+
     res.json({
       token,
-      admin: { id: admin.id, username: admin.username },
+      admin: {
+        id: admin.id,
+        username: admin.username,
+        displayName: (admin as any).displayName ?? null,
+        role: (admin as any).role ?? "super_admin",
+      },
     });
   } catch (error: unknown) {
     res.status(400).json({ message: error instanceof Error ? error.message : "Unknown error" || "Admin login failed" });

@@ -174,46 +174,47 @@ async function runMigrations() {
     await db.execute(sql`CREATE INDEX IF NOT EXISTS community_reports_comment_idx ON community_reports(comment_id)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS community_reports_status_idx ON community_reports(status)`);
 
-    // ── One-time data migration: grant Flash & Decoding course (id=5)
-    //    to all legacy VIP users who don't already have it.
-    //    Idempotent: NOT EXISTS guard prevents any duplicate rows.
-    //    Hardcoded to playlist 5 only — no other course is affected.
-    try {
-      // Check playlist 5 (Flash & Decoding) actually exists before touching user_courses
-      const playlistCheck = await db.execute(sql`SELECT id FROM playlists WHERE id = 5 LIMIT 1`);
-      if ((playlistCheck.rows as any[]).length === 0) {
-        console.log("[migrations] Flash & Decoding course (id=5) not found in this environment — skipping VIP grant.");
-      } else {
-        // Count VIP users who already have the course (for the log report)
-        const beforeResult = await db.execute(sql`
-          SELECT COUNT(*) AS already
-          FROM user_courses
-          WHERE playlist_id = 5
-            AND user_id IN (SELECT id FROM users WHERE account_type = 'vip')
-        `);
-        const alreadyHad = Number((beforeResult.rows[0] as any)?.already ?? 0);
+    // ── [SECURITY] Auto-grant migration REMOVED ──
+    // The previous migration that automatically granted playlist 5 (Flash & Decoding)
+    // to all VIP users has been deliberately removed. Course access is now 100% explicit:
+    // it must be granted manually by an admin with manage_course_access permission,
+    // or triggered by a confirmed subscription payment. No automatic grants on server start.
+    console.log("[migrations] Course access: strict mode — no automatic grants on startup.");
 
-        // Idempotent INSERT — NOT EXISTS guard prevents duplicates on reruns
-        const insertResult = await db.execute(sql`
-          INSERT INTO user_courses (user_id, playlist_id, granted_at)
-          SELECT u.id, 5, NOW()
-          FROM users u
-          WHERE u.account_type = 'vip'
-            AND NOT EXISTS (
-              SELECT 1 FROM user_courses uc
-              WHERE uc.user_id = u.id AND uc.playlist_id = 5
-            )
-        `);
-        const granted = (insertResult as any).rowCount ?? 0;
-        if (granted > 0) {
-          console.log(`[migrations] ✓ Granted Flash & Decoding course to ${granted} legacy VIP user(s). (${alreadyHad} already had it)`);
-        } else {
-          console.log(`[migrations] Flash & Decoding course: all ${alreadyHad} eligible VIP users already had access — no changes.`);
-        }
-      }
-    } catch (migErr) {
-      console.warn("[migrations] VIP course grant skipped:", migErr instanceof Error ? migErr.message : migErr);
-    }
+    // ── user_courses: add tracking columns ──────────────────────────────────────
+    await db.execute(sql`ALTER TABLE user_courses ADD COLUMN IF NOT EXISTS granted_by TEXT`);
+    await db.execute(sql`ALTER TABLE user_courses ADD COLUMN IF NOT EXISTS grant_source TEXT DEFAULT 'manual'`);
+    await db.execute(sql`ALTER TABLE user_courses ADD COLUMN IF NOT EXISTS reason TEXT`);
+    await db.execute(sql`ALTER TABLE user_courses ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP`);
+    await db.execute(sql`ALTER TABLE user_courses ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active'`);
+
+    // ── admins: role + display name + login tracking ─────────────────────────────
+    await db.execute(sql`ALTER TABLE admins ADD COLUMN IF NOT EXISTS display_name TEXT`);
+    await db.execute(sql`ALTER TABLE admins ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'super_admin'`);
+    await db.execute(sql`ALTER TABLE admins ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP`);
+    await db.execute(sql`ALTER TABLE admins ADD COLUMN IF NOT EXISTS last_login_ip TEXT`);
+
+    // ── course_access_logs: full audit trail ─────────────────────────────────────
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS course_access_logs (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        playlist_id INTEGER NOT NULL,
+        action TEXT NOT NULL,
+        admin_id INTEGER,
+        admin_name TEXT,
+        admin_role TEXT,
+        grant_source TEXT,
+        reason TEXT,
+        ip TEXT,
+        user_agent TEXT,
+        extra_data JSONB,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS course_access_logs_user_idx ON course_access_logs(user_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS course_access_logs_playlist_idx ON course_access_logs(playlist_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS course_access_logs_admin_idx ON course_access_logs(admin_id)`);
 
     // plan_courses junction table (plans ↔ playlists many-to-many)
     await db.execute(sql`
@@ -259,7 +260,7 @@ async function ensureSeed() {
       const existing = admins.find(a => a.username === "rabah");
       if (existing) {
         await db.update(adminsTable)
-          .set({ passwordHash: adminHash })
+          .set({ passwordHash: adminHash, displayName: (existing as any).displayName ?? "Rabah – Super Admin", role: (existing as any).role ?? "super_admin" } as any)
           .where(eq(adminsTable.id, existing.id));
         console.log("[seed] Admin password synced (username: rabah)");
       }
