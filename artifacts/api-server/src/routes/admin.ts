@@ -1612,15 +1612,22 @@ router.delete("/admin/playlists/:id", adminAuth, async (req, res) => {
 router.get("/admin/subscription-plans", adminAuth, async (_req, res) => {
   try {
     const plans = await db.select().from(subscriptionPlansTable);
-    const courseCounts = await db
-      .select({ planId: planCoursesTable.planId, count: count() })
-      .from(planCoursesTable)
-      .groupBy(planCoursesTable.planId);
-    const countMap = Object.fromEntries(courseCounts.map(r => [r.planId, r.count]));
+    let countMap: Record<number, number> = {};
+    try {
+      const courseCounts = await db
+        .select({ planId: planCoursesTable.planId, cnt: count() })
+        .from(planCoursesTable)
+        .groupBy(planCoursesTable.planId);
+      countMap = Object.fromEntries(courseCounts.map(r => [r.planId, Number(r.cnt)]));
+    } catch (countErr) {
+      console.error("[admin/plans] courseCount query failed (non-fatal):", countErr instanceof Error ? countErr.message : countErr);
+    }
     const result = plans.map(p => ({ ...p, courseCount: countMap[p.id] ?? 0 }));
     res.json(result);
   } catch (error: unknown) {
-    res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" || "Failed to fetch plans" });
+    const msg = error instanceof Error ? error.message : "Failed to fetch plans";
+    const cause = (error as any)?.cause?.message;
+    res.status(500).json({ message: cause ? `${msg} | ${cause}` : msg });
   }
 });
 
