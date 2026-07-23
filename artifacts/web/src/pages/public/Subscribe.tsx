@@ -5,10 +5,11 @@ import { SubscriptionPlan } from "@workspace/api-client-react/src/generated/api.
 import { useAuth } from "@/lib/auth";
 import { Button, Badge, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label } from "@/components/ui";
 import {
-  Crown, Check, ArrowRight, Zap, Infinity, Clock, MessageCircle,
+  Crown, Check, ArrowRight, Zap, Clock, MessageCircle,
   Copy, CheckCheck, Upload, Loader2, X, ImageIcon, Send, BookOpen,
-  ShieldCheck, Star, Play, ChevronRight,
+  ShieldCheck, Star, Play, ChevronRight, Headphones, Timer,
 } from "lucide-react";
+import { Infinity as InfinityIcon } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 
@@ -34,8 +35,87 @@ function durationLabel(days: number | null | undefined): string {
 
 function planIcon(type: string) {
   if (type === "demo") return <Clock className="w-5 h-5" />;
-  if (type === "lifetime") return <Infinity className="w-5 h-5" />;
+  if (type === "lifetime") return <InfinityIcon className="w-5 h-5" />;
   return <Zap className="w-5 h-5" />;
+}
+
+/* ── Premium WhatsApp Button ─────────────────────────────────────── */
+function WhatsAppButton({ onClick, size = "md" }: { onClick: () => void; size?: "sm" | "md" }) {
+  const isLg = size === "md";
+  return (
+    <motion.button
+      onClick={onClick}
+      whileHover={{ y: -2, scale: 1.02 }}
+      whileTap={{ scale: 0.97 }}
+      transition={{ duration: 0.2 }}
+      className={`group relative flex flex-col items-center justify-center gap-0.5 rounded-2xl font-bold overflow-hidden
+        bg-gradient-to-br from-[#25D366] via-[#20c45c] to-[#128C7E]
+        shadow-lg shadow-green-500/30 hover:shadow-xl hover:shadow-green-500/40
+        border border-green-400/30 transition-shadow duration-300
+        ${isLg ? "px-6 py-3.5 min-w-[200px]" : "px-5 py-3 min-w-[160px]"}`}
+    >
+      {/* Shimmer overlay */}
+      <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out pointer-events-none" />
+      {/* Pulse ring */}
+      <span className="absolute inset-0 rounded-2xl ring-2 ring-green-400/0 group-hover:ring-green-400/30 transition-all duration-300" />
+
+      <div className="flex items-center gap-2.5 text-white relative">
+        <motion.div
+          animate={{ scale: [1, 1.15, 1] }}
+          transition={{ repeat: Infinity, duration: 2.5, ease: "easeInOut" }}
+        >
+          <MessageCircle className={`fill-white/20 stroke-white ${isLg ? "w-5 h-5" : "w-4.5 h-4.5"}`} />
+        </motion.div>
+        <span className={isLg ? "text-base" : "text-sm"}>استفسر عبر واتساب</span>
+      </div>
+      <span className="text-green-100/80 text-xs font-normal relative">رد في أقل من 5 دقائق</span>
+    </motion.button>
+  );
+}
+
+/* ── Contact (Secondary) Button ─────────────────────────────────── */
+function ContactButton({ onClick, size = "md" }: { onClick: () => void; size?: "sm" | "md" }) {
+  const isLg = size === "md";
+  return (
+    <motion.button
+      onClick={onClick}
+      whileHover={{ y: -2, scale: 1.02 }}
+      whileTap={{ scale: 0.97 }}
+      transition={{ duration: 0.2 }}
+      className={`group flex flex-col items-center justify-center gap-0.5 rounded-2xl font-bold
+        bg-background border-2 border-primary/50 text-primary
+        hover:bg-primary hover:border-primary hover:text-white
+        shadow-sm hover:shadow-lg hover:shadow-primary/25
+        transition-all duration-300
+        ${isLg ? "px-6 py-3.5 min-w-[200px]" : "px-5 py-3 min-w-[160px]"}`}
+    >
+      <div className="flex items-center gap-2.5 relative">
+        <Headphones className={isLg ? "w-5 h-5" : "w-4 h-4"} />
+        <span className={isLg ? "text-base" : "text-sm"}>تحدث مع مستشارنا</span>
+      </div>
+      <span className="text-xs font-normal opacity-70">خدمة مباشرة ومجانية</span>
+    </motion.button>
+  );
+}
+
+/* ── Trust Strip ─────────────────────────────────────────────────── */
+function TrustStrip() {
+  const items = [
+    { icon: "🟢", label: "رد سريع" },
+    { icon: "🛡️", label: "دعم مباشر" },
+    { icon: "✅", label: "تفعيل بعد التأكيد" },
+    { icon: "💬", label: "خدمة عبر واتساب" },
+  ];
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 mt-5">
+      {items.map(it => (
+        <div key={it.label} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span className="text-sm">{it.icon}</span>
+          <span>{it.label}</span>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function CopyButton({ value }: { value: string }) {
@@ -425,11 +505,7 @@ function PlanCard({ plan, index, onSubscribe, onWhatsApp }: {
             {!isDemo && <ChevronRight className="w-4 h-4 mr-1" />}
           </Button>
           {!isDemo && (
-            <button onClick={onWhatsApp}
-              className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm text-green-400 hover:text-green-300 hover:bg-green-500/10 transition-all font-medium">
-              <MessageCircle className="w-4 h-4" />
-              استفسر عبر واتساب
-            </button>
+            <WhatsAppButton onClick={onWhatsApp} size="sm" />
           )}
         </div>
       </div>
@@ -471,11 +547,12 @@ export function Subscribe() {
           <p className="text-lg text-foreground/60 max-w-xl mx-auto mb-6">
             اختر الباقة المناسبة وتمتع بوصول كامل للدورات الاحترافية
           </p>
-          <button onClick={openWhatsApp}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-green-500/10 border border-green-500/30 text-green-400 hover:bg-green-500/20 transition-all font-medium text-sm">
-            <MessageCircle className="w-4 h-4" />
-            تواصل معنا مباشرة عبر واتساب
-          </button>
+          {/* Premium CTA buttons */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full sm:w-auto">
+            <WhatsAppButton onClick={openWhatsApp} />
+            <ContactButton onClick={openWhatsApp} />
+          </div>
+          <TrustStrip />
         </motion.div>
 
         {/* Plans grid */}
@@ -531,11 +608,24 @@ export function Subscribe() {
       </div>
 
       {/* Floating WhatsApp */}
-      <motion.button initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.6, type: "spring" }}
+      <motion.button
+        initial={{ scale: 0, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ delay: 0.7, type: "spring", stiffness: 200 }}
+        whileHover={{ scale: 1.1, y: -2 }}
+        whileTap={{ scale: 0.93 }}
         onClick={openWhatsApp}
-        className="fixed bottom-6 left-6 w-14 h-14 rounded-full bg-green-500 hover:bg-green-400 shadow-2xl shadow-green-500/40 flex items-center justify-center z-50 transition-colors"
-        title="تواصل عبر واتساب">
-        <MessageCircle className="w-7 h-7 text-white" />
+        className="fixed bottom-6 left-6 z-50 flex flex-col items-center justify-center w-16 h-16 rounded-2xl
+          bg-gradient-to-br from-[#25D366] via-[#20c45c] to-[#128C7E]
+          shadow-2xl shadow-green-500/50 border border-green-400/30
+          transition-shadow duration-300 hover:shadow-[0_8px_30px_rgba(37,211,102,0.5)]"
+        title="تواصل عبر واتساب"
+      >
+        <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 2.5 }}>
+          <MessageCircle className="w-7 h-7 text-white fill-white/20" />
+        </motion.div>
+        {/* Ping ring */}
+        <span className="absolute inset-0 rounded-2xl animate-ping bg-green-400/20 pointer-events-none" />
       </motion.button>
 
       {/* Payment Dialog */}
