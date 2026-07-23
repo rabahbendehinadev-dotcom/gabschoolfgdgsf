@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, text, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, varchar, text, timestamp, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -9,6 +9,8 @@ export const adminsTable = pgTable("admins", {
   passwordHash: text("password_hash").notNull(),
   displayName: text("display_name"),
   role: text("role").notNull().default("super_admin"),
+  isActive: boolean("is_active").notNull().default(true),
+  permissions: text("permissions"),
   lastLoginAt: timestamp("last_login_at"),
   lastLoginIp: text("last_login_ip"),
 });

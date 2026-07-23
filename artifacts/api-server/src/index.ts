@@ -234,6 +234,10 @@ async function runMigrations() {
     await db.execute(sql`ALTER TABLE activity_logs ADD COLUMN IF NOT EXISTS admin_name TEXT`);
     await db.execute(sql`ALTER TABLE activity_logs ADD COLUMN IF NOT EXISTS admin_role TEXT`);
 
+    // ── admins: is_active + permissions ──────────────────────────────────────
+    await db.execute(sql`ALTER TABLE admins ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true`);
+    await db.execute(sql`ALTER TABLE admins ADD COLUMN IF NOT EXISTS permissions TEXT`);
+
     console.log("[migrations] Schema up to date.");
   } catch (err) {
     console.error("[migrations] Migration error:", err);

@@ -1003,7 +1003,7 @@ router.get("/admin/course-access-report", adminAuth, async (req, res) => {
 router.get("/admin/admins", adminAuth, async (req, res) => {
   try {
     const rows = await db.execute(sql`
-      SELECT id, username, email, display_name, role, last_login_at, last_login_ip
+      SELECT id, username, email, display_name, role, is_active, permissions, last_login_at, last_login_ip
       FROM admins ORDER BY id ASC
     `);
     res.json(rows.rows);
@@ -1017,8 +1017,10 @@ const CreateAdminBody = zod.object({
   username: zod.string().min(3).max(50),
   email: zod.string().email().optional().nullable(),
   password: zod.string().min(8),
-  displayName: zod.string().optional(),
+  displayName: zod.string().optional().nullable(),
   role: zod.enum(["super_admin", "subscription_manager", "support"]).default("support"),
+  isActive: zod.boolean().optional().default(true),
+  permissions: zod.array(zod.string()).optional().default([]),
 });
 router.post("/admin/admins", adminAuth, async (req, res) => {
   try {
@@ -1034,6 +1036,8 @@ router.post("/admin/admins", adminAuth, async (req, res) => {
       passwordHash,
       displayName: body.displayName ?? null,
       role: body.role,
+      isActive: body.isActive ?? true,
+      permissions: JSON.stringify(body.permissions ?? []),
     } as any).returning({ id: adminsTable.id, username: adminsTable.username });
     await logActivity(null, req.admin!.username, "create_admin",
       `أنشأ حساب إداري جديد: ${body.username} (${body.email ?? "—"}) دور: ${body.role}`,
@@ -1044,7 +1048,7 @@ router.post("/admin/admins", adminAuth, async (req, res) => {
   }
 });
 
-// PATCH /admin/admins/:id — update admin role, display name, or email (super_admin only)
+// PATCH /admin/admins/:id — update admin role, display name, email, active, permissions (super_admin only)
 router.patch("/admin/admins/:id", adminAuth, async (req, res) => {
   try {
     if (req.admin!.role !== "super_admin") {
@@ -1052,17 +1056,21 @@ router.patch("/admin/admins/:id", adminAuth, async (req, res) => {
       return;
     }
     const id = Number(req.params.id);
-    const { role, displayName, email, password } = zod.object({
+    const body = zod.object({
       role: zod.enum(["super_admin", "subscription_manager", "support"]).optional(),
       displayName: zod.string().optional().nullable(),
       email: zod.string().email().optional().nullable(),
       password: zod.string().min(8).optional(),
+      isActive: zod.boolean().optional(),
+      permissions: zod.array(zod.string()).optional(),
     }).parse(req.body);
     const updates: Record<string, unknown> = {};
-    if (role !== undefined) updates.role = role;
-    if (displayName !== undefined) updates.display_name = displayName ?? null;
-    if (email !== undefined) updates.email = email ?? null;
-    if (password) updates.password_hash = await hashPassword(password);
+    if (body.role !== undefined) updates.role = body.role;
+    if (body.displayName !== undefined) updates.display_name = body.displayName ?? null;
+    if (body.email !== undefined) updates.email = body.email ?? null;
+    if (body.password) updates.password_hash = await hashPassword(body.password);
+    if (body.isActive !== undefined) updates.is_active = body.isActive;
+    if (body.permissions !== undefined) updates.permissions = JSON.stringify(body.permissions);
     if (Object.keys(updates).length > 0) {
       const setParts = Object.entries(updates).map(([k, v]) => sql`${sql.raw(k)} = ${v}`);
       await db.execute(sql`UPDATE admins SET ${sql.join(setParts, sql`, `)} WHERE id = ${id}`);
