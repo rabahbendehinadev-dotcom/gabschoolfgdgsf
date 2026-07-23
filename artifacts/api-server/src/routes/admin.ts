@@ -1675,7 +1675,7 @@ router.get("/admin/subscription-plans/:id/courses", adminAuth, async (req, res) 
 router.put("/admin/subscription-plans/:id/courses", adminAuth, async (req, res) => {
   try {
     const planId = Number(req.params.id);
-    const newPlaylistIds: number[] = Array.isArray(req.body) ? req.body.map(Number) : [];
+    const newPlaylistIds: number[] = Array.isArray(req.body) ? req.body.map(Number).filter(n => !isNaN(n)) : [];
 
     const [plan] = await db.select().from(subscriptionPlansTable)
       .where(eq(subscriptionPlansTable.id, planId)).limit(1);
@@ -1693,33 +1693,49 @@ router.put("/admin/subscription-plans/:id/courses", adminAuth, async (req, res) 
       await db.insert(planCoursesTable).values(newPlaylistIds.map(pid => ({ planId, playlistId: pid })));
     }
 
-    const subscribers = await db
-      .select({ id: usersTable.id })
-      .from(usersTable)
-      .where(eq(usersTable.subscriptionType, plan.type));
-    const subIds = subscribers.map(u => u.id);
+    /* ── Subscriber sync (non-fatal) ─────────────────────────── */
+    let syncedSubscribers = 0;
+    try {
+      const subscribers = await db
+        .select({ id: usersTable.id })
+        .from(usersTable)
+        .where(eq(usersTable.subscriptionType, plan.type));
+      const subIds = subscribers.map(u => u.id);
+      syncedSubscribers = subIds.length;
 
-    if (subIds.length > 0) {
-      if (added.length > 0) {
-        const existing = await db.select({ userId: userCoursesTable.userId, playlistId: userCoursesTable.playlistId })
+      if (subIds.length > 0 && added.length > 0) {
+        const existing = await db
+          .select({ userId: userCoursesTable.userId, playlistId: userCoursesTable.playlistId })
           .from(userCoursesTable)
-          .where(and(inArray(userCoursesTable.userId, subIds), inArray(userCoursesTable.playlistId, added)));
+          .where(and(
+            inArray(userCoursesTable.userId, subIds),
+            inArray(userCoursesTable.playlistId, added),
+          ));
         const existSet = new Set(existing.map(r => `${r.userId}:${r.playlistId}`));
         const toInsert = subIds.flatMap(uid =>
           added.filter(pid => !existSet.has(`${uid}:${pid}`)).map(pid => ({ userId: uid, playlistId: pid }))
         );
         if (toInsert.length > 0) await db.insert(userCoursesTable).values(toInsert);
       }
-      if (removed.length > 0) {
+
+      if (subIds.length > 0 && removed.length > 0) {
         await db.delete(userCoursesTable).where(
-          and(inArray(userCoursesTable.userId, subIds), inArray(userCoursesTable.playlistId, removed))
+          and(
+            inArray(userCoursesTable.userId, subIds),
+            inArray(userCoursesTable.playlistId, removed),
+          )
         );
       }
+    } catch (syncErr) {
+      console.error("[admin/plans] subscriber sync failed (non-fatal):", syncErr instanceof Error ? syncErr.message : syncErr);
     }
 
-    res.json({ message: "Plan courses updated", added: added.length, removed: removed.length, subscribers: subIds.length });
+    res.json({ message: "Plan courses updated", added: added.length, removed: removed.length, subscribers: syncedSubscribers });
   } catch (error: unknown) {
-    res.status(500).json({ message: error instanceof Error ? error.message : "Failed to update plan courses" });
+    const msg = error instanceof Error ? error.message : "Failed to update plan courses";
+    const cause = (error as any)?.cause?.message;
+    console.error("[admin/plans] PUT courses error:", msg, cause ?? "");
+    res.status(500).json({ message: cause ? `${msg} | ${cause}` : msg });
   }
 });
 
