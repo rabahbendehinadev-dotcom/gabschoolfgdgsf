@@ -215,6 +215,16 @@ async function runMigrations() {
       console.warn("[migrations] VIP course grant skipped:", migErr instanceof Error ? migErr.message : migErr);
     }
 
+    // plan_courses junction table (plans ↔ playlists many-to-many)
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS plan_courses (
+        id SERIAL PRIMARY KEY,
+        plan_id INTEGER NOT NULL REFERENCES subscription_plans(id) ON DELETE CASCADE,
+        playlist_id INTEGER NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
+        CONSTRAINT plan_courses_unique UNIQUE (plan_id, playlist_id)
+      )
+    `);
+
     console.log("[migrations] Schema up to date.");
   } catch (err) {
     console.error("[migrations] Migration error:", err);
