@@ -226,6 +226,14 @@ async function runMigrations() {
       )
     `);
 
+    // ── admins: email field ───────────────────────────────────────────────────
+    await db.execute(sql`ALTER TABLE admins ADD COLUMN IF NOT EXISTS email TEXT`);
+
+    // ── activity_logs: admin attribution columns ──────────────────────────────
+    await db.execute(sql`ALTER TABLE activity_logs ADD COLUMN IF NOT EXISTS admin_id INTEGER`);
+    await db.execute(sql`ALTER TABLE activity_logs ADD COLUMN IF NOT EXISTS admin_name TEXT`);
+    await db.execute(sql`ALTER TABLE activity_logs ADD COLUMN IF NOT EXISTS admin_role TEXT`);
+
     console.log("[migrations] Schema up to date.");
   } catch (err) {
     console.error("[migrations] Migration error:", err);

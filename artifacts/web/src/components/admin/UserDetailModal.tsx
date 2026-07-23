@@ -315,7 +315,6 @@ export function UserDetailModal({ userId, onClose, getAdminAuthHeaders }: Props)
                           <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs pt-1 border-t" style={{ borderColor: "#E5E7EB" }}>
                             <span style={{ color: "#6B7280" }}>
                               👤 <span className="font-medium text-gray-800">{c.grantedBy ?? "غير معروف"}</span>
-                              {c.grantedBy && <span className="text-gray-400"> (Admin)</span>}
                             </span>
                             <span style={{ color: "#6B7280" }}>
                               📋 {GRANT_SOURCE_LABELS[c.grantSource ?? ""] ?? c.grantSource ?? "—"}

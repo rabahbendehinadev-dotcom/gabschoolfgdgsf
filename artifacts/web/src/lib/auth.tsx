@@ -140,6 +140,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const adminLogout = () => {
+    const token = localStorage.getItem("adminToken");
+    if (token) {
+      fetch("/api/auth/admin-logout", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      }).catch(() => {});
+    }
     localStorage.removeItem("adminToken");
     localStorage.removeItem("admin");
     setAdminTokenState(null);

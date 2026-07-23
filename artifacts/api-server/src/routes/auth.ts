@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { sendPushToAdmins } from "../lib/adminWebPush";
-import { db, usersTable, adminsTable, subscriptionPlansTable, activityLogsTable } from "@workspace/db";
-import { eq, and, gte, sql } from "drizzle-orm";
+import { db, usersTable, adminsTable, subscriptionPlansTable, activityLogsTable, adminSessionsTable } from "@workspace/db";
+import { eq, and, gte, sql, lt, count } from "drizzle-orm";
 
 import { hashPassword, comparePassword, generateToken, generateAdminToken } from "../lib/auth";
 import { applyVipIpPolicy, getClientIp, VIP_IP_LIMIT_MESSAGE } from "../lib/ipPolicy";
@@ -256,8 +256,12 @@ router.post("/auth/login", async (req, res) => {
 router.post("/auth/admin-login", async (req, res) => {
   try {
     const body = AdminLoginBody.parse(req.body);
+
+    // Allow login by username OR email
     const [admin] = await db.select().from(adminsTable)
-      .where(eq(adminsTable.username, body.email)).limit(1);
+      .where(
+        sql`LOWER(username) = LOWER(${body.email}) OR (email IS NOT NULL AND LOWER(email) = LOWER(${body.email}))`
+      ).limit(1);
 
     if (!admin) {
       res.status(401).json({ message: "Invalid credentials" });
@@ -271,21 +275,93 @@ router.post("/auth/admin-login", async (req, res) => {
     }
 
     const token = generateAdminToken({ adminId: admin.id });
-
     const clientIp = (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ?? req.ip ?? null;
+    const ua = req.headers["user-agent"] ?? null;
+    const now = new Date();
+
+    // Check for existing active sessions (concurrent detection)
+    const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const [{ activeSessions }] = await db
+      .select({ activeSessions: count() })
+      .from(adminSessionsTable)
+      .where(and(eq(adminSessionsTable.adminId, admin.id), gte(adminSessionsTable.expiresAt, now)));
+
+    // Delete expired sessions for this admin
+    await db.delete(adminSessionsTable)
+      .where(and(eq(adminSessionsTable.adminId, admin.id), lt(adminSessionsTable.expiresAt, now)));
+
+    // Create new session
+    await db.insert(adminSessionsTable).values({
+      adminId: admin.id,
+      token,
+      ipAddress: clientIp,
+      expiresAt,
+    });
+
+    // Update login tracking
     await db.execute(sql`UPDATE admins SET last_login_at = NOW(), last_login_ip = ${clientIp} WHERE id = ${admin.id}`);
+
+    // Log admin login to activity logs
+    await db.insert(activityLogsTable).values({
+      action: "admin_login",
+      details: `تسجيل دخول: ${(admin as any).displayName ?? admin.username} (${(admin as any).role ?? "super_admin"}) من IP: ${clientIp}`,
+      ipAddress: clientIp,
+      userAgent: ua,
+      adminId: admin.id,
+      adminName: (admin as any).displayName ?? admin.username,
+      adminRole: (admin as any).role ?? "super_admin",
+    } as any).catch(() => {});
 
     res.json({
       token,
+      concurrentSessions: Number(activeSessions),
       admin: {
         id: admin.id,
         username: admin.username,
+        email: (admin as any).email ?? null,
         displayName: (admin as any).displayName ?? null,
         role: (admin as any).role ?? "super_admin",
       },
     });
   } catch (error: unknown) {
     res.status(400).json({ message: error instanceof Error ? error.message : "Unknown error" || "Admin login failed" });
+  }
+});
+
+router.post("/auth/admin-logout", async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    const token = authHeader?.startsWith("Bearer ") ? authHeader.substring(7) : null;
+    if (token) {
+      // Get admin info before deleting session
+      const [session] = await db.select().from(adminSessionsTable)
+        .where(eq(adminSessionsTable.token, token)).limit(1);
+
+      if (session) {
+        const [admin] = await db.select().from(adminsTable)
+          .where(eq(adminsTable.id, session.adminId)).limit(1);
+
+        // Delete session
+        await db.delete(adminSessionsTable).where(eq(adminSessionsTable.token, token));
+
+        // Log logout
+        if (admin) {
+          const clientIp = (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ?? req.ip ?? null;
+          await db.insert(activityLogsTable).values({
+            action: "admin_logout",
+            details: `تسجيل خروج: ${(admin as any).displayName ?? admin.username} (${(admin as any).role ?? "super_admin"})`,
+            ipAddress: clientIp,
+            userAgent: req.headers["user-agent"] ?? null,
+            adminId: admin.id,
+            adminName: (admin as any).displayName ?? admin.username,
+            adminRole: (admin as any).role ?? "super_admin",
+          } as any).catch(() => {});
+        }
+      }
+    }
+    res.json({ ok: true });
+  } catch {
+    res.json({ ok: true });
   }
 });
 

@@ -46,10 +46,36 @@ const CreateSubscriptionPlanBody = zod.object({
   isHidden: zod.boolean().optional().default(false),
 });
 
-async function logActivity(userId: number | null, username: string | null, action: string, details?: string, ip?: string) {
+interface AdminCtx { adminId?: number; adminName?: string; adminRole?: string }
+
+async function logActivity(
+  userId: number | null,
+  username: string | null,
+  action: string,
+  details?: string,
+  ip?: string,
+  adminCtx?: AdminCtx,
+) {
   try {
-    await db.insert(activityLogsTable).values({ userId, username, action, details: details || null, ipAddress: ip || null });
+    await db.insert(activityLogsTable).values({
+      userId,
+      username,
+      action,
+      details: details || null,
+      ipAddress: ip || null,
+      ...(adminCtx?.adminId != null ? { adminId: adminCtx.adminId } : {}),
+      ...(adminCtx?.adminName ? { adminName: adminCtx.adminName } : {}),
+      ...(adminCtx?.adminRole ? { adminRole: adminCtx.adminRole } : {}),
+    } as any);
   } catch (_) { }
+}
+
+function adminCtxFrom(req: { admin?: { id: number; username: string; displayName: string | null; role: string } }): AdminCtx {
+  return {
+    adminId: req.admin?.id,
+    adminName: req.admin?.displayName ?? req.admin?.username,
+    adminRole: req.admin?.role,
+  };
 }
 
 const uploadsDir = path.join(process.cwd(), "uploads");
@@ -324,10 +350,10 @@ router.post("/admin/users/bulk-action", adminAuth, async (req, res) => {
 
     if (action === "block") {
       await db.update(usersTable).set({ isActive: false }).where(inArray(usersTable.id, userIds));
-      await logActivity(null, adminName, "bulk_block", `حظر ${userIds.length} مستخدم`);
+      await logActivity(null, adminName, "bulk_block", `حظر ${userIds.length} مستخدم`, req.ip, adminCtxFrom(req));
     } else if (action === "unblock") {
       await db.update(usersTable).set({ isActive: true }).where(inArray(usersTable.id, userIds));
-      await logActivity(null, adminName, "bulk_unblock", `رفع الحظر عن ${userIds.length} مستخدم`);
+      await logActivity(null, adminName, "bulk_unblock", `رفع الحظر عن ${userIds.length} مستخدم`, req.ip, adminCtxFrom(req));
     } else if (action === "reset_ip") {
       await db.update(usersTable)
         .set({ ipAddress: null, ipAddress2: null, ipFirstSeenAt: null })
@@ -523,7 +549,9 @@ router.delete("/admin/users/:id", adminAuth, async (req, res) => {
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, id)).limit(1);
     await db.delete(visitLogsTable).where(eq(visitLogsTable.userId, id));
     await db.delete(usersTable).where(eq(usersTable.id, id));
-    if (user) await logActivity(null, "admin", "user_deleted", `Deleted user: ${user.username} (${user.email})`);
+    if (user) await logActivity(null, req.admin!.username, "user_deleted",
+      `حذف مستخدم: ${user.username} (${user.email})`,
+      req.ip, adminCtxFrom(req));
     res.json({ message: "User deleted successfully" });
   } catch (error: unknown) {
     res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" || "Failed to delete user" });
@@ -537,7 +565,9 @@ router.post("/admin/users/:id/block", adminAuth, async (req, res) => {
     if (!existing) { res.status(404).json({ message: "User not found" }); return; }
     const newStatus = !existing.isActive;
     const [user] = await db.update(usersTable).set({ isActive: newStatus }).where(eq(usersTable.id, id)).returning();
-    await logActivity(id, existing.username, newStatus ? "user_unblocked" : "user_blocked", `Admin ${newStatus ? "unblocked" : "blocked"} user: ${existing.username}`);
+    await logActivity(id, existing.username, newStatus ? "user_unblocked" : "user_blocked",
+      `${req.admin!.displayName ?? req.admin!.username} ${newStatus ? "رفع الحظر عن" : "حظر"} المستخدم: ${existing.username}`,
+      req.ip, adminCtxFrom(req));
     res.json({ id: user.id, isActive: user.isActive });
   } catch (error: unknown) {
     res.status(500).json({ message: error instanceof Error ? error.message : "Failed to block/unblock user" });
@@ -551,7 +581,9 @@ router.delete("/admin/users/:id/subscription", adminAuth, async (req, res) => {
       .set({ subscriptionType: "demo", subscriptionExpiresAt: null, accountType: "normal" })
       .where(eq(usersTable.id, id)).returning();
     if (!user) { res.status(404).json({ message: "User not found" }); return; }
-    await logActivity(id, user.username, "subscription_deleted", `Subscription reset to demo for: ${user.username}`);
+    await logActivity(id, user.username, "subscription_deleted",
+      `إلغاء اشتراك: ${user.username} — بواسطة ${req.admin!.displayName ?? req.admin!.username}`,
+      req.ip, adminCtxFrom(req));
     res.json({ message: "Subscription deleted" });
   } catch (error: unknown) {
     res.status(500).json({ message: error instanceof Error ? error.message : "Failed to delete subscription" });
@@ -971,7 +1003,7 @@ router.get("/admin/course-access-report", adminAuth, async (req, res) => {
 router.get("/admin/admins", adminAuth, async (req, res) => {
   try {
     const rows = await db.execute(sql`
-      SELECT id, username, display_name, role, last_login_at, last_login_ip
+      SELECT id, username, email, display_name, role, last_login_at, last_login_ip
       FROM admins ORDER BY id ASC
     `);
     res.json(rows.rows);
@@ -983,6 +1015,7 @@ router.get("/admin/admins", adminAuth, async (req, res) => {
 // POST /admin/admins — create a new admin (super_admin only)
 const CreateAdminBody = zod.object({
   username: zod.string().min(3).max(50),
+  email: zod.string().email().optional().nullable(),
   password: zod.string().min(8),
   displayName: zod.string().optional(),
   role: zod.enum(["super_admin", "subscription_manager", "support"]).default("support"),
@@ -997,19 +1030,21 @@ router.post("/admin/admins", adminAuth, async (req, res) => {
     const passwordHash = await hashPassword(body.password);
     const [created] = await db.insert(adminsTable).values({
       username: body.username,
+      email: body.email ?? null,
       passwordHash,
       displayName: body.displayName ?? null,
       role: body.role,
     } as any).returning({ id: adminsTable.id, username: adminsTable.username });
     await logActivity(null, req.admin!.username, "create_admin",
-      `أنشأ حساب إداري جديد: ${body.username} (دور: ${body.role})`);
+      `أنشأ حساب إداري جديد: ${body.username} (${body.email ?? "—"}) دور: ${body.role}`,
+      undefined, adminCtxFrom(req));
     res.status(201).json({ ok: true, admin: created });
   } catch (error: unknown) {
     res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" });
   }
 });
 
-// PATCH /admin/admins/:id — update admin role or display name (super_admin only)
+// PATCH /admin/admins/:id — update admin role, display name, or email (super_admin only)
 router.patch("/admin/admins/:id", adminAuth, async (req, res) => {
   try {
     if (req.admin!.role !== "super_admin") {
@@ -1017,19 +1052,67 @@ router.patch("/admin/admins/:id", adminAuth, async (req, res) => {
       return;
     }
     const id = Number(req.params.id);
-    const { role, displayName } = zod.object({
+    const { role, displayName, email, password } = zod.object({
       role: zod.enum(["super_admin", "subscription_manager", "support"]).optional(),
       displayName: zod.string().optional().nullable(),
+      email: zod.string().email().optional().nullable(),
+      password: zod.string().min(8).optional(),
     }).parse(req.body);
-    await db.execute(sql`
-      UPDATE admins SET
-        role = COALESCE(${role ?? null}, role),
-        display_name = ${displayName !== undefined ? (displayName ?? null) : sql`display_name`}
-      WHERE id = ${id}
-    `);
+    const updates: Record<string, unknown> = {};
+    if (role !== undefined) updates.role = role;
+    if (displayName !== undefined) updates.display_name = displayName ?? null;
+    if (email !== undefined) updates.email = email ?? null;
+    if (password) updates.password_hash = await hashPassword(password);
+    if (Object.keys(updates).length > 0) {
+      const setParts = Object.entries(updates).map(([k, v]) => sql`${sql.raw(k)} = ${v}`);
+      await db.execute(sql`UPDATE admins SET ${sql.join(setParts, sql`, `)} WHERE id = ${id}`);
+    }
     await logActivity(null, req.admin!.username, "update_admin",
-      `تعديل حساب مسؤول #${id}: role=${role ?? "—"}, displayName=${displayName ?? "—"}`);
+      `تعديل حساب مسؤول #${id}: ${Object.keys(updates).join(", ")}`,
+      undefined, adminCtxFrom(req));
     res.json({ ok: true });
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
+// DELETE /admin/admins/:id — delete admin account (super_admin only, cannot delete self)
+router.delete("/admin/admins/:id", adminAuth, async (req, res) => {
+  try {
+    if (req.admin!.role !== "super_admin") {
+      res.status(403).json({ message: "فقط Super Admin يمكنه حذف حسابات المسؤولين" });
+      return;
+    }
+    const id = Number(req.params.id);
+    if (id === req.admin!.id) {
+      res.status(400).json({ message: "لا يمكنك حذف حسابك الخاص" });
+      return;
+    }
+    const [deleted] = await db.delete(adminsTable).where(eq(adminsTable.id, id)).returning({ username: adminsTable.username });
+    if (!deleted) { res.status(404).json({ message: "المسؤول غير موجود" }); return; }
+    await logActivity(null, req.admin!.username, "delete_admin",
+      `حذف حساب مسؤول: ${deleted.username}`,
+      undefined, adminCtxFrom(req));
+    res.json({ ok: true });
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
+// GET /admin/admin-audit-log — admin-specific activity log
+router.get("/admin/admin-audit-log", adminAuth, async (req, res) => {
+  try {
+    const limit = Math.min(Number(req.query.limit) || 200, 500);
+    const adminId = req.query.adminId ? Number(req.query.adminId) : null;
+    const rows = await db.execute(sql`
+      SELECT id, admin_id, admin_name, admin_role, action, details, ip_address, user_agent, created_at
+      FROM activity_logs
+      WHERE admin_id IS NOT NULL
+        ${adminId ? sql`AND admin_id = ${adminId}` : sql``}
+      ORDER BY created_at DESC
+      LIMIT ${limit}
+    `);
+    res.json(rows.rows);
   } catch (error: unknown) {
     res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" });
   }

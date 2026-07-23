@@ -22,6 +22,7 @@ declare global {
       admin?: {
         id: number;
         username: string;
+        email: string | null;
         displayName: string | null;
         role: string;
       };
@@ -198,6 +199,12 @@ export async function adminAuth(req: Request, res: Response, next: NextFunction)
     return;
   }
 
-  req.admin = { id: admin.id, username: admin.username, displayName: (admin as any).displayName ?? null, role: (admin as any).role ?? "super_admin" };
+  req.admin = {
+    id: admin.id,
+    username: admin.username,
+    email: (admin as any).email ?? null,
+    displayName: (admin as any).displayName ?? null,
+    role: (admin as any).role ?? "super_admin",
+  };
   next();
 }

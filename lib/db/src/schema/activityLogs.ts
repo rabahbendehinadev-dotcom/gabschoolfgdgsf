@@ -11,6 +11,9 @@ export const activityLogsTable = pgTable("activity_logs", {
   userAgent: text("user_agent"),
   videoId: integer("video_id"),
   videoTitle: varchar("video_title", { length: 255 }),
+  adminId: integer("admin_id"),
+  adminName: text("admin_name"),
+  adminRole: text("admin_role"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

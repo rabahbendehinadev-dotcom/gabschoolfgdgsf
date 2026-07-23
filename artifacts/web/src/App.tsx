@@ -38,6 +38,8 @@ import { AdminCommunity } from "@/pages/admin/AdminCommunity";
 import { AdminTools } from "@/pages/admin/AdminTools";
 import { AdminToolCategories } from "@/pages/admin/AdminToolCategories";
 import { AdminSubscriptionAlerts } from "@/pages/admin/SubscriptionAlerts";
+import { AdminAdmins } from "@/pages/admin/AdminAdmins";
+import { AdminAuditLog } from "@/pages/admin/AdminAuditLog";
 import { NotificationGate } from "@/components/notifications/NotificationGate";
 import NotFound from "@/pages/not-found";
 
@@ -181,6 +183,12 @@ function Router() {
       </Route>
       <Route path="/gab-ctrl-9x/tool-categories">
         <AdminLayout><AdminToolCategories /></AdminLayout>
+      </Route>
+      <Route path="/gab-ctrl-9x/admins">
+        <AdminLayout><AdminAdmins /></AdminLayout>
+      </Route>
+      <Route path="/gab-ctrl-9x/admin-audit">
+        <AdminLayout><AdminAuditLog /></AdminLayout>
       </Route>
       <Route><PublicRoutes /></Route>
     </Switch>

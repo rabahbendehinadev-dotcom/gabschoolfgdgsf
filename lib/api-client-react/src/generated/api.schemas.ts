@@ -81,6 +81,9 @@ export interface AuthResponse {
 export type AdminAuthResponseAdmin = {
   id: number;
   username: string;
+  email?: string | null;
+  displayName?: string | null;
+  role?: string | null;
 };
 
 export interface AdminAuthResponse {

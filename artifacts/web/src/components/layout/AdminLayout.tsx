@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, Video, FolderTree, CreditCard, LogOut,
   ShieldAlert, Activity, BadgeCheck, Banknote, KeyRound, Wrench,
   Megaphone, Bell, BellOff, BellRing, X, Share, PlusSquare, Menu,
-  AlertTriangle, GraduationCap, MessageSquare,
+  AlertTriangle, GraduationCap, MessageSquare, UserCog, ClipboardList,
 } from "lucide-react";
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
@@ -119,6 +119,13 @@ const NAV_SECTIONS = [
       { name: "Mot de passe",         path: "/gab-ctrl-9x/change-password",     icon: KeyRound },
     ],
   },
+  {
+    section: "Administration",
+    items: [
+      { name: "Comptes admins",       path: "/gab-ctrl-9x/admins",              icon: UserCog },
+      { name: "Journal d'audit admin",path: "/gab-ctrl-9x/admin-audit",         icon: ClipboardList },
+    ],
+  },
 ];
 
 /* flat list for breadcrumb lookup */
@@ -185,14 +192,22 @@ function NavLinks({ location, onNavigate }: { location: string; onNavigate?: () 
 }
 
 /* ── Brand logo block ────────────────────────────────────────────────────── */
-function SidebarBrand({ username, pushReady, subscribed, loading, subscribe, unsubscribe }: {
+const SIDEBAR_ROLE_STYLES: Record<string, { label: string; color: string; bg: string }> = {
+  super_admin:          { label: "Super Admin",     color: "#7C3AED", bg: "#EDE9FE" },
+  subscription_manager: { label: "Sub. Manager",    color: "#0369A1", bg: "#E0F2FE" },
+  support:              { label: "Support",         color: "#065F46", bg: "#D1FAE5" },
+};
+
+function SidebarBrand({ username, role, pushReady, subscribed, loading, subscribe, unsubscribe }: {
   username: string;
+  role?: string | null;
   pushReady: boolean;
   subscribed: boolean | null;
   loading: boolean;
   subscribe: () => void;
   unsubscribe: () => void;
 }) {
+  const rs = role ? (SIDEBAR_ROLE_STYLES[role] ?? { label: role, color: "#64748B", bg: "#F1F5F9" }) : null;
   return (
     <div className="ad-sidebar-brand">
       <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
@@ -205,7 +220,14 @@ function SidebarBrand({ username, pushReady, subscribed, loading, subscribe, uns
         }}>G</div>
         <div>
           <h1>GAB School</h1>
-          <p>{username}</p>
+          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <p style={{ margin: 0 }}>{username}</p>
+            {rs && (
+              <span style={{ fontSize: 9.5, fontWeight: 700, padding: "1px 5px", borderRadius: 99, background: rs.bg, color: rs.color, letterSpacing: "0.02em", lineHeight: 1.4 }}>
+                {rs.label}
+              </span>
+            )}
+          </div>
         </div>
       </div>
       {pushReady && (
@@ -344,7 +366,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
           <div style={{ width: 30, height: 30, borderRadius: 7, background: "linear-gradient(135deg,#2563EB,#1D4ED8)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, fontSize: 13, flexShrink: 0 }}>G</div>
           <div style={{ flex: 1 }}>
             <p style={{ fontWeight: 700, fontSize: 13, color: "#0F172A" }}>GAB School</p>
-            <p style={{ fontSize: 11, color: "#94A3B8", marginTop: 1 }}>{admin.username}</p>
+            <p style={{ fontSize: 11, color: "#94A3B8", marginTop: 1 }}>{(admin as any).displayName ?? admin.username}</p>
           </div>
           {pushReady && <BellButton subscribed={subscribed} loading={loading} subscribe={subscribe} unsubscribe={unsubscribe} />}
           <button onClick={() => setDrawerOpen(false)}
@@ -378,7 +400,8 @@ export function AdminLayout({ children }: { children: ReactNode }) {
       ══════════════════════════════════════════════════════════ */}
       <aside className="ad-sidebar hidden md:flex" style={{ position: "sticky", top: 0, height: "100vh" }}>
         <SidebarBrand
-          username={admin.username}
+          username={(admin as any).displayName ?? admin.username}
+          role={(admin as any).role}
           pushReady={pushReady}
           subscribed={subscribed}
           loading={loading}

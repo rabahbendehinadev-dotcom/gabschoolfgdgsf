@@ -29,7 +29,17 @@ export function AdminLogin() {
     loginMut.mutate({ data }, {
       onSuccess: (res) => {
         setAdminAuth(res.token, res.admin);
-        toast({ title: "Connexion réussie", className: "bg-green-600 text-white" });
+        const concurrent = (res as any).concurrentSessions as number | undefined;
+        if (concurrent && concurrent > 0) {
+          toast({
+            variant: "destructive",
+            title: `⚠️ Session simultanée détectée`,
+            description: `${concurrent} autre${concurrent > 1 ? "s sessions actives" : " session active"} sur ce compte. Vérifiez que ce n'est pas un accès non autorisé.`,
+            duration: 8000,
+          });
+        } else {
+          toast({ title: "Connexion réussie", className: "bg-green-600 text-white" });
+        }
         navigate("/gab-ctrl-9x");
       },
       onError: () => {
