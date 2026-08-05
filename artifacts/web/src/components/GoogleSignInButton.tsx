@@ -10,8 +10,22 @@ declare global {
     google?: {
       accounts?: {
         id?: {
-          initialize: (config: { client_id: string; callback: (resp: { credential?: string }) => void }) => void;
+          initialize: (config: {
+            client_id: string;
+            callback: (resp: { credential?: string }) => void;
+            cancel_on_tap_outside?: boolean;
+            use_fedcm_for_prompt?: boolean;
+          }) => void;
           renderButton: (el: HTMLElement, options: Record<string, unknown>) => void;
+          prompt: (notification?: (n: {
+            isDisplayed: () => boolean;
+            isNotDisplayed: () => boolean;
+            isSkippedMoment: () => boolean;
+            isDismissedMoment: () => boolean;
+            getDismissedReason: () => string;
+            getNotDisplayedReason: () => string;
+          }) => void) => void;
+          cancel: () => void;
         };
       };
     };
@@ -28,6 +42,8 @@ function loadGisScript(): Promise<void> {
   window.__gisScriptLoading = new Promise<void>((resolve, reject) => {
     const existing = document.querySelector<HTMLScriptElement>(`script[src="${GIS_SRC}"]`);
     if (existing) {
+      // Script tag exists but may still be loading
+      if (window.google?.accounts?.id) { resolve(); return; }
       existing.addEventListener("load", () => resolve());
       existing.addEventListener("error", () => reject(new Error("Failed to load Google script")));
       return;
@@ -58,6 +74,7 @@ function GoogleIcon({ className = "h-6 w-6" }: { className?: string }) {
 type GisStatus = "loading" | "ready" | "error";
 
 export function GoogleSignInButton({ redirectTo = "/videos" }: { redirectTo?: string }) {
+  void redirectTo; // kept for API compatibility; navigation handled in handleCredential
   const { setAuth } = useAuth();
   const { toast } = useToast();
   const [, navigate] = useLocation();
@@ -68,6 +85,8 @@ export function GoogleSignInButton({ redirectTo = "/videos" }: { redirectTo?: st
   const [clientId, setClientId] = useState<string | null>(null);
   const [configLoaded, setConfigLoaded] = useState(false);
   const [gisStatus, setGisStatus] = useState<GisStatus>("loading");
+  // Whether the GIS renderButton actually injected an iframe into buttonRef
+  const [gisRendered, setGisRendered] = useState(false);
 
   const navigateAfterLogin = useCallback(async (token: string, phone: string | null | undefined) => {
     if (!phone) { navigate("/complete-phone"); return; }
@@ -96,7 +115,7 @@ export function GoogleSignInButton({ redirectTo = "/videos" }: { redirectTo?: st
         toast({ variant: "destructive", title: "فشل تسجيل الدخول عبر Google", description });
       },
     });
-  }, [googleLoginMut, setAuth, toast, navigate, navigateAfterLogin]);
+  }, [googleLoginMut, setAuth, toast, navigateAfterLogin]);
 
   // Keep latest handler in a ref so the init effect only depends on clientId.
   const handlerRef = useRef(handleCredential);
@@ -114,19 +133,15 @@ export function GoogleSignInButton({ redirectTo = "/videos" }: { redirectTo?: st
     return () => { cancelled = true; };
   }, []);
 
-  // Initialize Google Identity Services and render the official button.
-  // The official button is layered transparently on top of our custom button so
-  // the real Google sign-in flow (ID-token credential) stays untouched, while we
-  // fully control the visible appearance. We flip to "ready" once the GIS script
-  // has loaded and renderButton has run; only a script/init failure (true
-  // outage) downgrades to the disabled "unavailable" state. We deliberately do
-  // NOT require GIS to have inserted a child, because a not-yet-authorized origin
-  // makes GIS skip rendering in dev even though it works once the domain is
-  // added to the Google Cloud authorized origins in production.
+  // Initialize GIS and render the real button at the exact wrapper width (no scaling).
+  // Removing scale(1.7) fixes hit-testing in Safari/Firefox where pointer-events
+  // follows the un-transformed layout box rather than the scaled visual bounds.
+  // overflow-hidden is also removed so the button can extend to fill the wrapper.
   useEffect(() => {
     if (!clientId) return;
     let cancelled = false;
     setGisStatus("loading");
+    setGisRendered(false);
 
     loadGisScript()
       .then(() => {
@@ -135,17 +150,20 @@ export function GoogleSignInButton({ redirectTo = "/videos" }: { redirectTo?: st
           setGisStatus("error");
           return;
         }
-        // The GIS script is available -> the button is usable. renderButton can
-        // still throw / render nothing on a not-yet-authorized origin in dev;
-        // that's non-fatal and resolves once the domain is authorized in prod.
         try {
           window.google.accounts.id.initialize({
             client_id: clientId,
             callback: (resp) => handlerRef.current(resp),
+            cancel_on_tap_outside: false,
           });
+
           buttonRef.current.innerHTML = "";
+
+          // Use the full wrapper width so the iframe covers the entire button.
+          // No scale needed — the iframe will be exactly the right size.
           const measured = wrapperRef.current?.offsetWidth || 360;
           const width = Math.min(400, Math.max(200, Math.round(measured)));
+
           window.google.accounts.id.renderButton(buttonRef.current, {
             theme: "outline",
             size: "large",
@@ -156,29 +174,88 @@ export function GoogleSignInButton({ redirectTo = "/videos" }: { redirectTo?: st
             locale: "ar",
             width,
           });
+
+          // Check if GIS actually injected an iframe (it skips rendering on
+          // un-authorized origins, FedCM environments, or blocked contexts).
+          const rendered = !!buttonRef.current.querySelector("iframe, div");
+          if (!cancelled) setGisRendered(rendered);
         } catch {
           /* non-fatal: origin not yet authorized in this environment */
+          if (!cancelled) setGisRendered(false);
         }
-        setGisStatus("ready");
+        if (!cancelled) setGisStatus("ready");
       })
       .catch(() => { if (!cancelled) setGisStatus("error"); });
 
     return () => { cancelled = true; };
   }, [clientId]);
 
+  // Fallback click handler: called when the user clicks the visible button area
+  // and the GIS iframe either didn't render or missed the pointer event.
+  // Uses google.accounts.id.prompt() which triggers One Tap / FedCM / sign-in
+  // dialog without needing a direct user gesture on the iframe.
+  const handleFallbackClick = useCallback(() => {
+    if (!window.google?.accounts?.id) {
+      toast({
+        variant: "destructive",
+        title: "تسجيل الدخول عبر Google غير متاح",
+        description: "تعذّر الاتصال بـ Google. تحقق من اتصالك بالإنترنت وأعد المحاولة.",
+      });
+      return;
+    }
+
+    window.google.accounts.id.prompt((notification) => {
+      if (notification.isNotDisplayed()) {
+        const reason = notification.getNotDisplayedReason();
+        // Suppressed by browser (popup blocked, third-party cookies disabled, etc.)
+        if (
+          reason === "suppressed_by_user" ||
+          reason === "opt_out_or_no_session" ||
+          reason === "unknown_reason"
+        ) {
+          toast({
+            variant: "destructive",
+            title: "تعذّر فتح نافذة Google",
+            description:
+              "يبدو أن المتصفح منع النافذة. جرّب تعطيل حظر النوافذ المنبثقة أو استخدام متصفح آخر.",
+          });
+        }
+      } else if (notification.isSkippedMoment()) {
+        // Browser or OS suppressed One Tap silently — not an error the user caused.
+        // No toast: the button still works via the GIS iframe when available.
+      }
+    });
+  }, [toast]);
+
   const pending = googleLoginMut.isPending;
   // Google not configured at all, or its script failed to load (true outage).
   const unavailable = (configLoaded && !clientId) || gisStatus === "error";
-  // Config or GIS still initializing (brief), only while Google is reachable.
+  // Config or GIS still initializing.
   const initializing = !configLoaded || (!!clientId && gisStatus === "loading");
 
   return (
     <div className="w-full">
-      <div ref={wrapperRef} className="group relative h-14 w-full" aria-busy={pending}>
-        {/* Visible custom button (presentation only) */}
+      {/*
+        Wrapper captures clicks that miss the GIS iframe (e.g. edges, Safari,
+        third-party-cookie-blocked contexts) and routes them through prompt().
+        Only active when GIS is ready, Google is available, and not pending.
+      */}
+      <div
+        ref={wrapperRef}
+        className="group relative h-14 w-full"
+        aria-busy={pending}
+        onClick={
+          !pending && !unavailable && !initializing && gisStatus === "ready"
+            ? handleFallbackClick
+            : undefined
+        }
+        style={{ cursor: pending || unavailable ? undefined : "pointer" }}
+      >
+        {/* Visible custom button (presentation layer, pointer-events-none) */}
         <button
           type="button"
           tabIndex={-1}
+          aria-label="الدخول بواسطة Google"
           aria-hidden="true"
           disabled={pending}
           className="pointer-events-none absolute inset-0 flex items-center justify-center gap-3 rounded-xl border-2 border-gray-300 bg-white text-lg font-bold text-gray-700 shadow-md transition-all duration-200 group-hover:border-primary/50 group-hover:bg-gray-50 group-hover:shadow-lg group-active:scale-[0.99] group-focus-within:border-primary group-focus-within:ring-2 group-focus-within:ring-primary/40"
@@ -193,17 +270,22 @@ export function GoogleSignInButton({ redirectTo = "/videos" }: { redirectTo?: st
           )}
         </button>
 
-        {/* Real Google button, transparent and stretched to cover the custom one.
-            Always mounted whenever Google is configured so GIS has a node to
-            render into (the credential flow stays untouched). z-10 keeps it on
-            top of the custom button so the real user gesture lands on Google. */}
+        {/*
+          Real Google button: transparent overlay at z-10.
+          KEY FIX: removed overflow-hidden (was clipping the iframe hit area)
+          and removed scale(1.7) (was causing hit-testing to follow un-scaled
+          layout box in Safari/Firefox, leaving parts of the button dead).
+          The iframe is now rendered at the exact wrapper width — no transform needed.
+        */}
         {clientId && !pending && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center overflow-hidden rounded-xl opacity-0 [color-scheme:light]">
-            <div ref={buttonRef} style={{ transform: "scale(1.7)", transformOrigin: "center" }} />
+          <div
+            className="absolute inset-0 z-10 flex items-center justify-center rounded-xl opacity-0 [color-scheme:light]"
+          >
+            <div ref={buttonRef} className="w-full" />
           </div>
         )}
 
-        {/* Loader overlay while config/GIS initialize (covers the button briefly) */}
+        {/* Loader overlay while config/GIS initialize */}
         {initializing && !unavailable && (
           <div className="absolute inset-0 z-20 flex items-center justify-center rounded-xl border-2 border-gray-200 bg-white">
             <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
@@ -221,6 +303,13 @@ export function GoogleSignInButton({ redirectTo = "/videos" }: { redirectTo?: st
           </div>
         )}
       </div>
+
+      {/* Hint shown when GIS didn't render an iframe (popup-blocked environments) */}
+      {gisStatus === "ready" && !gisRendered && !unavailable && !initializing && (
+        <p className="mt-2 text-center text-xs text-foreground/50">
+          إذا لم تنفتح نافذة Google، تأكد من السماح بالنوافذ المنبثقة في متصفحك.
+        </p>
+      )}
     </div>
   );
 }
