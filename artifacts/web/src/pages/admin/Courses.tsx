@@ -346,13 +346,13 @@ export function AdminCourses() {
                   <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{pl.description}</p>
                 )}
                 <div className="grid grid-cols-2 gap-2 mb-2">
-                  <Link href={`/gab-ctrl-9x/videos?courseId=${pl.id}`}>
+                  <Link href={`/bendehinaonline97/videos?courseId=${pl.id}`}>
                     <Button variant="outline" size="sm" className="w-full gap-1.5 text-xs">
                       <Video className="w-3.5 h-3.5" />
                       Vidéos
                     </Button>
                   </Link>
-                  <Link href={`/gab-ctrl-9x/categories?courseId=${pl.id}`}>
+                  <Link href={`/bendehinaonline97/categories?courseId=${pl.id}`}>
                     <Button variant="outline" size="sm" className="w-full gap-1.5 text-xs">
                       <FolderTree className="w-3.5 h-3.5" />
                       Catégories

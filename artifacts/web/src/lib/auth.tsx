@@ -151,7 +151,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem("admin");
     setAdminTokenState(null);
     setAdmin(null);
-    navigate("/gab-ctrl-9x/login");
+    navigate("/bendehinaonline97/login");
   };
 
   const getAuthHeaders = () => {

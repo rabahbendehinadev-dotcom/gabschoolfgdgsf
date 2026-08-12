@@ -52,7 +52,7 @@ artifacts-monorepo/
 - Admin auth: Separate JWT with admin-specific middleware
 - Admin credentials: username=`rabah`, password=`Fz8hxNc2#Mtq8Bx!`
 - Admin login uses `email` field as username lookup
-- Admin panel hidden path: `/gab-ctrl-9x/*`
+- Admin panel hidden path: `/bendehinaonline97/*`
 
 ## API Routes (mounted at /api)
 
@@ -87,15 +87,15 @@ artifacts-monorepo/
 - `/videos` - Video library with search, category filter, and Playlists tab
 - `/videos/:id` - Video detail with playlist sidebar and prev/next navigation
 - `/dashboard` - User profile and subscription info
-- `/gab-ctrl-9x/login` - Admin login (hidden path)
-- `/gab-ctrl-9x` - Admin dashboard with stats and charts
-- `/gab-ctrl-9x/users` - User management (edit, IP reset, quick block/unblock, delete)
-- `/gab-ctrl-9x/videos` - Video CRUD (with playlist assignment + part number)
-- `/gab-ctrl-9x/categories` - Category CRUD
-- `/gab-ctrl-9x/playlists` - Playlist/Series management (CRUD, video grouping)
-- `/gab-ctrl-9x/plans` - Subscription plan management
-- `/gab-ctrl-9x/subscriptions` - Subscriptions overview (expired, expiring-soon, delete sub)
-- `/gab-ctrl-9x/activity-log` - Activity log (registrations, logins, blocks, deletions)
+- `/bendehinaonline97/login` - Admin login (hidden path)
+- `/bendehinaonline97` - Admin dashboard with stats and charts
+- `/bendehinaonline97/users` - User management (edit, IP reset, quick block/unblock, delete)
+- `/bendehinaonline97/videos` - Video CRUD (with playlist assignment + part number)
+- `/bendehinaonline97/categories` - Category CRUD
+- `/bendehinaonline97/playlists` - Playlist/Series management (CRUD, video grouping)
+- `/bendehinaonline97/plans` - Subscription plan management
+- `/bendehinaonline97/subscriptions` - Subscriptions overview (expired, expiring-soon, delete sub)
+- `/bendehinaonline97/activity-log` - Activity log (registrations, logins, blocks, deletions)
 
 ## Design
 

@@ -192,7 +192,7 @@ function CoursePickerForCategories({ playlists }: { playlists: { id: number; tit
                 {pl.description && <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{pl.description}</p>}
               </div>
             </div>
-            <Link href={`/gab-ctrl-9x/categories?courseId=${pl.id}`}>
+            <Link href={`/bendehinaonline97/categories?courseId=${pl.id}`}>
               <Button className="w-full gap-2" variant="outline">
                 <FolderTree className="w-4 h-4" />
                 Gérer les catégories du cours
@@ -205,7 +205,7 @@ function CoursePickerForCategories({ playlists }: { playlists: { id: number; tit
             <Card className="glass-card p-14 text-center">
               <GraduationCap className="w-12 h-12 mx-auto text-muted-foreground/30 mb-3" />
               <p className="text-muted-foreground text-sm">Aucun cours. Créez d'abord un cours.</p>
-              <Link href="/gab-ctrl-9x/courses">
+              <Link href="/bendehinaonline97/courses">
                 <Button variant="outline" className="mt-4">Gérer les cours</Button>
               </Link>
             </Card>
@@ -425,7 +425,7 @@ export function AdminCategories() {
     <div className="space-y-6">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <Link href="/gab-ctrl-9x/categories" className="hover:text-foreground flex items-center gap-1 transition-colors">
+        <Link href="/bendehinaonline97/categories" className="hover:text-foreground flex items-center gap-1 transition-colors">
           <FolderTree className="w-3.5 h-3.5" />
           Catégories
         </Link>
@@ -442,7 +442,7 @@ export function AdminCategories() {
           <p className="text-sm text-muted-foreground mt-1">Glissez les cartes pour réordonner — les changements sont visibles immédiatement</p>
         </div>
         <div className="flex gap-2">
-          <Link href={`/gab-ctrl-9x/videos?courseId=${courseId}`}>
+          <Link href={`/bendehinaonline97/videos?courseId=${courseId}`}>
             <Button variant="outline" className="gap-2">
               <Video className="w-4 h-4" /> Vidéos du cours
             </Button>

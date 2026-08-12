@@ -92,38 +92,38 @@ const NAV_SECTIONS = [
   {
     section: "Gestion",
     items: [
-      { name: "Tableau de bord",      path: "/gab-ctrl-9x",                     icon: LayoutDashboard },
-      { name: "Utilisateurs",         path: "/gab-ctrl-9x/users",               icon: Users },
-      { name: "Abonnements",          path: "/gab-ctrl-9x/subscriptions",       icon: BadgeCheck },
-      { name: "Paiements",            path: "/gab-ctrl-9x/payments",            icon: Banknote },
+      { name: "Tableau de bord",      path: "/bendehinaonline97",                     icon: LayoutDashboard },
+      { name: "Utilisateurs",         path: "/bendehinaonline97/users",               icon: Users },
+      { name: "Abonnements",          path: "/bendehinaonline97/subscriptions",       icon: BadgeCheck },
+      { name: "Paiements",            path: "/bendehinaonline97/payments",            icon: Banknote },
     ],
   },
   {
     section: "Contenu",
     items: [
-      { name: "Cours",                path: "/gab-ctrl-9x/courses",             icon: GraduationCap },
-      { name: "Vidéos",               path: "/gab-ctrl-9x/videos",              icon: Video },
-      { name: "Catégories",           path: "/gab-ctrl-9x/categories",          icon: FolderTree },
-      { name: "Outils",               path: "/gab-ctrl-9x/tools",               icon: Wrench },
-      { name: "Cat. d'outils",        path: "/gab-ctrl-9x/tool-categories",     icon: FolderTree },
-      { name: "Communauté",           path: "/gab-ctrl-9x/community",           icon: MessageSquare },
+      { name: "Cours",                path: "/bendehinaonline97/courses",             icon: GraduationCap },
+      { name: "Vidéos",               path: "/bendehinaonline97/videos",              icon: Video },
+      { name: "Catégories",           path: "/bendehinaonline97/categories",          icon: FolderTree },
+      { name: "Outils",               path: "/bendehinaonline97/tools",               icon: Wrench },
+      { name: "Cat. d'outils",        path: "/bendehinaonline97/tool-categories",     icon: FolderTree },
+      { name: "Communauté",           path: "/bendehinaonline97/community",           icon: MessageSquare },
     ],
   },
   {
     section: "Configuration",
     items: [
-      { name: "Plans tarifaires",     path: "/gab-ctrl-9x/plans",               icon: CreditCard },
-      { name: "Alertes abonnement",   path: "/gab-ctrl-9x/subscription-alerts", icon: AlertTriangle },
-      { name: "Notifications",        path: "/gab-ctrl-9x/send-notification",   icon: Megaphone },
-      { name: "Journal d'activité",   path: "/gab-ctrl-9x/activity-log",        icon: Activity },
-      { name: "Mot de passe",         path: "/gab-ctrl-9x/change-password",     icon: KeyRound },
+      { name: "Plans tarifaires",     path: "/bendehinaonline97/plans",               icon: CreditCard },
+      { name: "Alertes abonnement",   path: "/bendehinaonline97/subscription-alerts", icon: AlertTriangle },
+      { name: "Notifications",        path: "/bendehinaonline97/send-notification",   icon: Megaphone },
+      { name: "Journal d'activité",   path: "/bendehinaonline97/activity-log",        icon: Activity },
+      { name: "Mot de passe",         path: "/bendehinaonline97/change-password",     icon: KeyRound },
     ],
   },
   {
     section: "Administration",
     items: [
-      { name: "Comptes admins",       path: "/gab-ctrl-9x/admins",              icon: UserCog },
-      { name: "Journal d'audit admin",path: "/gab-ctrl-9x/admin-audit",         icon: ClipboardList },
+      { name: "Comptes admins",       path: "/bendehinaonline97/admins",              icon: UserCog },
+      { name: "Journal d'audit admin",path: "/bendehinaonline97/admin-audit",         icon: ClipboardList },
     ],
   },
 ];
@@ -172,7 +172,7 @@ function NavLinks({ location, onNavigate }: { location: string; onNavigate?: () 
         <div key={group.section}>
           <div className="ad-nav-section">{group.section}</div>
           {group.items.map((item) => {
-            const isActive = item.path === "/gab-ctrl-9x"
+            const isActive = item.path === "/bendehinaonline97"
               ? location === item.path
               : location.startsWith(item.path);
             const Icon = item.icon;
@@ -278,7 +278,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
   };
 
   const currentPageName = NAV_FLAT.find(n =>
-    n.path === "/gab-ctrl-9x" ? location === n.path : location.startsWith(n.path)
+    n.path === "/bendehinaonline97" ? location === n.path : location.startsWith(n.path)
   )?.name ?? "Administration";
 
   /* ── Unauthorized ──────────────────────────────────────────────────── */
@@ -291,7 +291,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
           </div>
           <h2 style={{ fontSize: 17, fontWeight: 700, color: "#0F172A", marginBottom: 6 }}>Accès non autorisé</h2>
           <p style={{ fontSize: 12.5, color: "#64748B", marginBottom: 18 }}>Veuillez vous connecter pour accéder au panneau.</p>
-          <Link href="/gab-ctrl-9x/login">
+          <Link href="/bendehinaonline97/login">
             <button className="ad-btn-primary">Connexion administrateur</button>
           </Link>
         </div>

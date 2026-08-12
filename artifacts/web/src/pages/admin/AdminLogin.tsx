@@ -40,7 +40,7 @@ export function AdminLogin() {
         } else {
           toast({ title: "Connexion réussie", className: "bg-green-600 text-white" });
         }
-        navigate("/gab-ctrl-9x");
+        navigate("/bendehinaonline97");
       },
       onError: () => {
         toast({ variant: "destructive", title: "Erreur", description: "Identifiants incorrects" });

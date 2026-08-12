@@ -74,7 +74,7 @@ function CoursePickerScreen({ playlists }: { playlists: { id: number; title: str
               <div className="flex items-center justify-between text-xs text-muted-foreground mb-4">
                 <span>{pl.videos?.length ?? 0} leçon(s)</span>
               </div>
-              <Link href={`/gab-ctrl-9x/videos?courseId=${pl.id}`}>
+              <Link href={`/bendehinaonline97/videos?courseId=${pl.id}`}>
                 <Button className="w-full gap-2">
                   <Video className="w-4 h-4" />
                   Gérer les vidéos du cours
@@ -90,7 +90,7 @@ function CoursePickerScreen({ playlists }: { playlists: { id: number; title: str
             <Card className="glass-card p-14 text-center">
               <GraduationCap className="w-12 h-12 mx-auto text-muted-foreground/30 mb-3" />
               <p className="text-muted-foreground text-sm">Aucun cours. Créez d'abord un cours depuis la gestion des cours.</p>
-              <Link href="/gab-ctrl-9x/courses">
+              <Link href="/bendehinaonline97/courses">
                 <Button variant="outline" className="mt-4">Aller à la gestion des cours</Button>
               </Link>
             </Card>
@@ -525,7 +525,7 @@ export function AdminVideos() {
     <div className="space-y-6">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <Link href="/gab-ctrl-9x/videos" className="hover:text-foreground flex items-center gap-1 transition-colors">
+        <Link href="/bendehinaonline97/videos" className="hover:text-foreground flex items-center gap-1 transition-colors">
           <Video className="w-3.5 h-3.5" />
           Vidéos
         </Link>
@@ -581,7 +581,7 @@ export function AdminVideos() {
         {(categories ?? []).length === 0 && (
           <span className="text-xs text-blue-500 flex items-center gap-1">
             Aucune catégorie pour ce cours —
-            <Link href={`/gab-ctrl-9x/categories?courseId=${courseId}`} className="underline hover:text-blue-400">
+            <Link href={`/bendehinaonline97/categories?courseId=${courseId}`} className="underline hover:text-blue-400">
               Ajouter une catégorie
             </Link>
           </span>
@@ -797,7 +797,7 @@ export function AdminVideos() {
                 {(categories ?? []).length === 0 ? (
                   <div className="flex items-center gap-2 p-3 rounded-lg border border-blue-200 bg-blue-50 text-sm text-blue-600">
                     <span>Aucune catégorie pour ce cours —</span>
-                    <Link href={`/gab-ctrl-9x/categories?courseId=${courseId}`} className="underline hover:text-blue-500">
+                    <Link href={`/bendehinaonline97/categories?courseId=${courseId}`} className="underline hover:text-blue-500">
                       Ajouter une catégorie
                     </Link>
                   </div>

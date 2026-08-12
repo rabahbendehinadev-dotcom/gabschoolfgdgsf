@@ -188,7 +188,7 @@ router.post("/auth/register", async (req, res) => {
     sendPushToAdmins({
       title: "🆕 تسجيل جديد",
       body: `${user.username} (${user.email}) — سجّل للتو في المنصة.`,
-      url: "/gab-ctrl-9x/users",
+      url: "/bendehinaonline97/users",
       tag: `new-user-${user.id}`,
     }).catch(() => {});
 
@@ -482,7 +482,7 @@ router.post("/auth/google", async (req, res) => {
       sendPushToAdmins({
         title: "🆕 تسجيل جديد (Google)",
         body: `${user.username} (${user.email}) — سجّل عبر Google.`,
-        url: "/gab-ctrl-9x/users",
+        url: "/bendehinaonline97/users",
         tag: `new-user-${user.id}`,
       }).catch(() => {});
     }

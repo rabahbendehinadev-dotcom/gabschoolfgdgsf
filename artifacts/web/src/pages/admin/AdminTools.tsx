@@ -399,7 +399,7 @@ export function AdminTools() {
             <div className="space-y-1.5">
               <Label>Catégorie</Label>
               {categories.length === 0 ? (
-                <Link href="/gab-ctrl-9x/tool-categories">
+                <Link href="/bendehinaonline97/tool-categories">
                   <Button variant="outline" size="sm" className="gap-2 w-full justify-start text-muted-foreground">
                     <FolderTree className="w-4 h-4" />
                     Ajoutez d'abord des catégories

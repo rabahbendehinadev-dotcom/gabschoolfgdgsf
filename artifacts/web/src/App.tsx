@@ -67,7 +67,7 @@ function GatedRouter() {
   const { token, user, bootstrapped } = useAuth();
   const [location, navigate] = useLocation();
 
-  const isAdminRoute = location.startsWith("/gab-ctrl-9x");
+  const isAdminRoute = location.startsWith("/bendehinaonline97");
   const onCompletePhone = location === "/complete-phone";
   const phoneMissing = !!token && !!user && !user.phone && !isAdminRoute;
 
@@ -136,58 +136,58 @@ function Router() {
       <Route path="/complete-phone">
         <CompletePhone />
       </Route>
-      <Route path="/gab-ctrl-9x/login">
+      <Route path="/bendehinaonline97/login">
         <AdminLogin />
       </Route>
-      <Route path="/gab-ctrl-9x">
+      <Route path="/bendehinaonline97">
         <AdminLayout><AdminDashboard /></AdminLayout>
       </Route>
-      <Route path="/gab-ctrl-9x/users">
+      <Route path="/bendehinaonline97/users">
         <AdminLayout><AdminUsers /></AdminLayout>
       </Route>
-      <Route path="/gab-ctrl-9x/courses">
+      <Route path="/bendehinaonline97/courses">
         <AdminLayout><AdminCourses /></AdminLayout>
       </Route>
-      <Route path="/gab-ctrl-9x/videos">
+      <Route path="/bendehinaonline97/videos">
         <AdminLayout><AdminVideos /></AdminLayout>
       </Route>
-      <Route path="/gab-ctrl-9x/categories">
+      <Route path="/bendehinaonline97/categories">
         <AdminLayout><AdminCategories /></AdminLayout>
       </Route>
-      <Route path="/gab-ctrl-9x/plans">
+      <Route path="/bendehinaonline97/plans">
         <AdminLayout><AdminPlans /></AdminLayout>
       </Route>
-      <Route path="/gab-ctrl-9x/subscriptions">
+      <Route path="/bendehinaonline97/subscriptions">
         <AdminLayout><AdminSubscriptions /></AdminLayout>
       </Route>
-      <Route path="/gab-ctrl-9x/send-notification">
+      <Route path="/bendehinaonline97/send-notification">
         <AdminLayout><AdminSendNotification /></AdminLayout>
       </Route>
-      <Route path="/gab-ctrl-9x/community">
+      <Route path="/bendehinaonline97/community">
         <AdminLayout><AdminCommunity /></AdminLayout>
       </Route>
-      <Route path="/gab-ctrl-9x/activity-log">
+      <Route path="/bendehinaonline97/activity-log">
         <AdminLayout><AdminActivityLog /></AdminLayout>
       </Route>
-      <Route path="/gab-ctrl-9x/payments">
+      <Route path="/bendehinaonline97/payments">
         <AdminLayout><AdminPayments /></AdminLayout>
       </Route>
-      <Route path="/gab-ctrl-9x/change-password">
+      <Route path="/bendehinaonline97/change-password">
         <AdminLayout><AdminChangePassword /></AdminLayout>
       </Route>
-      <Route path="/gab-ctrl-9x/subscription-alerts">
+      <Route path="/bendehinaonline97/subscription-alerts">
         <AdminLayout><AdminSubscriptionAlerts /></AdminLayout>
       </Route>
-      <Route path="/gab-ctrl-9x/tools">
+      <Route path="/bendehinaonline97/tools">
         <AdminLayout><AdminTools /></AdminLayout>
       </Route>
-      <Route path="/gab-ctrl-9x/tool-categories">
+      <Route path="/bendehinaonline97/tool-categories">
         <AdminLayout><AdminToolCategories /></AdminLayout>
       </Route>
-      <Route path="/gab-ctrl-9x/admins">
+      <Route path="/bendehinaonline97/admins">
         <AdminLayout><AdminAdmins /></AdminLayout>
       </Route>
-      <Route path="/gab-ctrl-9x/admin-audit">
+      <Route path="/bendehinaonline97/admin-audit">
         <AdminLayout><AdminAuditLog /></AdminLayout>
       </Route>
       <Route><PublicRoutes /></Route>
