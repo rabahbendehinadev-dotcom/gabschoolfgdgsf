@@ -45,6 +45,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const tokenRef = useRef(token);
   useEffect(() => { tokenRef.current = token; }, [token]);
 
+  const adminTokenRef = useRef(adminToken);
+  useEffect(() => { adminTokenRef.current = adminToken; }, [adminToken]);
+
   const refreshUser = useCallback(async () => {
     const currentToken = tokenRef.current;
     if (!currentToken) return;
@@ -105,6 +108,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [token, refreshUser]);
+
+  // Validates the admin JWT against the server on mount and periodically.
+  // Clears state and redirects to admin login when the token is expired/invalid.
+  const refreshAdmin = useCallback(async () => {
+    const currentAdminToken = adminTokenRef.current;
+    if (!currentAdminToken) return;
+    try {
+      const res = await fetch("/api/auth/admin-me", {
+        headers: { Authorization: `Bearer ${currentAdminToken}` },
+      });
+      if (res.status === 401) {
+        localStorage.removeItem("adminToken");
+        localStorage.removeItem("admin");
+        setAdminTokenState(null);
+        setAdmin(null);
+        navigate("/bendehinaonline97/login");
+      }
+    } catch {
+      // Network error — keep state, will retry next interval
+    }
+  }, [navigate]);
+
+  // Validate admin token on mount and every 5 minutes
+  useEffect(() => {
+    if (!adminToken) return;
+    refreshAdmin();
+    const timer = setInterval(refreshAdmin, 5 * 60 * 1000);
+    return () => clearInterval(timer);
+  }, [adminToken, refreshAdmin]);
 
   const setAuth = (newToken: string, newUser: UserProfile) => {
     // Drop any cached per-user data (notifications, unread count, feed, etc.) from

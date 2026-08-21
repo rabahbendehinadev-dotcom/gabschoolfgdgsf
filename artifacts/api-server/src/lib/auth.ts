@@ -96,7 +96,7 @@ export function verifyVideoStreamToken(
 }
 
 export function generateAdminToken(payload: { adminId: number }): string {
-  return jwt.sign(payload, ADMIN_JWT_SECRET, { expiresIn: "7d" });
+  return jwt.sign(payload, ADMIN_JWT_SECRET, { expiresIn: "30d" });
 }
 
 export function verifyAdminToken(token: string): { adminId: number } | null {
