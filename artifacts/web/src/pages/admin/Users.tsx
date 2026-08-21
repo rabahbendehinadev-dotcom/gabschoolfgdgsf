@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
-  useGetAdminUsers, useUpdateAdminUser, useResetUserIp,
+  useUpdateAdminUser, useResetUserIp,
   useDeleteAdminUser, useGetAdminNotificationStats,
   useSendUserTestPush, useGetAdminPlaylists,
 } from "@workspace/api-client-react/src/generated/api";
@@ -101,8 +102,18 @@ export function AdminUsers() {
   const { getAdminAuthHeaders } = useAuth();
   const { toast } = useToast();
 
-  const { data: rawUsers, refetch, isFetching } = useGetAdminUsers(undefined, { request: getAdminAuthHeaders() });
-  const users = rawUsers as ExtendedAdminUser[] | undefined;
+  const authHeaders = getAdminAuthHeaders()?.headers as Record<string, string> | undefined;
+  const { data: usersResponse, refetch, isFetching } = useQuery({
+    queryKey: ["admin-users-list", authHeaders?.Authorization],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/users?limit=500", { headers: authHeaders });
+      if (!res.ok) throw new Error("Failed to fetch users");
+      return res.json() as Promise<{ users: ExtendedAdminUser[]; total: number; pages: number }>;
+    },
+    enabled: !!authHeaders,
+    staleTime: 30_000,
+  });
+  const users = usersResponse?.users;
   const { data: notifStats }   = useGetAdminNotificationStats({ request: getAdminAuthHeaders() });
   const { data: allPlaylists } = useGetAdminPlaylists({ request: getAdminAuthHeaders() });
   const updateMut   = useUpdateAdminUser({ request: getAdminAuthHeaders() });

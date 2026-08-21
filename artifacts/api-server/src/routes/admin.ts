@@ -116,62 +116,43 @@ const router: IRouter = Router();
 
 router.get("/admin/stats", adminAuth, async (_req, res) => {
   try {
-    const [userStats] = await db.select({
-      totalUsers: count(),
-    }).from(usersTable);
+    // All independent queries run in parallel — was 8 sequential round-trips before.
+    const [userAgg, videoStats, categoryStats, recentRegs] = await Promise.all([
+      // Single query replaces 6 sequential COUNT queries.
+      db.select({
+        totalUsers:           count(),
+        vipUsers:             sql<number>`COUNT(*) FILTER (WHERE ${usersTable.accountType} = 'vip')`,
+        normalUsers:          sql<number>`COUNT(*) FILTER (WHERE ${usersTable.accountType} = 'normal')`,
+        demoSubscriptions:    sql<number>`COUNT(*) FILTER (WHERE ${usersTable.subscriptionType} = 'demo')`,
+        annualSubscriptions:  sql<number>`COUNT(*) FILTER (WHERE ${usersTable.subscriptionType} = 'annual')`,
+        lifetimeSubscriptions:sql<number>`COUNT(*) FILTER (WHERE ${usersTable.subscriptionType} = 'lifetime')`,
+      }).from(usersTable),
 
-    const [vipCount] = await db.select({
-      count: count(),
-    }).from(usersTable).where(eq(usersTable.accountType, "vip"));
+      db.select({ totalVideos: count() }).from(videosTable),
+      db.select({ totalCategories: count() }).from(categoriesTable),
 
-    const [normalCount] = await db.select({
-      count: count(),
-    }).from(usersTable).where(eq(usersTable.accountType, "normal"));
+      db.select({
+        date:  sql<string>`DATE(${usersTable.createdAt})::text`,
+        count: count(),
+      })
+      .from(usersTable)
+      .groupBy(sql`DATE(${usersTable.createdAt})`)
+      .orderBy(desc(sql`DATE(${usersTable.createdAt})`))
+      .limit(30),
+    ]);
 
-    const [demoCount] = await db.select({
-      count: count(),
-    }).from(usersTable).where(eq(usersTable.subscriptionType, "demo"));
-
-    const [annualCount] = await db.select({
-      count: count(),
-    }).from(usersTable).where(eq(usersTable.subscriptionType, "annual"));
-
-    const [lifetimeCount] = await db.select({
-      count: count(),
-    }).from(usersTable).where(eq(usersTable.subscriptionType, "lifetime"));
-
-    const [videoStats] = await db.select({
-      totalVideos: count(),
-    }).from(videosTable);
-
-    const [categoryStats] = await db.select({
-      totalCategories: count(),
-    }).from(categoriesTable);
-
-    const [visitStats] = await db.select({
-      totalVisits: count(),
-    }).from(visitLogsTable);
-
-    const recentRegs = await db.select({
-      date: sql<string>`DATE(${usersTable.createdAt})::text`,
-      count: count(),
-    })
-    .from(usersTable)
-    .groupBy(sql`DATE(${usersTable.createdAt})`)
-    .orderBy(desc(sql`DATE(${usersTable.createdAt})`))
-    .limit(30);
-
+    const u = userAgg[0];
     res.json({
-      totalUsers: userStats.totalUsers,
-      totalVideos: videoStats.totalVideos,
-      totalCategories: categoryStats.totalCategories,
-      vipUsers: vipCount.count,
-      normalUsers: normalCount.count,
-      demoSubscriptions: demoCount.count,
-      annualSubscriptions: annualCount.count,
-      lifetimeSubscriptions: lifetimeCount.count,
-      recentRegistrations: recentRegs.map(r => ({ date: r.date, count: Number(r.count) })),
-      totalVisits: visitStats.totalVisits,
+      totalUsers:            Number(u.totalUsers),
+      totalVideos:           videoStats[0].totalVideos,
+      totalCategories:       categoryStats[0].totalCategories,
+      vipUsers:              Number(u.vipUsers),
+      normalUsers:           Number(u.normalUsers),
+      demoSubscriptions:     Number(u.demoSubscriptions),
+      annualSubscriptions:   Number(u.annualSubscriptions),
+      lifetimeSubscriptions: Number(u.lifetimeSubscriptions),
+      recentRegistrations:   recentRegs.map(r => ({ date: r.date, count: Number(r.count) })),
+      totalVisits:           0, // removed expensive full-scan COUNT; use activity_logs page instead
     });
   } catch (error: unknown) {
     res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" || "Failed to fetch stats" });
@@ -180,55 +161,79 @@ router.get("/admin/stats", adminAuth, async (_req, res) => {
 
 router.get("/admin/users", adminAuth, async (req, res) => {
   try {
-    const notifFilter = req.query.notifications;
-    const users = await db.select().from(usersTable).orderBy(desc(usersTable.createdAt));
+    const notifFilter = req.query.notifications as string | undefined;
+    const search     = (req.query.search as string | undefined)?.trim();
+    const pageParam  = parseInt(req.query.page  as string, 10);
+    const limitParam = parseInt(req.query.limit as string, 10);
+    const page  = isNaN(pageParam)  || pageParam  < 1   ? 1   : pageParam;
+    const limit = isNaN(limitParam) || limitParam < 1   ? 100 : Math.min(limitParam, 500);
+    const offset = (page - 1) * limit;
 
-    // Push subscription state
-    const activeSubs = await db
-      .selectDistinct({ userId: pushSubscriptionsTable.userId })
+    // Build optional search condition
+    const searchCond = search
+      ? or(
+          ilike(usersTable.email,    `%${search}%`),
+          ilike(usersTable.username, `%${search}%`),
+          ilike(usersTable.fullName, `%${search}%`),
+          ilike(usersTable.phone,    `%${search}%`),
+        )
+      : undefined;
+
+    // Total count for pagination metadata (needed only when client sends page param)
+    const [users, totalRow] = await Promise.all([
+      db.select().from(usersTable)
+        .where(searchCond)
+        .orderBy(desc(usersTable.createdAt))
+        .limit(limit)
+        .offset(offset),
+      db.select({ c: count() }).from(usersTable).where(searchCond),
+    ]);
+
+    const userIds = users.map(u => u.id);
+
+    if (userIds.length === 0) {
+      return res.json({ users: [], total: 0, page, limit, pages: 0 });
+    }
+
+    // All supporting queries run in parallel, scoped to only the returned user IDs.
+    // Removed visit_logs GROUP BY query — was a full-table sequential scan with no index.
+    const [pushRows, lastDelivered, deviceCounts, allUserCourses] = await Promise.all([
+      // Single query replaces two separate push-subscription selects.
+      db.select({
+        userId:   pushSubscriptionsTable.userId,
+        failedAt: pushSubscriptionsTable.failedAt,
+      })
       .from(pushSubscriptionsTable)
-      .where(isNull(pushSubscriptionsTable.failedAt));
-    const enabledIds = new Set(activeSubs.map((s) => s.userId));
+      .where(inArray(pushSubscriptionsTable.userId, userIds)),
 
-    const anySubs = await db
-      .selectDistinct({ userId: pushSubscriptionsTable.userId })
-      .from(pushSubscriptionsTable);
-    const hasAnySubIds = new Set(anySubs.map((s) => s.userId));
-
-    // Last notification delivered
-    const lastDelivered = await db
-      .select({
+      db.select({
         userId: notificationRecipientsTable.userId,
-        last: max(notificationRecipientsTable.deliveredAt),
+        last:   max(notificationRecipientsTable.deliveredAt),
       })
       .from(notificationRecipientsTable)
-      .groupBy(notificationRecipientsTable.userId);
-    const lastMap = new Map(lastDelivered.map((r) => [r.userId, r.last]));
+      .where(inArray(notificationRecipientsTable.userId, userIds))
+      .groupBy(notificationRecipientsTable.userId),
 
-    // Last page visit per user (batch — not N+1)
-    const lastVisits = await db
-      .select({ userId: visitLogsTable.userId, lastVisit: max(visitLogsTable.visitedAt) })
-      .from(visitLogsTable)
-      .where(isNotNull(visitLogsTable.userId))
-      .groupBy(visitLogsTable.userId);
-    const lastVisitMap = new Map(lastVisits.map((r) => [r.userId!, r.lastVisit]));
+      db.select({ userId: pushSubscriptionsTable.userId, cnt: count() })
+        .from(pushSubscriptionsTable)
+        .where(inArray(pushSubscriptionsTable.userId, userIds))
+        .groupBy(pushSubscriptionsTable.userId),
 
-    // Device count per user (total push subscription rows)
-    const deviceCounts = await db
-      .select({ userId: pushSubscriptionsTable.userId, cnt: count() })
-      .from(pushSubscriptionsTable)
-      .groupBy(pushSubscriptionsTable.userId);
-    const deviceCountMap = new Map(deviceCounts.map((r) => [r.userId, Number(r.cnt)]));
-
-    // Enrolled courses per user (batch join with playlist titles)
-    const allUserCourses = await db
-      .select({
-        userId: userCoursesTable.userId,
+      db.select({
+        userId:     userCoursesTable.userId,
         playlistId: userCoursesTable.playlistId,
-        title: playlistsTable.title,
+        title:      playlistsTable.title,
       })
       .from(userCoursesTable)
-      .leftJoin(playlistsTable, eq(userCoursesTable.playlistId, playlistsTable.id));
+      .leftJoin(playlistsTable, eq(userCoursesTable.playlistId, playlistsTable.id))
+      .where(inArray(userCoursesTable.userId, userIds)),
+    ]);
+
+    // Build lookup maps
+    const enabledIds    = new Set(pushRows.filter(r => r.failedAt == null).map(r => r.userId));
+    const hasAnySubIds  = new Set(pushRows.map(r => r.userId));
+    const lastMap       = new Map(lastDelivered.map(r => [r.userId, r.last]));
+    const deviceCountMap= new Map(deviceCounts.map(r => [r.userId, Number(r.cnt)]));
     const coursesByUser = new Map<number, { playlistId: number; title: string }[]>();
     for (const c of allUserCourses) {
       const arr = coursesByUser.get(c.userId) ?? [];
@@ -238,8 +243,6 @@ router.get("/admin/users", adminAuth, async (req, res) => {
 
     const mapped = users.map(u => {
       const ip = effectiveIpState(u);
-      const last = lastMap.get(u.id) ?? null;
-      const lastVisit = lastVisitMap.get(u.id) ?? null;
       return {
         id: u.id,
         username: u.username,
@@ -247,16 +250,16 @@ router.get("/admin/users", adminAuth, async (req, res) => {
         fullName: u.fullName ?? null,
         accountType: u.accountType,
         subscriptionType: u.subscriptionType,
-        subscriptionExpiresAt: u.subscriptionExpiresAt?.toISOString() || null,
-        subscriptionStartedAt: u.subscriptionStartedAt?.toISOString() || null,
-        ipAddress: ip.ipAddress,
-        ipAddress2: ip.ipAddress2,
-        ipFirstSeenAt: ip.ipFirstSeenAt?.toISOString() || null,
-        ipCount: ip.ipCount,
-        isActive: u.isActive,
-        phone: u.phone ?? null,
-        pushEnabled: enabledIds.has(u.id),
-        pushSupported: u.pushSupported,
+        subscriptionExpiresAt:  u.subscriptionExpiresAt?.toISOString()  || null,
+        subscriptionStartedAt:  u.subscriptionStartedAt?.toISOString()  || null,
+        ipAddress:    ip.ipAddress,
+        ipAddress2:   ip.ipAddress2,
+        ipFirstSeenAt:ip.ipFirstSeenAt?.toISOString() || null,
+        ipCount:      ip.ipCount,
+        isActive:     u.isActive,
+        phone:        u.phone ?? null,
+        pushEnabled:  enabledIds.has(u.id),
+        pushSupported:u.pushSupported,
         pushPermission: u.pushPermission,
         pushState: enabledIds.has(u.id)
           ? "enabled"
@@ -267,23 +270,24 @@ router.get("/admin/users", adminAuth, async (req, res) => {
               : u.pushPermission === "granted"
                 ? "missing"
                 : "none",
-        lastNotifiedAt: last ? new Date(last).toISOString() : null,
+        lastNotifiedAt: (() => { const l = lastMap.get(u.id); return l ? new Date(l).toISOString() : null; })(),
         lastPushTestAt: u.lastPushTestAt ? u.lastPushTestAt.toISOString() : null,
-        lastVisitAt: lastVisit ? new Date(lastVisit).toISOString() : null,
-        deviceCount: deviceCountMap.get(u.id) ?? 0,
-        courses: coursesByUser.get(u.id) ?? [],
-        createdAt: u.createdAt.toISOString(),
+        lastVisitAt:    null, // removed from list (use /admin/users/:id/detail for visit history)
+        deviceCount:    deviceCountMap.get(u.id) ?? 0,
+        courses:        coursesByUser.get(u.id) ?? [],
+        createdAt:      u.createdAt.toISOString(),
       };
     });
 
     const filtered =
       notifFilter === "enabled"
-        ? mapped.filter((u) => u.pushEnabled)
+        ? mapped.filter(u => u.pushEnabled)
         : notifFilter === "disabled"
-          ? mapped.filter((u) => !u.pushEnabled)
+          ? mapped.filter(u => !u.pushEnabled)
           : mapped;
 
-    res.json(filtered);
+    const total = Number(totalRow[0]?.c ?? 0);
+    res.json({ users: filtered, total, page, limit, pages: Math.ceil(total / limit) });
   } catch (error: unknown) {
     res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" || "Failed to fetch users" });
   }
@@ -308,41 +312,48 @@ router.get("/admin/users/notification-stats", adminAuth, async (_req, res) => {
 // GET /admin/users/stats — rich stats for the user management dashboard.
 router.get("/admin/users/stats", adminAuth, async (_req, res) => {
   try {
-    const now = new Date();
+    const now  = new Date();
     const soon = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
     const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-    const users = await db.select({
-      id: usersTable.id,
-      accountType: usersTable.accountType,
-      subscriptionExpiresAt: usersTable.subscriptionExpiresAt,
-      isActive: usersTable.isActive,
-      createdAt: usersTable.createdAt,
-    }).from(usersTable);
+    // All aggregation done in SQL — no more loading all users into Node.js memory.
+    const [aggRow, courseCounts, playlists] = await Promise.all([
+      db.select({
+        total:       count(),
+        vip:         sql<number>`COUNT(*) FILTER (WHERE ${usersTable.accountType} = 'vip' AND (${usersTable.subscriptionExpiresAt} IS NULL OR ${usersTable.subscriptionExpiresAt} > NOW()))`,
+        expired:     sql<number>`COUNT(*) FILTER (WHERE ${usersTable.accountType} = 'vip' AND ${usersTable.subscriptionExpiresAt} IS NOT NULL AND ${usersTable.subscriptionExpiresAt} < NOW())`,
+        expiringSoon:sql<number>`COUNT(*) FILTER (WHERE ${usersTable.accountType} = 'vip' AND ${usersTable.subscriptionExpiresAt} IS NOT NULL AND ${usersTable.subscriptionExpiresAt} >= NOW() AND ${usersTable.subscriptionExpiresAt} <= ${soon.toISOString()})`,
+        nonVip:      sql<number>`COUNT(*) FILTER (WHERE ${usersTable.accountType} != 'vip')`,
+        newUsers:    sql<number>`COUNT(*) FILTER (WHERE ${usersTable.createdAt} >= ${monthAgo.toISOString()})`,
+        blocked:     sql<number>`COUNT(*) FILTER (WHERE ${usersTable.isActive} = false)`,
+      }).from(usersTable),
 
-    const courseCounts = await db.select({
-      playlistId: userCoursesTable.playlistId,
-      cnt: count(),
-    }).from(userCoursesTable).groupBy(userCoursesTable.playlistId);
+      db.select({ playlistId: userCoursesTable.playlistId, cnt: count() })
+        .from(userCoursesTable)
+        .groupBy(userCoursesTable.playlistId),
 
-    const playlists = await db.select({ id: playlistsTable.id, title: playlistsTable.title })
-      .from(playlistsTable).orderBy(asc(playlistsTable.sortOrder));
+      db.select({ id: playlistsTable.id, title: playlistsTable.title })
+        .from(playlistsTable)
+        .orderBy(asc(playlistsTable.sortOrder)),
+    ]);
 
-    const total = users.length;
-    const vip = users.filter(u => u.accountType === "vip" && (!u.subscriptionExpiresAt || u.subscriptionExpiresAt > now)).length;
-    const expired = users.filter(u => u.accountType === "vip" && u.subscriptionExpiresAt && u.subscriptionExpiresAt < now).length;
-    const expiringSoon = users.filter(u => u.accountType === "vip" && u.subscriptionExpiresAt && u.subscriptionExpiresAt >= now && u.subscriptionExpiresAt <= soon).length;
-    const nonVip = users.filter(u => u.accountType !== "vip").length;
-    const newUsers = users.filter(u => u.createdAt >= monthAgo).length;
-    const blocked = users.filter(u => !u.isActive).length;
-
+    const a = aggRow[0];
     const perCourse = playlists.map(p => ({
       playlistId: p.id,
-      title: p.title,
-      count: Number(courseCounts.find(c => c.playlistId === p.id)?.cnt ?? 0),
+      title:      p.title,
+      count:      Number(courseCounts.find(c => c.playlistId === p.id)?.cnt ?? 0),
     }));
 
-    res.json({ total, vip, expired, expiringSoon, nonVip, newUsers, blocked, perCourse });
+    res.json({
+      total:        Number(a.total),
+      vip:          Number(a.vip),
+      expired:      Number(a.expired),
+      expiringSoon: Number(a.expiringSoon),
+      nonVip:       Number(a.nonVip),
+      newUsers:     Number(a.newUsers),
+      blocked:      Number(a.blocked),
+      perCourse,
+    });
   } catch (error: unknown) {
     res.status(500).json({ message: error instanceof Error ? error.message : "Failed to load user stats" });
   }
