@@ -924,7 +924,10 @@ export function CourseVideoPlayer({
           playsInline
           webkit-playsinline="true"
           x5-playsinline="true"
-          preload={useHls ? "auto" : "metadata"}
+          // MP4 also needs to build a meaningful forward buffer before and
+          // during playback; metadata-only loading leaves mobile players with
+          // too little media ahead of the playhead.
+          preload="auto"
           controlsList="nodownload noremoteplayback nofullscreen"
           disablePictureInPicture={false}
           className={cn("absolute inset-0 h-full w-full", fit === "cover" ? "object-cover" : "object-contain")}

@@ -211,7 +211,10 @@ export function isFolderDriveUrl(url: string): boolean {
 }
 
 // ─── Pre-fetch cache ─────────────────────────────────────────────────────────
-const MAX_CHUNK_MOBILE = 8 * 1024 * 1024;
+// Mobile players often consume an 8 MiB window before the next request has
+// cleared the Drive round-trip. 16 MiB keeps roughly twice as much media ahead
+// while the following window is prefetched concurrently.
+const MAX_CHUNK_MOBILE = 16 * 1024 * 1024;
 const MAX_CHUNK_DESKTOP = 32 * 1024 * 1024;
 const MAX_PREFETCH_ENTRIES = 8;
 const PREFETCH_TTL_MS = 3 * 60_000;
@@ -310,6 +313,10 @@ function setVideoHeaders(
   );
   res.setHeader("Cache-Control", "private, max-age=3600");
   res.setHeader("Content-Disposition", "inline");
+  res.setHeader("Vary", "Range");
+  // Prevent reverse proxies from buffering the upstream response before
+  // forwarding it. The first bytes should reach the player immediately.
+  res.setHeader("X-Accel-Buffering", "no");
 }
 
 export async function streamDriveFile(
@@ -326,17 +333,20 @@ export async function streamDriveFile(
 
   const isSuffix = !!(match && match[1] === "" && match[2] !== "");
 
-  // Windowed mode (small capped ranges + prefetch) is only needed on
-  // platforms that cut off long responses (e.g. Replit Autoscale).
-  // On a VPS the default is to pipe the range straight through to the
-  // client as bytes arrive from Drive — no chunk-boundary stalls.
-  const windowed = process.env.DRIVE_STREAM_WINDOWED === "true";
+  const mobileClient = isMobileUA(req.headers["user-agent"]);
+  // Mobile browsers tend to request conservative byte ranges and then wait
+  // until they are nearly exhausted before requesting more. Default them to
+  // bounded windows with an overlapping next-window prefetch. Desktop keeps
+  // the uninterrupted live pipe. The env flag remains an explicit override.
+  const windowedSetting = process.env.DRIVE_STREAM_WINDOWED;
+  const windowed =
+    windowedSetting === "true" ||
+    (windowedSetting !== "false" && mobileClient);
 
   let start = 0;
   let driveRange: string;
 
-  const ua = req.headers["user-agent"];
-  const chunkSize = isMobileUA(ua) ? MAX_CHUNK_MOBILE : MAX_CHUNK_DESKTOP;
+  const chunkSize = mobileClient ? MAX_CHUNK_MOBILE : MAX_CHUNK_DESKTOP;
 
   if (isSuffix) {
     driveRange = `bytes=-${match![2]}`;
