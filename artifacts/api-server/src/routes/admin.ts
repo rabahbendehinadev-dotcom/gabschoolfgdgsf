@@ -21,7 +21,7 @@ import {
   type ObjectPart,
 } from "../lib/videoStorage";
 import { normalizeHlsPartsInput, deleteHlsObjects, invalidateRenderedPlaylists } from "../lib/hlsStorage";
-import { deleteLowCopiesBestEffort } from "../lib/driveTranscode";
+import { deleteLowCopiesBestEffort, requestDriveTranscode } from "../lib/driveTranscode";
 import * as zod from "zod";
 import {
   UpdateAdminUserBody,
@@ -1479,6 +1479,7 @@ router.post("/admin/videos", adminAuth, async (req, res) => {
     }).returning();
 
     const [cat] = await db.select().from(categoriesTable).where(eq(categoriesTable.id, video.categoryId)).limit(1);
+    requestDriveTranscode(video.id);
 
     res.status(201).json({
       id: video.id, title: video.title, description: video.description,
@@ -1525,6 +1526,7 @@ router.patch("/admin/videos/:id", adminAuth, async (req, res) => {
     let staleObjectParts: ObjectPart[] | null = null;
     let staleHls = false;
     let staleLowParts: string | null = null;
+    let driveSourceChanged = false;
     if (body.driveEmbedUrl !== undefined || "driveParts" in body) {
       const [existing] = await db
         .select({
@@ -1542,6 +1544,7 @@ router.patch("/admin/videos/:id", adminAuth, async (req, res) => {
           (body.driveEmbedUrl !== undefined && body.driveEmbedUrl !== existing.driveEmbedUrl) ||
           ("driveParts" in body && (body.driveParts ?? null) !== (existing.driveParts ?? null));
         if (sourceChanged) {
+          driveSourceChanged = true;
           if (existing.objectParts) {
             staleObjectParts = parseObjectParts(existing.objectParts);
             updateData.objectParts = null;
@@ -1571,6 +1574,7 @@ router.patch("/admin/videos/:id", adminAuth, async (req, res) => {
       res.status(404).json({ message: "Video not found" });
       return;
     }
+    if (driveSourceChanged) requestDriveTranscode(video.id);
 
     const [cat] = await db.select().from(categoriesTable).where(eq(categoriesTable.id, video.categoryId)).limit(1);
 

@@ -40,6 +40,8 @@ const RESCAN_MS = 30 * 60_000;
 const INITIAL_DELAY_MS = 2 * 60_000;
 const MIN_FREE_EXTRA = 8 * 1024 * 1024 * 1024; // src + 8 GB headroom
 const SKIP_BITRATE_BPS = 5_000_000; // already light enough
+const requestedVideoIds = new Set<number>();
+let wakeWorker: (() => void) | null = null;
 
 export type LowPartEntry =
   | { fileId: string; size: number }
@@ -54,6 +56,21 @@ export function parseLowParts(raw: string | null): LowPartEntry[] | null {
   } catch {
     return null;
   }
+}
+
+/** Wake the production worker after an admin adds or changes a Drive source. */
+export function requestDriveTranscode(videoId: number): void {
+  if (
+    process.env.NODE_ENV !== "production" ||
+    process.env.ENABLE_DRIVE_TRANSCODE !== "true" ||
+    !Number.isInteger(videoId) ||
+    videoId <= 0
+  ) {
+    return;
+  }
+  requestedVideoIds.add(videoId);
+  console.log(`${TAG} video ${videoId}: queued after Drive source update`);
+  wakeWorker?.();
 }
 
 /**
@@ -508,7 +525,7 @@ async function runPass(folderId: string, workDir: string): Promise<{
   processed: number;
   pending: number;
 }> {
-  const videos = await db
+  let videos = await db
     .select({
       id: videosTable.id,
       title: videosTable.title,
@@ -518,6 +535,12 @@ async function runPass(folderId: string, workDir: string): Promise<{
     })
     .from(videosTable)
     .orderBy(videosTable.id);
+
+  if (requestedVideoIds.size > 0) {
+    const requested = new Set(requestedVideoIds);
+    requestedVideoIds.clear();
+    videos = videos.filter((video) => requested.has(video.id));
+  }
 
   let processed = 0;
   let pending = 0;
@@ -596,7 +619,14 @@ export function startDriveTranscodeWorker(): void {
         } catch (err) {
           console.error(`${TAG} Pass error:`, err instanceof Error ? err.message : err);
         }
-        await new Promise((r) => setTimeout(r, RESCAN_MS));
+        if (requestedVideoIds.size > 0) continue;
+        await Promise.race([
+          new Promise((resolve) => setTimeout(resolve, RESCAN_MS)),
+          new Promise<void>((resolve) => {
+            wakeWorker = resolve;
+          }),
+        ]);
+        wakeWorker = null;
       }
     } catch (err) {
       console.error(`${TAG} Fatal worker error:`, err instanceof Error ? err.message : err);

@@ -55,6 +55,10 @@ RUN pnpm --filter @workspace/api-server build
 # ── Stage 2: Production runner ─────────────────────────────────────────────────
 FROM node:22-slim AS runner
 
+# The production image includes the background 720p worker by default.
+# A runtime environment value can still explicitly override this.
+ENV ENABLE_DRIVE_TRANSCODE=true
+
 ARG GIT_SHA=unknown
 ARG BUILD_DATE=unknown
 
