@@ -25,28 +25,28 @@ import {
 import { MediaGrid } from "./MediaGrid";
 import { CommentsSection } from "./CommentsSection";
 import {
-  Heart,
   MessageCircle,
   Eye,
-  Crown,
-  MoreHorizontal,
+  MoreVertical,
   Pencil,
   Trash2,
   Loader2,
   Pin,
-  Star,
   Flag,
+  ThumbsUp,
+  CheckCircle2,
+  Star
 } from "lucide-react";
 
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const m = Math.floor(diff / 60000);
   if (m < 1) return "الآن";
-  if (m < 60) return `قبل ${m} دقيقة`;
+  if (m < 60) return `منذ ${m} دقيقة`;
   const h = Math.floor(m / 60);
-  if (h < 24) return `قبل ${h} ساعة`;
+  if (h < 24) return `منذ ${h} ساعة`;
   const d = Math.floor(h / 24);
-  if (d < 30) return `قبل ${d} يوم`;
+  if (d < 30) return `منذ ${d} يوم`;
   return new Date(iso).toLocaleDateString("ar");
 }
 
@@ -159,18 +159,18 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: Math.min(index, 6) * 0.05, duration: 0.35 }}
     >
-      <Card className="overflow-hidden rounded-3xl border-border bg-white/90 shadow-[0_2px_16px_rgba(15,23,42,0.05)] backdrop-blur-xl">
+      <Card className="overflow-hidden rounded-2xl border-border bg-white shadow-sm hover:shadow-md transition-shadow">
         {/* Header */}
-        <div className="flex items-center gap-3 p-4 pb-3">
+        <div className="flex items-start gap-3 p-4 pb-2">
           {post.author.profileImageUrl ? (
             <img
               src={post.author.profileImageUrl}
               alt={post.author.username}
-              className="h-11 w-11 shrink-0 rounded-full object-cover shadow-sm"
+              className="h-10 w-10 shrink-0 rounded-full object-cover shadow-sm border border-slate-100"
             />
           ) : (
             <div
-              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-base font-bold text-white shadow-sm ${
+              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-base font-bold text-white shadow-sm ${
                 vip
                   ? "bg-gradient-to-br from-amber-400 to-orange-500"
                   : "bg-gradient-to-br from-slate-400 to-slate-500"
@@ -179,143 +179,163 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
               {post.author.username.trim().charAt(0) || "؟"}
             </div>
           )}
+
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5">
-              <span className="truncate font-bold text-foreground">{post.author.username}</span>
+            <div className="flex items-center flex-wrap gap-x-2 gap-y-0.5">
+              <span className="truncate font-bold text-slate-900 text-[15px]">{post.author.username}</span>
               {vip && (
-                <span className="flex items-center gap-1 rounded-full bg-gradient-to-r from-amber-400/20 to-orange-500/20 px-1.5 py-0.5 text-[10px] font-bold text-orange-500">
-                  <Crown className="h-3 w-3" /> VIP
+                <span className="flex items-center text-[10px] font-bold text-orange-500 tracking-wider">
+                  VIP
+                  <CheckCircle2 className="w-3 h-3 ml-0.5 text-blue-500 fill-blue-500/20" />
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
               <span>{timeAgo(post.createdAt)}</span>
               {post.isPinned && (
-                <span className="flex items-center gap-0.5 text-primary">
-                  <Pin className="h-3 w-3" /> مثبّت
-                </span>
-              )}
-              {post.isFeatured && (
-                <span className="flex items-center gap-0.5 text-amber-500">
-                  <Star className="h-3 w-3 fill-current" /> مميّز
-                </span>
+                <>
+                  <span className="w-1 h-1 rounded-full bg-slate-300" />
+                  <span className="flex items-center gap-0.5 text-orange-500">
+                    <Pin className="h-3 w-3" /> مثبّت
+                  </span>
+                </>
               )}
             </div>
           </div>
 
-          {user && (
-            <div className="relative">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 rounded-full text-muted-foreground"
-                onClick={() => setMenuOpen((v) => !v)}
-                onBlur={() => setTimeout(() => setMenuOpen(false), 150)}
-              >
-                <MoreHorizontal className="h-5 w-5" />
-              </Button>
-              <AnimatePresence>
-                {menuOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    className="absolute left-0 top-9 z-30 w-44 overflow-hidden rounded-xl border border-border bg-white shadow-lg"
-                  >
-                    {post.canEdit && (
-                      <>
+          <div className="flex items-center gap-2">
+            {post.isFeatured && (
+               <span className="flex items-center gap-1 px-2.5 py-1 bg-amber-50 text-amber-600 rounded-md text-[11px] font-bold border border-amber-100">
+                 <Star className="h-3 w-3 fill-current" />
+                 مميّز
+               </span>
+            )}
+
+            {user && (
+              <div className="relative">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-50"
+                  onClick={() => setMenuOpen((v) => !v)}
+                  onBlur={() => setTimeout(() => setMenuOpen(false), 150)}
+                  aria-label={`خيارات منشور ${post.author.username}`}
+                  data-testid={`button-menu-${post.id}`}
+                >
+                  <MoreVertical className="h-5 w-5" />
+                </Button>
+                <AnimatePresence>
+                  {menuOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      className="absolute left-0 top-9 z-30 w-40 overflow-hidden rounded-xl border border-border bg-white shadow-lg"
+                    >
+                      {post.canEdit && (
+                        <>
+                          <button
+                            type="button"
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              setEditText(post.content || "");
+                              setEditOpen(true);
+                              setMenuOpen(false);
+                            }}
+                            data-testid={`button-edit-${post.id}`}
+                            className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-slate-700 font-medium hover:bg-slate-50"
+                          >
+                            <Pencil className="h-4 w-4 text-slate-400" /> تعديل
+                          </button>
+                          <button
+                            type="button"
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              setConfirmDel(true);
+                              setMenuOpen(false);
+                            }}
+                            data-testid={`button-delete-${post.id}`}
+                            className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-red-600 font-medium hover:bg-red-50"
+                          >
+                            <Trash2 className="h-4 w-4 text-red-500" /> حذف
+                          </button>
+                        </>
+                      )}
+                      {!post.canEdit && (
                         <button
                           type="button"
                           onMouseDown={(e) => {
                             e.preventDefault();
-                            setEditText(post.content || "");
-                            setEditOpen(true);
+                            setReportOpen(true);
                             setMenuOpen(false);
                           }}
-                          className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-foreground hover:bg-muted"
+                          data-testid={`button-report-${post.id}`}
+                          className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-slate-600 font-medium hover:bg-slate-50"
                         >
-                          <Pencil className="h-4 w-4" /> تعديل
+                          <Flag className="h-4 w-4 text-slate-400" /> إبلاغ
                         </button>
-                        <button
-                          type="button"
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            setConfirmDel(true);
-                            setMenuOpen(false);
-                          }}
-                          className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-destructive hover:bg-destructive/10"
-                        >
-                          <Trash2 className="h-4 w-4" /> حذف
-                        </button>
-                      </>
-                    )}
-                    {!post.canEdit && (
-                      <button
-                        type="button"
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          setReportOpen(true);
-                          setMenuOpen(false);
-                        }}
-                        className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-muted-foreground hover:bg-muted"
-                      >
-                        <Flag className="h-4 w-4" /> إبلاغ
-                      </button>
-                    )}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          )}
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Content */}
         {post.content && (
-          <p className="whitespace-pre-wrap break-words px-4 pb-3 text-[15px] leading-relaxed text-foreground/90">
+          <p className="whitespace-pre-wrap break-words px-4 pt-1 pb-3 text-[14px] leading-relaxed text-slate-800">
             {post.content}
           </p>
         )}
 
         {/* Media */}
         {post.media.length > 0 && (
-          <div className="px-2 pb-2 sm:px-3">
+          <div className="px-4 pb-4">
             <MediaGrid media={post.media} username={post.author.username} />
           </div>
         )}
 
-        {/* Counters */}
-        <div className="flex items-center justify-between px-4 pt-2 text-xs text-muted-foreground">
-          <span>{likes > 0 ? `${likes} إعجاب` : ""}</span>
-          <div className="flex items-center gap-3">
-            {commentsCount > 0 && <span>{commentsCount} تعليق</span>}
-            <span className="flex items-center gap-1">
-              <Eye className="h-3.5 w-3.5" /> {views}
-            </span>
-          </div>
-        </div>
+        {/* Actions Footer */}
+        <div className="mx-4 mb-2 border-t border-slate-100 flex items-center justify-between flex-wrap gap-2 pt-2">
 
-        {/* Actions */}
-        <div className="mx-4 mt-2 grid grid-cols-2 gap-1 border-t border-border/60 pt-1">
-          <button
-            type="button"
-            onClick={toggleLike}
-            className={`flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold transition-colors ${
-              liked ? "text-rose-500" : "text-muted-foreground hover:bg-muted"
-            }`}
-          >
-            <Heart className={`h-5 w-5 ${liked ? "fill-rose-500" : ""}`} />
-            إعجاب
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowComments((v) => !v)}
-            className={`flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold transition-colors ${
-              showComments ? "text-primary" : "text-muted-foreground hover:bg-muted"
-            }`}
-          >
-            <MessageCircle className="h-5 w-5" />
-            تعليق
-          </button>
+          <div className="flex items-center gap-2 sm:gap-4">
+            {/* Like */}
+            <button
+              type="button"
+              onClick={toggleLike}
+              data-testid={`button-like-${post.id}`}
+              className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[13px] font-semibold transition-colors ${
+                liked ? "text-orange-500" : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
+              }`}
+            >
+              <ThumbsUp className={`h-4 w-4 ${liked ? "fill-orange-500 text-orange-500" : "text-slate-400"}`} />
+              <span data-testid={`text-likes-${post.id}`}>{likes > 0 ? likes : "إعجاب"}</span>
+            </button>
+
+            {/* Comment */}
+            <button
+              type="button"
+              onClick={() => setShowComments((v) => !v)}
+              data-testid={`button-comment-${post.id}`}
+              className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[13px] font-semibold transition-colors ${
+                showComments ? "text-orange-500" : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
+              }`}
+            >
+              <MessageCircle className={`h-4 w-4 ${showComments ? "fill-orange-500/20 text-orange-500" : "text-slate-400"}`} />
+              <span data-testid={`text-comments-${post.id}`}>{commentsCount > 0 ? commentsCount : "تعليق"}</span>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 sm:gap-4 text-slate-500 font-semibold px-2" title="عدد المشاهدات" aria-label="عدد المشاهدات">
+            {/* Views */}
+            <div className="flex items-center gap-1.5 text-[13px]">
+              <Eye className="h-4 w-4 text-slate-400" />
+              <span data-testid={`text-views-${post.id}`}>{views}</span>
+            </div>
+          </div>
+
         </div>
 
         {/* Comments */}
@@ -325,12 +345,14 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
               exit={{ opacity: 0, height: 0 }}
-              className="overflow-hidden px-4 pb-4"
+              className="overflow-hidden bg-slate-50/50"
             >
-              <CommentsSection
-                postId={post.id}
-                onCountChange={(delta) => setCommentsCount((n) => Math.max(0, n + delta))}
-              />
+              <div className="px-4 pb-4 pt-2 border-t border-slate-100">
+                 <CommentsSection
+                   postId={post.id}
+                   onCountChange={(delta) => setCommentsCount((n) => Math.max(0, n + delta))}
+                 />
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -356,6 +378,7 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
             <Button
               onClick={() => updM.mutate({ id: post.id, data: { content: editText.trim() || null } })}
               disabled={updM.isPending}
+              className="bg-orange-500 hover:bg-orange-600 text-white"
             >
               {updM.isPending && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
               حفظ
@@ -419,17 +442,18 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
           <DialogHeader>
             <DialogTitle>حذف المنشور</DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-slate-500">
             هل أنت متأكد من حذف هذا المنشور؟ لا يمكن التراجع عن هذا الإجراء.
           </p>
-          <DialogFooter className="gap-2">
-            <Button variant="ghost" onClick={() => setConfirmDel(false)}>
+          <DialogFooter className="gap-2 mt-4">
+            <Button variant="ghost" onClick={() => setConfirmDel(false)} className="rounded-xl">
               إلغاء
             </Button>
             <Button
               variant="destructive"
               onClick={() => delM.mutate({ id: post.id }, { onSettled: () => setConfirmDel(false) })}
               disabled={delM.isPending}
+              className="rounded-xl"
             >
               {delM.isPending && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
               حذف
