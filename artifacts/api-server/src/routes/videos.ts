@@ -406,6 +406,36 @@ router.post("/videos/:id/security-event", optionalUserAuth, async (req, res) => 
   }
 });
 
+// Lightweight playback diagnostics. These records stay in server logs only and
+// make it possible to distinguish a player-buffer underrun from a slow Drive
+// TTFB or a slow backend pipe without changing the streaming architecture.
+router.post("/videos/:id/playback-metric", optionalUserAuth, (req, res) => {
+  const videoId = Number(req.params.id);
+  const body = req.body as Record<string, unknown>;
+  const event = body.event;
+  if (!Number.isFinite(videoId) || !["waiting", "recovered", "stalled"].includes(String(event))) {
+    res.status(400).json({ message: "Invalid playback metric" });
+    return;
+  }
+  const safeNumber = (value: unknown, max: number) => {
+    const n = Number(value);
+    return Number.isFinite(n) ? Math.max(0, Math.min(n, max)) : null;
+  };
+  console.info("[video-buffer]", {
+    event,
+    videoId,
+    userId: req.user?.id ?? null,
+    currentTime: safeNumber(body.currentTime, 24 * 60 * 60),
+    bufferAhead: safeNumber(body.bufferAhead, 60 * 60),
+    readyState: safeNumber(body.readyState, 4),
+    networkState: safeNumber(body.networkState, 3),
+    paused: body.paused === true,
+    stallMs: safeNumber(body.stallMs, 10 * 60_000),
+    downlinkMbps: safeNumber(body.downlinkMbps, 10_000),
+  });
+  res.status(204).end();
+});
+
 /* ── Shared gate for the byte/playlist routes ─────────────────────────────
    The native <video> element (and hls.js playlist fetches) cannot send
    Authorization headers, so these routes take a short-lived signed token in

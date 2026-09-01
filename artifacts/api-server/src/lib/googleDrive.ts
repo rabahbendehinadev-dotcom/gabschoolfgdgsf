@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import { OAuth2Client } from "google-auth-library";
-import { Readable } from "stream";
+import { Readable, Transform } from "stream";
 import { pipeline } from "stream/promises";
 
 /* ════════════════════════════════════════════════════════════════════════
@@ -211,13 +211,13 @@ export function isFolderDriveUrl(url: string): boolean {
 }
 
 // ─── Pre-fetch cache ─────────────────────────────────────────────────────────
-// Mobile players often consume an 8 MiB window before the next request has
-// cleared the Drive round-trip. 16 MiB keeps roughly twice as much media ahead
-// while the following window is prefetched concurrently.
-const MAX_CHUNK_MOBILE = 16 * 1024 * 1024;
+// A 64 MiB mobile response is roughly 3–5 minutes at common 720p bitrates.
+// It is still live-piped (never accumulated in RAM); only the following window
+// may be held by the bounded prefetch cache.
+const MAX_CHUNK_MOBILE = 64 * 1024 * 1024;
 const MAX_CHUNK_DESKTOP = 32 * 1024 * 1024;
-const MAX_PREFETCH_ENTRIES = 8;
-const PREFETCH_TTL_MS = 3 * 60_000;
+const MAX_PREFETCH_ENTRIES = 3;
+const PREFETCH_TTL_MS = 5 * 60_000;
 
 function isMobileUA(ua: string | undefined): boolean {
   if (!ua) return false;
@@ -256,6 +256,7 @@ async function fetchDriveRange(
   fileId: string,
   driveRange: string,
 ): Promise<PrefetchResult | null> {
+  const startedAt = Date.now();
   try {
     const resp = await fetch(
       `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true`,
@@ -264,7 +265,7 @@ async function fetchDriveRange(
     if (resp.status !== 200 && resp.status !== 206) return null;
     const data = Buffer.from(await resp.arrayBuffer());
     const upstreamType = resp.headers.get("content-type");
-    return {
+    const result = {
       status: resp.status,
       data,
       contentRange: resp.headers.get("content-range"),
@@ -274,9 +275,31 @@ async function fetchDriveRange(
           ? upstreamType
           : "video/mp4",
     };
+    console.info("[video-stream] PREFETCH ready", {
+      fileId,
+      driveRange,
+      bytes: data.byteLength,
+      elapsedMs: Date.now() - startedAt,
+      mbps: Number(((data.byteLength * 8) / Math.max(1, Date.now() - startedAt) / 1000).toFixed(2)),
+    });
+    return result;
   } catch {
     return null;
   }
+}
+
+function parseContentRange(value: string | null): {
+  start: number;
+  end: number;
+  total: string;
+} | null {
+  const match = value?.match(/^bytes (\d+)-(\d+)\/(\d+|\*)$/);
+  if (!match) return null;
+  return {
+    start: Number(match[1]),
+    end: Number(match[2]),
+    total: match[3],
+  };
 }
 
 function schedulePrefetch(
@@ -344,6 +367,7 @@ export async function streamDriveFile(
     (windowedSetting !== "false" && mobileClient);
 
   let start = 0;
+  let end: number | null = null;
   let driveRange: string;
 
   const chunkSize = mobileClient ? MAX_CHUNK_MOBILE : MAX_CHUNK_DESKTOP;
@@ -362,7 +386,7 @@ export async function streamDriveFile(
     }
     if (windowed) {
       const cappedEnd = start + chunkSize - 1;
-      const end =
+      end =
         requestedEnd === null ? cappedEnd : Math.min(requestedEnd, cappedEnd);
       driveRange = `bytes=${start}-${end}`;
     } else {
@@ -381,7 +405,14 @@ export async function streamDriveFile(
     evictPrefetchEntry(key!);
     const result = await cachedEntry.promise;
     if (result) {
-      const nextStart = start + chunkSize;
+      const cachedRange = parseContentRange(result.contentRange);
+      const requestedLength = end === null ? result.data.byteLength : end - start + 1;
+      const data = result.data.subarray(0, Math.min(result.data.byteLength, requestedLength));
+      const servedEnd = start + data.byteLength - 1;
+      const contentRange = cachedRange
+        ? `bytes ${start}-${servedEnd}/${cachedRange.total}`
+        : result.contentRange;
+      const nextStart = servedEnd + 1;
       getDriveAccessToken()
         .then((tok) => schedulePrefetch(tok, fileId, nextStart, chunkSize))
         .catch(() => {});
@@ -392,27 +423,34 @@ export async function streamDriveFile(
         clientRange: clientRange ?? null,
         driveRange,
         cached: true,
-        bytes: result.data.byteLength,
+        bytes: data.byteLength,
       });
 
       setVideoHeaders(
         res,
         result.status,
-        result.contentRange,
-        result.contentLength,
+        contentRange,
+        String(data.byteLength),
         result.contentType,
       );
-      res.end(result.data);
+      res.end(data);
       return;
     }
   }
 
   // Live pipe: forward bytes to the client as they arrive from Drive.
   const controller = new AbortController();
-  const onClose = () => controller.abort();
+  let clientClosedEarly = false;
+  const onClose = () => {
+    if (!res.writableEnded) {
+      clientClosedEarly = true;
+      controller.abort();
+    }
+  };
   res.on("close", onClose);
 
   let resp: globalThis.Response;
+  const driveFetchStartedAt = Date.now();
   try {
     resp = await fetch(
       `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true`,
@@ -439,12 +477,8 @@ export async function streamDriveFile(
     return;
   }
 
-  if (windowed && !isSuffix) {
-    const nextStart = start + chunkSize;
-    getDriveAccessToken()
-      .then((tok) => schedulePrefetch(tok, fileId, nextStart, chunkSize))
-      .catch(() => {});
-  }
+  const upstreamRange = parseContentRange(resp.headers.get("content-range"));
+  const nextStart = upstreamRange ? upstreamRange.end + 1 : start + chunkSize;
 
   console.info("[video-stream] OK: piping Drive file", {
     fileId,
@@ -453,6 +487,7 @@ export async function streamDriveFile(
     driveRange,
     windowed,
     contentLength: resp.headers.get("content-length"),
+    driveTtfbMs: Date.now() - driveFetchStartedAt,
   });
 
   setVideoHeaders(
@@ -463,14 +498,53 @@ export async function streamDriveFile(
     resp.headers.get("content-type"),
   );
 
+  const streamStartedAt = Date.now();
+  const expectedBytes = Number(resp.headers.get("content-length") || 0);
+  let streamedBytes = 0;
+  let prefetchScheduled = false;
+  // Let the first bytes win the available Drive bandwidth, then start the next
+  // request while most of the current window is still being streamed.
+  const prefetchThreshold = Math.min(
+    8 * 1024 * 1024,
+    Math.max(256 * 1024, Math.floor(expectedBytes / 4)),
+  );
+  const meter = new Transform({
+    transform(chunk: Buffer, _encoding, callback) {
+      streamedBytes += chunk.length;
+      if (
+        windowed &&
+        !isSuffix &&
+        !prefetchScheduled &&
+        streamedBytes >= prefetchThreshold
+      ) {
+        prefetchScheduled = true;
+        getDriveAccessToken()
+          .then((tok) => schedulePrefetch(tok, fileId, nextStart, chunkSize))
+          .catch(() => {});
+      }
+      callback(null, chunk);
+    },
+  });
   try {
     await pipeline(
       Readable.fromWeb(resp.body as import("stream/web").ReadableStream),
+      meter,
       res,
     );
   } catch {
     // Client disconnected or upstream aborted mid-stream — nothing to recover.
   } finally {
+    console.info("[video-stream] PIPE finished", {
+      fileId,
+      driveRange,
+      expectedBytes,
+      streamedBytes,
+      elapsedMs: Date.now() - streamStartedAt,
+      mbps: Number(
+        ((streamedBytes * 8) / Math.max(1, Date.now() - streamStartedAt) / 1000).toFixed(2),
+      ),
+      clientClosedEarly,
+    });
     res.off("close", onClose);
   }
 }

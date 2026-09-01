@@ -92,15 +92,6 @@ function maxBufferedEnd(v: HTMLVideoElement): number {
   return t;
 }
 
-/* هل الوقت المطلوب يقع داخل أيٍّ من النطاقات المحمّلة؟ */
-function isInAnyBufferedRange(b: TimeRanges, time: number): boolean {
-  const tol = 0.5;
-  for (let i = 0; i < b.length; i++) {
-    if (b.start(i) <= time + tol && b.end(i) >= time - tol) return true;
-  }
-  return false;
-}
-
 function qualityLabel(height: number): string {
   if (!height) return "تلقائي";
   if (height >= 2000) return "4K";
@@ -180,7 +171,6 @@ export function CourseVideoPlayer({
   const [duration, setDuration] = useState(0);
   const [current, setCurrent] = useState(0);
   const [bufferedRanges, setBufferedRanges] = useState<Array<{ start: number; end: number }>>([]);
-  const [seekBlockedMsg, setSeekBlockedMsg] = useState(false);
   const [volume, setVolume] = useState(1);
   const [muted, setMuted] = useState(false);
   const [fit, setFit] = useState<Fit>("contain");
@@ -219,9 +209,10 @@ export function CourseVideoPlayer({
 
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const gestureTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const seekBlockedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const violationsRef = useRef(0);
   const reportedRef = useRef<Set<string>>(new Set());
+  const lastPlaybackMetricRef = useRef(0);
+  const stallStartedRef = useRef<number | null>(null);
   const lastTapRef = useRef<{ t: number; x: number } | null>(null);
   const wmName = username || "مستخدم محمي";
   const wmIdLabel = userId ? `ID: ${userId}` : null;
@@ -259,6 +250,36 @@ export function CourseVideoPlayer({
         body: JSON.stringify({ eventType, details }),
       });
     } catch { /* الحماية يجب ألا تكسر التشغيل */ }
+  }, [videoId]);
+
+  const reportPlaybackMetric = useCallback((
+    event: "waiting" | "stalled" | "recovered",
+    stallMs?: number,
+  ) => {
+    const v = videoRef.current;
+    if (!videoId || !v) return;
+    const now = Date.now();
+    if (event !== "recovered" && now - lastPlaybackMetricRef.current < 15_000) return;
+    lastPlaybackMetricRef.current = now;
+    const connection = (navigator as Navigator & {
+      connection?: { downlink?: number };
+    }).connection;
+    void fetch(`/api/videos/${videoId}/playback-metric`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      keepalive: true,
+      body: JSON.stringify({
+        event,
+        currentTime: v.currentTime,
+        bufferAhead: Math.max(0, maxBufferedEnd(v) - v.currentTime),
+        readyState: v.readyState,
+        networkState: v.networkState,
+        paused: v.paused,
+        stallMs,
+        downlinkMbps: connection?.downlink,
+      }),
+    }).catch(() => {});
   }, [videoId]);
 
   const logViolation = useCallback(async (count: number) => {
@@ -308,19 +329,12 @@ export function CourseVideoPlayer({
     showControls();
   }, [videoDisabled, showControls]);
 
-  /* fromUser=true → تحقّق من وجود البيانات في البفر قبل التنفيذ.
-     fromUser=false → استئناف الموضع المحفوظ والقفز الداخلي (لا قيد). */
-  const seekTo = useCallback((time: number, fromUser = false) => {
+  /* اسمح دائماً بالـseek: إذا لم تكن النقطة محمّلة يصدر عنصر video طلب Range
+     جديداً فوراً. منع القفز خارج البفر كان يؤخر الوصول ويمنع الاستفادة من Range. */
+  const seekTo = useCallback((time: number, _fromUser = false) => {
     const v = videoRef.current;
     if (!v || !Number.isFinite(v.duration)) return;
     const clamped = Math.min(Math.max(0, time), v.duration);
-    if (fromUser && v.buffered.length > 0 && !isInAnyBufferedRange(v.buffered, clamped)) {
-      /* الجزء المطلوب غير محمَّل — أظهر رسالة ولا تغيّر الموضع */
-      setSeekBlockedMsg(true);
-      if (seekBlockedTimer.current) clearTimeout(seekBlockedTimer.current);
-      seekBlockedTimer.current = setTimeout(() => setSeekBlockedMsg(false), 2800);
-      return;
-    }
     v.currentTime = clamped;
     setCurrent(clamped);
   }, []);
@@ -466,7 +480,12 @@ export function CourseVideoPlayer({
     };
     const onPlay = () => { setPlaying(true); setStarted(true); setWaiting(false); showControls(); };
     const onPause = () => { setPlaying(false); setControlsVisible(true); };
-    const onWaiting = () => setWaiting(true);
+    const onWaiting = () => {
+      setWaiting(true);
+      if (stallStartedRef.current === null) stallStartedRef.current = Date.now();
+      reportPlaybackMetric("waiting");
+    };
+    const onStalled = () => reportPlaybackMetric("stalled");
     const clearSeek = () => {
       setSeeking(false);
       setSeekSpinner(false);
@@ -481,7 +500,14 @@ export function CourseVideoPlayer({
       seekSpinnerTimer.current = setTimeout(() => setSeekSpinner(true), 700);
     };
     const onSeeked = () => { /* ننتظر playing قبل إخفاء شريط التحميل */ };
-    const onPlaying = () => { setWaiting(false); clearSeek(); };
+    const onPlaying = () => {
+      setWaiting(false);
+      clearSeek();
+      if (stallStartedRef.current !== null) {
+        reportPlaybackMetric("recovered", Date.now() - stallStartedRef.current);
+        stallStartedRef.current = null;
+      }
+    };
     const onReady = () => setWaiting(false);
     const onEnded = () => { setPlaying(false); setControlsVisible(true); };
     const onError = () => {
@@ -497,6 +523,7 @@ export function CourseVideoPlayer({
     v.addEventListener("play", onPlay);
     v.addEventListener("pause", onPause);
     v.addEventListener("waiting", onWaiting);
+    v.addEventListener("stalled", onStalled);
     v.addEventListener("seeking", onSeeking);
     v.addEventListener("seeked", onSeeked);
     v.addEventListener("playing", onPlaying);
@@ -512,6 +539,7 @@ export function CourseVideoPlayer({
       v.removeEventListener("play", onPlay);
       v.removeEventListener("pause", onPause);
       v.removeEventListener("waiting", onWaiting);
+      v.removeEventListener("stalled", onStalled);
       v.removeEventListener("seeking", onSeeking);
       v.removeEventListener("seeked", onSeeked);
       v.removeEventListener("playing", onPlaying);
@@ -521,7 +549,7 @@ export function CourseVideoPlayer({
       v.removeEventListener("error", onError);
       v.removeEventListener("volumechange", onVol);
     };
-  }, [showControls]);
+  }, [showControls, reportPlaybackMetric]);
 
   /* ── إعادة الضبط عند تغيّر المصدر (دون إعادة تركيب العنصر → لا وميض) ── */
   useEffect(() => {
@@ -944,25 +972,6 @@ export function CourseVideoPlayer({
           onPointerUp={onSurfaceUp}
           onPointerCancel={() => { dragRef.current = null; }}
         />
-
-        {/* تنبيه: منطقة غير محمَّلة بعد */}
-        <AnimatePresence>
-          {seekBlockedMsg && (
-            <motion.div
-              key="seek-blocked"
-              className="pointer-events-none absolute inset-x-0 top-[18%] z-40 flex justify-center px-4"
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.2 }}
-            >
-              <div className="flex items-center gap-2 rounded-xl bg-black/75 px-4 py-2.5 text-sm font-semibold text-white shadow-lg backdrop-blur-md">
-                <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
-                <span>هذا الجزء لم يتم تحميله بعد، انتظر قليلاً.</span>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
 
         {/* مؤشّر إيماءة مؤقت */}
         {gesture && (
