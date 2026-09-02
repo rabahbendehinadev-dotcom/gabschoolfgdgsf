@@ -119,12 +119,12 @@ export function DriveDirectPlayer({
   const position = WATERMARK_POSITIONS[watermarkIndex];
 
   return (
-    <div className="space-y-3">
+    <div className="-mx-2 w-[calc(100%+1rem)] max-w-none space-y-3 lg:mx-0 lg:w-full">
       <div
         ref={containerRef}
         className={`relative w-full overflow-hidden bg-black shadow-2xl ${
           isFullscreen
-            ? "h-screen w-screen rounded-none border-0"
+            ? "h-[100dvh] w-[100dvw] max-w-none rounded-none border-0"
             : "aspect-video rounded-2xl border border-border"
         }`}
       >
