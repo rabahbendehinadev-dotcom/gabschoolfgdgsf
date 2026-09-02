@@ -30,6 +30,10 @@ export function DriveDirectPlayer({
   const [mobileFullscreenMode, setMobileFullscreenMode] = useState(false);
   const [iframeFailed, setIframeFailed] = useState(false);
   const [iframeKey, setIframeKey] = useState(0);
+  const isIOS =
+    typeof navigator !== "undefined" &&
+    (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1));
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -87,10 +91,6 @@ export function DriveDirectPlayer({
       document.body.style.overflow = previousBodyOverflow;
       document.documentElement.style.overflow = previousHtmlOverflow;
       document.removeEventListener("keydown", exitOnEscape);
-      const orientation = screen.orientation as ScreenOrientation & {
-        unlock?: () => void;
-      };
-      orientation.unlock?.();
     };
   }, [mobileFullscreenMode]);
 
@@ -120,6 +120,11 @@ export function DriveDirectPlayer({
 
     if (mobileFullscreenMode) {
       setMobileFullscreenMode(false);
+      return;
+    }
+
+    if (isIOS) {
+      setMobileFullscreenMode(true);
       return;
     }
 
@@ -172,7 +177,7 @@ export function DriveDirectPlayer({
         className={`relative w-full overflow-hidden bg-black shadow-2xl ${
           fullscreenActive
             ? mobileFullscreenMode
-              ? "fixed inset-0 z-[99999] m-0 h-screen h-[100dvh] w-screen w-[100dvw] max-w-none rounded-none border-0 p-0"
+              ? "fixed inset-0 z-[999999] m-0 h-[100dvh] w-screen max-w-none rounded-none border-0 p-0"
               : "h-[100dvh] w-[100dvw] max-w-none rounded-none border-0"
             : "aspect-video rounded-2xl border border-border"
         }`}
@@ -181,7 +186,7 @@ export function DriveDirectPlayer({
           key={`${previewUrl}-${iframeKey}`}
           src={previewUrl}
           title={title ? `تشغيل ${title}` : "تشغيل الفيديو"}
-          className="absolute inset-0 h-full w-full border-0"
+          className="absolute inset-0 z-0 h-full w-full border-0"
           allow="autoplay"
           referrerPolicy="no-referrer"
           onError={() => setIframeFailed(true)}
@@ -189,7 +194,7 @@ export function DriveDirectPlayer({
 
         <div
           aria-hidden="true"
-          className="pointer-events-auto absolute right-1.5 top-1.5 z-30 h-11 w-11 cursor-default bg-transparent sm:right-2 sm:top-2 sm:h-12 sm:w-12"
+          className="pointer-events-auto absolute right-0 top-0 z-40 h-[52px] w-[52px] cursor-default bg-transparent"
           onClick={(event) => {
             event.preventDefault();
             event.stopPropagation();
@@ -205,7 +210,7 @@ export function DriveDirectPlayer({
           onClick={toggleFullscreen}
           aria-label={fullscreenActive ? "الخروج من ملء الشاشة" : "ملء الشاشة"}
           title={fullscreenActive ? "الخروج من ملء الشاشة" : "ملء الشاشة"}
-          className="absolute left-3 top-3 z-30 flex h-11 w-11 touch-manipulation items-center justify-center rounded-xl border border-white/20 bg-black/65 text-white shadow-lg backdrop-blur-md transition hover:bg-black/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80 sm:h-10 sm:w-10"
+          className="pointer-events-auto absolute left-3 top-3 z-40 flex h-11 w-11 touch-manipulation items-center justify-center rounded-xl border border-white/20 bg-black/65 text-white shadow-lg backdrop-blur-md transition hover:bg-black/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80 sm:h-10 sm:w-10"
         >
           {fullscreenActive ? (
             <Minimize className="h-5 w-5" />
@@ -223,14 +228,14 @@ export function DriveDirectPlayer({
         </div>
 
         {iframeFailed && (
-          <div className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-4 bg-black px-6 text-center text-white">
+          <div className="pointer-events-none absolute inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-black px-6 text-center text-white">
             <p className="text-sm font-semibold sm:text-base">
               تعذر تشغيل الفيديو حالياً. حاول مرة أخرى.
             </p>
             <button
               type="button"
               onClick={retryPreview}
-              className="inline-flex min-h-11 touch-manipulation items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-black transition hover:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              className="pointer-events-auto inline-flex min-h-11 touch-manipulation items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-black transition hover:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
             >
               <RefreshCw className="h-4 w-4" />
               إعادة المحاولة
