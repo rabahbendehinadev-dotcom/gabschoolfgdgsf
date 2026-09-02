@@ -31,23 +31,29 @@ export function verifyToken(token: string): { userId: number } | null {
 export function generateMediaToken(payload: {
   userId: number;
   mediaId: number;
-  variant: "preview" | "full";
+  variant: "preview" | "thumbnail" | "full";
 }): string {
   return jwt.sign({ ...payload, kind: "community-media" }, JWT_SECRET, { expiresIn: "2h" });
 }
 
 export function verifyMediaToken(
   token: string,
-): { userId: number; mediaId: number; variant: "preview" | "full" } | null {
+): { userId: number; mediaId: number; variant: "preview" | "thumbnail" | "full" } | null {
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as {
       userId: number;
       mediaId: number;
-      variant?: "preview" | "full";
+      variant?: "preview" | "thumbnail" | "full";
       kind?: string;
     };
     if (decoded.kind !== "community-media") return null;
-    if (decoded.variant !== "preview" && decoded.variant !== "full") return null;
+    if (
+      decoded.variant !== "preview" &&
+      decoded.variant !== "thumbnail" &&
+      decoded.variant !== "full"
+    ) {
+      return null;
+    }
     return { userId: decoded.userId, mediaId: decoded.mediaId, variant: decoded.variant };
   } catch {
     return null;

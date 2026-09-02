@@ -24,6 +24,7 @@ const TAG = "[img-thumb]";
 const THUMB_W = 800;
 const THUMB_H = 450;
 const THUMB_Q = 80;
+const COMMUNITY_THUMB_MAX = 1200;
 
 function readAll(stream: Readable): Promise<Buffer> {
   return new Promise((resolve, reject) => {
@@ -116,6 +117,74 @@ export async function generateThumbnail(sourcePath: string): Promise<string | nu
     `${TAG} ${sourcePath} → ${thumbPath} (${(thumbBuf.length / 1024).toFixed(0)} KB)`,
   );
   return thumbPath;
+}
+
+/**
+ * Generate a Community feed image without cropping or enlarging small uploads.
+ * The longest side is capped at 1200px and the original aspect ratio is kept.
+ */
+export async function generateCommunityThumbnail(
+  sourcePath: string,
+): Promise<string | null> {
+  let sharpMod: typeof import("sharp");
+  try {
+    sharpMod = await import("sharp");
+  } catch {
+    console.warn(`${TAG} sharp unavailable — cannot generate Community thumbnail`);
+    return null;
+  }
+
+  const svc = new ObjectStorageService();
+  let sourceFile: any;
+  try {
+    sourceFile = await svc.getObjectEntityFile(sourcePath);
+  } catch (e) {
+    if (e instanceof ObjectNotFoundError) return null;
+    throw e;
+  }
+
+  let original: Buffer;
+  try {
+    original = await readAll(sourceFile.createReadStream());
+  } catch {
+    return null;
+  }
+  if (original.length === 0) return null;
+
+  let thumbBuf: Buffer;
+  try {
+    thumbBuf = await sharpMod
+      .default(original, { failOn: "none" })
+      .rotate()
+      .resize({
+        width: COMMUNITY_THUMB_MAX,
+        height: COMMUNITY_THUMB_MAX,
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+      .webp({ quality: THUMB_Q })
+      .toBuffer();
+  } catch {
+    return null;
+  }
+
+  const thumbPath = await saveThumbnailBuffer(svc, thumbBuf);
+  console.log(
+    `${TAG} community ${sourcePath} → ${thumbPath} (${(thumbBuf.length / 1024).toFixed(0)} KB)`,
+  );
+  return thumbPath;
+}
+
+export async function deleteGeneratedThumbnail(objectPath: string): Promise<void> {
+  if (!objectPath.startsWith("/objects/thumbnails/")) return;
+  try {
+    const svc = new ObjectStorageService();
+    const file = await svc.getObjectEntityFile(objectPath);
+    await file.delete();
+  } catch (error) {
+    if (error instanceof ObjectNotFoundError) return;
+    throw error;
+  }
 }
 
 /**

@@ -9,7 +9,7 @@ import {
   communityReportsTable,
   usersTable,
 } from "@workspace/db";
-import { eq, and, desc, asc, inArray, count, gte } from "drizzle-orm";
+import { eq, and, desc, asc, inArray, count, gte, isNull } from "drizzle-orm";
 import { optionalUserAuth, userAuth } from "../middlewares/auth";
 import { generateMediaToken, verifyMediaToken } from "../lib/auth";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
@@ -20,6 +20,10 @@ import {
   CreateCommunityCommentBody,
 } from "@workspace/api-zod";
 import { isActiveVip } from "../lib/vipUtils";
+import {
+  deleteGeneratedThumbnail,
+  generateCommunityThumbnail,
+} from "../lib/imageThumbnail";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
@@ -71,12 +75,21 @@ function serializeMedia(media: MediaRow, viewerUserId: number, entitled: boolean
         variant: "full",
       })}`
     : null;
+  const thumbnailUrl =
+    entitled && media.mediaType === "image"
+      ? `/api/community/media/${media.id}?variant=thumbnail&token=${generateMediaToken({
+          userId: viewerUserId,
+          mediaId: media.id,
+          variant: "thumbnail",
+        })}`
+      : null;
 
   return {
     id: media.id,
     mediaType: media.mediaType === "video" ? "video" : "image",
     locked: !entitled,
     previewUrl,
+    thumbnailUrl,
     fullUrl,
     width: media.width ?? null,
     height: media.height ?? null,
@@ -458,6 +471,7 @@ router.post("/community/posts", userAuth, async (req, res) => {
       sizeBytes: number;
       sortOrder: number;
     }> = [];
+    const generatedThumbnailPaths = new Set<string>();
 
     for (let idx = 0; idx < media.length; idx++) {
       const m = media[idx];
@@ -501,7 +515,7 @@ router.post("/community/posts", userAuth, async (req, res) => {
         mediaType: wantVideo ? "video" : "image",
         objectPath: m.objectPath,
         previewObjectPath: preview,
-        thumbnailObjectPath: m.thumbnailObjectPath ?? null,
+        thumbnailObjectPath: wantVideo ? (m.thumbnailObjectPath ?? null) : null,
         width: m.width ?? null,
         height: m.height ?? null,
         durationSec: m.durationSec ?? null,
@@ -511,27 +525,57 @@ router.post("/community/posts", userAuth, async (req, res) => {
       });
     }
 
+    // Only create stored thumbnails after every media item has passed validation,
+    // so a later invalid item can never orphan an earlier generated object.
+    for (let idx = 0; idx < mediaToInsert.length; idx++) {
+      const mediaItem = mediaToInsert[idx];
+      if (mediaItem.mediaType !== "image") continue;
+      try {
+        const thumbnailPath = await generateCommunityThumbnail(mediaItem.objectPath);
+        if (thumbnailPath) {
+          mediaItem.thumbnailObjectPath = thumbnailPath;
+          generatedThumbnailPaths.add(thumbnailPath);
+        }
+      } catch (thumbnailError) {
+        console.error(`[post-create] media[${idx}] thumbnail generation failed (non-fatal):`, {
+          objectPath: mediaItem.objectPath,
+          error:
+            thumbnailError instanceof Error
+              ? thumbnailError.message
+              : String(thumbnailError),
+        });
+      }
+    }
+
     // Wrap post + media insert in a transaction so a media-insert failure
     // can never leave an orphan post with no media in the feed.
-    const created = await db.transaction(async (tx) => {
-      const [newPost] = await tx
-        .insert(communityPostsTable)
-        .values({
-          authorUserId: req.user!.id,
-          content,
-          postType,
-          isVipLocked: false,
-        })
-        .returning();
+    let created: typeof communityPostsTable.$inferSelect;
+    try {
+      created = await db.transaction(async (tx) => {
+        const [newPost] = await tx
+          .insert(communityPostsTable)
+          .values({
+            authorUserId: req.user!.id,
+            content,
+            postType,
+            isVipLocked: false,
+          })
+          .returning();
 
-      if (mediaToInsert.length > 0) {
-        await tx
-          .insert(communityPostMediaTable)
-          .values(mediaToInsert.map((m) => ({ ...m, postId: newPost.id })));
-      }
+        if (mediaToInsert.length > 0) {
+          await tx
+            .insert(communityPostMediaTable)
+            .values(mediaToInsert.map((m) => ({ ...m, postId: newPost.id })));
+        }
 
-      return newPost;
-    });
+        return newPost;
+      });
+    } catch (persistenceError) {
+      await Promise.allSettled(
+        [...generatedThumbnailPaths].map((path) => deleteGeneratedThumbnail(path)),
+      );
+      throw persistenceError;
+    }
 
     console.log(`[post-create] created post id=${created.id} with ${mediaToInsert.length} media item(s)`);
 
@@ -627,6 +671,24 @@ router.delete("/community/posts/:id", userAuth, async (req, res) => {
       res.status(403).json({ message: "لا يمكنك حذف هذا المنشور" });
       return;
     }
+    const mediaRows = await db
+      .select({
+        mediaType: communityPostMediaTable.mediaType,
+        thumbnailObjectPath: communityPostMediaTable.thumbnailObjectPath,
+      })
+      .from(communityPostMediaTable)
+      .where(eq(communityPostMediaTable.postId, id));
+    // Delete generated derivatives first. If storage is temporarily unavailable,
+    // keep the DB row so the user can retry instead of losing cleanup metadata.
+    await Promise.all(
+      mediaRows
+        .filter(
+          (media) =>
+            media.mediaType === "image" &&
+            media.thumbnailObjectPath?.startsWith("/objects/thumbnails/"),
+        )
+        .map((media) => deleteGeneratedThumbnail(media.thumbnailObjectPath!)),
+    );
     await db.delete(communityPostsTable).where(eq(communityPostsTable.id, id));
     res.json({ message: "تم حذف المنشور" });
   } catch (error: unknown) {
@@ -975,7 +1037,12 @@ router.post("/community/comments/:id/report", userAuth, async (req, res) => {
 router.get("/community/media/:id", async (req, res) => {
   try {
     const mediaId = Number(req.params.id);
-    const variant = req.query.variant === "full" ? "full" : "preview";
+    const variant =
+      req.query.variant === "full"
+        ? "full"
+        : req.query.variant === "thumbnail"
+          ? "thumbnail"
+          : "preview";
     const token = String(req.query.token || "");
 
     const payload = verifyMediaToken(token);
@@ -1003,7 +1070,7 @@ router.get("/community/media/:id", async (req, res) => {
       return;
     }
 
-    if (variant === "full") {
+    if (variant === "full" || variant === "thumbnail") {
       // Re-check entitlement fresh at stream time — never trust the token alone.
       if (post.isVipLocked) {
         const [user] = await db
@@ -1020,8 +1087,56 @@ router.get("/community/media/:id", async (req, res) => {
           return;
         }
       }
-      console.log(`[media-stream] streaming full mediaId=${mediaId} objectPath=${media.objectPath}`);
-      await streamObject(req, res, media.objectPath);
+      if (variant === "full") {
+        console.log(`[media-stream] streaming full mediaId=${mediaId} objectPath=${media.objectPath}`);
+        await streamObject(req, res, media.objectPath);
+        return;
+      }
+
+      if (media.mediaType !== "image") {
+        res.status(404).json({ message: "Thumbnail not available" });
+        return;
+      }
+      let thumbnailPath = media.thumbnailObjectPath;
+      if (!thumbnailPath) {
+        const generatedPath = await generateCommunityThumbnail(media.objectPath);
+        if (generatedPath) {
+          try {
+            const [updated] = await db
+              .update(communityPostMediaTable)
+              .set({ thumbnailObjectPath: generatedPath })
+              .where(
+                and(
+                  eq(communityPostMediaTable.id, media.id),
+                  isNull(communityPostMediaTable.thumbnailObjectPath),
+                ),
+              )
+              .returning({ thumbnailObjectPath: communityPostMediaTable.thumbnailObjectPath });
+            if (updated?.thumbnailObjectPath) {
+              thumbnailPath = updated.thumbnailObjectPath;
+            } else {
+              const [winner] = await db
+                .select({ thumbnailObjectPath: communityPostMediaTable.thumbnailObjectPath })
+                .from(communityPostMediaTable)
+                .where(eq(communityPostMediaTable.id, media.id))
+                .limit(1);
+              thumbnailPath = winner?.thumbnailObjectPath ?? null;
+              await deleteGeneratedThumbnail(generatedPath);
+            }
+          } catch (persistenceError) {
+            await deleteGeneratedThumbnail(generatedPath).catch(() => {});
+            throw persistenceError;
+          }
+        }
+      }
+      if (!thumbnailPath) {
+        res.status(404).json({ message: "Thumbnail not available" });
+        return;
+      }
+      console.log(
+        `[media-stream] streaming thumbnail mediaId=${mediaId} thumbnailObjectPath=${thumbnailPath}`,
+      );
+      await streamObject(req, res, thumbnailPath);
       return;
     }
 

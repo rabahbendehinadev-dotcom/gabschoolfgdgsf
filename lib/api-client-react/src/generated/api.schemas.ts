@@ -616,6 +616,7 @@ export interface CommunityMediaItem {
   mediaType: CommunityMediaItemMediaType;
   locked: boolean;
   previewUrl?: string | null;
+  thumbnailUrl?: string | null;
   fullUrl?: string | null;
   width?: number | null;
   height?: number | null;

@@ -39,6 +39,8 @@ function Cell({
           <img
             src={item.previewUrl}
             alt=""
+            loading="lazy"
+            decoding="async"
             className="absolute inset-0 h-full w-full object-cover"
           />
         ) : (
@@ -60,8 +62,16 @@ function Cell({
       className={`group relative flex cursor-zoom-in items-center justify-center bg-slate-100 ${className || ""}`}
     >
       <img
-        src={item.fullUrl || item.previewUrl || ""}
+        src={item.thumbnailUrl || item.previewUrl || ""}
         alt=""
+        loading="lazy"
+        decoding="async"
+        onError={(event) => {
+          const fallback = item.previewUrl;
+          if (fallback && event.currentTarget.getAttribute("src") !== fallback) {
+            event.currentTarget.setAttribute("src", fallback);
+          }
+        }}
         className={`block max-h-full max-w-full object-contain transition-transform duration-300 group-hover:scale-[1.01] ${imageClassName || "h-full w-full"}`}
       />
     </button>
@@ -189,6 +199,7 @@ export function MediaGrid({
           <img
             src={zoom}
             alt=""
+            decoding="async"
             className="max-h-[90vh] max-w-full rounded-2xl object-contain"
             onClick={(e) => e.stopPropagation()}
           />
