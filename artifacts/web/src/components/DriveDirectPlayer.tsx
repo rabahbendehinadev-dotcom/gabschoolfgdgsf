@@ -77,9 +77,21 @@ export function DriveDirectPlayer({
   useEffect(() => {
     if (!mobileFullscreenMode) return;
 
+    const scrollY = window.scrollY;
     const previousBodyOverflow = document.body.style.overflow;
+    const previousBodyPosition = document.body.style.position;
+    const previousBodyTop = document.body.style.top;
+    const previousBodyLeft = document.body.style.left;
+    const previousBodyRight = document.body.style.right;
+    const previousBodyWidth = document.body.style.width;
     const previousHtmlOverflow = document.documentElement.style.overflow;
+
     document.body.style.overflow = "hidden";
+    document.body.style.position = "fixed";
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.left = "0";
+    document.body.style.right = "0";
+    document.body.style.width = "100%";
     document.documentElement.style.overflow = "hidden";
 
     const exitOnEscape = (event: KeyboardEvent) => {
@@ -89,8 +101,14 @@ export function DriveDirectPlayer({
 
     return () => {
       document.body.style.overflow = previousBodyOverflow;
+      document.body.style.position = previousBodyPosition;
+      document.body.style.top = previousBodyTop;
+      document.body.style.left = previousBodyLeft;
+      document.body.style.right = previousBodyRight;
+      document.body.style.width = previousBodyWidth;
       document.documentElement.style.overflow = previousHtmlOverflow;
       document.removeEventListener("keydown", exitOnEscape);
+      window.scrollTo(0, scrollY);
     };
   }, [mobileFullscreenMode]);
 
@@ -174,12 +192,12 @@ export function DriveDirectPlayer({
     <div className="-mx-2 w-[calc(100%+1rem)] max-w-none space-y-3 lg:mx-0 lg:w-full">
       <div
         ref={containerRef}
-        className={`relative w-full overflow-hidden bg-black shadow-2xl ${
+        className={`w-full overflow-hidden bg-black shadow-2xl ${
           fullscreenActive
             ? mobileFullscreenMode
-              ? "fixed inset-0 z-[999999] m-0 h-[100dvh] w-screen max-w-none rounded-none border-0 p-0"
-              : "h-[100dvh] w-[100dvw] max-w-none rounded-none border-0"
-            : "aspect-video rounded-2xl border border-border"
+              ? "fixed inset-0 z-[999999] m-0 h-[100dvh] w-[100dvw] max-w-none rounded-none border-0 p-0"
+              : "relative h-[100dvh] w-[100dvw] max-w-none rounded-none border-0"
+            : "relative aspect-video rounded-2xl border border-border"
         }`}
       >
         <iframe
