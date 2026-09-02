@@ -480,6 +480,15 @@ export interface UpdatePlanInput {
   isHidden?: boolean;
 }
 
+export type UpdateUserInputCommunityRole =
+  (typeof UpdateUserInputCommunityRole)[keyof typeof UpdateUserInputCommunityRole];
+
+export const UpdateUserInputCommunityRole = {
+  admin: "admin",
+  formateur: "formateur",
+  student: "student",
+} as const;
+
 export type UpdateUserInputAccountType =
   (typeof UpdateUserInputAccountType)[keyof typeof UpdateUserInputAccountType];
 
@@ -499,6 +508,7 @@ export const UpdateUserInputSubscriptionType = {
 } as const;
 
 export interface UpdateUserInput {
+  communityRole?: UpdateUserInputCommunityRole;
   accountType?: UpdateUserInputAccountType;
   subscriptionType?: UpdateUserInputSubscriptionType;
   isActive?: boolean;
@@ -512,6 +522,15 @@ export type AdminUserAccountType =
 export const AdminUserAccountType = {
   vip: "vip",
   normal: "normal",
+} as const;
+
+export type AdminUserCommunityRole =
+  (typeof AdminUserCommunityRole)[keyof typeof AdminUserCommunityRole];
+
+export const AdminUserCommunityRole = {
+  admin: "admin",
+  formateur: "formateur",
+  student: "student",
 } as const;
 
 export type AdminUserSubscriptionType =
@@ -553,6 +572,7 @@ export interface AdminUser {
   username: string;
   email: string;
   accountType: AdminUserAccountType;
+  communityRole?: AdminUserCommunityRole;
   subscriptionType: AdminUserSubscriptionType;
   subscriptionExpiresAt?: string | null;
   ipAddress?: string | null;
@@ -596,10 +616,20 @@ export const CommunityAuthorAccountType = {
   normal: "normal",
 } as const;
 
+export type CommunityAuthorRole =
+  (typeof CommunityAuthorRole)[keyof typeof CommunityAuthorRole];
+
+export const CommunityAuthorRole = {
+  admin: "admin",
+  formateur: "formateur",
+  student: "student",
+} as const;
+
 export interface CommunityAuthor {
   id: number;
   username: string;
   accountType: CommunityAuthorAccountType;
+  role: CommunityAuthorRole;
   profileImageUrl?: string | null;
 }
 
@@ -609,6 +639,7 @@ export type CommunityMediaItemMediaType =
 export const CommunityMediaItemMediaType = {
   image: "image",
   video: "video",
+  file: "file",
 } as const;
 
 export interface CommunityMediaItem {
@@ -621,6 +652,9 @@ export interface CommunityMediaItem {
   width?: number | null;
   height?: number | null;
   durationSec?: number | null;
+  fileName?: string | null;
+  contentType?: string | null;
+  sizeBytes?: number | null;
   sortOrder: number;
 }
 
@@ -632,16 +666,26 @@ export const CommunityPostPostType = {
   image: "image",
   gallery: "gallery",
   video: "video",
+  file: "file",
+  poll: "poll",
 } as const;
 
 export interface CommunityPost {
   id: number;
   author: CommunityAuthor;
   content?: string | null;
+  title?: string | null;
+  category?: string | null;
   postType: CommunityPostPostType;
   isVipLocked: boolean;
   isPinned: boolean;
   isFeatured: boolean;
+  isImportant: boolean;
+  isSolved: boolean;
+  isQuestion: boolean;
+  pollOptions?: string[] | null;
+  pollVotes?: number[] | null;
+  myPollVote?: number | null;
   likesCount: number;
   commentsCount: number;
   viewsCount: number;
@@ -657,6 +701,53 @@ export interface CommunityFeedResponse {
   nextCursor?: number | null;
 }
 
+export type CommunitySummaryActivityThisWeekItem = {
+  date: string;
+  count: number;
+};
+
+export type CommunitySummaryMostActiveCategory = {
+  category: string;
+  postsCount: number;
+} | null;
+
+export interface CommunityInsightPost {
+  id: number;
+  label: string;
+  title?: string | null;
+  content?: string | null;
+  likesCount?: number;
+  commentsCount?: number;
+  viewsCount?: number;
+  createdAt?: string;
+}
+
+export type CommunityActiveMemberAccountType =
+  (typeof CommunityActiveMemberAccountType)[keyof typeof CommunityActiveMemberAccountType];
+
+export const CommunityActiveMemberAccountType = {
+  vip: "vip",
+  normal: "normal",
+} as const;
+
+export type CommunityActiveMemberRole =
+  (typeof CommunityActiveMemberRole)[keyof typeof CommunityActiveMemberRole];
+
+export const CommunityActiveMemberRole = {
+  admin: "admin",
+  formateur: "formateur",
+  student: "student",
+} as const;
+
+export interface CommunityActiveMember {
+  id: number;
+  username: string;
+  accountType: CommunityActiveMemberAccountType;
+  role: CommunityActiveMemberRole;
+  profileImageUrl?: string | null;
+  postsCount: number;
+}
+
 export interface CommunitySummary {
   memberCount: number;
   todayPostsCount: number;
@@ -666,6 +757,24 @@ export interface CommunitySummary {
   isVip: boolean;
   canPost: boolean;
   hasProfilePicture: boolean;
+  weeklyPostsCount: number;
+  activityThisWeek: CommunitySummaryActivityThisWeekItem[];
+  trendingPosts: CommunityInsightPost[];
+  unansweredQuestion?: CommunityInsightPost | null;
+  mostActiveCategory?: CommunitySummaryMostActiveCategory;
+  activeMembers: CommunityActiveMember[];
+  latestPost?: CommunityInsightPost | null;
+  latestSolution?: CommunityInsightPost | null;
+}
+
+export interface CommunityPollVoteInput {
+  /** @minimum 0 */
+  optionIndex: number;
+}
+
+export interface CommunityUploadResponse {
+  objectPath: string;
+  uploadToken: string;
 }
 
 export type CommunityMediaInputMediaType =
@@ -674,20 +783,39 @@ export type CommunityMediaInputMediaType =
 export const CommunityMediaInputMediaType = {
   image: "image",
   video: "video",
+  file: "file",
 } as const;
 
 export interface CommunityMediaInput {
   mediaType: CommunityMediaInputMediaType;
   objectPath: string;
+  uploadToken: string;
   previewObjectPath?: string | null;
+  previewUploadToken?: string | null;
   thumbnailObjectPath?: string | null;
   width?: number | null;
   height?: number | null;
   durationSec?: number | null;
   contentType?: string | null;
   sizeBytes?: number | null;
+  fileName?: string | null;
   sortOrder?: number | null;
 }
+
+export type CreateCommunityPostInputCategory =
+  | (typeof CreateCommunityPostInputCategory)[keyof typeof CreateCommunityPostInputCategory]
+  | null;
+
+export const CreateCommunityPostInputCategory = {
+  help: "help",
+  iphone: "iphone",
+  android: "android",
+  frp: "frp",
+  hw: "hw",
+  sw: "sw",
+  tools: "tools",
+  news: "news",
+} as const;
 
 export type CreateCommunityPostInputPostType =
   (typeof CreateCommunityPostInputPostType)[keyof typeof CreateCommunityPostInputPostType];
@@ -697,16 +825,29 @@ export const CreateCommunityPostInputPostType = {
   image: "image",
   gallery: "gallery",
   video: "video",
+  file: "file",
+  poll: "poll",
 } as const;
 
 export interface CreateCommunityPostInput {
   content?: string | null;
+  title?: string | null;
+  category?: CreateCommunityPostInputCategory;
+  isQuestion?: boolean;
+  /**
+   * @minItems 2
+   * @maxItems 6
+   */
+  pollOptions?: string[];
   postType: CreateCommunityPostInputPostType;
+  /** @maxItems 6 */
   media?: CommunityMediaInput[];
 }
 
 export interface UpdateCommunityPostInput {
   content?: string | null;
+  title?: string | null;
+  isSolved?: boolean;
 }
 
 export interface CommunityReply {
@@ -881,6 +1022,11 @@ export const GetAdminUsersNotifications = {
 export type GetCommunityFeedParams = {
   cursor?: number;
   limit?: number;
+};
+
+export type VoteCommunityPoll200 = {
+  votes: number[];
+  myVote: number;
 };
 
 export type UpdateMyAvatarBody = {

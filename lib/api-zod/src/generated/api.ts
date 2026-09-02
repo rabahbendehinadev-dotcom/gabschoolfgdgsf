@@ -402,6 +402,7 @@ export const GetAdminUsersResponseItem = zod.object({
   username: zod.string(),
   email: zod.string(),
   accountType: zod.enum(["vip", "normal"]),
+  communityRole: zod.enum(["admin", "formateur", "student"]).optional(),
   subscriptionType: zod.enum(["demo", "monthly", "annual", "lifetime"]),
   subscriptionExpiresAt: zod.date().nullish(),
   ipAddress: zod.string().nullish(),
@@ -440,6 +441,7 @@ export const UpdateAdminUserParams = zod.object({
 });
 
 export const UpdateAdminUserBody = zod.object({
+  communityRole: zod.enum(["admin", "formateur", "student"]).optional(),
   accountType: zod.enum(["vip", "normal"]).optional(),
   subscriptionType: zod
     .enum(["demo", "monthly", "annual", "lifetime"])
@@ -454,6 +456,7 @@ export const UpdateAdminUserResponse = zod.object({
   username: zod.string(),
   email: zod.string(),
   accountType: zod.enum(["vip", "normal"]),
+  communityRole: zod.enum(["admin", "formateur", "student"]).optional(),
   subscriptionType: zod.enum(["demo", "monthly", "annual", "lifetime"]),
   subscriptionExpiresAt: zod.date().nullish(),
   ipAddress: zod.string().nullish(),
@@ -880,6 +883,77 @@ export const GetCommunitySummaryResponse = zod.object({
   isVip: zod.boolean(),
   canPost: zod.boolean(),
   hasProfilePicture: zod.boolean(),
+  weeklyPostsCount: zod.number(),
+  activityThisWeek: zod.array(
+    zod.object({
+      date: zod.date(),
+      count: zod.number(),
+    }),
+  ),
+  trendingPosts: zod.array(
+    zod.object({
+      id: zod.number(),
+      label: zod.string(),
+      title: zod.string().nullish(),
+      content: zod.string().nullish(),
+      likesCount: zod.number().optional(),
+      commentsCount: zod.number().optional(),
+      viewsCount: zod.number().optional(),
+      createdAt: zod.date().optional(),
+    }),
+  ),
+  unansweredQuestion: zod
+    .object({
+      id: zod.number(),
+      label: zod.string(),
+      title: zod.string().nullish(),
+      content: zod.string().nullish(),
+      likesCount: zod.number().optional(),
+      commentsCount: zod.number().optional(),
+      viewsCount: zod.number().optional(),
+      createdAt: zod.date().optional(),
+    })
+    .nullish(),
+  mostActiveCategory: zod
+    .object({
+      category: zod.string(),
+      postsCount: zod.number(),
+    })
+    .nullish(),
+  activeMembers: zod.array(
+    zod.object({
+      id: zod.number(),
+      username: zod.string(),
+      accountType: zod.enum(["vip", "normal"]),
+      role: zod.enum(["admin", "formateur", "student"]),
+      profileImageUrl: zod.string().nullish(),
+      postsCount: zod.number(),
+    }),
+  ),
+  latestPost: zod
+    .object({
+      id: zod.number(),
+      label: zod.string(),
+      title: zod.string().nullish(),
+      content: zod.string().nullish(),
+      likesCount: zod.number().optional(),
+      commentsCount: zod.number().optional(),
+      viewsCount: zod.number().optional(),
+      createdAt: zod.date().optional(),
+    })
+    .nullish(),
+  latestSolution: zod
+    .object({
+      id: zod.number(),
+      label: zod.string(),
+      title: zod.string().nullish(),
+      content: zod.string().nullish(),
+      likesCount: zod.number().optional(),
+      commentsCount: zod.number().optional(),
+      viewsCount: zod.number().optional(),
+      createdAt: zod.date().optional(),
+    })
+    .nullish(),
 });
 
 /**
@@ -898,13 +972,22 @@ export const GetCommunityFeedResponse = zod.object({
         id: zod.number(),
         username: zod.string(),
         accountType: zod.enum(["vip", "normal"]),
+        role: zod.enum(["admin", "formateur", "student"]),
         profileImageUrl: zod.string().nullish(),
       }),
       content: zod.string().nullish(),
-      postType: zod.enum(["text", "image", "gallery", "video"]),
+      title: zod.string().nullish(),
+      category: zod.string().nullish(),
+      postType: zod.enum(["text", "image", "gallery", "video", "file", "poll"]),
       isVipLocked: zod.boolean(),
       isPinned: zod.boolean(),
       isFeatured: zod.boolean(),
+      isImportant: zod.boolean(),
+      isSolved: zod.boolean(),
+      isQuestion: zod.boolean(),
+      pollOptions: zod.array(zod.string()).nullish(),
+      pollVotes: zod.array(zod.number()).nullish(),
+      myPollVote: zod.number().nullish(),
       likesCount: zod.number(),
       commentsCount: zod.number(),
       viewsCount: zod.number(),
@@ -913,7 +996,7 @@ export const GetCommunityFeedResponse = zod.object({
       media: zod.array(
         zod.object({
           id: zod.number(),
-          mediaType: zod.enum(["image", "video"]),
+          mediaType: zod.enum(["image", "video", "file"]),
           locked: zod.boolean(),
           previewUrl: zod.string().nullish(),
           thumbnailUrl: zod.string().nullish(),
@@ -921,6 +1004,9 @@ export const GetCommunityFeedResponse = zod.object({
           width: zod.number().nullish(),
           height: zod.number().nullish(),
           durationSec: zod.number().nullish(),
+          fileName: zod.string().nullish(),
+          contentType: zod.string().nullish(),
+          sizeBytes: zod.number().nullish(),
           sortOrder: zod.number(),
         }),
       ),
@@ -932,27 +1018,57 @@ export const GetCommunityFeedResponse = zod.object({
 });
 
 /**
- * @summary Create a community post (VIP only)
+ * @summary Create a community post
  */
+export const createCommunityPostBodyPollOptionsItemMax = 120;
+
+export const createCommunityPostBodyPollOptionsMin = 2;
+export const createCommunityPostBodyPollOptionsMax = 6;
+
+export const createCommunityPostBodyMediaMax = 6;
+
 export const CreateCommunityPostBody = zod.object({
   content: zod.string().nullish(),
-  postType: zod.enum(["text", "image", "gallery", "video"]),
+  title: zod.string().nullish(),
+  category: zod
+    .enum(["help", "iphone", "android", "frp", "hw", "sw", "tools", "news"])
+    .nullish(),
+  isQuestion: zod.boolean().optional(),
+  pollOptions: zod
+    .array(zod.string().min(1).max(createCommunityPostBodyPollOptionsItemMax))
+    .min(createCommunityPostBodyPollOptionsMin)
+    .max(createCommunityPostBodyPollOptionsMax)
+    .optional(),
+  postType: zod.enum(["text", "image", "gallery", "video", "file", "poll"]),
   media: zod
     .array(
       zod.object({
-        mediaType: zod.enum(["image", "video"]),
+        mediaType: zod.enum(["image", "video", "file"]),
         objectPath: zod.string(),
+        uploadToken: zod.string(),
         previewObjectPath: zod.string().nullish(),
+        previewUploadToken: zod.string().nullish(),
         thumbnailObjectPath: zod.string().nullish(),
         width: zod.number().nullish(),
         height: zod.number().nullish(),
         durationSec: zod.number().nullish(),
         contentType: zod.string().nullish(),
         sizeBytes: zod.number().nullish(),
+        fileName: zod.string().nullish(),
         sortOrder: zod.number().nullish(),
       }),
     )
+    .max(createCommunityPostBodyMediaMax)
     .optional(),
+});
+
+/**
+ * Accepts multipart/form-data with a required file field.
+ * @summary Upload authenticated Community media
+ */
+export const UploadCommunityMediaResponse = zod.object({
+  objectPath: zod.string(),
+  uploadToken: zod.string(),
 });
 
 /**
@@ -968,13 +1084,22 @@ export const GetCommunityPostResponse = zod.object({
     id: zod.number(),
     username: zod.string(),
     accountType: zod.enum(["vip", "normal"]),
+    role: zod.enum(["admin", "formateur", "student"]),
     profileImageUrl: zod.string().nullish(),
   }),
   content: zod.string().nullish(),
-  postType: zod.enum(["text", "image", "gallery", "video"]),
+  title: zod.string().nullish(),
+  category: zod.string().nullish(),
+  postType: zod.enum(["text", "image", "gallery", "video", "file", "poll"]),
   isVipLocked: zod.boolean(),
   isPinned: zod.boolean(),
   isFeatured: zod.boolean(),
+  isImportant: zod.boolean(),
+  isSolved: zod.boolean(),
+  isQuestion: zod.boolean(),
+  pollOptions: zod.array(zod.string()).nullish(),
+  pollVotes: zod.array(zod.number()).nullish(),
+  myPollVote: zod.number().nullish(),
   likesCount: zod.number(),
   commentsCount: zod.number(),
   viewsCount: zod.number(),
@@ -983,7 +1108,7 @@ export const GetCommunityPostResponse = zod.object({
   media: zod.array(
     zod.object({
       id: zod.number(),
-      mediaType: zod.enum(["image", "video"]),
+      mediaType: zod.enum(["image", "video", "file"]),
       locked: zod.boolean(),
       previewUrl: zod.string().nullish(),
       thumbnailUrl: zod.string().nullish(),
@@ -991,6 +1116,9 @@ export const GetCommunityPostResponse = zod.object({
       width: zod.number().nullish(),
       height: zod.number().nullish(),
       durationSec: zod.number().nullish(),
+      fileName: zod.string().nullish(),
+      contentType: zod.string().nullish(),
+      sizeBytes: zod.number().nullish(),
       sortOrder: zod.number(),
     }),
   ),
@@ -999,7 +1127,7 @@ export const GetCommunityPostResponse = zod.object({
 });
 
 /**
- * @summary Update own community post (caption)
+ * @summary Update own community post
  */
 export const UpdateCommunityPostParams = zod.object({
   id: zod.coerce.number(),
@@ -1007,6 +1135,8 @@ export const UpdateCommunityPostParams = zod.object({
 
 export const UpdateCommunityPostBody = zod.object({
   content: zod.string().nullish(),
+  title: zod.string().nullish(),
+  isSolved: zod.boolean().optional(),
 });
 
 export const UpdateCommunityPostResponse = zod.object({
@@ -1015,13 +1145,22 @@ export const UpdateCommunityPostResponse = zod.object({
     id: zod.number(),
     username: zod.string(),
     accountType: zod.enum(["vip", "normal"]),
+    role: zod.enum(["admin", "formateur", "student"]),
     profileImageUrl: zod.string().nullish(),
   }),
   content: zod.string().nullish(),
-  postType: zod.enum(["text", "image", "gallery", "video"]),
+  title: zod.string().nullish(),
+  category: zod.string().nullish(),
+  postType: zod.enum(["text", "image", "gallery", "video", "file", "poll"]),
   isVipLocked: zod.boolean(),
   isPinned: zod.boolean(),
   isFeatured: zod.boolean(),
+  isImportant: zod.boolean(),
+  isSolved: zod.boolean(),
+  isQuestion: zod.boolean(),
+  pollOptions: zod.array(zod.string()).nullish(),
+  pollVotes: zod.array(zod.number()).nullish(),
+  myPollVote: zod.number().nullish(),
   likesCount: zod.number(),
   commentsCount: zod.number(),
   viewsCount: zod.number(),
@@ -1030,7 +1169,7 @@ export const UpdateCommunityPostResponse = zod.object({
   media: zod.array(
     zod.object({
       id: zod.number(),
-      mediaType: zod.enum(["image", "video"]),
+      mediaType: zod.enum(["image", "video", "file"]),
       locked: zod.boolean(),
       previewUrl: zod.string().nullish(),
       thumbnailUrl: zod.string().nullish(),
@@ -1038,6 +1177,9 @@ export const UpdateCommunityPostResponse = zod.object({
       width: zod.number().nullish(),
       height: zod.number().nullish(),
       durationSec: zod.number().nullish(),
+      fileName: zod.string().nullish(),
+      contentType: zod.string().nullish(),
+      sizeBytes: zod.number().nullish(),
       sortOrder: zod.number(),
     }),
   ),
@@ -1054,6 +1196,24 @@ export const DeleteCommunityPostParams = zod.object({
 
 export const DeleteCommunityPostResponse = zod.object({
   message: zod.string(),
+});
+
+/**
+ * @summary Vote in a community poll
+ */
+export const VoteCommunityPollParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const voteCommunityPollBodyOptionIndexMin = 0;
+
+export const VoteCommunityPollBody = zod.object({
+  optionIndex: zod.number().min(voteCommunityPollBodyOptionIndexMin),
+});
+
+export const VoteCommunityPollResponse = zod.object({
+  votes: zod.array(zod.number()),
+  myVote: zod.number(),
 });
 
 /**
@@ -1108,6 +1268,7 @@ export const GetCommunityCommentsResponse = zod.object({
         id: zod.number(),
         username: zod.string(),
         accountType: zod.enum(["vip", "normal"]),
+        role: zod.enum(["admin", "formateur", "student"]),
         profileImageUrl: zod.string().nullish(),
       }),
       body: zod.string(),
@@ -1123,6 +1284,7 @@ export const GetCommunityCommentsResponse = zod.object({
             id: zod.number(),
             username: zod.string(),
             accountType: zod.enum(["vip", "normal"]),
+            role: zod.enum(["admin", "formateur", "student"]),
             profileImageUrl: zod.string().nullish(),
           }),
           body: zod.string(),

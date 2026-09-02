@@ -10,7 +10,7 @@ export const communityPostMediaTable = pgTable(
     postId: integer("post_id")
       .notNull()
       .references(() => communityPostsTable.id, { onDelete: "cascade" }),
-    // image | video
+    // image | video | file
     mediaType: varchar("media_type", { length: 20 }).notNull(),
     // Private original object path (e.g. "/objects/uploads/<uuid>"). VIP-only.
     objectPath: text("object_path").notNull(),
@@ -24,6 +24,7 @@ export const communityPostMediaTable = pgTable(
     durationSec: integer("duration_sec"),
     contentType: varchar("content_type", { length: 100 }),
     sizeBytes: integer("size_bytes"),
+    fileName: varchar("file_name", { length: 255 }),
     sortOrder: integer("sort_order").notNull().default(0),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },

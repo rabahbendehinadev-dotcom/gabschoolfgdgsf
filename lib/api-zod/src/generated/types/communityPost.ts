@@ -13,10 +13,18 @@ export interface CommunityPost {
   id: number;
   author: CommunityAuthor;
   content?: string | null;
+  title?: string | null;
+  category?: string | null;
   postType: CommunityPostPostType;
   isVipLocked: boolean;
   isPinned: boolean;
   isFeatured: boolean;
+  isImportant: boolean;
+  isSolved: boolean;
+  isQuestion: boolean;
+  pollOptions?: string[] | null;
+  pollVotes?: number[] | null;
+  myPollVote?: number | null;
   likesCount: number;
   commentsCount: number;
   viewsCount: number;

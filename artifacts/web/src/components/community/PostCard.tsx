@@ -7,6 +7,7 @@ import {
   useViewCommunityPost,
   useDeleteCommunityPost,
   useUpdateCommunityPost,
+  useVoteCommunityPoll,
   getGetCommunityFeedQueryKey,
 } from "@workspace/api-client-react/src/generated/api";
 import { CommunityPost } from "@workspace/api-client-react/src/generated/api.schemas";
@@ -35,7 +36,10 @@ import {
   Flag,
   ThumbsUp,
   CheckCircle2,
-  Star
+  Star,
+  FileText,
+  AlertCircle,
+  BarChart2
 } from "lucide-react";
 
 function timeAgo(iso: string): string {
@@ -59,6 +63,7 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
   const [likes, setLikes] = useState(post.likesCount);
   const [views, setViews] = useState(post.viewsCount);
   const [commentsCount, setCommentsCount] = useState(post.commentsCount);
+  const [solved, setSolved] = useState(post.isSolved);
   const [showComments, setShowComments] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -79,6 +84,7 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
   const likeM = useLikeCommunityPost({ request: getAuthHeaders() });
   const unlikeM = useUnlikeCommunityPost({ request: getAuthHeaders() });
   const viewM = useViewCommunityPost({ request: getAuthHeaders() });
+  const voteM = useVoteCommunityPoll({ request: getAuthHeaders() });
 
   const invalidateFeed = () =>
     queryClient.invalidateQueries({ queryKey: getGetCommunityFeedQueryKey() });
@@ -158,13 +164,54 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
     }
   };
 
+  const handleVote = (optionIndex: number) => {
+    if (!user) {
+      toast({ title: "سجّل الدخول للتصويت" });
+      return;
+    }
+    if (post.myPollVote != null) return;
+
+    // Optimistic UI update
+    queryClient.setQueryData(getGetCommunityFeedQueryKey(), (old: any) => {
+      if (!old) return old;
+      return {
+        ...old,
+        pages: old.pages.map((p: any) => ({
+          ...p,
+          posts: p.posts.map((p: CommunityPost) => {
+            if (p.id !== post.id) return p;
+            const newVotes = [...(p.pollVotes || [])];
+            if (newVotes[optionIndex] !== undefined) {
+              newVotes[optionIndex]++;
+            }
+            return {
+              ...p,
+              myPollVote: optionIndex,
+              pollVotes: newVotes,
+            };
+          }),
+        })),
+      };
+    });
+
+    voteM.mutate(
+      { id: post.id, data: { optionIndex } },
+      {
+        onSuccess: () => invalidateFeed(),
+        onError: () => invalidateFeed(), // revert on error
+      }
+    );
+  };
+
+  const totalPollVotes = post.pollVotes?.reduce((a, b) => a + b, 0) || 0;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 18 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: Math.min(index, 6) * 0.05, duration: 0.35 }}
     >
-      <Card className="overflow-hidden rounded-[24px] border-slate-200 bg-white shadow-sm hover:shadow-md transition-shadow">
+      <Card id={`post-${post.id}`} className="overflow-hidden rounded-[24px] border-slate-200 bg-white shadow-sm hover:shadow-md transition-shadow scroll-mt-24">
         {/* Header */}
         <div className="flex items-start gap-4 p-5 pb-3">
           {post.author.profileImageUrl && !authorAvatarFailed ? (
@@ -189,27 +236,58 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
           <div className="min-w-0 flex-1 pt-0.5">
             <div className="flex items-center flex-wrap gap-x-2 gap-y-1">
               <span className="truncate font-black text-slate-900 text-[16px]">{post.author.username}</span>
-              {vip && (
+              {/* Role Badges */}
+              {(post.author as any).role === "admin" ? (
+                <span className="flex items-center px-2 py-0.5 bg-red-50 rounded-md text-[11px] font-black text-red-600 tracking-wide border border-red-100/50">
+                  ADMIN
+                </span>
+              ) : (post.author as any).role === "formateur" ? (
+                <span className="flex items-center px-2 py-0.5 bg-emerald-50 rounded-md text-[11px] font-black text-emerald-600 tracking-wide border border-emerald-100/50">
+                  FORMATEUR
+                </span>
+              ) : vip ? (
                 <span className="flex items-center px-2 py-0.5 bg-amber-50 rounded-md text-[11px] font-black text-amber-600 tracking-wide border border-amber-100/50">
                   VIP
                   <CheckCircle2 className="w-3.5 h-3.5 ml-1 text-blue-500 fill-blue-500/20" />
+                </span>
+              ) : (
+                <span className="flex items-center px-2 py-0.5 bg-slate-100 rounded-md text-[11px] font-black text-slate-500 tracking-wide border border-slate-200/50">
+                  ÉTUDIANT
                 </span>
               )}
             </div>
             <div className="flex items-center gap-2 text-[13px] text-slate-500 font-bold mt-0.5">
               <span>{timeAgo(post.createdAt)}</span>
-              {post.isPinned && (
+              {post.category && (
                 <>
                   <span className="w-1 h-1 rounded-full bg-slate-300" />
-                  <span className="flex items-center gap-1 text-orange-500 bg-orange-50 px-2 rounded-md">
-                    <Pin className="h-3.5 w-3.5" /> مثبّت
-                  </span>
+                  <span className="text-slate-600">{post.category}</span>
                 </>
               )}
             </div>
           </div>
 
           <div className="flex items-center gap-2">
+            {post.isPinned && (
+              <span className="flex items-center gap-1 px-2.5 py-1 bg-red-50 text-red-600 rounded-md text-[11px] font-bold border border-red-100" title="مثبّت">
+                <Pin className="h-3.5 w-3.5 fill-current" />
+              </span>
+            )}
+            {post.isImportant && (
+              <span className="flex items-center gap-1 px-2.5 py-1 bg-purple-50 text-purple-600 rounded-md text-[11px] font-bold border border-purple-100" title="مهم">
+                <AlertCircle className="h-3.5 w-3.5" />
+              </span>
+            )}
+            {solved && (
+              <span className="flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-600 rounded-md text-[11px] font-bold border border-emerald-100" title="تم الحل">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+              </span>
+            )}
+            {post.isQuestion && (
+              <span className="flex items-center gap-1 px-2.5 py-1 bg-blue-50 text-blue-600 rounded-md text-[11px] font-bold border border-blue-100" title="سؤال">
+                سؤال
+              </span>
+            )}
             {post.isFeatured && (
                <span className="flex items-center gap-1 px-2.5 py-1 bg-amber-50 text-amber-600 rounded-md text-[11px] font-bold border border-amber-100">
                  <Star className="h-3 w-3 fill-current" />
@@ -240,6 +318,26 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
                     >
                       {post.canEdit && (
                         <>
+                          {post.isQuestion && (
+                            <button
+                              type="button"
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                const previous = solved;
+                                setSolved(!previous);
+                                setMenuOpen(false);
+                                updM.mutate(
+                                  { id: post.id, data: { isSolved: !previous } },
+                                  { onError: () => setSolved(previous) },
+                                );
+                              }}
+                              disabled={updM.isPending}
+                              className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-emerald-700 font-medium hover:bg-emerald-50"
+                            >
+                              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                              {solved ? "إعادة فتح السؤال" : "تعليم كمحلول"}
+                            </button>
+                          )}
                           <button
                             type="button"
                             onMouseDown={(e) => {
@@ -290,10 +388,85 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
         </div>
 
         {/* Content */}
-        {post.content && (
-          <p className="whitespace-pre-wrap break-words px-5 pt-1 pb-4 text-[15px] leading-[1.7] text-slate-800 font-medium">
-            {post.content}
-          </p>
+        {(post.title || post.content) && (
+          <div className="px-5 pt-1 pb-4">
+            {post.title && (
+              <h3 className="font-black text-[18px] text-slate-900 mb-2 leading-tight">
+                {post.title}
+              </h3>
+            )}
+            {post.content && (
+              <p className="whitespace-pre-wrap break-words text-[15px] leading-[1.7] text-slate-800 font-medium">
+                {post.content}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Poll */}
+        {post.postType === "poll" && post.pollOptions && post.pollOptions.length > 0 && (
+          <div className="px-5 pb-5">
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4">
+              <div className="flex items-center gap-2 mb-4 text-slate-700 font-bold text-sm">
+                <BarChart2 className="w-5 h-5 text-orange-500" />
+                استطلاع رأي
+              </div>
+              <div className="space-y-2.5">
+                {post.pollOptions.map((opt, idx) => {
+                  const voteCount = post.pollVotes?.[idx] || 0;
+                  const percentage = totalPollVotes > 0 ? Math.round((voteCount / totalPollVotes) * 100) : 0;
+                  const isMyVote = post.myPollVote === idx;
+
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => handleVote(idx)}
+                      disabled={post.myPollVote != null}
+                      className={`relative w-full text-right overflow-hidden rounded-xl border p-3 transition-all ${
+                        isMyVote
+                          ? "bg-orange-50 border-orange-200"
+                          : post.myPollVote != null
+                          ? "bg-white border-slate-200"
+                          : "bg-white border-slate-200 hover:border-orange-200 hover:bg-orange-50/50"
+                      }`}
+                    >
+                      {/* Progress Bar (shows if voted) */}
+                      {post.myPollVote != null && (
+                        <div
+                          className={`absolute top-0 right-0 bottom-0 opacity-10 ${
+                            isMyVote ? "bg-orange-600" : "bg-slate-500"
+                          }`}
+                          style={{ width: `${percentage}%` }}
+                        />
+                      )}
+
+                      <div className="relative z-10 flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className={`w-5 h-5 shrink-0 rounded-full border-2 flex items-center justify-center ${
+                            isMyVote ? "border-orange-500" : "border-slate-300"
+                          }`}>
+                            {isMyVote && <div className="w-2.5 h-2.5 rounded-full bg-orange-500" />}
+                          </div>
+                          <span className={`text-[15px] font-bold truncate ${isMyVote ? "text-orange-900" : "text-slate-700"}`}>
+                            {opt}
+                          </span>
+                        </div>
+                        {post.myPollVote != null && (
+                          <span className={`text-sm font-black shrink-0 ${isMyVote ? "text-orange-600" : "text-slate-500"}`}>
+                            {percentage}%
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="mt-4 text-[13px] font-bold text-slate-500">
+                {totalPollVotes} صوت
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Media */}

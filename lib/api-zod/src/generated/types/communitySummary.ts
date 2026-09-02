@@ -5,6 +5,10 @@
  * Cours Online API
  * OpenAPI spec version: 0.1.0
  */
+import type { CommunityActiveMember } from "./communityActiveMember";
+import type { CommunityInsightPost } from "./communityInsightPost";
+import type { CommunitySummaryActivityThisWeekItem } from "./communitySummaryActivityThisWeekItem";
+import type { CommunitySummaryMostActiveCategory } from "./communitySummaryMostActiveCategory";
 
 export interface CommunitySummary {
   memberCount: number;
@@ -15,4 +19,12 @@ export interface CommunitySummary {
   isVip: boolean;
   canPost: boolean;
   hasProfilePicture: boolean;
+  weeklyPostsCount: number;
+  activityThisWeek: CommunitySummaryActivityThisWeekItem[];
+  trendingPosts: CommunityInsightPost[];
+  unansweredQuestion?: CommunityInsightPost | null;
+  mostActiveCategory?: CommunitySummaryMostActiveCategory;
+  activeMembers: CommunityActiveMember[];
+  latestPost?: CommunityInsightPost | null;
+  latestSolution?: CommunityInsightPost | null;
 }

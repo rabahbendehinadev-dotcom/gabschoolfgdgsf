@@ -2,7 +2,7 @@ import { useState } from "react";
 import { CommunityMediaItem } from "@workspace/api-client-react/src/generated/api.schemas";
 import { LockedMedia } from "./LockedMedia";
 import { CommunityVideoPlayer } from "./CommunityVideoPlayer";
-import { X, Play } from "lucide-react";
+import { X, Play, FileText, Download } from "lucide-react";
 
 function Cell({
   item,
@@ -24,6 +24,31 @@ function Cell({
       <div className={className}>
         <LockedMedia previewUrl={item.previewUrl} mediaType={item.mediaType} />
       </div>
+    );
+  }
+
+  if (item.mediaType === "file") {
+    return (
+      <a
+        href={item.fullUrl || "#"}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={`group flex items-center gap-4 p-4 bg-white border border-slate-200 rounded-2xl shadow-sm hover:shadow-md hover:border-orange-200 transition-all cursor-pointer w-full text-right ${className?.replace('aspect-square', '') || ""}`}
+        onClick={(e) => { if (!item.fullUrl) e.preventDefault(); }}
+      >
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-orange-50 text-orange-600 transition-colors group-hover:bg-orange-100">
+          <FileText className="h-6 w-6" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="truncate text-[15px] font-black text-slate-900 group-hover:text-orange-600 transition-colors">{item.fileName || "ملف مرفق"}</p>
+          <p className="text-[13px] font-bold text-slate-500 mt-0.5">
+            {item.sizeBytes ? (item.sizeBytes / 1024 / 1024).toFixed(2) + " MB" : ""}
+          </p>
+        </div>
+        <div className="h-9 w-9 shrink-0 flex items-center justify-center rounded-full bg-slate-50 text-slate-400 group-hover:bg-orange-50 group-hover:text-orange-600 transition-colors">
+          <Download className="h-4 w-4" />
+        </div>
+      </a>
     );
   }
 
@@ -91,21 +116,19 @@ export function MediaGrid({
   if (!media.length) return null;
 
   const sorted = [...media].sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id);
+  const files = sorted.filter(m => m.mediaType === "file");
+  const visualMedia = sorted.filter(m => m.mediaType !== "file");
 
   // A single, unlocked, playing video gets the full inline player.
-  const single = sorted.length === 1 ? sorted[0] : null;
-  if (single && single.mediaType === "video" && !single.locked && playing === single.id) {
-    return (
-      <CommunityVideoPlayer src={single.fullUrl || ""} poster={single.previewUrl} username={username} />
-    );
-  }
+  const single = visualMedia.length === 1 ? visualMedia[0] : null;
+  let layout: React.ReactNode = null;
 
   const cellBase = "relative overflow-hidden rounded-[20px] bg-slate-100 border border-slate-200/60";
 
-  // Layout: 1 → tall single; 2 → 2-up; 3 → 1 wide + 2; 4+ → 2×2 (+N overlay).
-  let layout: React.ReactNode;
-  if (sorted.length === 1) {
-    const it = sorted[0];
+  if (single && single.mediaType === "video" && !single.locked && playing === single.id) {
+    layout = <CommunityVideoPlayer src={single.fullUrl || ""} poster={single.previewUrl} username={username} />;
+  } else if (visualMedia.length === 1) {
+    const it = visualMedia[0];
     layout = (
       <Cell
         item={it}
@@ -116,10 +139,10 @@ export function MediaGrid({
         onPlay={setPlaying}
       />
     );
-  } else if (sorted.length === 2) {
+  } else if (visualMedia.length === 2) {
     layout = (
       <div className="grid grid-cols-2 gap-1.5">
-        {sorted.map((it) => (
+        {visualMedia.map((it) => (
           <Cell
             key={it.id}
             item={it}
@@ -131,17 +154,17 @@ export function MediaGrid({
         ))}
       </div>
     );
-  } else if (sorted.length === 3) {
+  } else if (visualMedia.length === 3) {
     layout = (
       <div className="grid grid-cols-2 gap-1.5">
         <Cell
-          item={sorted[0]}
+          item={visualMedia[0]}
           username={username}
           className={`${cellBase} col-span-2 aspect-video`}
           onZoom={setZoom}
           onPlay={setPlaying}
         />
-        {sorted.slice(1, 3).map((it) => (
+        {visualMedia.slice(1, 3).map((it) => (
           <Cell
             key={it.id}
             item={it}
@@ -153,9 +176,9 @@ export function MediaGrid({
         ))}
       </div>
     );
-  } else {
-    const shown = sorted.slice(0, 4);
-    const extra = sorted.length - 4;
+  } else if (visualMedia.length > 3) {
+    const shown = visualMedia.slice(0, 4);
+    const extra = visualMedia.length - 4;
     layout = (
       <div className="grid grid-cols-2 gap-1.5">
         {shown.map((it, idx) => (
@@ -180,7 +203,16 @@ export function MediaGrid({
 
   return (
     <>
-      {layout}
+      <div className="space-y-3">
+        {layout}
+        {files.length > 0 && (
+          <div className="flex flex-col gap-2">
+            {files.map(f => (
+              <Cell key={f.id} item={f} onZoom={() => {}} onPlay={() => {}} />
+            ))}
+          </div>
+        )}
+      </div>
 
       {zoom && (
         <div

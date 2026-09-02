@@ -6,8 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface UpdateCommunityPostInput {
-  content?: string | null;
-  title?: string | null;
-  isSolved?: boolean;
-}
+export type VoteCommunityPoll200 = {
+  votes: number[];
+  myVote: number;
+};

@@ -11,7 +11,7 @@ export function LockedMedia({
   className,
 }: {
   previewUrl?: string | null;
-  mediaType: "image" | "video";
+  mediaType: "image" | "video" | "file";
   className?: string;
 }) {
   return (
@@ -46,6 +46,8 @@ export function LockedMedia({
         <p className="max-w-[16rem] text-sm font-semibold text-white/90">
           {mediaType === "video"
             ? "هذا الفيديو متاح لأعضاء VIP فقط"
+            : mediaType === "file"
+            ? "هذا الملف متاح لأعضاء VIP فقط"
             : "هذه الصورة متاحة لأعضاء VIP فقط"}
         </p>
 

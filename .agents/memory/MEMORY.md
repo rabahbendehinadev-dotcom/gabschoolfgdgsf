@@ -43,3 +43,4 @@
 - [Video watermark protection](video-watermark-protection.md) — watermark = viewer identity (never post author); visibility-pause must exempt PiP; getDisplayMedia patch needs cleanup-restore.
 - [Course access strict control](course-access-strict.md) — removed VIP auto-grant migration; user_courses now has granted_by/grant_source/reason/expires_at/status; course_access_logs audit table; admins table has role/display_name; Support role → 403 on grant/revoke; admin panel at /gab-ctrl-9x.
 - [SW image cache](sw-image-cache.md) — sw.js caches destination==="image" cache-first; MUST exclude /community/media (gated) and /avatar (mutable stable URL); bump gab-img-vN on rule changes.
+- [Community upload receipts](community-upload-receipts.md) — protected uploads require owner-bound HMAC receipts; never negative-cache object ownership or expose direct presigned PUTs.

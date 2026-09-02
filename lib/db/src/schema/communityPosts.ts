@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, text, varchar, boolean, timestamp, index } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, varchar, boolean, timestamp, index, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { usersTable } from "./users";
@@ -11,6 +11,8 @@ export const communityPostsTable = pgTable(
       .notNull()
       .references(() => usersTable.id, { onDelete: "cascade" }),
     content: text("content"),
+    title: varchar("title", { length: 180 }),
+    category: varchar("category", { length: 30 }),
     // text | image | gallery | video
     postType: varchar("post_type", { length: 20 }).notNull().default("text"),
     // When true, the post's MEDIA is only fully accessible to VIP accounts.
@@ -20,6 +22,10 @@ export const communityPostsTable = pgTable(
     isHidden: boolean("is_hidden").notNull().default(false),
     isPinned: boolean("is_pinned").notNull().default(false),
     isFeatured: boolean("is_featured").notNull().default(false),
+    isImportant: boolean("is_important").notNull().default(false),
+    isSolved: boolean("is_solved").notNull().default(false),
+    isQuestion: boolean("is_question").notNull().default(false),
+    pollOptions: jsonb("poll_options").$type<string[]>(),
     likesCount: integer("likes_count").notNull().default(0),
     commentsCount: integer("comments_count").notNull().default(0),
     viewsCount: integer("views_count").notNull().default(0),

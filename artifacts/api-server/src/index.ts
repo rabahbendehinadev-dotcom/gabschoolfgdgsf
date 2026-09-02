@@ -174,6 +174,27 @@ async function runMigrations() {
     await db.execute(sql`CREATE INDEX IF NOT EXISTS community_reports_comment_idx ON community_reports(comment_id)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS community_reports_status_idx ON community_reports(status)`);
 
+    // Community Phase 2 — additive fields only; legacy posts remain valid.
+    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS community_role VARCHAR(20) NOT NULL DEFAULT 'student'`);
+    await db.execute(sql`ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS title VARCHAR(180)`);
+    await db.execute(sql`ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS category VARCHAR(30)`);
+    await db.execute(sql`ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS is_important BOOLEAN NOT NULL DEFAULT false`);
+    await db.execute(sql`ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS is_solved BOOLEAN NOT NULL DEFAULT false`);
+    await db.execute(sql`ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS is_question BOOLEAN NOT NULL DEFAULT false`);
+    await db.execute(sql`ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS poll_options JSONB`);
+    await db.execute(sql`ALTER TABLE community_post_media ADD COLUMN IF NOT EXISTS file_name VARCHAR(255)`);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS community_poll_votes (
+        id SERIAL PRIMARY KEY,
+        post_id INTEGER NOT NULL REFERENCES community_posts(id) ON DELETE CASCADE,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        option_index INTEGER NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS community_poll_votes_post_user_uniq ON community_poll_votes(post_id, user_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS community_poll_votes_post_idx ON community_poll_votes(post_id)`);
+
     // ── [SECURITY] Auto-grant migration REMOVED ──
     // The previous migration that automatically granted playlist 5 (Flash & Decoding)
     // to all VIP users has been deliberately removed. Course access is now 100% explicit:
@@ -262,6 +283,7 @@ async function runMigrations() {
     console.log("[migrations] Schema up to date.");
   } catch (err) {
     console.error("[migrations] Migration error:", err);
+    throw err;
   }
 }
 
@@ -459,4 +481,7 @@ runMigrations().then(() => ensureSeed()).then(() => {
   console.error("DATABASE_URL set:", !!process.env.DATABASE_URL);
   console.error("DATABASE_URL prefix:", (process.env.DATABASE_URL || "").slice(0, 40));
   process.exit(1);
+}).catch((error) => {
+  console.error("[startup] Failed before server listen:", error);
+  process.exitCode = 1;
 });

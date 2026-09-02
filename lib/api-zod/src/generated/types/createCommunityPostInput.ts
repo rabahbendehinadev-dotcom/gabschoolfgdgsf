@@ -6,10 +6,20 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { CommunityMediaInput } from "./communityMediaInput";
+import type { CreateCommunityPostInputCategory } from "./createCommunityPostInputCategory";
 import type { CreateCommunityPostInputPostType } from "./createCommunityPostInputPostType";
 
 export interface CreateCommunityPostInput {
   content?: string | null;
+  title?: string | null;
+  category?: CreateCommunityPostInputCategory;
+  isQuestion?: boolean;
+  /**
+   * @minItems 2
+   * @maxItems 6
+   */
+  pollOptions?: string[];
   postType: CreateCommunityPostInputPostType;
+  /** @maxItems 6 */
   media?: CommunityMediaInput[];
 }

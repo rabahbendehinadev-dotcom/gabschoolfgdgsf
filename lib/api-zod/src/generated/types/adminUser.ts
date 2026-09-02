@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { AdminUserAccountType } from "./adminUserAccountType";
+import type { AdminUserCommunityRole } from "./adminUserCommunityRole";
 import type { AdminUserPushPermission } from "./adminUserPushPermission";
 import type { AdminUserPushState } from "./adminUserPushState";
 import type { AdminUserSubscriptionType } from "./adminUserSubscriptionType";
@@ -15,6 +16,7 @@ export interface AdminUser {
   username: string;
   email: string;
   accountType: AdminUserAccountType;
+  communityRole?: AdminUserCommunityRole;
   subscriptionType: AdminUserSubscriptionType;
   subscriptionExpiresAt?: Date | null;
   ipAddress?: string | null;

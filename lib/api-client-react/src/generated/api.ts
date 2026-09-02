@@ -32,8 +32,10 @@ import type {
   CommunityCommentsResponse,
   CommunityFeedResponse,
   CommunityLikeResponse,
+  CommunityPollVoteInput,
   CommunityPost,
   CommunitySummary,
+  CommunityUploadResponse,
   CommunityViewResponse,
   CreateCategoryInput,
   CreateCommentInput,
@@ -85,6 +87,7 @@ import type {
   UserProfile,
   VapidKeyResponse,
   Video,
+  VoteCommunityPoll200,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -3538,7 +3541,7 @@ export function useGetCommunityFeed<
 }
 
 /**
- * @summary Create a community post (VIP only)
+ * @summary Create a community post
  */
 export const getCreateCommunityPostUrl = () => {
   return `/api/community/posts`;
@@ -3602,7 +3605,7 @@ export type CreateCommunityPostMutationBody =
 export type CreateCommunityPostMutationError = ErrorType<ErrorResponse>;
 
 /**
- * @summary Create a community post (VIP only)
+ * @summary Create a community post
  */
 export const useCreateCommunityPost = <
   TError = ErrorType<ErrorResponse>,
@@ -3622,6 +3625,88 @@ export const useCreateCommunityPost = <
   TContext
 > => {
   return useMutation(getCreateCommunityPostMutationOptions(options));
+};
+
+/**
+ * Accepts multipart/form-data with a required file field.
+ * @summary Upload authenticated Community media
+ */
+export const getUploadCommunityMediaUrl = () => {
+  return `/api/community/uploads/data`;
+};
+
+export const uploadCommunityMedia = async (
+  options?: RequestInit,
+): Promise<CommunityUploadResponse> => {
+  return customFetch<CommunityUploadResponse>(getUploadCommunityMediaUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getUploadCommunityMediaMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof uploadCommunityMedia>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof uploadCommunityMedia>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["uploadCommunityMedia"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof uploadCommunityMedia>>,
+    void
+  > = () => {
+    return uploadCommunityMedia(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UploadCommunityMediaMutationResult = NonNullable<
+  Awaited<ReturnType<typeof uploadCommunityMedia>>
+>;
+
+export type UploadCommunityMediaMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Upload authenticated Community media
+ */
+export const useUploadCommunityMedia = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof uploadCommunityMedia>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof uploadCommunityMedia>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getUploadCommunityMediaMutationOptions(options));
 };
 
 /**
@@ -3712,7 +3797,7 @@ export function useGetCommunityPost<
 }
 
 /**
- * @summary Update own community post (caption)
+ * @summary Update own community post
  */
 export const getUpdateCommunityPostUrl = (id: number) => {
   return `/api/community/posts/${id}`;
@@ -3732,7 +3817,7 @@ export const updateCommunityPost = async (
 };
 
 export const getUpdateCommunityPostMutationOptions = <
-  TError = ErrorType<ErrorResponse>,
+  TError = ErrorType<unknown>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -3774,13 +3859,13 @@ export type UpdateCommunityPostMutationResult = NonNullable<
 >;
 export type UpdateCommunityPostMutationBody =
   BodyType<UpdateCommunityPostInput>;
-export type UpdateCommunityPostMutationError = ErrorType<ErrorResponse>;
+export type UpdateCommunityPostMutationError = ErrorType<unknown>;
 
 /**
- * @summary Update own community post (caption)
+ * @summary Update own community post
  */
 export const useUpdateCommunityPost = <
-  TError = ErrorType<ErrorResponse>,
+  TError = ErrorType<unknown>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -3817,7 +3902,7 @@ export const deleteCommunityPost = async (
 };
 
 export const getDeleteCommunityPostMutationOptions = <
-  TError = ErrorType<ErrorResponse>,
+  TError = ErrorType<unknown>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -3858,13 +3943,13 @@ export type DeleteCommunityPostMutationResult = NonNullable<
   Awaited<ReturnType<typeof deleteCommunityPost>>
 >;
 
-export type DeleteCommunityPostMutationError = ErrorType<ErrorResponse>;
+export type DeleteCommunityPostMutationError = ErrorType<unknown>;
 
 /**
  * @summary Delete own community post
  */
 export const useDeleteCommunityPost = <
-  TError = ErrorType<ErrorResponse>,
+  TError = ErrorType<unknown>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -3881,6 +3966,93 @@ export const useDeleteCommunityPost = <
   TContext
 > => {
   return useMutation(getDeleteCommunityPostMutationOptions(options));
+};
+
+/**
+ * @summary Vote in a community poll
+ */
+export const getVoteCommunityPollUrl = (id: number) => {
+  return `/api/community/posts/${id}/poll-vote`;
+};
+
+export const voteCommunityPoll = async (
+  id: number,
+  communityPollVoteInput: CommunityPollVoteInput,
+  options?: RequestInit,
+): Promise<VoteCommunityPoll200> => {
+  return customFetch<VoteCommunityPoll200>(getVoteCommunityPollUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(communityPollVoteInput),
+  });
+};
+
+export const getVoteCommunityPollMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof voteCommunityPoll>>,
+    TError,
+    { id: number; data: BodyType<CommunityPollVoteInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof voteCommunityPoll>>,
+  TError,
+  { id: number; data: BodyType<CommunityPollVoteInput> },
+  TContext
+> => {
+  const mutationKey = ["voteCommunityPoll"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof voteCommunityPoll>>,
+    { id: number; data: BodyType<CommunityPollVoteInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return voteCommunityPoll(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type VoteCommunityPollMutationResult = NonNullable<
+  Awaited<ReturnType<typeof voteCommunityPoll>>
+>;
+export type VoteCommunityPollMutationBody = BodyType<CommunityPollVoteInput>;
+export type VoteCommunityPollMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Vote in a community poll
+ */
+export const useVoteCommunityPoll = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof voteCommunityPoll>>,
+    TError,
+    { id: number; data: BodyType<CommunityPollVoteInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof voteCommunityPoll>>,
+  TError,
+  { id: number; data: BodyType<CommunityPollVoteInput> },
+  TContext
+> => {
+  return useMutation(getVoteCommunityPollMutationOptions(options));
 };
 
 /**

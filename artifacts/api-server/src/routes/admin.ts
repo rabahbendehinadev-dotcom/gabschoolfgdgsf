@@ -249,6 +249,10 @@ router.get("/admin/users", adminAuth, async (req, res) => {
         email: u.email,
         fullName: u.fullName ?? null,
         accountType: u.accountType,
+        communityRole:
+          u.communityRole === "admin" || u.communityRole === "formateur"
+            ? u.communityRole
+            : "student",
         subscriptionType: u.subscriptionType,
         subscriptionExpiresAt:  u.subscriptionExpiresAt?.toISOString()  || null,
         subscriptionStartedAt:  u.subscriptionStartedAt?.toISOString()  || null,
@@ -520,6 +524,7 @@ router.patch("/admin/users/:id", adminAuth, async (req, res) => {
       }
     }
     if (body.isActive !== undefined) updateData.isActive = body.isActive;
+    if (body.communityRole !== undefined) updateData.communityRole = body.communityRole;
     if (body.subscriptionStartedAt !== undefined) {
       updateData.subscriptionStartedAt = body.subscriptionStartedAt ? new Date(body.subscriptionStartedAt) : null;
     }
@@ -553,6 +558,10 @@ router.patch("/admin/users/:id", adminAuth, async (req, res) => {
       username: user.username,
       email: user.email,
       accountType: user.accountType,
+      communityRole:
+        user.communityRole === "admin" || user.communityRole === "formateur"
+          ? user.communityRole
+          : "student",
       subscriptionType: user.subscriptionType,
       subscriptionExpiresAt: user.subscriptionExpiresAt?.toISOString() || null,
       ipAddress: ip.ipAddress,
@@ -2561,11 +2570,13 @@ router.get("/admin/community/posts", adminAuth, async (req, res) => {
 router.patch("/admin/community/posts/:id", adminAuth, async (req, res) => {
   try {
     const id = Number(req.params.id);
-    const { isHidden, isPinned, isFeatured, isVipLocked } = req.body as {
+    const { isHidden, isPinned, isFeatured, isVipLocked, isImportant, isSolved } = req.body as {
       isHidden?: boolean;
       isPinned?: boolean;
       isFeatured?: boolean;
       isVipLocked?: boolean;
+      isImportant?: boolean;
+      isSolved?: boolean;
     };
 
     const [existing] = await db
@@ -2584,6 +2595,8 @@ router.patch("/admin/community/posts/:id", adminAuth, async (req, res) => {
     if (typeof isPinned === "boolean") updates.isPinned = isPinned;
     if (typeof isFeatured === "boolean") updates.isFeatured = isFeatured;
     if (typeof isVipLocked === "boolean") updates.isVipLocked = isVipLocked;
+    if (typeof isImportant === "boolean") updates.isImportant = isImportant;
+    if (typeof isSolved === "boolean") updates.isSolved = isSolved;
 
     await db.update(communityPostsTable).set(updates).where(eq(communityPostsTable.id, id));
 

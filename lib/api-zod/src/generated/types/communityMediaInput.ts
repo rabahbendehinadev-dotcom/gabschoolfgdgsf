@@ -10,12 +10,15 @@ import type { CommunityMediaInputMediaType } from "./communityMediaInputMediaTyp
 export interface CommunityMediaInput {
   mediaType: CommunityMediaInputMediaType;
   objectPath: string;
+  uploadToken: string;
   previewObjectPath?: string | null;
+  previewUploadToken?: string | null;
   thumbnailObjectPath?: string | null;
   width?: number | null;
   height?: number | null;
   durationSec?: number | null;
   contentType?: string | null;
   sizeBytes?: number | null;
+  fileName?: string | null;
   sortOrder?: number | null;
 }

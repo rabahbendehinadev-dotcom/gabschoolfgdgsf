@@ -6,9 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { UpdateUserInputAccountType } from "./updateUserInputAccountType";
+import type { UpdateUserInputCommunityRole } from "./updateUserInputCommunityRole";
 import type { UpdateUserInputSubscriptionType } from "./updateUserInputSubscriptionType";
 
 export interface UpdateUserInput {
+  communityRole?: UpdateUserInputCommunityRole;
   accountType?: UpdateUserInputAccountType;
   subscriptionType?: UpdateUserInputSubscriptionType;
   isActive?: boolean;

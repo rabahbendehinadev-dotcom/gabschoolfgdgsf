@@ -1,22 +1,33 @@
 import { CommunityMediaInput } from "@workspace/api-client-react/src/generated/api.schemas";
 
 // ── Upload helpers ──────────────────────────────────────────────────────────
-// Uploads via server-side proxy (POST /storage/uploads/data with multipart),
-// which avoids CORS issues when the browser tries to PUT directly to GCS.
+// Uploads via the authenticated Community proxy, which avoids CORS issues when
+// the browser tries to PUT directly to object storage.
 // VIP authors upload BOTH the original media and a separately-generated, low-res
 // teaser object (blurred image / video thumbnail) so non-VIP viewers never touch
 // the original bytes — the teaser is what the server exposes to them.
 
-async function uploadBlob(blob: Blob, filename: string): Promise<string> {
+async function uploadBlob(
+  blob: Blob,
+  filename: string,
+  headers?: HeadersInit,
+): Promise<{ objectPath: string; uploadToken: string }> {
   const fd = new FormData();
   fd.append("file", new File([blob], filename, { type: blob.type || "application/octet-stream" }));
-  const res = await fetch("/api/storage/uploads/data", { method: "POST", body: fd });
+  const res = await fetch("/api/community/uploads/data", {
+    method: "POST",
+    headers,
+    body: fd,
+  });
   if (!res.ok) {
     const detail = await res.json().catch(() => ({})) as { error?: string };
     throw new Error(detail.error ?? `فشل رفع الملف (${res.status})`);
   }
-  const { objectPath } = await res.json() as { objectPath: string };
-  return objectPath;
+  const result = await res.json() as { objectPath?: string; uploadToken?: string };
+  if (!result.objectPath || !result.uploadToken) {
+    throw new Error("لم يُرجع الخادم إيصال رفع صالحاً");
+  }
+  return { objectPath: result.objectPath, uploadToken: result.uploadToken };
 }
 
 // ── Canvas helpers ──────────────────────────────────────────────────────────
@@ -50,7 +61,11 @@ function scaledSize(w: number, h: number, maxDim: number): { w: number; h: numbe
 
 // ── Image: read dimensions + build blurred low-res teaser ───────────────────
 
-async function buildImageMedia(file: File, sortOrder: number): Promise<CommunityMediaInput> {
+async function buildImageMedia(
+  file: File,
+  sortOrder: number,
+  headers?: HeadersInit,
+): Promise<CommunityMediaInput> {
   const url = URL.createObjectURL(file);
   let width = 0;
   let height = 0;
@@ -73,17 +88,30 @@ async function buildImageMedia(file: File, sortOrder: number): Promise<Community
     URL.revokeObjectURL(url);
   }
 
-  const [objectPath, previewObjectPath] = await Promise.all([
-    uploadBlob(file, file.name),
-    uploadBlob(previewBlob, `preview-${Date.now()}.jpg`),
+  const [original, preview] = await Promise.all([
+    uploadBlob(file, file.name, headers),
+    uploadBlob(previewBlob, `preview-${Date.now()}.jpg`, headers),
   ]);
 
-  return { mediaType: "image", objectPath, previewObjectPath, width, height, sortOrder };
+  return {
+    mediaType: "image",
+    objectPath: original.objectPath,
+    uploadToken: original.uploadToken,
+    previewObjectPath: preview.objectPath,
+    previewUploadToken: preview.uploadToken,
+    width,
+    height,
+    sortOrder,
+  };
 }
 
 // ── Video: read dimensions/duration + capture a thumbnail frame ─────────────
 
-async function buildVideoMedia(file: File, sortOrder: number): Promise<CommunityMediaInput> {
+async function buildVideoMedia(
+  file: File,
+  sortOrder: number,
+  headers?: HeadersInit,
+): Promise<CommunityMediaInput> {
   const url = URL.createObjectURL(file);
   const video = document.createElement("video");
   video.muted = true;
@@ -128,15 +156,17 @@ async function buildVideoMedia(file: File, sortOrder: number): Promise<Community
     URL.revokeObjectURL(url);
   }
 
-  const [objectPath, previewObjectPath] = await Promise.all([
-    uploadBlob(file, file.name),
-    uploadBlob(thumbBlob, `thumb-${Date.now()}.jpg`),
+  const [original, preview] = await Promise.all([
+    uploadBlob(file, file.name, headers),
+    uploadBlob(thumbBlob, `thumb-${Date.now()}.jpg`, headers),
   ]);
 
   return {
     mediaType: "video",
-    objectPath,
-    previewObjectPath,
+    objectPath: original.objectPath,
+    uploadToken: original.uploadToken,
+    previewObjectPath: preview.objectPath,
+    previewUploadToken: preview.uploadToken,
     width,
     height,
     durationSec,
@@ -144,10 +174,36 @@ async function buildVideoMedia(file: File, sortOrder: number): Promise<Community
   };
 }
 
-export async function buildMediaInput(file: File, sortOrder: number): Promise<CommunityMediaInput> {
-  if (file.type.startsWith("video/")) return buildVideoMedia(file, sortOrder);
-  return buildImageMedia(file, sortOrder);
+// ── File: generic upload ──────────────────────────────────────────────────────
+
+async function buildFileMedia(
+  file: File,
+  sortOrder: number,
+  headers?: HeadersInit,
+): Promise<CommunityMediaInput> {
+  const original = await uploadBlob(file, file.name, headers);
+
+  return {
+    mediaType: "file",
+    objectPath: original.objectPath,
+    uploadToken: original.uploadToken,
+    fileName: file.name,
+    contentType: file.type || "application/octet-stream",
+    sizeBytes: file.size,
+    sortOrder,
+  };
+}
+
+export async function buildMediaInput(
+  file: File,
+  sortOrder: number,
+  headers?: HeadersInit,
+): Promise<CommunityMediaInput> {
+  if (file.type.startsWith("video/")) return buildVideoMedia(file, sortOrder, headers);
+  if (file.type.startsWith("image/")) return buildImageMedia(file, sortOrder, headers);
+  return buildFileMedia(file, sortOrder, headers);
 }
 
 export const MAX_IMAGE_BYTES = 15 * 1024 * 1024; // 15MB
 export const MAX_VIDEO_BYTES = 120 * 1024 * 1024; // 120MB
+export const MAX_FILE_BYTES = 50 * 1024 * 1024; // 50MB

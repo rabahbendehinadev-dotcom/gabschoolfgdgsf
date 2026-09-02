@@ -903,7 +903,7 @@ paths:
     post:
       operationId: createCommunityPost
       tags: [community]
-      summary: Create a community post (VIP only)
+      summary: Create a community post
       security:
         - bearerAuth: []
       requestBody:
@@ -920,7 +920,35 @@ paths:
               schema:
                 $ref: "#/components/schemas/CommunityPost"
         "403":
-          description: Not a VIP member
+          description: Authentication or profile picture required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /community/uploads/data:
+    post:
+      operationId: uploadCommunityMedia
+      tags: [community]
+      summary: Upload authenticated Community media
+      description: Accepts multipart/form-data with a required file field.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Signed upload receipt
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunityUploadResponse"
+        "400":
+          description: Unsupported or invalid file
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Authentication required
           content:
             application/json:
               schema:
@@ -955,7 +983,7 @@ paths:
     patch:
       operationId: updateCommunityPost
       tags: [community]
-      summary: Update own community post (caption)
+      summary: Update own community post
       security:
         - bearerAuth: []
       parameters:
@@ -977,12 +1005,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CommunityPost"
-        "403":
-          description: Forbidden
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
     delete:
       operationId: deleteCommunityPost
       tags: [community]
@@ -1002,12 +1024,40 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
-        "403":
-          description: Forbidden
+
+  /community/posts/{id}/poll-vote:
+    post:
+      operationId: voteCommunityPoll
+      tags: [community]
+      summary: Vote in a community poll
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommunityPollVoteInput"
+      responses:
+        "200":
+          description: Updated poll
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                type: object
+                properties:
+                  votes:
+                    type: array
+                    items: { type: integer }
+                  myVote:
+                    type: integer
+                required: [votes, myVote]
 
   /community/posts/{id}/like:
     post:
@@ -2472,6 +2522,9 @@ components:
     UpdateUserInput:
       type: object
       properties:
+        communityRole:
+          type: string
+          enum: [admin, formateur, student]
         accountType:
           type: string
           enum: [vip, normal]
@@ -2500,6 +2553,9 @@ components:
         accountType:
           type: string
           enum: [vip, normal]
+        communityRole:
+          type: string
+          enum: [admin, formateur, student]
         subscriptionType:
           type: string
           enum: [demo, monthly, annual, lifetime]
@@ -2615,6 +2671,9 @@ components:
         accountType:
           type: string
           enum: [vip, normal]
+        role:
+          type: string
+          enum: [admin, formateur, student]
         profileImageUrl:
           type: string
           nullable: true
@@ -2622,6 +2681,7 @@ components:
         - id
         - username
         - accountType
+        - role
 
     CommunityMediaItem:
       type: object
@@ -2630,7 +2690,7 @@ components:
           type: integer
         mediaType:
           type: string
-          enum: [image, video]
+          enum: [image, video, file]
         locked:
           type: boolean
         previewUrl:
@@ -2651,6 +2711,15 @@ components:
         durationSec:
           type: integer
           nullable: true
+        fileName:
+          type: string
+          nullable: true
+        contentType:
+          type: string
+          nullable: true
+        sizeBytes:
+          type: integer
+          nullable: true
         sortOrder:
           type: integer
       required:
@@ -2669,15 +2738,38 @@ components:
         content:
           type: string
           nullable: true
+        title:
+          type: string
+          nullable: true
+        category:
+          type: string
+          nullable: true
         postType:
           type: string
-          enum: [text, image, gallery, video]
+          enum: [text, image, gallery, video, file, poll]
         isVipLocked:
           type: boolean
         isPinned:
           type: boolean
         isFeatured:
           type: boolean
+        isImportant:
+          type: boolean
+        isSolved:
+          type: boolean
+        isQuestion:
+          type: boolean
+        pollOptions:
+          type: array
+          nullable: true
+          items: { type: string }
+        pollVotes:
+          type: array
+          nullable: true
+          items: { type: integer }
+        myPollVote:
+          type: integer
+          nullable: true
         likesCount:
           type: integer
         commentsCount:
@@ -2705,6 +2797,9 @@ components:
         - isVipLocked
         - isPinned
         - isFeatured
+        - isImportant
+        - isSolved
+        - isQuestion
         - likesCount
         - commentsCount
         - viewsCount
@@ -2747,6 +2842,43 @@ components:
           type: boolean
         hasProfilePicture:
           type: boolean
+        weeklyPostsCount:
+          type: integer
+        activityThisWeek:
+          type: array
+          items:
+            type: object
+            properties:
+              date: { type: string, format: date }
+              count: { type: integer }
+            required: [date, count]
+        trendingPosts:
+          type: array
+          items:
+            $ref: "#/components/schemas/CommunityInsightPost"
+        unansweredQuestion:
+          allOf:
+            - $ref: "#/components/schemas/CommunityInsightPost"
+          nullable: true
+        mostActiveCategory:
+          type: object
+          nullable: true
+          properties:
+            category: { type: string }
+            postsCount: { type: integer }
+          required: [category, postsCount]
+        activeMembers:
+          type: array
+          items:
+            $ref: "#/components/schemas/CommunityActiveMember"
+        latestPost:
+          allOf:
+            - $ref: "#/components/schemas/CommunityInsightPost"
+          nullable: true
+        latestSolution:
+          allOf:
+            - $ref: "#/components/schemas/CommunityInsightPost"
+          nullable: true
       required:
         - memberCount
         - todayPostsCount
@@ -2755,16 +2887,70 @@ components:
         - isVip
         - canPost
         - hasProfilePicture
+        - weeklyPostsCount
+        - activityThisWeek
+        - trendingPosts
+        - activeMembers
+
+    CommunityInsightPost:
+      type: object
+      properties:
+        id: { type: integer }
+        label: { type: string }
+        title: { type: string, nullable: true }
+        content: { type: string, nullable: true }
+        likesCount: { type: integer }
+        commentsCount: { type: integer }
+        viewsCount: { type: integer }
+        createdAt: { type: string, format: date-time }
+      required: [id, label]
+
+    CommunityActiveMember:
+      type: object
+      properties:
+        id: { type: integer }
+        username: { type: string }
+        accountType:
+          type: string
+          enum: [vip, normal]
+        role:
+          type: string
+          enum: [admin, formateur, student]
+        profileImageUrl: { type: string, nullable: true }
+        postsCount: { type: integer }
+      required: [id, username, accountType, role, postsCount]
+
+    CommunityPollVoteInput:
+      type: object
+      properties:
+        optionIndex:
+          type: integer
+          minimum: 0
+      required: [optionIndex]
+
+    CommunityUploadResponse:
+      type: object
+      properties:
+        objectPath:
+          type: string
+        uploadToken:
+          type: string
+      required: [objectPath, uploadToken]
 
     CommunityMediaInput:
       type: object
       properties:
         mediaType:
           type: string
-          enum: [image, video]
+          enum: [image, video, file]
         objectPath:
           type: string
+        uploadToken:
+          type: string
         previewObjectPath:
+          type: string
+          nullable: true
+        previewUploadToken:
           type: string
           nullable: true
         thumbnailObjectPath:
@@ -2785,12 +2971,16 @@ components:
         sizeBytes:
           type: integer
           nullable: true
+        fileName:
+          type: string
+          nullable: true
         sortOrder:
           type: integer
           nullable: true
       required:
         - mediaType
         - objectPath
+        - uploadToken
 
     CreateCommunityPostInput:
       type: object
@@ -2798,11 +2988,29 @@ components:
         content:
           type: string
           nullable: true
+        title:
+          type: string
+          nullable: true
+        category:
+          type: string
+          enum: [help, iphone, android, frp, hw, sw, tools, news]
+          nullable: true
+        isQuestion:
+          type: boolean
+        pollOptions:
+          type: array
+          minItems: 2
+          maxItems: 6
+          items:
+            type: string
+            minLength: 1
+            maxLength: 120
         postType:
           type: string
-          enum: [text, image, gallery, video]
+          enum: [text, image, gallery, video, file, poll]
         media:
           type: array
+          maxItems: 6
           items:
             $ref: "#/components/schemas/CommunityMediaInput"
       required:
@@ -2814,6 +3022,11 @@ components:
         content:
           type: string
           nullable: true
+        title:
+          type: string
+          nullable: true
+        isSolved:
+          type: boolean
 
     CommunityReply:
       type: object

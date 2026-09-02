@@ -6,10 +6,12 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { CommunityAuthorAccountType } from "./communityAuthorAccountType";
+import type { CommunityAuthorRole } from "./communityAuthorRole";
 
 export interface CommunityAuthor {
   id: number;
   username: string;
   accountType: CommunityAuthorAccountType;
+  role: CommunityAuthorRole;
   profileImageUrl?: string | null;
 }

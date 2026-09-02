@@ -11,6 +11,7 @@ export const usersTable = pgTable("users", {
   fullName: varchar("full_name", { length: 255 }),
   profileImage: text("profile_image"),
   accountType: varchar("account_type", { length: 20 }).notNull().default("normal"),
+  communityRole: varchar("community_role", { length: 20 }).notNull().default("student"),
   subscriptionType: varchar("subscription_type", { length: 20 }).notNull().default("demo"),
   subscriptionStartedAt: timestamp("subscription_started_at"),
   subscriptionExpiresAt: timestamp("subscription_expires_at"),

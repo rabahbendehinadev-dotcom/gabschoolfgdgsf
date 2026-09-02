@@ -17,5 +17,8 @@ export interface CommunityMediaItem {
   width?: number | null;
   height?: number | null;
   durationSec?: number | null;
+  fileName?: string | null;
+  contentType?: string | null;
+  sizeBytes?: number | null;
   sortOrder: number;
 }

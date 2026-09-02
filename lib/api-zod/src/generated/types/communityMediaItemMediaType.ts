@@ -12,4 +12,5 @@ export type CommunityMediaItemMediaType =
 export const CommunityMediaItemMediaType = {
   image: "image",
   video: "video",
+  file: "file",
 } as const;

@@ -1,52 +1,141 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { Readable } from "stream";
 import multer from "multer";
-import { z } from "zod";
 import { db, communityPostMediaTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
+import { userAuth } from "../middlewares/auth";
+import { signCommunityUploadReceipt } from "../lib/communityUploadReceipt";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
 
-/* ── Community-check cache ────────────────────────────────────────────────
-   Category / playlist / tool images are never community originals.
-   Hitting the DB on every image request adds pointless TTFB overhead.
-   Cache "not community" results for 10 minutes; don't cache positives.
-   ─────────────────────────────────────────────────────────────────────── */
-const communityCache = new Map<string, { expiresAt: number }>();
-const COMMUNITY_CACHE_TTL_MS = 10 * 60 * 1_000;
-
 async function isNotCommunityOriginal(objectPath: string): Promise<boolean> {
-  const cached = communityCache.get(objectPath);
-  if (cached && Date.now() < cached.expiresAt) return true;
-
   const [row] = await db
     .select({ id: communityPostMediaTable.id })
     .from(communityPostMediaTable)
     .where(eq(communityPostMediaTable.objectPath, objectPath))
     .limit(1);
 
-  if (!row) {
-    communityCache.set(objectPath, { expiresAt: Date.now() + COMMUNITY_CACHE_TTL_MS });
-    if (communityCache.size > 2000) {
-      const now = Date.now();
-      for (const [k, v] of communityCache) {
-        if (now > v.expiresAt) communityCache.delete(k);
-      }
-    }
-    return true;
-  }
-  return false;
+  return !row;
 }
 
-/* ── Multer (memory storage — images only, ≤10 MB) ───────────────────── */
+/* ── Multer upload limits ────────────────────────────────────────────── */
 /* Accept any file — type validation happens after parse to avoid multer v2
    fileFilter throwing an unhandled error instead of returning JSON. */
 const memUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: { fileSize: 15 * 1024 * 1024 },
 });
+const communityMemUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 120 * 1024 * 1024 },
+});
+
+function isAllowedCommunityMime(mime: string): boolean {
+  return (
+    ["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"].includes(mime) ||
+    ["video/mp4", "video/quicktime", "video/webm"].includes(mime) ||
+    ["text/plain", "text/csv"].includes(mime) ||
+    mime === "application/pdf" ||
+    mime === "application/zip" ||
+    mime === "application/x-zip-compressed" ||
+    mime === "application/msword" ||
+    mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    mime === "application/vnd.ms-excel" ||
+    mime === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+    mime === "application/octet-stream"
+  );
+}
+
+function isAllowedPublicUploadMime(mime: string): boolean {
+  return (
+    ["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"].includes(mime) ||
+    mime === "application/octet-stream"
+  );
+}
+
+function startsWithBytes(buffer: Buffer, bytes: number[]): boolean {
+  return bytes.every((byte, index) => buffer[index] === byte);
+}
+
+function hasExpectedSignature(buffer: Buffer, mime: string): boolean {
+  if (mime === "image/jpeg") return startsWithBytes(buffer, [0xff, 0xd8, 0xff]);
+  if (mime === "image/png") return startsWithBytes(buffer, [0x89, 0x50, 0x4e, 0x47]);
+  if (mime === "image/webp") {
+    return buffer.subarray(0, 4).toString("ascii") === "RIFF" &&
+      buffer.subarray(8, 12).toString("ascii") === "WEBP";
+  }
+  if (mime === "image/gif") {
+    const signature = buffer.subarray(0, 6).toString("ascii");
+    return signature === "GIF87a" || signature === "GIF89a";
+  }
+  if (mime === "image/avif") {
+    const brand = buffer.subarray(8, 12).toString("ascii");
+    return buffer.subarray(4, 8).toString("ascii") === "ftyp" &&
+      (brand === "avif" || brand === "avis");
+  }
+  if (mime === "video/mp4" || mime === "video/quicktime") {
+    return buffer.subarray(4, 8).toString("ascii") === "ftyp";
+  }
+  if (mime === "video/webm") return startsWithBytes(buffer, [0x1a, 0x45, 0xdf, 0xa3]);
+  if (mime === "application/pdf") return buffer.subarray(0, 5).toString("ascii") === "%PDF-";
+  if (
+    mime === "application/zip" ||
+    mime === "application/x-zip-compressed" ||
+    mime.includes("openxmlformats")
+  ) {
+    return startsWithBytes(buffer, [0x50, 0x4b]);
+  }
+  if (mime === "application/msword" || mime === "application/vnd.ms-excel") {
+    return startsWithBytes(buffer, [0xd0, 0xcf, 0x11, 0xe0]);
+  }
+  return true;
+}
+
+function communitySizeLimit(mime: string): number {
+  if (mime.startsWith("image/")) return 15 * 1024 * 1024;
+  if (mime.startsWith("video/")) return 120 * 1024 * 1024;
+  return 50 * 1024 * 1024;
+}
+
+async function storeBufferedUpload(
+  req: Request,
+  res: Response,
+  communityUserId?: number,
+): Promise<void> {
+  if (!req.file) {
+    res.status(400).json({ error: "No file provided (field name must be 'file')" });
+    return;
+  }
+  const { buffer, mimetype } = req.file;
+  const effectiveMime = mimetype || "application/octet-stream";
+  try {
+    const { uploadURL, objectPath } = await objectStorageService.getObjectEntityUploadURL();
+    const putRes = await fetch(uploadURL, {
+      method: "PUT",
+      headers: { "Content-Type": effectiveMime },
+      body: buffer,
+    });
+    if (!putRes.ok) {
+      const errText = await putRes.text().catch(() => "");
+      throw new Error(`Storage PUT failed: ${putRes.status} ${errText}`);
+    }
+    const uploadToken =
+      communityUserId === undefined
+        ? undefined
+        : signCommunityUploadReceipt({
+            objectPath,
+            userId: communityUserId,
+            contentType: effectiveMime,
+            sizeBytes: buffer.byteLength,
+          });
+    res.json({ objectPath, publicUrl: `/api/storage${objectPath}`, uploadToken });
+  } catch (err) {
+    console.error("[upload] failed:", err);
+    res.status(500).json({ error: err instanceof Error ? err.message : "Upload failed" });
+  }
+}
 
 /* ── Routes ─────────────────────────────────────────────────────────────── */
 
@@ -56,26 +145,10 @@ const memUpload = multer({
  * Legacy: kept for backward compatibility.
  * New code should use POST /storage/uploads/data instead.
  */
-const RequestUploadUrlBody = z.object({
-  name: z.string(),
-  size: z.number(),
-  contentType: z.string(),
-});
-
-router.post("/storage/uploads/request-url", async (req: Request, res: Response) => {
-  const parsed = RequestUploadUrlBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: "Missing or invalid required fields" });
-    return;
-  }
-  try {
-    const { name, size, contentType } = parsed.data;
-    const { uploadURL, objectPath } = await objectStorageService.getObjectEntityUploadURL();
-    res.json({ uploadURL, objectPath, metadata: { name, size, contentType } });
-  } catch (error) {
-    console.error("Error generating upload URL:", error);
-    res.status(500).json({ error: "Failed to generate upload URL" });
-  }
+router.post("/storage/uploads/request-url", (_req: Request, res: Response) => {
+  res.status(410).json({
+    error: "Direct upload URLs are no longer available; use /storage/uploads/data",
+  });
 });
 
 /**
@@ -118,9 +191,16 @@ router.post(
     }
     const { buffer, mimetype } = req.file;
     const effectiveMime = mimetype || "application/octet-stream";
-    if (!effectiveMime.startsWith("image/") && effectiveMime !== "application/octet-stream") {
+    if (!isAllowedPublicUploadMime(effectiveMime)) {
       console.error("[upload:debug] rejected MIME:", effectiveMime);
       res.status(400).json({ error: `نوع الملف غير مدعوم: ${effectiveMime}` });
+      return;
+    }
+    if (
+      effectiveMime !== "application/octet-stream" &&
+      !hasExpectedSignature(buffer, effectiveMime)
+    ) {
+      res.status(400).json({ error: "محتوى الملف لا يطابق نوعه" });
       return;
     }
     try {
@@ -153,6 +233,32 @@ router.post(
 );
 
 /**
+ * Authenticated Community upload path. Kept separate from the intentionally
+ * public small-upload route so large videos/files cannot be submitted anonymously.
+ */
+router.post(
+  "/community/uploads/data",
+  userAuth,
+  communityMemUpload.single("file"),
+  async (req: Request, res: Response) => {
+    const effectiveMime = req.file?.mimetype || "application/octet-stream";
+    if (!isAllowedCommunityMime(effectiveMime)) {
+      res.status(400).json({ error: `نوع الملف غير مدعوم: ${effectiveMime}` });
+      return;
+    }
+    if (!req.file || req.file.size > communitySizeLimit(effectiveMime)) {
+      res.status(413).json({ error: "حجم الملف يتجاوز الحد المسموح لهذا النوع" });
+      return;
+    }
+    if (!hasExpectedSignature(req.file.buffer, effectiveMime)) {
+      res.status(400).json({ error: "محتوى الملف لا يطابق نوعه" });
+      return;
+    }
+    await storeBufferedUpload(req, res, req.user!.id);
+  },
+);
+
+/**
  * GET /storage/public-objects/*filePath
  *
  * Serve public assets from PUBLIC_OBJECT_SEARCH_PATHS.
@@ -170,6 +276,7 @@ router.get("/storage/public-objects/*filePath", async (req: Request, res: Respon
     const response = await objectStorageService.downloadObject(file);
     res.status(response.status);
     response.headers.forEach((value, key) => res.setHeader(key, value));
+    res.setHeader("X-Content-Type-Options", "nosniff");
     if (response.body) {
       const nodeStream = Readable.fromWeb(response.body as ReadableStream<Uint8Array>);
       nodeStream.pipe(res);
@@ -237,6 +344,11 @@ router.get("/storage/objects/*path", async (req: Request, res: Response) => {
     const response = await objectStorageService.downloadObject(objectFile, 60 * 60 * 24 * 30, true);
     res.status(response.status);
     response.headers.forEach((value, key) => res.setHeader(key, value));
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    const contentType = response.headers.get("content-type") ?? "application/octet-stream";
+    if (!contentType.startsWith("image/") && !contentType.startsWith("video/")) {
+      res.setHeader("Content-Disposition", "attachment");
+    }
     if (response.body) {
       const nodeStream = Readable.fromWeb(response.body as ReadableStream<Uint8Array>);
       nodeStream.pipe(res);

@@ -7,9 +7,10 @@ import {
   communityCommentsTable,
   communityPostViewsTable,
   communityReportsTable,
+  communityPollVotesTable,
   usersTable,
 } from "@workspace/db";
-import { eq, and, desc, asc, inArray, count, gte, isNull } from "drizzle-orm";
+import { eq, and, desc, asc, inArray, count, gte, isNull, sql } from "drizzle-orm";
 import { optionalUserAuth, userAuth } from "../middlewares/auth";
 import { generateMediaToken, verifyMediaToken } from "../lib/auth";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
@@ -24,6 +25,7 @@ import {
   deleteGeneratedThumbnail,
   generateCommunityThumbnail,
 } from "../lib/imageThumbnail";
+import { verifyCommunityUploadReceipt } from "../lib/communityUploadReceipt";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
@@ -47,12 +49,17 @@ function authorPayload(row: {
   authorUserId: number;
   authorUsername: string | null;
   authorAccountType: string | null;
+  authorCommunityRole?: string | null;
   authorProfileImage?: string | null;
 }) {
   return {
     id: row.authorUserId,
     username: row.authorUsername || "عضو",
     accountType: row.authorAccountType === "vip" ? "vip" : "normal",
+    role:
+      row.authorCommunityRole === "admin" || row.authorCommunityRole === "formateur"
+        ? row.authorCommunityRole
+        : "student",
     profileImageUrl: row.authorProfileImage ? `/api/users/${row.authorUserId}/avatar` : null,
   };
 }
@@ -86,7 +93,8 @@ function serializeMedia(media: MediaRow, viewerUserId: number, entitled: boolean
 
   return {
     id: media.id,
-    mediaType: media.mediaType === "video" ? "video" : "image",
+    mediaType:
+      media.mediaType === "video" ? "video" : media.mediaType === "file" ? "file" : "image",
     locked: !entitled,
     previewUrl,
     thumbnailUrl,
@@ -94,6 +102,9 @@ function serializeMedia(media: MediaRow, viewerUserId: number, entitled: boolean
     width: media.width ?? null,
     height: media.height ?? null,
     durationSec: media.durationSec ?? null,
+    fileName: media.fileName ?? null,
+    contentType: media.contentType ?? null,
+    sizeBytes: media.sizeBytes ?? null,
     sortOrder: media.sortOrder,
   };
 }
@@ -101,6 +112,7 @@ function serializeMedia(media: MediaRow, viewerUserId: number, entitled: boolean
 type PostRow = typeof communityPostsTable.$inferSelect & {
   authorUsername: string | null;
   authorAccountType: string | null;
+  authorCommunityRole: string | null;
   authorProfileImage: string | null;
 };
 
@@ -109,6 +121,7 @@ function serializePost(
   mediaRows: MediaRow[],
   viewer: Viewer,
   likedByMe: boolean,
+  poll?: { votes: number[]; myVote: number | null },
 ) {
   const viewerUserId = viewer?.id ?? 0;
   const entitled = isEntitled(viewer, post);
@@ -116,10 +129,18 @@ function serializePost(
     id: post.id,
     author: authorPayload(post),
     content: post.content ?? null,
+    title: post.title ?? null,
+    category: post.category ?? null,
     postType: post.postType,
     isVipLocked: post.isVipLocked,
     isPinned: post.isPinned,
     isFeatured: post.isFeatured,
+    isImportant: post.isImportant,
+    isSolved: post.isSolved,
+    isQuestion: post.isQuestion,
+    pollOptions: post.pollOptions ?? null,
+    pollVotes: poll?.votes ?? null,
+    myPollVote: poll?.myVote ?? null,
     likesCount: post.likesCount,
     commentsCount: post.commentsCount,
     viewsCount: post.viewsCount,
@@ -131,6 +152,33 @@ function serializePost(
     createdAt: post.createdAt.toISOString(),
     updatedAt: post.updatedAt.toISOString(),
   };
+}
+
+async function loadPollsFor(
+  posts: Array<{ id: number; pollOptions: string[] | null }>,
+  viewer: Viewer,
+): Promise<Map<number, { votes: number[]; myVote: number | null }>> {
+  const map = new Map<number, { votes: number[]; myVote: number | null }>();
+  const pollPosts = posts.filter((post) => post.pollOptions?.length);
+  if (!pollPosts.length) return map;
+  for (const post of pollPosts) {
+    map.set(post.id, { votes: post.pollOptions!.map(() => 0), myVote: null });
+  }
+  const rows = await db
+    .select({
+      postId: communityPollVotesTable.postId,
+      userId: communityPollVotesTable.userId,
+      optionIndex: communityPollVotesTable.optionIndex,
+    })
+    .from(communityPollVotesTable)
+    .where(inArray(communityPollVotesTable.postId, pollPosts.map((post) => post.id)));
+  for (const vote of rows) {
+    const item = map.get(vote.postId);
+    if (!item || vote.optionIndex < 0 || vote.optionIndex >= item.votes.length) continue;
+    item.votes[vote.optionIndex]++;
+    if (viewer?.id === vote.userId) item.myVote = vote.optionIndex;
+  }
+  return map;
 }
 
 async function recomputeLikes(postId: number): Promise<number> {
@@ -179,12 +227,18 @@ async function getVisiblePostRow(id: number): Promise<PostRow | undefined> {
       id: communityPostsTable.id,
       authorUserId: communityPostsTable.authorUserId,
       content: communityPostsTable.content,
+      title: communityPostsTable.title,
+      category: communityPostsTable.category,
       postType: communityPostsTable.postType,
       isVipLocked: communityPostsTable.isVipLocked,
       isVisible: communityPostsTable.isVisible,
       isHidden: communityPostsTable.isHidden,
       isPinned: communityPostsTable.isPinned,
       isFeatured: communityPostsTable.isFeatured,
+      isImportant: communityPostsTable.isImportant,
+      isSolved: communityPostsTable.isSolved,
+      isQuestion: communityPostsTable.isQuestion,
+      pollOptions: communityPostsTable.pollOptions,
       likesCount: communityPostsTable.likesCount,
       commentsCount: communityPostsTable.commentsCount,
       viewsCount: communityPostsTable.viewsCount,
@@ -192,6 +246,7 @@ async function getVisiblePostRow(id: number): Promise<PostRow | undefined> {
       updatedAt: communityPostsTable.updatedAt,
       authorUsername: usersTable.username,
       authorAccountType: usersTable.accountType,
+      authorCommunityRole: usersTable.communityRole,
       authorProfileImage: usersTable.profileImage,
     })
     .from(communityPostsTable)
@@ -235,7 +290,12 @@ async function likedPostIds(viewer: Viewer, postIds: number[]): Promise<Set<numb
 }
 
 // Stream a private object with HTTP Range support (needed for <video> seeking).
-async function streamObject(req: Request, res: Response, objectPath: string): Promise<void> {
+async function streamObject(
+  req: Request,
+  res: Response,
+  objectPath: string,
+  downloadName?: string | null,
+): Promise<void> {
   console.log(`[streamObject] objectPath=${objectPath} range=${req.headers.range || "none"}`);
   const file = await objectStorageService.getObjectEntityFile(objectPath);
   const [metadata] = await file.getMetadata();
@@ -246,7 +306,12 @@ async function streamObject(req: Request, res: Response, objectPath: string): Pr
   res.setHeader("Accept-Ranges", "bytes");
   res.setHeader("Cache-Control", "private, max-age=3600");
   res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("Content-Disposition", "inline");
+  res.setHeader(
+    "Content-Disposition",
+    downloadName
+      ? `attachment; filename*=UTF-8''${encodeURIComponent(downloadName.replace(/[\r\n]/g, ""))}`
+      : "inline",
+  );
 
   const range = req.headers.range;
   const match = range ? /^bytes=(\d*)-(\d*)$/.exec(range.trim()) : null;
@@ -336,6 +401,37 @@ router.get("/community/summary", optionalUserAuth, async (req, res) => {
         ),
       );
 
+    const weekStart = new Date(Date.now() - 6 * 24 * 60 * 60 * 1000);
+    weekStart.setHours(0, 0, 0, 0);
+    const visible = and(eq(communityPostsTable.isVisible, true), eq(communityPostsTable.isHidden, false));
+    const [weeklyPosts, trendingPosts, unansweredRows, activeCategoryRows, activeMemberRows, latestPostRows, latestSolutionRows] =
+      await Promise.all([
+        db.select({ createdAt: communityPostsTable.createdAt }).from(communityPostsTable).where(and(visible, gte(communityPostsTable.createdAt, weekStart))),
+        db.select({ id: communityPostsTable.id, title: communityPostsTable.title, content: communityPostsTable.content, likesCount: communityPostsTable.likesCount, commentsCount: communityPostsTable.commentsCount, viewsCount: communityPostsTable.viewsCount })
+          .from(communityPostsTable).where(and(visible, gte(communityPostsTable.createdAt, weekStart)))
+          .orderBy(desc(sql`${communityPostsTable.likesCount} * 3 + ${communityPostsTable.commentsCount} * 5 + ${communityPostsTable.viewsCount}`)).limit(3),
+        db.select({ id: communityPostsTable.id, title: communityPostsTable.title, content: communityPostsTable.content, viewsCount: communityPostsTable.viewsCount })
+          .from(communityPostsTable).where(and(visible, eq(communityPostsTable.isQuestion, true), eq(communityPostsTable.isSolved, false), eq(communityPostsTable.commentsCount, 0)))
+          .orderBy(desc(communityPostsTable.viewsCount), desc(communityPostsTable.createdAt)).limit(1),
+        db.select({ category: communityPostsTable.category, postsCount: count() }).from(communityPostsTable)
+          .where(and(visible, gte(communityPostsTable.createdAt, weekStart), sql`${communityPostsTable.category} is not null`))
+          .groupBy(communityPostsTable.category).orderBy(desc(count())).limit(1),
+        db.select({ id: usersTable.id, username: usersTable.username, accountType: usersTable.accountType, communityRole: usersTable.communityRole, profileImage: usersTable.profileImage, postsCount: count() })
+          .from(communityPostsTable).innerJoin(usersTable, eq(communityPostsTable.authorUserId, usersTable.id))
+          .where(and(visible, gte(communityPostsTable.createdAt, weekStart)))
+          .groupBy(usersTable.id).orderBy(desc(count())).limit(5),
+        db.select({ id: communityPostsTable.id, title: communityPostsTable.title, content: communityPostsTable.content, createdAt: communityPostsTable.createdAt })
+          .from(communityPostsTable).where(visible).orderBy(desc(communityPostsTable.createdAt)).limit(1),
+        db.select({ id: communityPostsTable.id, title: communityPostsTable.title, content: communityPostsTable.content, createdAt: communityPostsTable.createdAt })
+          .from(communityPostsTable).where(and(visible, eq(communityPostsTable.isSolved, true))).orderBy(desc(communityPostsTable.updatedAt)).limit(1),
+      ]);
+    const activity = Array.from({ length: 7 }, (_, offset) => {
+      const date = new Date(weekStart);
+      date.setDate(date.getDate() + offset);
+      const key = date.toISOString().slice(0, 10);
+      return { date: key, count: weeklyPosts.filter((p) => p.createdAt.toISOString().slice(0, 10) === key).length };
+    });
+
     res.json({
       memberCount: Number(members),
       todayPostsCount: Number(today),
@@ -345,6 +441,14 @@ router.get("/community/summary", optionalUserAuth, async (req, res) => {
       isVip: isActiveVip(req.user),
       canPost: !!req.user,
       hasProfilePicture: !!(req.user?.profileImage),
+      weeklyPostsCount: weeklyPosts.length,
+      activityThisWeek: activity,
+      trendingPosts: trendingPosts.map((p) => ({ ...p, label: p.title || snippet(p.content || "", 70) || `منشور #${p.id}` })),
+      unansweredQuestion: unansweredRows[0] ? { ...unansweredRows[0], label: unansweredRows[0].title || snippet(unansweredRows[0].content || "", 80) } : null,
+      mostActiveCategory: activeCategoryRows[0] ? { category: activeCategoryRows[0].category!, postsCount: Number(activeCategoryRows[0].postsCount) } : null,
+      activeMembers: activeMemberRows.map((m) => ({ id: m.id, username: m.username, accountType: m.accountType === "vip" ? "vip" : "normal", role: m.communityRole, profileImageUrl: m.profileImage ? `/api/users/${m.id}/avatar` : null, postsCount: Number(m.postsCount) })),
+      latestPost: latestPostRows[0] ? { ...latestPostRows[0], label: latestPostRows[0].title || snippet(latestPostRows[0].content || "", 70), createdAt: latestPostRows[0].createdAt.toISOString() } : null,
+      latestSolution: latestSolutionRows[0] ? { ...latestSolutionRows[0], label: latestSolutionRows[0].title || snippet(latestSolutionRows[0].content || "", 70), createdAt: latestSolutionRows[0].createdAt.toISOString() } : null,
     });
   } catch (error: unknown) {
     res.status(500).json({ message: error instanceof Error ? error.message : "Failed to load summary" });
@@ -362,12 +466,18 @@ router.get("/community/posts", optionalUserAuth, async (req, res) => {
         id: communityPostsTable.id,
         authorUserId: communityPostsTable.authorUserId,
         content: communityPostsTable.content,
+        title: communityPostsTable.title,
+        category: communityPostsTable.category,
         postType: communityPostsTable.postType,
         isVipLocked: communityPostsTable.isVipLocked,
         isVisible: communityPostsTable.isVisible,
         isHidden: communityPostsTable.isHidden,
         isPinned: communityPostsTable.isPinned,
         isFeatured: communityPostsTable.isFeatured,
+        isImportant: communityPostsTable.isImportant,
+        isSolved: communityPostsTable.isSolved,
+        isQuestion: communityPostsTable.isQuestion,
+        pollOptions: communityPostsTable.pollOptions,
         likesCount: communityPostsTable.likesCount,
         commentsCount: communityPostsTable.commentsCount,
         viewsCount: communityPostsTable.viewsCount,
@@ -375,6 +485,7 @@ router.get("/community/posts", optionalUserAuth, async (req, res) => {
         updatedAt: communityPostsTable.updatedAt,
         authorUsername: usersTable.username,
         authorAccountType: usersTable.accountType,
+        authorCommunityRole: usersTable.communityRole,
         authorProfileImage: usersTable.profileImage,
       })
       .from(communityPostsTable)
@@ -392,14 +503,15 @@ router.get("/community/posts", optionalUserAuth, async (req, res) => {
     const pagePosts = rows.slice(0, limit);
     const ids = pagePosts.map((p) => p.id);
 
-    const [mediaMap, likedSet] = await Promise.all([
+    const [mediaMap, likedSet, pollMap] = await Promise.all([
       loadMediaFor(ids),
       likedPostIds(req.user, ids),
+      loadPollsFor(pagePosts, req.user),
     ]);
 
     res.json({
       posts: pagePosts.map((p) =>
-        serializePost(p, mediaMap.get(p.id) ?? [], req.user, likedSet.has(p.id)),
+        serializePost(p, mediaMap.get(p.id) ?? [], req.user, likedSet.has(p.id), pollMap.get(p.id)),
       ),
       nextCursor: hasMore ? offset + limit : null,
     });
@@ -419,7 +531,8 @@ router.get("/community/posts/:id", optionalUserAuth, async (req, res) => {
     }
     const mediaMap = await loadMediaFor([id]);
     const likedSet = await likedPostIds(req.user, [id]);
-    res.json(serializePost(post, mediaMap.get(id) ?? [], req.user, likedSet.has(id)));
+    const pollMap = await loadPollsFor([post], req.user);
+    res.json(serializePost(post, mediaMap.get(id) ?? [], req.user, likedSet.has(id), pollMap.get(id)));
   } catch (error: unknown) {
     res.status(500).json({ message: error instanceof Error ? error.message : "Failed to load post" });
   }
@@ -442,16 +555,46 @@ router.post("/community/posts", userAuth, async (req, res) => {
 
     const { postType } = parsed.data;
     const content = parsed.data.content?.trim() || null;
+    const title = parsed.data.title?.trim() || null;
+    const category = parsed.data.category ?? null;
+    const isQuestion = parsed.data.isQuestion === true;
+    const pollOptions = parsed.data.pollOptions?.map((option) => option.trim()).filter(Boolean) ?? null;
     const media = parsed.data.media ?? [];
 
     console.log(`[post-create] user=${req.user!.id} postType=${postType} mediaCount=${media.length} content=${content ? "yes" : "no"}`);
 
-    if (postType === "text" && !content) {
+    if (postType === "text" && !content && !title && !pollOptions?.length) {
       res.status(400).json({ message: "لا يمكن نشر منشور نصي فارغ" });
       return;
     }
-    if (postType !== "text" && media.length === 0) {
+    if (postType !== "text" && postType !== "poll" && media.length === 0) {
       res.status(400).json({ message: "يجب إرفاق وسائط لهذا النوع من المنشورات" });
+      return;
+    }
+    if (postType === "poll") {
+      if (
+        !pollOptions ||
+        pollOptions.length < 2 ||
+        pollOptions.length > 6 ||
+        new Set(pollOptions.map((option) => option.toLocaleLowerCase())).size !== pollOptions.length ||
+        media.length > 0
+      ) {
+        res.status(400).json({ message: "الاستطلاع يحتاج من خيارين إلى 6 خيارات مختلفة وبدون مرفقات" });
+        return;
+      }
+    } else if (pollOptions?.length) {
+      res.status(400).json({ message: "خيارات الاستطلاع مسموحة فقط لمنشور استطلاع" });
+      return;
+    }
+    const matchesDeclaredType =
+      (postType === "text" && media.length === 0) ||
+      (postType === "poll" && media.length === 0) ||
+      (postType === "image" && media.length === 1 && media[0]?.mediaType === "image") ||
+      (postType === "video" && media.length === 1 && media[0]?.mediaType === "video") ||
+      (postType === "file" && media.length === 1 && media[0]?.mediaType === "file") ||
+      (postType === "gallery" && media.length >= 2 && media.length <= 6);
+    if (!matchesDeclaredType) {
+      res.status(400).json({ message: "نوع وعدد المرفقات لا يطابق نوع المنشور" });
       return;
     }
 
@@ -469,6 +612,7 @@ router.post("/community/posts", userAuth, async (req, res) => {
       durationSec: number | null;
       contentType: string;
       sizeBytes: number;
+      fileName: string | null;
       sortOrder: number;
     }> = [];
     const generatedThumbnailPaths = new Set<string>();
@@ -476,51 +620,58 @@ router.post("/community/posts", userAuth, async (req, res) => {
     for (let idx = 0; idx < media.length; idx++) {
       const m = media[idx];
       const wantVideo = m.mediaType === "video";
+      const wantFile = m.mediaType === "file";
       const preview = m.previewObjectPath?.trim();
       console.log(`[post-create] media[${idx}] objectPath=${m.objectPath} previewObjectPath=${preview}`);
-      if (!preview) {
+      if (!wantFile && !preview) {
         res.status(400).json({ message: "ينقص معاينة الوسائط" });
         return;
       }
-      if (preview === m.objectPath) {
+      if (!wantFile && preview === m.objectPath) {
         res.status(400).json({ message: "معاينة الوسائط غير صالحة" });
         return;
       }
-      let previewMeta: { contentType: string; size: number };
-      let originalMeta: { contentType: string; size: number };
-      try {
-        previewMeta = await objectMeta(preview);
-        originalMeta = await objectMeta(m.objectPath);
-        console.log(`[post-create] media[${idx}] objectMeta OK: original=${originalMeta.contentType}/${originalMeta.size} preview=${previewMeta.contentType}/${previewMeta.size}`);
-      } catch (metaErr) {
-        console.error(`[post-create] media[${idx}] objectMeta FAILED objectPath=${m.objectPath} previewPath=${preview}:`, metaErr);
-        res.status(400).json({ message: "تعذّر التحقق من ملفات الوسائط" });
+      const originalReceipt = verifyCommunityUploadReceipt(m.uploadToken, {
+        objectPath: m.objectPath,
+        userId: req.user!.id,
+      });
+      const previewReceipt = wantFile
+        ? null
+        : verifyCommunityUploadReceipt(m.previewUploadToken ?? "", {
+            objectPath: preview!,
+            userId: req.user!.id,
+          });
+      if (!originalReceipt || (!wantFile && !previewReceipt)) {
+        res.status(400).json({ message: "إيصال رفع الوسائط غير صالح أو منتهي" });
         return;
       }
-      if (!previewMeta.contentType.startsWith("image/") || previewMeta.size > PREVIEW_MAX_BYTES) {
-        console.error(`[post-create] media[${idx}] preview content-type/size invalid: ${previewMeta.contentType} ${previewMeta.size}`);
+      if (
+        !wantFile &&
+        (!previewReceipt!.contentType.startsWith("image/") ||
+          previewReceipt!.sizeBytes > PREVIEW_MAX_BYTES)
+      ) {
         res.status(400).json({ message: "معاينة الوسائط يجب أن تكون صورة مصغّرة" });
         return;
       }
-      if (wantVideo && !originalMeta.contentType.startsWith("video/")) {
+      if (wantVideo && !originalReceipt.contentType.startsWith("video/")) {
         res.status(400).json({ message: "نوع ملف الفيديو غير صالح" });
         return;
       }
-      if (!wantVideo && !originalMeta.contentType.startsWith("image/")) {
-        console.error(`[post-create] media[${idx}] image content-type invalid: ${originalMeta.contentType}`);
+      if (!wantVideo && !wantFile && !originalReceipt.contentType.startsWith("image/")) {
         res.status(400).json({ message: "نوع ملف الصورة غير صالح" });
         return;
       }
       mediaToInsert.push({
-        mediaType: wantVideo ? "video" : "image",
+        mediaType: wantVideo ? "video" : wantFile ? "file" : "image",
         objectPath: m.objectPath,
-        previewObjectPath: preview,
-        thumbnailObjectPath: wantVideo ? (m.thumbnailObjectPath ?? null) : null,
+        previewObjectPath: preview || "",
+        thumbnailObjectPath: null,
         width: m.width ?? null,
         height: m.height ?? null,
         durationSec: m.durationSec ?? null,
-        contentType: originalMeta.contentType,
-        sizeBytes: originalMeta.size,
+        contentType: originalReceipt.contentType,
+        sizeBytes: originalReceipt.sizeBytes,
+        fileName: wantFile ? (m.fileName?.trim().slice(0, 255) || "ملف مرفق") : null,
         sortOrder: m.sortOrder ?? idx,
       });
     }
@@ -557,8 +708,12 @@ router.post("/community/posts", userAuth, async (req, res) => {
           .values({
             authorUserId: req.user!.id,
             content,
+            title,
+            category,
+            isQuestion,
+            pollOptions: postType === "poll" ? pollOptions : null,
             postType,
-            isVipLocked: false,
+            isVipLocked: mediaToInsert.length > 0,
           })
           .returning();
 
@@ -601,7 +756,8 @@ router.post("/community/posts", userAuth, async (req, res) => {
 
     const post = await getVisiblePostRow(created.id);
     const mediaMap = await loadMediaFor([created.id]);
-    const serialized = serializePost(post!, mediaMap.get(created.id) ?? [], req.user, false);
+    const pollMap = await loadPollsFor([post!], req.user);
+    const serialized = serializePost(post!, mediaMap.get(created.id) ?? [], req.user, false, pollMap.get(created.id));
     console.log(`[post-create] response media count=${serialized.media?.length ?? 0}`);
     res.status(201).json(serialized);
   } catch (error: unknown) {
@@ -634,15 +790,26 @@ router.patch("/community/posts/:id", userAuth, async (req, res) => {
       return;
     }
 
-    const content = parsed.data.content?.trim() || null;
-    if (existing.postType === "text" && !content) {
+    const content =
+      parsed.data.content === undefined ? existing.content : parsed.data.content?.trim() || null;
+    const title =
+      parsed.data.title === undefined ? existing.title : parsed.data.title?.trim() || null;
+    if (existing.postType === "text" && !content && !title) {
       res.status(400).json({ message: "لا يمكن أن يكون المنشور النصي فارغاً" });
       return;
     }
 
+    const updates: Partial<typeof communityPostsTable.$inferInsert> = {
+      updatedAt: new Date(),
+    };
+    if (parsed.data.content !== undefined) updates.content = content;
+    if (parsed.data.title !== undefined) updates.title = title;
+    if (typeof parsed.data.isSolved === "boolean" && existing.isQuestion) {
+      updates.isSolved = parsed.data.isSolved;
+    }
     await db
       .update(communityPostsTable)
-      .set({ content, updatedAt: new Date() })
+      .set(updates)
       .where(eq(communityPostsTable.id, id));
 
     const post = await getVisiblePostRow(id);
@@ -651,6 +818,39 @@ router.patch("/community/posts/:id", userAuth, async (req, res) => {
     res.json(serializePost(post!, mediaMap.get(id) ?? [], req.user, likedSet.has(id)));
   } catch (error: unknown) {
     res.status(500).json({ message: error instanceof Error ? error.message : "Failed to update post" });
+  }
+});
+
+// POST /community/posts/:id/poll-vote
+router.post("/community/posts/:id/poll-vote", userAuth, async (req, res) => {
+  try {
+    const postId = Number(req.params.id);
+    const optionIndex = Number(req.body?.optionIndex);
+    const post = await getVisiblePostRow(postId);
+    const options = post?.pollOptions;
+    if (!post || !Array.isArray(options) || options.length < 2) {
+      res.status(404).json({ message: "الاستطلاع غير موجود" });
+      return;
+    }
+    if (!Number.isInteger(optionIndex) || optionIndex < 0 || optionIndex >= options.length) {
+      res.status(400).json({ message: "الخيار غير صالح" });
+      return;
+    }
+    await db
+      .insert(communityPollVotesTable)
+      .values({
+        postId,
+        userId: req.user!.id,
+        optionIndex,
+      })
+      .onConflictDoNothing({
+        target: [communityPollVotesTable.postId, communityPollVotesTable.userId],
+      });
+    const pollMap = await loadPollsFor([post], req.user);
+    const poll = pollMap.get(postId)!;
+    res.json({ votes: poll.votes, myVote: poll.myVote ?? optionIndex });
+  } catch (error: unknown) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Failed to vote" });
   }
 });
 
@@ -793,6 +993,7 @@ router.get("/community/posts/:id/comments", optionalUserAuth, async (req, res) =
         createdAt: communityCommentsTable.createdAt,
         authorUsername: usersTable.username,
         authorAccountType: usersTable.accountType,
+        authorCommunityRole: usersTable.communityRole,
         authorProfileImage: usersTable.profileImage,
       })
       .from(communityCommentsTable)
@@ -815,6 +1016,7 @@ router.get("/community/posts/:id/comments", optionalUserAuth, async (req, res) =
         authorUserId: r.userId,
         authorUsername: r.authorUsername,
         authorAccountType: r.authorAccountType,
+        authorCommunityRole: r.authorCommunityRole,
         authorProfileImage: r.authorProfileImage,
       }),
       body: r.body,
@@ -844,6 +1046,7 @@ router.get("/community/posts/:id/comments", optionalUserAuth, async (req, res) =
             authorUserId: rep.userId,
             authorUsername: rep.authorUsername,
             authorAccountType: rep.authorAccountType,
+            authorCommunityRole: rep.authorCommunityRole,
             authorProfileImage: rep.authorProfileImage,
           }),
           body: rep.body,
@@ -938,6 +1141,16 @@ router.post("/community/posts/:id/comments", userAuth, async (req, res) => {
       /* notifications are best-effort */
     }
 
+    const [commentAuthor] = await db
+      .select({ communityRole: usersTable.communityRole })
+      .from(usersTable)
+      .where(eq(usersTable.id, req.user!.id))
+      .limit(1);
+    const commentRole =
+      commentAuthor?.communityRole === "admin" || commentAuthor?.communityRole === "formateur"
+        ? commentAuthor.communityRole
+        : "student";
+
     res.status(201).json({
       id: created.id,
       postId: id,
@@ -946,6 +1159,7 @@ router.post("/community/posts/:id/comments", userAuth, async (req, res) => {
         id: req.user!.id,
         username: req.user!.username,
         accountType: req.user!.accountType === "vip" ? "vip" : "normal",
+        role: commentRole,
         profileImageUrl: req.user!.profileImage ? `/api/users/${req.user!.id}/avatar` : null,
       },
       body: created.body,
@@ -1089,7 +1303,12 @@ router.get("/community/media/:id", async (req, res) => {
       }
       if (variant === "full") {
         console.log(`[media-stream] streaming full mediaId=${mediaId} objectPath=${media.objectPath}`);
-        await streamObject(req, res, media.objectPath);
+        await streamObject(
+          req,
+          res,
+          media.objectPath,
+          media.mediaType === "file" ? media.fileName || "attachment" : null,
+        );
         return;
       }
 

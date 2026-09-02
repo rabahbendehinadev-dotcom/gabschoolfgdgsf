@@ -14,4 +14,6 @@ export const CreateCommunityPostInputPostType = {
   image: "image",
   gallery: "gallery",
   video: "video",
+  file: "file",
+  poll: "poll",
 } as const;

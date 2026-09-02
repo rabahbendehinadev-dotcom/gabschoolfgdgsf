@@ -251,7 +251,13 @@ export function AdminUsers() {
   const handleEdit = async (user: ExtendedAdminUser) => {
     setEditingUser(user);
     setUserCourseIds([]); // Reset immediately — prevents stale data from previous user
-    setFormData({ accountType: user.accountType, subscriptionType: user.subscriptionType, isActive: user.isActive, phone: (user as ExtendedAdminUser & { phone?: string }).phone ?? undefined });
+    setFormData({
+      accountType: user.accountType,
+      communityRole: user.communityRole ?? "student",
+      subscriptionType: user.subscriptionType,
+      isActive: user.isActive,
+      phone: (user as ExtendedAdminUser & { phone?: string }).phone ?? undefined,
+    });
     setCoursesLoading(true);
     try {
       const h = getAdminAuthHeaders()?.headers as Record<string, string>;
@@ -671,6 +677,7 @@ export function AdminUsers() {
             <div style={{ display: "flex", flexDirection: "column", gap: 14, paddingTop: 8 }}>
               {[
                 { label: "Type de compte", key: "accountType" as const, opts: [{ v:"normal",l:"Standard" }, { v:"vip",l:"VIP" }] },
+                { label: "Rôle Community", key: "communityRole" as const, opts: [{ v:"student",l:"Étudiant" }, { v:"formateur",l:"Formateur" }, { v:"admin",l:"Admin" }] },
                 { label: "Plan d'abonnement", key: "subscriptionType" as const, opts: [{ v:"demo",l:"Démo" },{ v:"monthly",l:"Mensuel" },{ v:"annual",l:"Annuel" },{ v:"lifetime",l:"À vie" }] },
                 { label: "Statut du compte", key: "isActive" as const, opts: [{ v:"true",l:"Actif" },{ v:"false",l:"Bloqué" }] },
               ].map(f => (
@@ -678,7 +685,7 @@ export function AdminUsers() {
                   <Label style={{ fontSize: 12.5, color: "#344054", marginBottom: 5, display: "block" }}>{f.label}</Label>
                   <select className="ad-select" style={{ width: "100%", height: 38 }}
                     value={f.key==="isActive" ? String(formData[f.key]) : String(formData[f.key]??"")}
-                    onChange={e => setFormData({ ...formData, [f.key]: f.key==="isActive" ? e.target.value==="true" : e.target.value as "vip"|"normal"|"demo"|"monthly"|"annual"|"lifetime" })}>
+                    onChange={e => setFormData({ ...formData, [f.key]: f.key==="isActive" ? e.target.value==="true" : e.target.value as "vip"|"normal"|"demo"|"monthly"|"annual"|"lifetime"|"student"|"formateur"|"admin" })}>
                     {f.opts.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
                   </select>
                 </div>

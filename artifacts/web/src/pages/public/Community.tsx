@@ -12,10 +12,10 @@ import { PostCard } from "@/components/community/PostCard";
 import { CreatePostDialog } from "@/components/community/CreatePostDialog";
 import { ProfilePictureModal } from "@/components/community/ProfilePictureModal";
 import {
-  Users, MessageCircle, Wrench, Shield, CheckCircle,
+  Users, MessageCircle, Wrench, Shield, CheckCircle, CheckCircle2,
   Search, LayoutGrid, HelpCircle, Smartphone, Unlock,
   Cpu, Code, Bell, Plus, Image as ImageIcon, Video,
-  FileText, BarChart2, Loader2
+  FileText, BarChart2, Loader2, ThumbsUp
 } from "lucide-react";
 
 const PAGE_SIZE = 10;
@@ -127,7 +127,7 @@ export function Community() {
           ))}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-6 lg:gap-8 items-start">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-6 lg:gap-7 items-start">
 
           {/* LEFT SIDEBAR (Desktop) */}
           <div className="hidden lg:order-1 lg:block lg:col-span-3 space-y-5 sticky top-24">
@@ -186,7 +186,7 @@ export function Community() {
           </div>
 
           {/* CENTER FEED */}
-          <div className="md:order-1 md:col-span-8 lg:order-2 lg:col-span-6 space-y-6">
+          <div className="md:order-1 md:col-span-8 lg:order-2 lg:col-span-6 space-y-4">
 
             {/* Top Filters & New Post Action */}
             <div className="flex items-center justify-between bg-white p-3 rounded-3xl border border-slate-200 shadow-sm">
@@ -257,7 +257,7 @@ export function Community() {
 
             {/* Posts Feed */}
             {isLoading ? (
-              <div className="space-y-6">
+              <div className="space-y-4">
                 {[0, 1, 2].map((i) => (
                   <div key={i} className="rounded-[24px] border border-slate-200 bg-white p-6 shadow-sm">
                     <div className="flex items-center gap-4">
@@ -287,7 +287,7 @@ export function Community() {
                 )}
               </div>
             ) : (
-              <div className="space-y-6">
+              <div className="space-y-4">
                 {posts.map((post: CommunityPost, idx: number) => (
                   <PostCard key={post.id} post={post} index={idx} />
                 ))}
@@ -335,36 +335,165 @@ export function Community() {
                         <div className="text-[22px] font-black text-slate-900 drop-shadow-sm" data-testid="text-stat-topics">{summary?.totalPostsCount?.toLocaleString("ar") || 0}</div>
                         <div className="text-[12px] text-slate-500 font-bold mt-1 flex items-center gap-1.5"><FileText className="w-3.5 h-3.5 text-slate-400"/> المواضيع</div>
                     </div>
-                    <div className="col-span-2 bg-slate-50 rounded-2xl p-3 border border-slate-100 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                           <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm text-orange-500"><MessageCircle className="w-4 h-4" /></div>
-                           <span className="text-[13px] text-slate-600 font-bold">منشورات اليوم</span>
+                    <div className="col-span-2 bg-slate-50 rounded-2xl p-4 border border-slate-100">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                             <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm text-orange-500"><MessageCircle className="w-4 h-4" /></div>
+                             <span className="text-[13px] text-slate-600 font-bold">منشورات الأسبوع</span>
+                          </div>
+                          <div className="text-[18px] font-black text-slate-900" data-testid="text-stat-weekly">{summary?.weeklyPostsCount?.toLocaleString("ar") || 0}</div>
                         </div>
-                        <div className="text-[18px] font-black text-slate-900" data-testid="text-stat-today">{summary?.todayPostsCount?.toLocaleString("ar") || 0}</div>
+                        {summary?.activityThisWeek && summary.activityThisWeek.length > 0 && (
+                          <div className="flex items-end justify-between h-10 gap-1 mt-2">
+                             {summary.activityThisWeek.slice(-7).map((day, i) => {
+                               const max = Math.max(...summary.activityThisWeek.map(d => d.count), 1);
+                               const height = Math.max((day.count / max) * 100, 10); // min 10% height
+                               return (
+                                 <div key={i} className="flex-1 flex flex-col items-center gap-1 group relative">
+                                   <div className="w-full bg-orange-200/50 rounded-sm relative overflow-hidden group-hover:bg-orange-300 transition-colors" style={{ height: '40px' }}>
+                                      <div className="absolute bottom-0 left-0 right-0 bg-orange-500 rounded-sm transition-all" style={{ height: `${height}%` }} />
+                                   </div>
+                                 </div>
+                               );
+                             })}
+                          </div>
+                        )}
                     </div>
                 </div>
              </div>
 
-             {/* Active Members - Empty State */}
              <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm">
-                <h3 className="font-black text-[16px] text-slate-900 mb-4">الأعضاء النشطون</h3>
-                <div className="flex flex-col items-center justify-center py-6 text-center">
-                   <div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center mb-3 border border-slate-100">
-                     <Users className="w-5 h-5 text-slate-300" />
-                   </div>
-                   <span className="text-[14px] font-bold text-slate-400">لا تتوفر بيانات حالياً</span>
-                </div>
+               <h3 className="font-black text-[16px] text-slate-900 mb-4">آخر النشاطات</h3>
+               <div className="space-y-3">
+                 {summary?.latestPost ? (
+                   <a href={`#post-${summary.latestPost.id}`} className="block rounded-2xl bg-slate-50 p-3 hover:bg-orange-50 transition-colors">
+                     <span className="block text-[11px] font-black text-orange-600 mb-1">آخر منشور</span>
+                     <span className="block text-[13px] font-bold text-slate-700 line-clamp-2">{summary.latestPost.label}</span>
+                   </a>
+                 ) : <p className="text-[13px] font-bold text-slate-400">لا توجد منشورات بعد</p>}
+                 {summary?.latestSolution ? (
+                   <a href={`#post-${summary.latestSolution.id}`} className="block rounded-2xl bg-emerald-50 p-3 hover:bg-emerald-100 transition-colors">
+                     <span className="block text-[11px] font-black text-emerald-700 mb-1">آخر حل</span>
+                     <span className="block text-[13px] font-bold text-slate-700 line-clamp-2">{summary.latestSolution.label}</span>
+                   </a>
+                 ) : <p className="text-[13px] font-bold text-slate-400">لا توجد حلول معلّمة بعد</p>}
+               </div>
              </div>
 
-             {/* Trending Topics - Empty State */}
+             {/* Trending Topics */}
              <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm">
-                <h3 className="font-black text-[16px] text-slate-900 mb-4">المواضيع الشائعة</h3>
-                <div className="flex flex-col items-center justify-center py-6 text-center">
-                   <div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center mb-3 border border-slate-100">
-                     <BarChart2 className="w-5 h-5 text-slate-300" />
-                   </div>
-                   <span className="text-[14px] font-bold text-slate-400">لا توجد مواضيع شائعة اليوم</span>
-                </div>
+                <h3 className="font-black text-[16px] text-slate-900 mb-4 flex items-center gap-2">
+                  <BarChart2 className="w-5 h-5 text-orange-500" />
+                  المواضيع الشائعة
+                </h3>
+                {summary?.trendingPosts && summary.trendingPosts.length > 0 ? (
+                  <div className="space-y-4">
+                    {summary.trendingPosts.map(post => (
+                      <a key={post.id} href={`#post-${post.id}`} className="group block">
+                        <h4 className="text-[14px] font-black text-slate-800 group-hover:text-orange-600 transition-colors line-clamp-2 leading-tight">
+                          {post.title || post.content || "بدون عنوان"}
+                        </h4>
+                        <div className="flex items-center gap-3 mt-2 text-[12px] font-bold text-slate-400">
+                          <span className="flex items-center gap-1"><MessageCircle className="w-3.5 h-3.5" /> {post.commentsCount || 0}</span>
+                          <span className="flex items-center gap-1"><ThumbsUp className="w-3.5 h-3.5" /> {post.likesCount || 0}</span>
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-6 text-center">
+                     <div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center mb-3 border border-slate-100">
+                       <BarChart2 className="w-5 h-5 text-slate-300" />
+                     </div>
+                     <span className="text-[14px] font-bold text-slate-400">لا توجد مواضيع شائعة حالياً</span>
+                  </div>
+                )}
+             </div>
+
+             {/* Unanswered Question */}
+             {summary?.unansweredQuestion && (
+               <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-3xl border border-blue-100 p-6 shadow-sm">
+                  <h3 className="font-black text-[16px] text-blue-900 mb-3 flex items-center gap-2">
+                    <HelpCircle className="w-5 h-5 text-blue-500" />
+                    بانتظار المساعدة
+                  </h3>
+                  <a href={`#post-${summary.unansweredQuestion.id}`} className="block group">
+                    <h4 className="text-[14px] font-black text-slate-800 group-hover:text-blue-700 transition-colors line-clamp-2 leading-tight">
+                      {summary.unansweredQuestion.title || summary.unansweredQuestion.content || "سؤال بدون عنوان"}
+                    </h4>
+                    <span className="inline-block mt-3 px-3 py-1 bg-white rounded-lg text-[12px] font-bold text-blue-600 shadow-sm">
+                      كن أول من يجيب
+                    </span>
+                  </a>
+               </div>
+             )}
+
+             {/* Most Active Category */}
+             {summary?.mostActiveCategory && (
+               <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-sm flex items-center justify-between">
+                 <div className="flex flex-col">
+                   <span className="text-[13px] font-bold text-slate-500">القسم الأنشط</span>
+                    <span className="text-[15px] font-black text-slate-900 mt-0.5">
+                      {CATEGORIES.find((category) => category.id === summary.mostActiveCategory?.category)?.label
+                        || summary.mostActiveCategory.category}
+                    </span>
+                 </div>
+                 <div className="w-10 h-10 rounded-full bg-orange-50 flex items-center justify-center text-orange-600 font-black text-[14px]">
+                   {summary.mostActiveCategory.postsCount}
+                 </div>
+               </div>
+             )}
+
+             {/* Active Members */}
+             <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm">
+                <h3 className="font-black text-[16px] text-slate-900 mb-4 flex items-center gap-2">
+                  <Users className="w-5 h-5 text-emerald-500" />
+                  الأعضاء النشطون
+                </h3>
+                {summary?.activeMembers && summary.activeMembers.length > 0 ? (
+                  <div className="space-y-4">
+                    {summary.activeMembers.map((member, idx) => (
+                      <div key={member.id} className="flex items-center gap-3">
+                        <div className="relative">
+                          {member.profileImageUrl ? (
+                            <img src={member.profileImageUrl} alt="" className="w-10 h-10 rounded-full object-cover shadow-sm border border-slate-100" />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-slate-200 to-slate-300 flex items-center justify-center text-slate-600 font-black text-sm shadow-sm border border-white ring-1 ring-slate-100">
+                              {member.username.charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                          {idx < 3 && (
+                            <div className={`absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black text-white border-2 border-white ${idx === 0 ? 'bg-amber-400' : idx === 1 ? 'bg-slate-300' : 'bg-orange-300'}`}>
+                              {idx + 1}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[14px] font-black text-slate-900 truncate">{member.username}</span>
+                            {member.role === 'admin' ? (
+                               <Shield className="w-3.5 h-3.5 text-red-500" />
+                            ) : member.role === 'formateur' ? (
+                               <Shield className="w-3.5 h-3.5 text-emerald-500" />
+                            ) : member.accountType === 'vip' ? (
+                               <CheckCircle2 className="w-3.5 h-3.5 text-blue-500 fill-blue-50" />
+                            ) : null}
+                          </div>
+                          <span className="text-[12px] font-bold text-slate-400 block truncate">
+                            {member.postsCount} مشاركة
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-6 text-center">
+                     <div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center mb-3 border border-slate-100">
+                       <Users className="w-5 h-5 text-slate-300" />
+                     </div>
+                     <span className="text-[14px] font-bold text-slate-400">لا تتوفر بيانات حالياً</span>
+                  </div>
+                )}
              </div>
           </div>
 
