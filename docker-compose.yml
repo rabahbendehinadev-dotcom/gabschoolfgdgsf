@@ -48,7 +48,7 @@ services:
       VAPID_PRIVATE_KEY: "${VAPID_PRIVATE_KEY:-}"
       VAPID_SUBJECT: "${VAPID_SUBJECT:-}"
       GOOGLE_DRIVE_REFRESH_TOKEN: "${GOOGLE_DRIVE_REFRESH_TOKEN:-}"
-      ENABLE_DRIVE_TRANSCODE: "${ENABLE_DRIVE_TRANSCODE:-true}"
+      ENABLE_DRIVE_TRANSCODE: "${ENABLE_DRIVE_TRANSCODE:-false}"
     volumes:
       - app_data:/app/data
     healthcheck:

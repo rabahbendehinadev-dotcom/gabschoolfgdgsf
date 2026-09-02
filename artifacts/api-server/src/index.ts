@@ -5,7 +5,6 @@ import { sql, eq, isNull, and } from "drizzle-orm";
 import { startIpResetScheduler } from "./lib/ipResetScheduler";
 import { copyDriveFileToStorage, buildVideoObjectPath } from "./lib/videoStorage";
 import { resolveVideoParts, extractDriveFileId } from "./lib/googleDrive";
-import { startDriveTranscodeWorker } from "./lib/driveTranscode";
 import { startImageOptimizeWorker } from "./lib/imageOptimize";
 import type { ObjectPart } from "./lib/videoStorage";
 
@@ -446,24 +445,9 @@ runMigrations().then(() => ensureSeed()).then(() => {
   startIpResetScheduler();
   app.listen(port, () => {
     console.log(`Server listening on port ${port}`);
-    // نبدأ الترحيل في الخلفية مباشرة بعد تشغيل السيرفر — لا ينتظر ولا يعطّل
-    // PRODUCTION ONLY: dev shares the same App Storage bucket, and dev's seed
-    // videos (SAMPLE_ID urls) overlap production video ids 10-12. Running the
-    // migration in dev writes/fails against the SAME object paths production
-    // playback depends on. Dev must never touch videos/* in the shared bucket.
-    if (process.env.DISABLE_VIDEO_AUTO_MIGRATE === "true") {
-      console.log("[auto-migrate] Disabled via DISABLE_VIDEO_AUTO_MIGRATE — videos stream live from Drive.");
-    } else if (process.env.NODE_ENV === "production") {
-      void runAutoStorageMigration();
-    } else {
-      console.log("[auto-migrate] Skipped (dev environment — shared bucket protection).");
-    }
-    // عامل تحويل 720p في الخلفية — يعمل فقط على VPS عبر ENABLE_DRIVE_TRANSCODE=true
-    if (process.env.ENABLE_DRIVE_TRANSCODE === "true" && process.env.NODE_ENV === "production") {
-      startDriveTranscodeWorker();
-    } else {
-      console.log("[transcode-720p] Disabled (set ENABLE_DRIVE_TRANSCODE=true in production to enable).");
-    }
+    // GOOGLE_DRIVE_DIRECT_ONLY: no automatic Drive→Storage migration and no
+    // 720p/FFmpeg worker. Video bytes must travel Google Drive → browser.
+    console.log("[video] Google Drive Direct-only mode — migration and transcoding disabled.");
     // عامل ضغط الصور المخزّنة (الصور القديمة الضخمة) — إنتاج فقط، ويمكن تعطيله
     if (
       process.env.ENABLE_IMAGE_OPTIMIZE !== "false" &&

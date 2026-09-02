@@ -7,17 +7,11 @@
  */
 
 /**
- * A single playable part. Server playback is always present; entitled detail responses may also include direct Google Drive playback.
+ * A Google Drive Direct-only video part returned after entitlement checks.
  */
 export interface VideoStreamPart {
   label: string;
-  /** Same-origin, token-protected stream URL (e.g. /api/videos/{id}/stream/{part}?token=...). */
-  url: string;
-  /** Same-origin, token-protected HLS master playlist URL (adaptive bitrate). Present only for parts that have been transcoded; the MP4 `url` remains the fallback. */
-  hlsUrl?: string | null;
-  /** Same-origin, token-protected 720p stream URL (lighter Drive copy). Present only when the background transcoder has produced a 720p copy; the player defaults to it with a toggle back to the original-quality `url`. */
-  lowUrl?: string | null;
-  /** Google Drive preview URL returned only by the entitled single-video response. Video bytes travel directly from Google Drive to the viewer. */
+  /** Google Drive preview URL returned only by the entitled single-video response. Video bytes travel directly from Google Drive to the viewer, never through the platform server. */
   drivePreviewUrl?: string | null;
   /** Google Drive top-level view URL for mobile and Safari users when embedded Google authentication is unavailable. */
   driveViewUrl?: string | null;

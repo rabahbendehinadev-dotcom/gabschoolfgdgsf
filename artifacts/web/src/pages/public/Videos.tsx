@@ -8,7 +8,7 @@ import { motion } from "framer-motion";
 import { CategoryCard } from "@/components/public/CategoryCard";
 import { LessonCard } from "@/components/public/LessonCard";
 import { CoursePlayer } from "@/components/public/CoursePlayer";
-import { CourseVideoPlayer } from "@/components/CourseVideoPlayer";
+import { DriveDirectPlayer } from "@/components/DriveDirectPlayer";
 import { getCategoryMeta } from "@/lib/categoryMeta";
 import { warmImages } from "@/lib/warmImages";
 
@@ -66,14 +66,14 @@ export function Videos() {
   const freeVideo = allVideosUnfiltered?.find(v => v.accessType === "visitor");
 
   /* تفاصيل الفيديو المجاني (روابط البثّ الآمنة) — تُجلب فقط عند فتح النافذة */
-  const { data: freeDetail } = useGetVideo(freeVideo?.id ?? 0, {
+  const { data: freeDetail, isLoading: freeDetailLoading } = useGetVideo(freeVideo?.id ?? 0, {
     request: getAuthHeaders(),
     query: {
       queryKey: getGetVideoQueryKey(freeVideo?.id ?? 0),
       enabled: videoModalOpen && !!freeVideo?.id,
     },
   });
-  const freeStreamUrl = freeDetail?.streamParts?.[0]?.url ?? "";
+  const freePart = freeDetail?.streamParts?.[0];
 
   /* ── الفيديوهات حسب الفلاتر الحالية (قسم / بحث) — مفلترة من الـ backend ── */
   const { data: videos, isLoading } = useGetVideos(
@@ -160,22 +160,25 @@ export function Videos() {
           </div>
           <div className="w-full bg-black p-3">
             {videoModalOpen && (
-              freeStreamUrl ? (
-                <CourseVideoPlayer
-                  src={freeStreamUrl}
-                  poster={freeVideo?.thumbnailUrl}
+              freePart?.drivePreviewUrl ? (
+                <DriveDirectPlayer
+                  previewUrl={freePart.drivePreviewUrl}
+                  viewUrl={freePart.driveViewUrl}
                   title={freeVideo?.title}
                   username={user?.username}
                   email={user?.email}
                   userId={user?.id}
-                  videoId={freeVideo?.id}
                 />
-              ) : (
+              ) : freeDetailLoading ? (
                 <div
                   className="relative w-full bg-black rounded-2xl flex items-center justify-center"
                   style={{ aspectRatio: "16 / 9" }}
                 >
                   <Loader2 className="w-8 h-8 text-white/60 animate-spin" />
+                </div>
+              ) : (
+                <div className="flex aspect-video w-full items-center justify-center rounded-2xl bg-zinc-950 px-6 text-center text-sm text-white/70">
+                  سجّل الدخول بحساب لديه صلاحية Google Drive لمشاهدة الفيديو.
                 </div>
               )
             )}

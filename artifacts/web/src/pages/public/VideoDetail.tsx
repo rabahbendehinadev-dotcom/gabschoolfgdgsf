@@ -3,10 +3,9 @@ import { useRoute, useLocation } from "wouter";
 import { useGetVideo } from "@workspace/api-client-react/src/generated/api";
 import { useAuth } from "@/lib/auth";
 import { Card, Badge, Button } from "@/components/ui";
-import { Crown, ArrowRight, PlaySquare, Lock, CalendarDays, Tag, Download, Cloud, Server } from "lucide-react";
+import { Crown, ArrowRight, PlaySquare, Lock, CalendarDays, Tag, Download } from "lucide-react";
 import { Link } from "wouter";
 import { formatDate } from "@/lib/utils";
-import { CourseVideoPlayer } from "@/components/CourseVideoPlayer";
 import { DriveDirectPlayer } from "@/components/DriveDirectPlayer";
 
 const FALLBACK_THUMB =
@@ -17,7 +16,6 @@ export function VideoDetail() {
   const [, navigate] = useLocation();
   const { user, getAuthHeaders, bootstrapped } = useAuth();
   const [selectedPartIndex, setSelectedPartIndex] = useState(0);
-  const [playbackMode, setPlaybackMode] = useState<"server" | "drive">("server");
 
   const id = params?.id ? parseInt(params.id) : 0;
 
@@ -160,7 +158,6 @@ export function VideoDetail() {
 
   const parts = video.streamParts ?? [];
   const activePart = parts[selectedPartIndex];
-  const activeVideoUrl = activePart?.url ?? "";
   const driveDirectAvailable = Boolean(activePart?.drivePreviewUrl);
 
   return (
@@ -217,71 +214,25 @@ export function VideoDetail() {
               </div>
             )}
 
-            {driveDirectAvailable && (
-              <div className="mb-4 grid grid-cols-2 gap-2 rounded-xl border border-border bg-muted/30 p-1.5">
-                <button
-                  type="button"
-                  onClick={() => setPlaybackMode("server")}
-                  aria-pressed={playbackMode === "server"}
-                  className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-bold transition-all ${
-                    playbackMode === "server"
-                      ? "bg-background text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <Server className="h-4 w-4" />
-                  خادم المنصة
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPlaybackMode("drive")}
-                  aria-pressed={playbackMode === "drive"}
-                  className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-bold transition-all ${
-                    playbackMode === "drive"
-                      ? "bg-background text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <Cloud className="h-4 w-4" />
-                  Google Drive مباشر
-                </button>
-              </div>
-            )}
-
-            {/* Protected Video Player */}
-            {activeVideoUrl ? (
+            {/* Google Drive Direct-only player */}
+            {driveDirectAvailable && activePart?.drivePreviewUrl ? (
               <div className="mb-8">
-                {playbackMode === "drive" && activePart?.drivePreviewUrl ? (
-                  <DriveDirectPlayer
-                    key={`drive-${id}-${selectedPartIndex}`}
-                    previewUrl={activePart.drivePreviewUrl}
-                    viewUrl={activePart.driveViewUrl}
-                    title={video.title}
-                    username={user?.username}
-                    email={user?.email}
-                    userId={user?.id}
-                  />
-                ) : (
-                  <CourseVideoPlayer
-                    key={`server-${id}-${selectedPartIndex}`}
-                    src={activeVideoUrl}
-                    hlsSrc={activePart?.hlsUrl ?? null}
-                    lowSrc={activePart?.lowUrl ?? null}
-                    poster={video.thumbnailUrl}
-                    title={video.title}
-                    username={user?.username}
-                    email={user?.email}
-                    userId={user?.id}
-                    videoId={id}
-                  />
-                )}
+                <DriveDirectPlayer
+                  key={`drive-${id}-${selectedPartIndex}`}
+                  previewUrl={activePart.drivePreviewUrl}
+                  viewUrl={activePart.driveViewUrl}
+                  title={video.title}
+                  username={user?.username}
+                  email={user?.email}
+                  userId={user?.id}
+                />
               </div>
             ) : (
               <div className="relative w-full mb-8 bg-muted/60 rounded-2xl border border-border flex items-center justify-center" style={{ paddingBottom: "56.25%" }}>
                 <div className="absolute inset-0 flex items-center justify-center">
                   <p className="text-foreground/40 text-sm flex items-center gap-2">
                     <PlaySquare className="w-5 h-5" />
-                    رابط الفيديو غير متوفر
+                    Google Drive غير متاح لهذا الحساب
                   </p>
                 </div>
               </div>

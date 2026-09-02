@@ -21,7 +21,7 @@ import {
   type ObjectPart,
 } from "../lib/videoStorage";
 import { normalizeHlsPartsInput, deleteHlsObjects, invalidateRenderedPlaylists } from "../lib/hlsStorage";
-import { deleteLowCopiesBestEffort, requestDriveTranscode } from "../lib/driveTranscode";
+import { deleteLowCopiesBestEffort } from "../lib/driveTranscode";
 import * as zod from "zod";
 import {
   UpdateAdminUserBody,
@@ -1501,8 +1501,6 @@ router.post("/admin/videos", adminAuth, async (req, res) => {
           .where(eq(playlistsTable.id, coursePlaylistId))
           .limit(1)
       : [];
-    requestDriveTranscode(video.id);
-
     if (video.isVisible) {
       const courseTitle = playlist?.title || cat?.name || "GAB School";
       try {
@@ -1578,8 +1576,8 @@ router.patch("/admin/videos/:id", adminAuth, async (req, res) => {
 
     // If the video source changed, the migrated App Storage copy, the HLS
     // ladder AND the 720p Drive copies are stale: clear all mappings (playback
-    // falls back to the Drive proxy) and clean up the old objects best-effort.
-    // Admin can re-run the migration/transcode afterwards.
+    // is no longer used by Direct-only playback) and clean up old objects
+    // best-effort. New Drive sources are never queued for transcoding.
     let staleObjectParts: ObjectPart[] | null = null;
     let staleHls = false;
     let staleLowParts: string | null = null;
@@ -1631,8 +1629,6 @@ router.patch("/admin/videos/:id", adminAuth, async (req, res) => {
       res.status(404).json({ message: "Video not found" });
       return;
     }
-    if (driveSourceChanged) requestDriveTranscode(video.id);
-
     const [cat] = await db.select().from(categoriesTable).where(eq(categoriesTable.id, video.categoryId)).limit(1);
 
     res.json({

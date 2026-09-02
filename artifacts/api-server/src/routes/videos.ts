@@ -1,11 +1,11 @@
 import { Router, type IRouter } from "express";
 import { db, videosTable, categoriesTable, visitLogsTable, playlistsTable, activityLogsTable, usersTable, userCoursesTable } from "@workspace/db";
-import { eq, and, or, asc, sql, isNull, inArray } from "drizzle-orm";
-import { optionalUserAuth, userAuth } from "../middlewares/auth";
+import { eq, and, or, asc, sql, isNull, inArray, gt } from "drizzle-orm";
+import { optionalUserAuth } from "../middlewares/auth";
 import { getClientIp } from "../lib/ipPolicy";
 import { deviceTypeFromUA } from "../lib/device";
 import { isActiveVip } from "../lib/vipUtils";
-import { generateVideoStreamToken, verifyVideoStreamToken } from "../lib/auth";
+import { verifyVideoStreamToken } from "../lib/auth";
 import { extractDriveFileId, resolveVideoParts, streamDriveFile } from "../lib/googleDrive";
 import { streamGcsObjectToResponse, parseObjectParts } from "../lib/videoStorage";
 import { parseLowParts } from "../lib/driveTranscode";
@@ -205,7 +205,11 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
 
     const accessType = video.accessType || "normal";
     const isVipUser = isActiveVip(user);
-    const isSubscribed = user && user.subscriptionType !== "demo";
+    const isSubscribed = Boolean(
+      user &&
+      user.subscriptionType !== "demo" &&
+      (!user.subscriptionExpiresAt || new Date(user.subscriptionExpiresAt) > new Date()),
+    );
 
     // Log + deny when a user tries to open a video they are not entitled to.
     // Include safe preview metadata so the client can render a locked preview page
@@ -238,14 +242,22 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
     const coursePlaylistId = video.playlistId ?? video.categoryLinkedPlaylistId ?? null;
     let hasCourseAccess = false;
 
-    if (coursePlaylistId) {
+    if (coursePlaylistId && accessType !== "visitor") {
       if (!user) {
         await denyVideoAccess("يجب تسجيل الدخول لمشاهدة هذا الفيديو");
         return;
       }
       const [courseAccess] = await db.select({ playlistId: userCoursesTable.playlistId })
         .from(userCoursesTable)
-        .where(and(eq(userCoursesTable.userId, user.id), eq(userCoursesTable.playlistId, coursePlaylistId)))
+        .where(and(
+          eq(userCoursesTable.userId, user.id),
+          eq(userCoursesTable.playlistId, coursePlaylistId),
+          eq(userCoursesTable.status, "active"),
+          or(
+            isNull(userCoursesTable.expiresAt),
+            gt(userCoursesTable.expiresAt, new Date()),
+          ),
+        ))
         .limit(1);
       if (!courseAccess) {
         await denyVideoAccess("ليس لديك صلاحية الوصول لهذه الدورة");
@@ -269,13 +281,9 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
       }
     }
 
-    const hasActiveSubscription = Boolean(
-      user &&
-      user.subscriptionType !== "demo" &&
-      (!user.subscriptionExpiresAt || new Date(user.subscriptionExpiresAt) > new Date()),
-    );
     const hasDirectDriveAccess = Boolean(
-      user && (hasCourseAccess || isVipUser || hasActiveSubscription),
+      accessType === "visitor" ||
+      (user && (hasCourseAccess || isVipUser || isSubscribed)),
     );
 
     if (user) {
@@ -298,49 +306,18 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
       }
     }
 
-    // Migrated videos play DIRECTLY from App Storage via short-lived presigned
-    // URLs (no server hop → no buffering bottleneck). Unmigrated videos fall
-    // back to the same-origin, token-protected Drive proxy. Raw Drive URLs
-    // never leave the server either way.
-    const objectParts = parseObjectParts(video.objectParts);
-    const hlsParts = parseHlsParts(video.hlsParts);
-    const lowParts = parseLowParts(video.lowParts);
     const partsList = resolveVideoParts({
       driveEmbedUrl: video.driveEmbedUrl,
       driveParts: video.driveParts,
     });
     let streamParts: {
       label: string;
-      url: string;
-      hlsUrl?: string;
-      lowUrl?: string;
       drivePreviewUrl?: string;
       driveViewUrl?: string;
     }[];
-    // Build streamParts from drive parts list (authoritative source for labels/count).
-    // For each part: use server-proxied GCS stream if migrated (never a direct
-    // storage.googleapis.com URL — download managers intercept those), otherwise
-    // the same-origin Drive proxy token. HLS is preferred when available.
-    streamParts = partsList.map((p, i) => {
-      const token = generateVideoStreamToken({ userId: user?.id ?? 0, videoId: id, part: i });
-      const hlsUrl = hlsParts?.[i]
-        ? `/api/videos/${id}/hls/${i}/master.m3u8?token=${token}`
-        : undefined;
-      const objPart = objectParts?.[i];
-      // Both migrated (GCS) and unmigrated (Drive) parts go through same-origin
-      // server proxy so the browser never sees an external storage URL.
-      const url = objPart
-        ? `/api/videos/${id}/stream-object/${i}?token=${token}`
-        : `/api/videos/${id}/stream/${i}?token=${token}`;
-      // 720p copy (background transcode) — same token, same route, ?q=low.
-      const lowEntry = lowParts?.[i];
-      const lowUrl =
-        lowEntry && "fileId" in lowEntry && lowEntry.fileId
-          ? `/api/videos/${id}/stream/${i}?token=${token}&q=low`
-          : undefined;
-      // Direct Drive playback is deliberately constructed only here, after the
-      // full video entitlement check above. Lists and playlist payloads never
-      // receive a Drive URL or file id.
+    // GOOGLE_DRIVE_DIRECT_ONLY: construct direct URLs only here, after the full
+    // entitlement check. Lists and playlist payloads never receive Drive IDs.
+    streamParts = partsList.map((p) => {
       const driveFileId = hasDirectDriveAccess ? extractDriveFileId(p.url) : null;
       const drivePreviewUrl = driveFileId
         ? `https://drive.google.com/file/d/${driveFileId}/preview`
@@ -348,7 +325,7 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
       const driveViewUrl = driveFileId
         ? `https://drive.google.com/file/d/${driveFileId}/view`
         : undefined;
-      return { label: p.label, url, hlsUrl, lowUrl, drivePreviewUrl, driveViewUrl };
+      return { label: p.label, drivePreviewUrl, driveViewUrl };
     });
 
     res.json({
@@ -371,6 +348,21 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
     res.status(500).json({ message: error instanceof Error ? error.message : "Failed to fetch video" });
   }
 });
+
+// GOOGLE_DRIVE_DIRECT_ONLY: reject legacy platform streaming URLs, including
+// previously issued signed links. Drive bytes must travel Drive → browser.
+router.use(
+  [
+    "/videos/:id/stream/:part",
+    "/videos/:id/stream-object/:part",
+    "/videos/:id/hls/:part",
+  ],
+  (_req, res) => {
+    res.status(410).json({
+      message: "Platform streaming is disabled. Use Google Drive Direct playback.",
+    });
+  },
+);
 
 router.post("/videos/:id/violation", optionalUserAuth, async (req, res) => {
   try {
@@ -853,66 +845,11 @@ router.get("/videos/:id/hls/:part/:rendition/segment/:filename", async (req, res
   }
 });
 
-/* ── Token refresh endpoint ───────────────────────────────────────────────
-   The player calls this every ~90 min (before the 2h token expires) to get a
-   fresh stream token without re-loading the page. Requires the session cookie
-   (userAuth middleware) — not the stream token — so a captured stream URL
-   cannot be used to mint new tokens. */
-router.get("/videos/:id/token/:part", userAuth, async (req, res) => {
-  try {
-    const id = Number(req.params.id);
-    const part = Number(req.params.part);
-    if (!Number.isInteger(id) || !Number.isInteger(part) || part < 0) {
-      res.status(400).json({ message: "Invalid video id or part" });
-      return;
-    }
-
-    const [video] = await db
-      .select({ isVisible: videosTable.isVisible, accessType: videosTable.accessType })
-      .from(videosTable)
-      .where(eq(videosTable.id, id))
-      .limit(1);
-
-    if (!video || !video.isVisible) {
-      res.status(404).end();
-      return;
-    }
-
-    const accessType = video.accessType || "normal";
-    const [u] = await db
-      .select({
-        accountType: usersTable.accountType,
-        subscriptionType: usersTable.subscriptionType,
-        subscriptionExpiresAt: usersTable.subscriptionExpiresAt,
-        isActive: usersTable.isActive,
-      })
-      .from(usersTable)
-      .where(eq(usersTable.id, req.user!.id))
-      .limit(1);
-
-    const isVipUser = isActiveVip(u);
-    const isSubscribed = !!u && u.subscriptionType !== "demo";
-
-    if (accessType === "vip" && !isVipUser) {
-      res.status(403).json({ message: "VIP required" });
-      return;
-    }
-    if (accessType === "normal" && !isVipUser && !isSubscribed) {
-      res.status(403).json({ message: "Subscription required" });
-      return;
-    }
-
-    const token = generateVideoStreamToken({ userId: req.user!.id, videoId: id, part });
-    res.setHeader("Cache-Control", "private, no-store");
-    res.json({ token });
-  } catch (error: unknown) {
-    console.error("[token-refresh] ERROR", {
-      videoId: req.params.id,
-      part: req.params.part,
-      message: error instanceof Error ? error.message : String(error),
-    });
-    res.status(500).end();
-  }
+// Legacy server-player token refresh is disabled in Direct-only mode.
+router.get("/videos/:id/token/:part", (_req, res) => {
+  res.status(410).json({
+    message: "Platform streaming is disabled. Use Google Drive Direct playback.",
+  });
 });
 
 export default router;
