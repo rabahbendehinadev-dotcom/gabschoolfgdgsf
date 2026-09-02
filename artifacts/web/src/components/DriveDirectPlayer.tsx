@@ -134,6 +134,19 @@ export function DriveDirectPlayer({
           onError={() => setShowFallback(true)}
         />
 
+        <div
+          aria-hidden="true"
+          className="pointer-events-auto absolute right-1.5 top-1.5 z-30 h-11 w-11 cursor-default bg-transparent sm:right-2 sm:top-2 sm:h-12 sm:w-12"
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+          }}
+          onContextMenu={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+          }}
+        />
+
         <button
           type="button"
           onClick={toggleFullscreen}
