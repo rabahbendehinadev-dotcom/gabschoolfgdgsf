@@ -51,6 +51,7 @@ export const LoginResponse = zod.object({
     isActive: zod.boolean(),
     phone: zod.string().nullish(),
     profileImageUrl: zod.string().nullish(),
+    communityRole: zod.enum(["admin", "formateur", "student"]),
     createdAt: zod.date(),
   }),
 });
@@ -75,6 +76,7 @@ export const GoogleLoginResponse = zod.object({
     isActive: zod.boolean(),
     phone: zod.string().nullish(),
     profileImageUrl: zod.string().nullish(),
+    communityRole: zod.enum(["admin", "formateur", "student"]),
     createdAt: zod.date(),
   }),
 });
@@ -109,6 +111,7 @@ export const GetMeResponse = zod.object({
   isActive: zod.boolean(),
   phone: zod.string().nullish(),
   profileImageUrl: zod.string().nullish(),
+  communityRole: zod.enum(["admin", "formateur", "student"]),
   createdAt: zod.date(),
 });
 
@@ -153,6 +156,7 @@ export const UpdateMyPhoneResponse = zod.object({
   isActive: zod.boolean(),
   phone: zod.string().nullish(),
   profileImageUrl: zod.string().nullish(),
+  communityRole: zod.enum(["admin", "formateur", "student"]),
   createdAt: zod.date(),
 });
 

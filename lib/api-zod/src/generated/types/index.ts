@@ -120,6 +120,7 @@ export * from "./updateVideoInput";
 export * from "./updateVideoInputAccessType";
 export * from "./userProfile";
 export * from "./userProfileAccountType";
+export * from "./userProfileCommunityRole";
 export * from "./userProfileSubscriptionType";
 export * from "./vapidKeyResponse";
 export * from "./video";

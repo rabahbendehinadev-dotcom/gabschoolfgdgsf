@@ -3,6 +3,7 @@ import { verifyToken, verifyAdminToken } from "../lib/auth";
 import { applyVipIpPolicy, getClientIp, VIP_IP_LIMIT_MESSAGE } from "../lib/ipPolicy";
 import { db, usersTable, adminsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { isActiveCommunitySubscriber } from "../lib/vipUtils";
 
 declare global {
   namespace Express {
@@ -18,6 +19,7 @@ declare global {
         isActive: boolean;
         phone: string | null;
         profileImage: string | null;
+        communityRole: string;
       };
       admin?: {
         id: number;
@@ -36,6 +38,7 @@ async function authenticateUser(
   res: Response,
   next: NextFunction,
   enforceIpPolicy: boolean,
+  requireCommunitySubscription = false,
 ) {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith("Bearer ")) {
@@ -75,8 +78,21 @@ async function authenticateUser(
     }
   }
 
-  if (user.subscriptionExpiresAt && new Date(user.subscriptionExpiresAt) < new Date()) {
+  const communityAdmin = user.communityRole === "admin";
+  if (
+    user.subscriptionExpiresAt &&
+    new Date(user.subscriptionExpiresAt) < new Date() &&
+    !(requireCommunitySubscription && communityAdmin)
+  ) {
     res.status(403).json({ message: "Your subscription has expired. Please renew to continue accessing content." });
+    return;
+  }
+
+  if (requireCommunitySubscription && !isActiveCommunitySubscriber(user)) {
+    res.status(403).json({
+      message: "هذا المحتوى مخصص للمشتركين",
+      code: "COMMUNITY_SUBSCRIPTION_REQUIRED",
+    });
     return;
   }
 
@@ -91,6 +107,7 @@ async function authenticateUser(
     isActive: user.isActive,
     phone: user.phone ?? null,
     profileImage: user.profileImage ?? null,
+    communityRole: user.communityRole,
   };
   req.userCreatedAt = user.createdAt;
 
@@ -109,6 +126,10 @@ export function userAuth(req: Request, res: Response, next: NextFunction) {
  */
 export function userAuthNoIpLimit(req: Request, res: Response, next: NextFunction) {
   return authenticateUser(req, res, next, false);
+}
+
+export function communitySubscriberAuth(req: Request, res: Response, next: NextFunction) {
+  return authenticateUser(req, res, next, true, true);
 }
 
 /**
@@ -146,6 +167,7 @@ export async function userAuthAllowExpired(req: Request, res: Response, next: Ne
     isActive: user.isActive,
     phone: user.phone ?? null,
     profileImage: user.profileImage ?? null,
+    communityRole: user.communityRole,
   };
   req.userCreatedAt = user.createdAt;
   next();
@@ -173,6 +195,7 @@ export async function optionalUserAuth(req: Request, _res: Response, next: NextF
       isActive: user.isActive,
       phone: user.phone ?? null,
       profileImage: user.profileImage ?? null,
+      communityRole: user.communityRole,
     };
     req.userCreatedAt = user.createdAt;
   }

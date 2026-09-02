@@ -153,7 +153,9 @@ export class ObjectStorageService {
     return new Response(webStream, { headers });
   }
 
-  async getObjectEntityUploadURL(): Promise<{ uploadURL: string; objectPath: string }> {
+  async getObjectEntityUploadURL(
+    directory: "uploads" | "community" = "uploads",
+  ): Promise<{ uploadURL: string; objectPath: string }> {
     const privateObjectDir = this.getPrivateObjectDir();
     if (!privateObjectDir) {
       throw new Error(
@@ -164,8 +166,8 @@ export class ObjectStorageService {
     const objectId = randomUUID();
     // Derive the canonical relative path BEFORE signing — so callers never
     // need to parse it back out of a provider-specific presigned URL.
-    const objectPath = `/objects/uploads/${objectId}`;
-    const fullPath = `${privateObjectDir}/uploads/${objectId}`;
+    const objectPath = `/objects/${directory}/${objectId}`;
+    const fullPath = `${privateObjectDir}/${directory}/${objectId}`;
 
     const { bucketName, objectName } = parseObjectPath(fullPath);
 

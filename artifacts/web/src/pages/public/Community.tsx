@@ -3,10 +3,11 @@ import { Link } from "wouter";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import {
   useGetCommunitySummary,
+  getGetCommunitySummaryQueryKey,
   getCommunityFeed,
 } from "@workspace/api-client-react/src/generated/api";
 import { CommunityPost } from "@workspace/api-client-react/src/generated/api.schemas";
-import { useAuth } from "@/lib/auth";
+import { hasActiveCommunityAccess, useAuth } from "@/lib/auth";
 import { Button, Skeleton } from "@/components/ui";
 import { PostCard } from "@/components/community/PostCard";
 import { CreatePostDialog } from "@/components/community/CreatePostDialog";
@@ -15,7 +16,7 @@ import {
   Users, MessageCircle, Wrench, Shield, CheckCircle, CheckCircle2,
   Search, LayoutGrid, HelpCircle, Smartphone, Unlock,
   Cpu, Code, Bell, Plus, Image as ImageIcon, Video,
-  FileText, BarChart2, Loader2, ThumbsUp
+  FileText, BarChart2, Loader2, ThumbsUp, Lock
 } from "lucide-react";
 
 const PAGE_SIZE = 10;
@@ -33,8 +34,72 @@ const CATEGORIES = [
   { id: "news", label: "أخبار وتحديثات", icon: Bell },
 ];
 
+function CommunitySubscriberGate() {
+  return (
+    <div
+      className="relative min-h-[540px] overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm"
+      data-testid="community-subscriber-gate"
+    >
+      <div className="pointer-events-none space-y-4 p-4 opacity-55 blur-[4px]" aria-hidden="true">
+        {[0, 1, 2].map((item) => (
+          <div key={item} className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="h-11 w-11 rounded-full bg-slate-200" />
+              <div className="flex-1 space-y-2">
+                <div className="h-3.5 w-32 rounded-full bg-slate-300" />
+                <div className="h-2.5 w-20 rounded-full bg-slate-200" />
+              </div>
+            </div>
+            <div className="mt-5 space-y-3">
+              <div className="h-3.5 w-full rounded-full bg-slate-200" />
+              <div className="h-3.5 w-4/5 rounded-full bg-slate-200" />
+              <div className="h-32 rounded-2xl bg-slate-100" />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="absolute inset-0 flex items-start justify-center bg-white/35 p-5 pt-8 backdrop-blur-[2px] sm:items-center sm:pt-5">
+        <div className="w-full max-w-md rounded-[28px] border border-orange-100 bg-white/95 p-5 text-center shadow-2xl shadow-slate-900/10 sm:p-9">
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-50 text-orange-500 ring-1 ring-orange-100 sm:mb-5 sm:h-14 sm:w-14">
+            <Lock className="h-6 w-6" />
+          </div>
+          <h2 className="text-lg font-black text-slate-900 sm:text-2xl">
+            مجتمع GAB مخصص للمشتركين
+          </h2>
+          <p className="mx-auto mt-2 max-w-sm text-[13px] font-medium leading-6 text-slate-600 sm:mt-3 sm:text-[14px] sm:leading-7">
+            انضم إلى مجتمع الطلبة والمحترفين، شارك أسئلتك واستفد من الحلول والتجارب الحقيقية لأعضاء GAB.
+          </p>
+          <Link href="/subscribe">
+            <Button className="mt-4 h-11 w-full rounded-2xl bg-orange-500 text-[14px] font-black text-white shadow-sm shadow-orange-500/20 hover:bg-orange-600 sm:mt-6 sm:h-12 sm:text-[15px]">
+              عرض الاشتراكات
+            </Button>
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CommunityPublicAbout() {
+  return (
+    <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <h3 className="mb-3 text-[16px] font-black text-slate-900">حول المجتمع</h3>
+      <p className="text-[14px] font-medium leading-relaxed text-slate-500">
+        مساحة مخصصة لأعضاء GAB لمشاركة الخبرات، طرح الأسئلة، وإيجاد الحلول للمشاكل التقنية.
+      </p>
+      <div className="mt-5 flex items-start gap-3 rounded-2xl border border-orange-100 bg-orange-50/70 p-4">
+        <Lock className="mt-0.5 h-4 w-4 shrink-0 text-orange-500" />
+        <p className="text-[12px] font-bold leading-5 text-slate-600">
+          تفاصيل الأعضاء والنشاط متاحة للمشتركين فقط.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export function Community() {
-  const { user, getAuthHeaders } = useAuth();
+  const { user, getAuthHeaders, bootstrapped } = useAuth();
   const [createOpen, setCreateOpen] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
   const [composerAvatarFailed, setComposerAvatarFailed] = useState(false);
@@ -43,7 +108,14 @@ export function Community() {
     setComposerAvatarFailed(false);
   }, [user?.profileImageUrl]);
 
-  const { data: summary, refetch: refetchSummary } = useGetCommunitySummary({ request: getAuthHeaders() });
+  const hasCommunityAccess = bootstrapped && hasActiveCommunityAccess(user);
+  const { data: summary, refetch: refetchSummary } = useGetCommunitySummary({
+    request: getAuthHeaders(),
+    query: {
+      queryKey: getGetCommunitySummaryQueryKey(),
+      enabled: hasCommunityAccess,
+    },
+  });
   const {
     data: feed,
     isLoading,
@@ -56,10 +128,11 @@ export function Community() {
       getCommunityFeed({ limit: PAGE_SIZE, cursor: pageParam }, getAuthHeaders()),
     initialPageParam: 0,
     getNextPageParam: (last) => last.nextCursor ?? undefined,
+    enabled: hasCommunityAccess,
   });
 
   const posts = feed?.pages.flatMap((p) => p.posts) ?? [];
-  const canPost = summary?.canPost ?? !!user;
+  const canPost = hasCommunityAccess && (summary?.canPost ?? !!user);
   const hasProfilePicture = summary?.hasProfilePicture ?? !!user?.profileImageUrl;
 
   const handleComposerClick = () => {
@@ -187,6 +260,8 @@ export function Community() {
 
           {/* CENTER FEED */}
           <div className="md:order-1 md:col-span-8 lg:order-2 lg:col-span-6 space-y-4">
+            {hasCommunityAccess ? (
+              <>
 
             {/* Top Filters & New Post Action */}
             <div className="flex items-center justify-between bg-white p-3 rounded-3xl border border-slate-200 shadow-sm">
@@ -315,10 +390,16 @@ export function Community() {
                 </Button>
               </div>
             )}
+              </>
+            ) : (
+              <CommunitySubscriberGate />
+            )}
           </div>
 
           {/* RIGHT SIDEBAR (Desktop) */}
           <div className="md:order-2 md:col-span-4 lg:order-3 lg:col-span-3 space-y-5 flex flex-col mt-4 md:mt-0 lg:sticky lg:top-24">
+            {hasCommunityAccess ? (
+              <>
 
              {/* About Community */}
               <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm">
@@ -495,20 +576,28 @@ export function Community() {
                   </div>
                 )}
              </div>
-          </div>
+              </>
+            ) : (
+              <CommunityPublicAbout />
+            )}
+           </div>
 
         </div>
       </div>
 
-      <CreatePostDialog open={createOpen} onOpenChange={setCreateOpen} />
-      <ProfilePictureModal
-        open={avatarOpen}
-        onOpenChange={setAvatarOpen}
-        onSaved={() => {
-          refetchSummary();
-          setCreateOpen(true);
-        }}
-      />
+      {hasCommunityAccess && (
+        <>
+          <CreatePostDialog open={createOpen} onOpenChange={setCreateOpen} />
+          <ProfilePictureModal
+            open={avatarOpen}
+            onOpenChange={setAvatarOpen}
+            onSaved={() => {
+              refetchSummary();
+              setCreateOpen(true);
+            }}
+          />
+        </>
+      )}
     </div>
   );
 }

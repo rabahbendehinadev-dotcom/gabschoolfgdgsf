@@ -22,6 +22,17 @@ const AuthContext = createContext<AuthState | null>(null);
 
 const REFRESH_INTERVAL_MS = 20_000;
 
+export function hasActiveCommunityAccess(user: UserProfile | null | undefined): boolean {
+  if (!user?.isActive) return false;
+  if (user.communityRole === "admin") return true;
+  const expiresAt = user.subscriptionExpiresAt
+    ? new Date(user.subscriptionExpiresAt)
+    : null;
+  if (expiresAt && expiresAt < new Date()) return false;
+  const activeVip = user.accountType === "vip" && !user.subscriptionIsExpired;
+  return activeVip || user.subscriptionType !== "demo";
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [, navigate] = useLocation();
   const queryClient = useQueryClient();
@@ -77,6 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           prev?.isActive !== fresh.isActive ||
           prev?.subscriptionExpiresAt !== fresh.subscriptionExpiresAt ||
           prev?.subscriptionIsExpired !== fresh.subscriptionIsExpired ||
+          prev?.communityRole !== fresh.communityRole ||
           prev?.phone !== fresh.phone;
         if (!changed) return prev;
         localStorage.setItem("user", JSON.stringify(fresh));

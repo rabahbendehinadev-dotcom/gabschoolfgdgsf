@@ -11,7 +11,7 @@ import {
   usersTable,
 } from "@workspace/db";
 import { eq, and, desc, asc, inArray, count, gte, isNull, sql } from "drizzle-orm";
-import { optionalUserAuth, userAuth } from "../middlewares/auth";
+import { communitySubscriberAuth } from "../middlewares/auth";
 import { generateMediaToken, verifyMediaToken } from "../lib/auth";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
 import { createNotification } from "../lib/notifications";
@@ -20,12 +20,13 @@ import {
   UpdateCommunityPostBody,
   CreateCommunityCommentBody,
 } from "@workspace/api-zod";
-import { isActiveVip } from "../lib/vipUtils";
+import { isActiveCommunitySubscriber, isActiveVip } from "../lib/vipUtils";
 import {
   deleteGeneratedThumbnail,
   generateCommunityThumbnail,
 } from "../lib/imageThumbnail";
 import { verifyCommunityUploadReceipt } from "../lib/communityUploadReceipt";
+import { deleteCommunityMediaForPosts } from "../lib/communityMediaCleanup";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
@@ -380,7 +381,7 @@ async function objectMeta(objectPath: string): Promise<{ contentType: string; si
 // ---------------------------------------------------------------------------
 
 // GET /community/summary
-router.get("/community/summary", optionalUserAuth, async (req, res) => {
+router.get("/community/summary", communitySubscriberAuth, async (req, res) => {
   try {
     const [{ members }] = await db
       .select({ members: count() })
@@ -456,7 +457,7 @@ router.get("/community/summary", optionalUserAuth, async (req, res) => {
 });
 
 // GET /community/posts  (feed)
-router.get("/community/posts", optionalUserAuth, async (req, res) => {
+router.get("/community/posts", communitySubscriberAuth, async (req, res) => {
   try {
     const limit = Math.min(Math.max(Number(req.query.limit) || 10, 1), 30);
     const offset = Math.max(Number(req.query.cursor) || 0, 0);
@@ -521,7 +522,7 @@ router.get("/community/posts", optionalUserAuth, async (req, res) => {
 });
 
 // GET /community/posts/:id
-router.get("/community/posts/:id", optionalUserAuth, async (req, res) => {
+router.get("/community/posts/:id", communitySubscriberAuth, async (req, res) => {
   try {
     const id = Number(req.params.id);
     const post = await getVisiblePostRow(id);
@@ -539,7 +540,7 @@ router.get("/community/posts/:id", optionalUserAuth, async (req, res) => {
 });
 
 // POST /community/posts  (all authenticated users; requires profile picture)
-router.post("/community/posts", userAuth, async (req, res) => {
+router.post("/community/posts", communitySubscriberAuth, async (req, res) => {
   try {
     if (!req.user!.profileImage) {
       res.status(403).json({ message: "يجب إضافة صورة شخصية قبل النشر", code: "PROFILE_PICTURE_REQUIRED" });
@@ -767,7 +768,7 @@ router.post("/community/posts", userAuth, async (req, res) => {
 });
 
 // PATCH /community/posts/:id  (author only — edit caption)
-router.patch("/community/posts/:id", userAuth, async (req, res) => {
+router.patch("/community/posts/:id", communitySubscriberAuth, async (req, res) => {
   try {
     const id = Number(req.params.id);
     const [existing] = await db
@@ -822,7 +823,7 @@ router.patch("/community/posts/:id", userAuth, async (req, res) => {
 });
 
 // POST /community/posts/:id/poll-vote
-router.post("/community/posts/:id/poll-vote", userAuth, async (req, res) => {
+router.post("/community/posts/:id/poll-vote", communitySubscriberAuth, async (req, res) => {
   try {
     const postId = Number(req.params.id);
     const optionIndex = Number(req.body?.optionIndex);
@@ -855,7 +856,7 @@ router.post("/community/posts/:id/poll-vote", userAuth, async (req, res) => {
 });
 
 // DELETE /community/posts/:id  (author only)
-router.delete("/community/posts/:id", userAuth, async (req, res) => {
+router.delete("/community/posts/:id", communitySubscriberAuth, async (req, res) => {
   try {
     const id = Number(req.params.id);
     const [existing] = await db
@@ -871,24 +872,9 @@ router.delete("/community/posts/:id", userAuth, async (req, res) => {
       res.status(403).json({ message: "لا يمكنك حذف هذا المنشور" });
       return;
     }
-    const mediaRows = await db
-      .select({
-        mediaType: communityPostMediaTable.mediaType,
-        thumbnailObjectPath: communityPostMediaTable.thumbnailObjectPath,
-      })
-      .from(communityPostMediaTable)
-      .where(eq(communityPostMediaTable.postId, id));
-    // Delete generated derivatives first. If storage is temporarily unavailable,
-    // keep the DB row so the user can retry instead of losing cleanup metadata.
-    await Promise.all(
-      mediaRows
-        .filter(
-          (media) =>
-            media.mediaType === "image" &&
-            media.thumbnailObjectPath?.startsWith("/objects/thumbnails/"),
-        )
-        .map((media) => deleteGeneratedThumbnail(media.thumbnailObjectPath!)),
-    );
+    // Keep DB protection metadata if storage cleanup fails, so retained direct
+    // paths can never become public orphaned objects.
+    await deleteCommunityMediaForPosts([id]);
     await db.delete(communityPostsTable).where(eq(communityPostsTable.id, id));
     res.json({ message: "تم حذف المنشور" });
   } catch (error: unknown) {
@@ -897,7 +883,7 @@ router.delete("/community/posts/:id", userAuth, async (req, res) => {
 });
 
 // POST /community/posts/:id/like
-router.post("/community/posts/:id/like", userAuth, async (req, res) => {
+router.post("/community/posts/:id/like", communitySubscriberAuth, async (req, res) => {
   try {
     const id = Number(req.params.id);
     const post = await getVisiblePostRow(id);
@@ -937,7 +923,7 @@ router.post("/community/posts/:id/like", userAuth, async (req, res) => {
 });
 
 // DELETE /community/posts/:id/like
-router.delete("/community/posts/:id/like", userAuth, async (req, res) => {
+router.delete("/community/posts/:id/like", communitySubscriberAuth, async (req, res) => {
   try {
     const id = Number(req.params.id);
     await db
@@ -953,7 +939,7 @@ router.delete("/community/posts/:id/like", userAuth, async (req, res) => {
 });
 
 // POST /community/posts/:id/view  (deduped per user)
-router.post("/community/posts/:id/view", userAuth, async (req, res) => {
+router.post("/community/posts/:id/view", communitySubscriberAuth, async (req, res) => {
   try {
     const id = Number(req.params.id);
     const post = await getVisiblePostRow(id);
@@ -975,7 +961,7 @@ router.post("/community/posts/:id/view", userAuth, async (req, res) => {
 });
 
 // GET /community/posts/:id/comments  (threaded one level)
-router.get("/community/posts/:id/comments", optionalUserAuth, async (req, res) => {
+router.get("/community/posts/:id/comments", communitySubscriberAuth, async (req, res) => {
   try {
     const id = Number(req.params.id);
     const post = await getVisiblePostRow(id);
@@ -1061,7 +1047,7 @@ router.get("/community/posts/:id/comments", optionalUserAuth, async (req, res) =
 });
 
 // POST /community/posts/:id/comments
-router.post("/community/posts/:id/comments", userAuth, async (req, res) => {
+router.post("/community/posts/:id/comments", communitySubscriberAuth, async (req, res) => {
   try {
     const id = Number(req.params.id);
     if (!req.user!.profileImage) {
@@ -1174,7 +1160,7 @@ router.post("/community/posts/:id/comments", userAuth, async (req, res) => {
 });
 
 // DELETE /community/comments/:id  (author only)
-router.delete("/community/comments/:id", userAuth, async (req, res) => {
+router.delete("/community/comments/:id", communitySubscriberAuth, async (req, res) => {
   try {
     const id = Number(req.params.id);
     const [existing] = await db
@@ -1199,7 +1185,7 @@ router.delete("/community/comments/:id", userAuth, async (req, res) => {
 });
 
 // POST /community/posts/:id/report
-router.post("/community/posts/:id/report", userAuth, async (req, res) => {
+router.post("/community/posts/:id/report", communitySubscriberAuth, async (req, res) => {
   try {
     const id = Number(req.params.id);
     const post = await getVisiblePostRow(id);
@@ -1221,7 +1207,7 @@ router.post("/community/posts/:id/report", userAuth, async (req, res) => {
 });
 
 // POST /community/comments/:id/report
-router.post("/community/comments/:id/report", userAuth, async (req, res) => {
+router.post("/community/comments/:id/report", communitySubscriberAuth, async (req, res) => {
   try {
     const id = Number(req.params.id);
     const [comment] = await db
@@ -1284,18 +1270,23 @@ router.get("/community/media/:id", async (req, res) => {
       return;
     }
 
+    const [viewer] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.id, payload.userId))
+      .limit(1);
+    if (!isActiveCommunitySubscriber(viewer)) {
+      res.status(403).json({
+        message: "هذا المحتوى مخصص للمشتركين",
+        code: "COMMUNITY_SUBSCRIPTION_REQUIRED",
+      });
+      return;
+    }
+
     if (variant === "full" || variant === "thumbnail") {
       // Re-check entitlement fresh at stream time — never trust the token alone.
       if (post.isVipLocked) {
-        const [user] = await db
-          .select()
-          .from(usersTable)
-          .where(eq(usersTable.id, payload.userId))
-          .limit(1);
-        const expired =
-          user?.subscriptionExpiresAt && new Date(user.subscriptionExpiresAt) < new Date();
-        const entitled = !!user && user.isActive && user.accountType === "vip" && !expired;
-        if (!entitled) {
+        if (!isActiveCommunitySubscriber(viewer)) {
           console.warn(`[media-stream] 403 VIP-locked mediaId=${mediaId} userId=${payload.userId}`);
           res.status(403).json({ message: "هذا المحتوى متاح لأعضاء VIP فقط" });
           return;

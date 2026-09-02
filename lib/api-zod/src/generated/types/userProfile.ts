@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { UserProfileAccountType } from "./userProfileAccountType";
+import type { UserProfileCommunityRole } from "./userProfileCommunityRole";
 import type { UserProfileSubscriptionType } from "./userProfileSubscriptionType";
 
 export interface UserProfile {
@@ -19,5 +20,6 @@ export interface UserProfile {
   isActive: boolean;
   phone?: string | null;
   profileImageUrl?: string | null;
+  communityRole: UserProfileCommunityRole;
   createdAt: Date;
 }

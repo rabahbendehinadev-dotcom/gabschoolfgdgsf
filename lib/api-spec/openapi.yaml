@@ -1838,6 +1838,9 @@ components:
         profileImageUrl:
           type: string
           nullable: true
+        communityRole:
+          type: string
+          enum: [admin, formateur, student]
         createdAt:
           type: string
           format: date-time
@@ -1847,6 +1850,7 @@ components:
         - email
         - accountType
         - subscriptionType
+        - communityRole
         - isActive
         - createdAt
 

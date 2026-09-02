@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, usersTable, communityPostsTable, communityPostMediaTable } from "@workspace/db";
 import { eq, desc, and } from "drizzle-orm";
-import { userAuth, optionalUserAuth } from "../middlewares/auth";
+import { communitySubscriberAuth, userAuth } from "../middlewares/auth";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
 import { generateMediaToken } from "../lib/auth";
 
@@ -108,8 +108,8 @@ router.get("/users/:id/avatar", async (req, res) => {
   }
 });
 
-// GET /community/users/:id — public student profile
-router.get("/community/users/:id", optionalUserAuth, async (req, res) => {
+// GET /community/users/:id — subscriber-only student profile
+router.get("/community/users/:id", communitySubscriberAuth, async (req, res) => {
   try {
     const id = Number(req.params.id);
     if (!Number.isInteger(id) || id <= 0) {
@@ -173,7 +173,7 @@ router.get("/community/users/:id", optionalUserAuth, async (req, res) => {
         .where(inArray(communityPostMediaTable.postId, postIds))
         .orderBy(communityPostMediaTable.sortOrder);
 
-      const viewerId = req.user?.id ?? 0;
+      const viewerId = req.user!.id;
       for (const m of mediaRows) {
         if (!mediaMap.has(m.postId) && m.previewObjectPath) {
           const token = generateMediaToken({ userId: viewerId, mediaId: m.id, variant: "preview" });

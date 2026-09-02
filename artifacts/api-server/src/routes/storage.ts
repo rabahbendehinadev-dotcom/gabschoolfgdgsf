@@ -2,19 +2,25 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { Readable } from "stream";
 import multer from "multer";
 import { db, communityPostMediaTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, or } from "drizzle-orm";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
-import { userAuth } from "../middlewares/auth";
+import { communitySubscriberAuth, userAuth } from "../middlewares/auth";
 import { signCommunityUploadReceipt } from "../lib/communityUploadReceipt";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
 
-async function isNotCommunityOriginal(objectPath: string): Promise<boolean> {
+async function isNotCommunityMediaPath(objectPath: string): Promise<boolean> {
   const [row] = await db
     .select({ id: communityPostMediaTable.id })
     .from(communityPostMediaTable)
-    .where(eq(communityPostMediaTable.objectPath, objectPath))
+    .where(
+      or(
+        eq(communityPostMediaTable.objectPath, objectPath),
+        eq(communityPostMediaTable.previewObjectPath, objectPath),
+        eq(communityPostMediaTable.thumbnailObjectPath, objectPath),
+      ),
+    )
     .limit(1);
 
   return !row;
@@ -111,7 +117,9 @@ async function storeBufferedUpload(
   const { buffer, mimetype } = req.file;
   const effectiveMime = mimetype || "application/octet-stream";
   try {
-    const { uploadURL, objectPath } = await objectStorageService.getObjectEntityUploadURL();
+    const { uploadURL, objectPath } = await objectStorageService.getObjectEntityUploadURL(
+      communityUserId === undefined ? "uploads" : "community",
+    );
     const putRes = await fetch(uploadURL, {
       method: "PUT",
       headers: { "Content-Type": effectiveMime },
@@ -238,7 +246,7 @@ router.post(
  */
 router.post(
   "/community/uploads/data",
-  userAuth,
+  communitySubscriberAuth,
   communityMemUpload.single("file"),
   async (req: Request, res: Response) => {
     const effectiveMime = req.file?.mimetype || "application/octet-stream";
@@ -293,7 +301,7 @@ router.get("/storage/public-objects/*filePath", async (req: Request, res: Respon
  * GET /storage/thumbnails/*path
  *
  * Serve pre-generated 800×450 WebP card thumbnails.
- * No community-check DB query — these are never community originals.
+ * Community thumbnails are blocked here and must use /community/media.
  * 1-year immutable cache so browsers don't re-fetch them.
  */
 router.get("/storage/thumbnails/*path", async (req: Request, res: Response) => {
@@ -301,6 +309,11 @@ router.get("/storage/thumbnails/*path", async (req: Request, res: Response) => {
     const raw = req.params.path;
     const wildcardPath = Array.isArray(raw) ? raw.join("/") : raw;
     const objectPath = `/objects/thumbnails/${wildcardPath}`;
+    const notCommunity = await isNotCommunityMediaPath(objectPath);
+    if (!notCommunity) {
+      res.status(404).json({ error: "Thumbnail not found" });
+      return;
+    }
     const objectFile = await objectStorageService.getObjectEntityFile(objectPath);
     const response = await objectStorageService.downloadObject(objectFile, 60 * 60 * 24 * 365, true);
     res.status(response.status);
@@ -325,7 +338,7 @@ router.get("/storage/thumbnails/*path", async (req: Request, res: Response) => {
  * GET /storage/objects/*path
  *
  * Serve private object entities from PRIVATE_OBJECT_DIR.
- * Community-post originals are blocked here (gate them via /community/media).
+ * Every Community media variant is blocked here (gate it via /community/media).
  * 30-day immutable cache for upload objects (content-addressed by UUID).
  */
 router.get("/storage/objects/*path", async (req: Request, res: Response) => {
@@ -334,7 +347,12 @@ router.get("/storage/objects/*path", async (req: Request, res: Response) => {
     const wildcardPath = Array.isArray(raw) ? raw.join("/") : raw;
     const objectPath = `/objects/${wildcardPath}`;
 
-    const notCommunity = await isNotCommunityOriginal(objectPath);
+    if (objectPath.startsWith("/objects/community/")) {
+      res.status(404).json({ error: "Object not found" });
+      return;
+    }
+
+    const notCommunity = await isNotCommunityMediaPath(objectPath);
     if (!notCommunity) {
       res.status(404).json({ error: "Object not found" });
       return;

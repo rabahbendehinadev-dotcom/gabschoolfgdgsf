@@ -59,6 +59,15 @@ export const UserProfileSubscriptionType = {
   lifetime: "lifetime",
 } as const;
 
+export type UserProfileCommunityRole =
+  (typeof UserProfileCommunityRole)[keyof typeof UserProfileCommunityRole];
+
+export const UserProfileCommunityRole = {
+  admin: "admin",
+  formateur: "formateur",
+  student: "student",
+} as const;
+
 export interface UserProfile {
   id: number;
   username: string;
@@ -70,6 +79,7 @@ export interface UserProfile {
   isActive: boolean;
   phone?: string | null;
   profileImageUrl?: string | null;
+  communityRole: UserProfileCommunityRole;
   createdAt: string;
 }
 

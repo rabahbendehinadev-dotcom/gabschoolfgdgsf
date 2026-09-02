@@ -36,6 +36,10 @@ import {
 } from "@workspace/api-zod";
 import { toolsTable, toolCategoriesTable } from "@workspace/db";
 import { generateThumbnail, thumbPathToUrl } from "../lib/imageThumbnail";
+import {
+  deleteCommunityMediaForAuthor,
+  deleteCommunityMediaForPosts,
+} from "../lib/communityMediaCleanup";
 
 const CreateSubscriptionPlanBody = zod.object({
   type: zod.string(),
@@ -581,6 +585,7 @@ router.delete("/admin/users/:id", adminAuth, async (req, res) => {
   try {
     const id = Number(req.params.id);
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, id)).limit(1);
+    await deleteCommunityMediaForAuthor(id);
     await db.delete(visitLogsTable).where(eq(visitLogsTable.userId, id));
     await db.delete(usersTable).where(eq(usersTable.id, id));
     if (user) await logActivity(null, req.admin!.username, "user_deleted",
@@ -2623,6 +2628,7 @@ router.patch("/admin/community/posts/:id", adminAuth, async (req, res) => {
 router.delete("/admin/community/posts/:id", adminAuth, async (req, res) => {
   try {
     const id = Number(req.params.id);
+    await deleteCommunityMediaForPosts([id]);
     await db.delete(communityPostsTable).where(eq(communityPostsTable.id, id));
     const adminName = req.admin?.username || "admin";
     await logActivity(null, adminName, "community_post_delete", `Post #${id} deleted by admin`);
