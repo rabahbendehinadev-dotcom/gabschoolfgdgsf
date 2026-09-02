@@ -269,6 +269,15 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
       }
     }
 
+    const hasActiveSubscription = Boolean(
+      user &&
+      user.subscriptionType !== "demo" &&
+      (!user.subscriptionExpiresAt || new Date(user.subscriptionExpiresAt) > new Date()),
+    );
+    const hasDirectDriveAccess = Boolean(
+      user && (hasCourseAccess || isVipUser || hasActiveSubscription),
+    );
+
     if (user) {
       await db.insert(visitLogsTable).values({ userId: user.id, path: `/videos/${id}`, ip: getClientIp(req) });
     }
@@ -300,7 +309,14 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
       driveEmbedUrl: video.driveEmbedUrl,
       driveParts: video.driveParts,
     });
-    let streamParts: { label: string; url: string; hlsUrl?: string; lowUrl?: string }[];
+    let streamParts: {
+      label: string;
+      url: string;
+      hlsUrl?: string;
+      lowUrl?: string;
+      drivePreviewUrl?: string;
+      driveViewUrl?: string;
+    }[];
     // Build streamParts from drive parts list (authoritative source for labels/count).
     // For each part: use server-proxied GCS stream if migrated (never a direct
     // storage.googleapis.com URL — download managers intercept those), otherwise
@@ -322,7 +338,17 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
         lowEntry && "fileId" in lowEntry && lowEntry.fileId
           ? `/api/videos/${id}/stream/${i}?token=${token}&q=low`
           : undefined;
-      return { label: p.label, url, hlsUrl, lowUrl };
+      // Direct Drive playback is deliberately constructed only here, after the
+      // full video entitlement check above. Lists and playlist payloads never
+      // receive a Drive URL or file id.
+      const driveFileId = hasDirectDriveAccess ? extractDriveFileId(p.url) : null;
+      const drivePreviewUrl = driveFileId
+        ? `https://drive.google.com/file/d/${driveFileId}/preview`
+        : undefined;
+      const driveViewUrl = driveFileId
+        ? `https://drive.google.com/file/d/${driveFileId}/view`
+        : undefined;
+      return { label: p.label, url, hlsUrl, lowUrl, drivePreviewUrl, driveViewUrl };
     });
 
     res.json({

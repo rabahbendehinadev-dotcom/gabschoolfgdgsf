@@ -203,9 +203,21 @@ export const GetVideosResponseItem = zod.object({
             .describe(
               "Same-origin, token-protected 720p stream URL (lighter Drive copy). Present only when the background transcoder has produced a 720p copy; the player defaults to it with a toggle back to the original-quality `url`.",
             ),
+          drivePreviewUrl: zod
+            .string()
+            .nullish()
+            .describe(
+              "Google Drive preview URL returned only by the entitled single-video response. Video bytes travel directly from Google Drive to the viewer.",
+            ),
+          driveViewUrl: zod
+            .string()
+            .nullish()
+            .describe(
+              "Google Drive top-level view URL for mobile and Safari users when embedded Google authentication is unavailable.",
+            ),
         })
         .describe(
-          "A single playable part streamed securely from our server (no Drive link exposed).",
+          "A single playable part. Server playback is always present; entitled detail responses may also include direct Google Drive playback.",
         ),
     )
     .nullish()
@@ -257,9 +269,21 @@ export const GetVideoResponse = zod.object({
             .describe(
               "Same-origin, token-protected 720p stream URL (lighter Drive copy). Present only when the background transcoder has produced a 720p copy; the player defaults to it with a toggle back to the original-quality `url`.",
             ),
+          drivePreviewUrl: zod
+            .string()
+            .nullish()
+            .describe(
+              "Google Drive preview URL returned only by the entitled single-video response. Video bytes travel directly from Google Drive to the viewer.",
+            ),
+          driveViewUrl: zod
+            .string()
+            .nullish()
+            .describe(
+              "Google Drive top-level view URL for mobile and Safari users when embedded Google authentication is unavailable.",
+            ),
         })
         .describe(
-          "A single playable part streamed securely from our server (no Drive link exposed).",
+          "A single playable part. Server playback is always present; entitled detail responses may also include direct Google Drive playback.",
         ),
     )
     .nullish()
