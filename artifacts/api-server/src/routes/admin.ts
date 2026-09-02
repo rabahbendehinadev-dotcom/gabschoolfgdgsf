@@ -1479,7 +1479,50 @@ router.post("/admin/videos", adminAuth, async (req, res) => {
     }).returning();
 
     const [cat] = await db.select().from(categoriesTable).where(eq(categoriesTable.id, video.categoryId)).limit(1);
+    const coursePlaylistId = video.playlistId ?? cat?.linkedPlaylistId ?? null;
+    const [playlist] = coursePlaylistId
+      ? await db
+          .select({ title: playlistsTable.title })
+          .from(playlistsTable)
+          .where(eq(playlistsTable.id, coursePlaylistId))
+          .limit(1)
+      : [];
     requestDriveTranscode(video.id);
+
+    if (video.isVisible) {
+      const courseTitle = playlist?.title || cat?.name || "GAB School";
+      try {
+        await createNotification({
+          type: "video",
+          title: "🎬 درس جديد متوفر الآن",
+          body: `${video.title}\nضمن دورة ${courseTitle}`,
+          adminId: req.admin!.id,
+          audienceType: coursePlaylistId
+            ? "course"
+            : video.accessType === "vip"
+              ? "vip"
+              : "all",
+          audienceValue: coursePlaylistId ? String(coursePlaylistId) : null,
+          targetType: "lesson",
+          targetId: video.id,
+          targetPath: `/videos/${video.id}`,
+          metadata: {
+            thumbnailUrl: video.thumbnailUrl,
+            courseTitle,
+            videoTitle: video.title,
+          },
+          dedupeKey: `video-${video.id}`,
+        });
+      } catch (notificationError) {
+        console.error("[admin/videos] notification fan-out failed (non-fatal):", {
+          videoId: video.id,
+          error:
+            notificationError instanceof Error
+              ? notificationError.message
+              : String(notificationError),
+        });
+      }
+    }
 
     res.status(201).json({
       id: video.id, title: video.title, description: video.description,

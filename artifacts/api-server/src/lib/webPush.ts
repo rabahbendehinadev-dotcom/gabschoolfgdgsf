@@ -38,6 +38,8 @@ export type PushPayload = {
   body: string;
   url?: string;
   tag?: string;
+  image?: string;
+  actions?: Array<{ action: string; title: string }>;
 };
 
 /**

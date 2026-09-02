@@ -1214,6 +1214,8 @@ export const GetNotificationsResponse = zod.object({
       targetId: zod.number().nullish(),
       targetPath: zod.string().nullish(),
       actorUsername: zod.string().nullish(),
+      thumbnailUrl: zod.string().nullish(),
+      courseTitle: zod.string().nullish(),
       isRead: zod.boolean(),
       createdAt: zod.date(),
     }),

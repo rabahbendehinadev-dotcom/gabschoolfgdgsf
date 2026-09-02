@@ -2937,6 +2937,12 @@ components:
         actorUsername:
           type: string
           nullable: true
+        thumbnailUrl:
+          type: string
+          nullable: true
+        courseTitle:
+          type: string
+          nullable: true
         isRead:
           type: boolean
         createdAt:

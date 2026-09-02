@@ -81,9 +81,6 @@ export interface AuthResponse {
 export type AdminAuthResponseAdmin = {
   id: number;
   username: string;
-  email?: string | null;
-  displayName?: string | null;
-  role?: string | null;
 };
 
 export interface AdminAuthResponse {
@@ -761,6 +758,8 @@ export interface NotificationItem {
   targetId?: number | null;
   targetPath?: string | null;
   actorUsername?: string | null;
+  thumbnailUrl?: string | null;
+  courseTitle?: string | null;
   isRead: boolean;
   createdAt: string;
 }

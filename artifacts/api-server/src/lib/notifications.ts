@@ -5,15 +5,16 @@ import {
   usersTable,
   activityLogsTable,
   videosTable,
+  userCoursesTable,
 } from "@workspace/db";
 import { and, eq, or, gt, isNull, isNotNull, inArray, not } from "drizzle-orm";
 import { sendPushToUsers, type PushPayload } from "./webPush";
 
-export type AudienceType = "all" | "vip" | "normal" | "user" | "category";
+export type AudienceType = "all" | "vip" | "normal" | "user" | "category" | "course";
 export type TargetType = "post" | "lesson" | "page" | "none";
 
 export type CreateNotificationInput = {
-  type: string; // community_vip_post | comment | reply | like | admin_broadcast
+  type: string; // video | community_* | vip | system | comment | reply | like | admin_broadcast
   title: string;
   body?: string;
   actorUserId?: number | null;
@@ -43,21 +44,22 @@ function vipWhere() {
 async function resolveAudience(
   audienceType: AudienceType,
   audienceValue: string | null,
+  executor: Pick<typeof db, "select" | "selectDistinct"> = db,
 ): Promise<number[]> {
   switch (audienceType) {
     case "all": {
-      const rows = await db
+      const rows = await executor
         .select({ id: usersTable.id })
         .from(usersTable)
         .where(eq(usersTable.isActive, true));
       return rows.map((r) => r.id);
     }
     case "vip": {
-      const rows = await db.select({ id: usersTable.id }).from(usersTable).where(vipWhere());
+      const rows = await executor.select({ id: usersTable.id }).from(usersTable).where(vipWhere());
       return rows.map((r) => r.id);
     }
     case "normal": {
-      const rows = await db
+      const rows = await executor
         .select({ id: usersTable.id })
         .from(usersTable)
         .where(and(eq(usersTable.isActive, true), not(vipWhere())));
@@ -66,7 +68,7 @@ async function resolveAudience(
     case "user": {
       const uid = Number(audienceValue);
       if (!Number.isFinite(uid)) return [];
-      const rows = await db
+      const rows = await executor
         .select({ id: usersTable.id })
         .from(usersTable)
         .where(and(eq(usersTable.id, uid), eq(usersTable.isActive, true)));
@@ -77,15 +79,47 @@ async function resolveAudience(
       // lesson in this category (derived from activity logs).
       const cid = Number(audienceValue);
       if (!Number.isFinite(cid)) return [];
-      const rows = await db
+      const rows = await executor
         .selectDistinct({ id: activityLogsTable.userId })
         .from(activityLogsTable)
         .innerJoin(videosTable, eq(activityLogsTable.videoId, videosTable.id))
         .where(and(eq(videosTable.categoryId, cid), isNotNull(activityLogsTable.userId)));
       return rows.map((r) => r.id).filter((x): x is number => x != null);
     }
+    case "course": {
+      const playlistId = Number(audienceValue);
+      if (!Number.isFinite(playlistId)) return [];
+      const rows = await executor
+        .selectDistinct({ id: userCoursesTable.userId })
+        .from(userCoursesTable)
+        .innerJoin(usersTable, eq(userCoursesTable.userId, usersTable.id))
+        .where(
+          and(
+            eq(userCoursesTable.playlistId, playlistId),
+            eq(userCoursesTable.status, "active"),
+            or(isNull(userCoursesTable.expiresAt), gt(userCoursesTable.expiresAt, new Date())),
+            eq(usersTable.isActive, true),
+          ),
+        );
+      return rows.map((r) => r.id);
+    }
     default:
       return [];
+  }
+}
+
+export function safeAppThumbnailUrl(value: unknown): string | undefined {
+  if (typeof value !== "string" || value.trim() !== value) return undefined;
+  if (!value.startsWith("/") || value.startsWith("//") || value.includes("\\")) {
+    return undefined;
+  }
+  try {
+    const base = new URL("https://gab-app.invalid/");
+    const resolved = new URL(value, base);
+    if (resolved.origin !== base.origin) return undefined;
+    return `${resolved.pathname}${resolved.search}`;
+  } catch {
+    return undefined;
   }
 }
 
@@ -111,63 +145,90 @@ async function dispatchPush(notificationId: number, userIds: number[], payload: 
 export async function createNotification(
   input: CreateNotificationInput,
 ): Promise<{ notificationId: number; recipientCount: number; deduped: boolean }> {
-  const [created] = await db
-    .insert(notificationsTable)
-    .values({
-      type: input.type,
-      title: input.title,
-      body: input.body ?? "",
-      actorUserId: input.actorUserId ?? null,
-      adminId: input.adminId ?? null,
-      audienceType: input.audienceType ?? null,
-      audienceValue: input.audienceValue ?? null,
-      targetType: input.targetType ?? "none",
-      targetId: input.targetId ?? null,
-      targetPath: input.targetPath ?? null,
-      metadata: input.metadata ?? null,
-      dedupeKey: input.dedupeKey ?? null,
-    })
-    .onConflictDoNothing({ target: notificationsTable.dedupeKey })
-    .returning({ id: notificationsTable.id });
+  const result = await db.transaction(async (tx) => {
+    let recipients: number[];
+    if (input.recipientUserIds && input.recipientUserIds.length > 0) {
+      recipients = input.recipientUserIds;
+    } else if (input.audienceType) {
+      recipients = await resolveAudience(
+        input.audienceType,
+        input.audienceValue ?? null,
+        tx,
+      );
+    } else {
+      recipients = [];
+    }
+    const exclude = new Set(input.excludeUserIds ?? []);
+    const finalRecipients = [...new Set(recipients)].filter((id) => !exclude.has(id));
 
-  if (!created) {
-    // An identical event already exists (dedupeKey conflict).
-    return { notificationId: 0, recipientCount: 0, deduped: true };
-  }
+    const [created] = await tx
+      .insert(notificationsTable)
+      .values({
+        type: input.type,
+        title: input.title,
+        body: input.body ?? "",
+        actorUserId: input.actorUserId ?? null,
+        adminId: input.adminId ?? null,
+        audienceType: input.audienceType ?? null,
+        audienceValue: input.audienceValue ?? null,
+        targetType: input.targetType ?? "none",
+        targetId: input.targetId ?? null,
+        targetPath: input.targetPath ?? null,
+        metadata: input.metadata ?? null,
+        dedupeKey: input.dedupeKey ?? null,
+      })
+      .onConflictDoNothing({ target: notificationsTable.dedupeKey })
+      .returning({ id: notificationsTable.id });
 
-  let recipients: number[];
-  if (input.recipientUserIds && input.recipientUserIds.length > 0) {
-    recipients = input.recipientUserIds;
-  } else if (input.audienceType) {
-    recipients = await resolveAudience(input.audienceType, input.audienceValue ?? null);
-  } else {
-    recipients = [];
-  }
+    if (!created) {
+      return {
+        notificationId: 0,
+        recipientCount: 0,
+        deduped: true,
+        recipientUserIds: [] as number[],
+      };
+    }
 
-  const exclude = new Set(input.excludeUserIds ?? []);
-  const finalRecipients = [...new Set(recipients)].filter((id) => !exclude.has(id));
+    if (finalRecipients.length > 0) {
+      await tx
+        .insert(notificationRecipientsTable)
+        .values(finalRecipients.map((userId) => ({ notificationId: created.id, userId })))
+        .onConflictDoNothing();
+      await tx
+        .update(notificationsTable)
+        .set({ recipientCount: finalRecipients.length })
+        .where(eq(notificationsTable.id, created.id));
+    }
 
-  if (finalRecipients.length > 0) {
-    await db
-      .insert(notificationRecipientsTable)
-      .values(finalRecipients.map((userId) => ({ notificationId: created.id, userId })))
-      .onConflictDoNothing();
-    await db
-      .update(notificationsTable)
-      .set({ recipientCount: finalRecipients.length })
-      .where(eq(notificationsTable.id, created.id));
+    return {
+      notificationId: created.id,
+      recipientCount: finalRecipients.length,
+      deduped: false,
+      recipientUserIds: finalRecipients,
+    };
+  });
 
-    void dispatchPush(created.id, finalRecipients, {
+  if (!result.deduped && result.recipientCount > 0) {
+    const thumbnailUrl = safeAppThumbnailUrl(input.metadata?.thumbnailUrl);
+    void dispatchPush(result.notificationId, result.recipientUserIds, {
       title: input.title,
       body: input.body ?? "",
       url: input.targetPath ?? undefined,
-      tag: input.dedupeKey ?? `notif-${created.id}`,
+      tag: input.dedupeKey ?? `notif-${result.notificationId}`,
+      image: thumbnailUrl,
+      actions:
+        input.type === "video"
+          ? [
+              { action: "watch", title: "شاهد الآن" },
+              { action: "later", title: "لاحقاً" },
+            ]
+          : undefined,
     });
   }
 
   return {
-    notificationId: created.id,
-    recipientCount: finalRecipients.length,
-    deduped: false,
+    notificationId: result.notificationId,
+    recipientCount: result.recipientCount,
+    deduped: result.deduped,
   };
 }

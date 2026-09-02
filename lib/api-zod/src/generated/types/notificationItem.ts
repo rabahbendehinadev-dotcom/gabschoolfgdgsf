@@ -15,6 +15,8 @@ export interface NotificationItem {
   targetId?: number | null;
   targetPath?: string | null;
   actorUsername?: string | null;
+  thumbnailUrl?: string | null;
+  courseTitle?: string | null;
   isRead: boolean;
   createdAt: Date;
 }

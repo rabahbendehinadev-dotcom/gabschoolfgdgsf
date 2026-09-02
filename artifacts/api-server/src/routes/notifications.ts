@@ -9,6 +9,7 @@ import {
 import { and, eq, desc, lt, isNull, count } from "drizzle-orm";
 import { userAuthNoIpLimit } from "../middlewares/auth";
 import { getVapidPublicKey } from "../lib/webPush";
+import { safeAppThumbnailUrl } from "../lib/notifications";
 import { SavePushSubscriptionBody, DeletePushSubscriptionBody, ReportPushStatusBody } from "@workspace/api-zod";
 
 const router: IRouter = Router();
@@ -34,6 +35,7 @@ router.get("/notifications", userAuthNoIpLimit, async (req: Request, res: Respon
         targetType: notificationsTable.targetType,
         targetId: notificationsTable.targetId,
         targetPath: notificationsTable.targetPath,
+        metadata: notificationsTable.metadata,
         createdAt: notificationsTable.createdAt,
         readAt: notificationRecipientsTable.readAt,
         actorUsername: usersTable.username,
@@ -52,18 +54,27 @@ router.get("/notifications", userAuthNoIpLimit, async (req: Request, res: Respon
     const page = hasMore ? rows.slice(0, limit) : rows;
 
     res.json({
-      items: page.map((r) => ({
-        id: r.id,
-        type: r.type,
-        title: r.title,
-        body: r.body,
-        targetType: r.targetType,
-        targetId: r.targetId ?? null,
-        targetPath: r.targetPath ?? null,
-        actorUsername: r.actorUsername ?? null,
-        isRead: r.readAt != null,
-        createdAt: (r.createdAt as Date).toISOString(),
-      })),
+      items: page.map((r) => {
+        const metadata =
+          r.metadata && typeof r.metadata === "object"
+            ? (r.metadata as Record<string, unknown>)
+            : {};
+        return {
+          id: r.id,
+          type: r.type,
+          title: r.title,
+          body: r.body,
+          targetType: r.targetType,
+          targetId: r.targetId ?? null,
+          targetPath: r.targetPath ?? null,
+          actorUsername: r.actorUsername ?? null,
+          thumbnailUrl: safeAppThumbnailUrl(metadata.thumbnailUrl) ?? null,
+          courseTitle:
+            typeof metadata.courseTitle === "string" ? metadata.courseTitle : null,
+          isRead: r.readAt != null,
+          createdAt: (r.createdAt as Date).toISOString(),
+        };
+      }),
       nextCursor: hasMore ? page[page.length - 1]!.id : null,
     });
   } catch (error: unknown) {

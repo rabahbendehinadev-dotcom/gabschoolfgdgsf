@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { motion } from "framer-motion";
-import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+import { motion, AnimatePresence } from "framer-motion";
+import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   getNotifications,
+  getUnreadNotificationCount,
   getGetNotificationsQueryKey,
   getGetUnreadNotificationCountQueryKey,
   useMarkNotificationRead,
@@ -20,30 +21,49 @@ import { cn } from "@/lib/utils";
 import { isPushSupported, resubscribePush } from "@/lib/push";
 import {
   Bell,
-  BellRing,
   CheckCheck,
   Loader2,
   Heart,
   MessageCircle,
-  CornerUpLeft,
+  CornerDownLeft,
   Megaphone,
   Sparkles,
+  PlayCircle,
+  Crown,
+  Settings2,
+  type LucideIcon,
 } from "lucide-react";
 
 const PAGE_SIZE = 20;
 
-type TypeMeta = { Icon: typeof Bell; color: string; ring: string };
-
-const TYPE_META: Record<string, TypeMeta> = {
-  community_vip_post: { Icon: Sparkles, color: "text-amber-500", ring: "from-amber-100 to-orange-100" },
-  like: { Icon: Heart, color: "text-rose-500", ring: "from-rose-100 to-pink-100" },
-  comment: { Icon: MessageCircle, color: "text-sky-500", ring: "from-sky-100 to-blue-100" },
-  reply: { Icon: CornerUpLeft, color: "text-violet-500", ring: "from-violet-100 to-indigo-100" },
-  admin_broadcast: { Icon: Megaphone, color: "text-primary", ring: "from-primary/15 to-primary/5" },
-};
+type TypeMeta = { Icon: LucideIcon; color: string; ring: string };
 
 function metaFor(type: string): TypeMeta {
-  return TYPE_META[type] ?? { Icon: Bell, color: "text-primary", ring: "from-primary/15 to-primary/5" };
+  if (type === "video") return { Icon: PlayCircle, color: "text-blue-500", ring: "from-blue-100 to-indigo-100/50" };
+
+  if (type.startsWith("community") || type === "like" || type === "comment" || type === "reply") {
+    if (type === "like") return { Icon: Heart, color: "text-rose-500", ring: "from-rose-100 to-pink-100/50" };
+    if (type === "comment") return { Icon: MessageCircle, color: "text-sky-500", ring: "from-sky-100 to-blue-100/50" };
+    if (type === "reply") return { Icon: CornerDownLeft, color: "text-violet-500", ring: "from-violet-100 to-fuchsia-100/50" };
+    return { Icon: Sparkles, color: "text-amber-500", ring: "from-amber-100 to-orange-100/50" };
+  }
+
+  if (type.startsWith("vip") || type === "vip") {
+    return { Icon: Crown, color: "text-yellow-600", ring: "from-yellow-100 to-amber-100/50" };
+  }
+
+  if (type === "admin_broadcast") {
+    return { Icon: Megaphone, color: "text-primary", ring: "from-orange-100 to-amber-100/50" };
+  }
+
+  return { Icon: Bell, color: "text-slate-500", ring: "from-slate-100 to-slate-200/50" };
+}
+
+function getFamily(type: string): string {
+  if (type === "video") return "lessons";
+  if (type.startsWith("community") || ["like", "comment", "reply"].includes(type)) return "community";
+  if (type.startsWith("vip") || type === "vip") return "vip";
+  return "system";
 }
 
 function formatRelative(iso: string): string {
@@ -60,6 +80,16 @@ function formatRelative(iso: string): string {
   return new Date(iso).toLocaleDateString("ar-DZ", { dateStyle: "medium" });
 }
 
+type FilterType = "all" | "lessons" | "community" | "vip" | "system";
+
+const TABS: { id: FilterType; label: string }[] = [
+  { id: "all", label: "الكل" },
+  { id: "lessons", label: "الدروس" },
+  { id: "community", label: "Community" },
+  { id: "vip", label: "VIP" },
+  { id: "system", label: "النظام" },
+];
+
 export function Notifications() {
   const { user, getAuthHeaders } = useAuth();
   const { toast } = useToast();
@@ -67,6 +97,7 @@ export function Notifications() {
   const queryClient = useQueryClient();
   const [reenabling, setReenabling] = useState(false);
   const [pushSupported] = useState(() => isPushSupported());
+  const [filter, setFilter] = useState<FilterType>("all");
 
   const listKey = getGetNotificationsQueryKey({ limit: PAGE_SIZE });
 
@@ -81,12 +112,22 @@ export function Notifications() {
     getNextPageParam: (last) => last.nextCursor ?? undefined,
     enabled: !!user,
   });
+  const { data: unreadData } = useQuery({
+    queryKey: getGetUnreadNotificationCountQueryKey(),
+    queryFn: () => getUnreadNotificationCount(getAuthHeaders()),
+    enabled: !!user,
+    refetchOnWindowFocus: true,
+    staleTime: 30_000,
+  });
 
   const markRead = useMarkNotificationRead({ request: getAuthHeaders() });
   const markAllRead = useMarkAllNotificationsRead({ request: getAuthHeaders() });
 
   const items: NotificationItem[] = data?.pages.flatMap((p) => p.items) ?? [];
-  const hasUnread = items.some((n) => !n.isRead);
+  const unreadCount = unreadData?.count ?? items.filter((n) => !n.isRead).length;
+  const hasUnread = unreadCount > 0;
+
+  const filteredItems = items.filter((n) => filter === "all" || getFamily(n.type) === filter);
 
   const refreshCount = () =>
     queryClient.invalidateQueries({ queryKey: getGetUnreadNotificationCountQueryKey() });
@@ -116,9 +157,6 @@ export function Notifications() {
     });
   };
 
-  // Manual self-heal for users whose push silently stopped working (e.g. a
-  // subscription bound to an old VAPID key): tear down whatever the browser has
-  // and recreate a fresh, deliverable subscription, then prune the dead one.
   const onReenable = async () => {
     if (reenabling) return;
     setReenabling(true);
@@ -144,7 +182,7 @@ export function Notifications() {
         );
       }
       toast({
-        title: "تم إعادة تفعيل الإشعارات ✅",
+        title: "تم إعادة تفعيل الإشعارات بنجاح",
         description: "ستصلك الإشعارات الآن حتى عندما يكون هاتفك مقفلًا.",
       });
     } catch {
@@ -155,28 +193,36 @@ export function Notifications() {
   };
 
   return (
-    <div className="container mx-auto max-w-2xl px-4 py-6 sm:py-8">
-      <div className="mb-5 flex items-center justify-between gap-3">
-        <h1 className="flex items-center gap-2 text-xl font-extrabold sm:text-2xl">
-          <Bell className="h-6 w-6 text-primary" />
-          الإشعارات
-        </h1>
-        <div className="flex items-center gap-1.5">
+    <div className="container mx-auto max-w-2xl px-4 py-6 sm:py-10">
+      {/* Header */}
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="flex items-center gap-2.5 text-2xl font-extrabold tracking-tight text-foreground">
+            <Bell className="h-7 w-7 text-primary" strokeWidth={2.5} />
+            الإشعارات
+            {unreadCount > 0 && (
+              <span className="relative -top-2 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-bold text-primary-foreground shadow-sm">
+                {unreadCount}
+              </span>
+            )}
+          </h1>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
           {pushSupported && (
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
               onClick={onReenable}
               disabled={reenabling}
-              className="gap-1.5"
-              title="أعد تفعيل الإشعارات إذا توقفت عن الوصول إلى هاتفك"
+              className="h-8 px-2 text-muted-foreground hover:bg-secondary hover:text-foreground"
+              title="إصلاح الإشعارات"
             >
               {reenabling ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <BellRing className="h-4 w-4" />
+                <Settings2 className="h-4 w-4" />
               )}
-              إعادة تفعيل الإشعارات
             </Button>
           )}
           {hasUnread && (
@@ -185,7 +231,7 @@ export function Notifications() {
               size="sm"
               onClick={onMarkAll}
               disabled={markAllRead.isPending}
-              className="gap-1.5 text-primary hover:text-primary"
+              className="h-8 gap-1.5 px-2.5 text-xs font-semibold text-primary hover:bg-primary/10 hover:text-primary sm:text-sm"
             >
               {markAllRead.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -198,104 +244,155 @@ export function Notifications() {
         </div>
       </div>
 
+      {/* Tabs */}
+      <div
+        className="mb-5 flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-hide sm:gap-2"
+        style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+      >
+        {TABS.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setFilter(tab.id)}
+            className={cn(
+              "whitespace-nowrap rounded-full px-2.5 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 sm:px-4 sm:text-[13px]",
+              filter === tab.id
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "bg-secondary/70 text-secondary-foreground hover:bg-secondary/90"
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Loading State */}
       {isLoading ? (
-        <div className="space-y-3">
+        <div className="space-y-3 mt-4">
           {Array.from({ length: 5 }).map((_, i) => (
             <div
               key={i}
-              className="flex items-center gap-3 rounded-2xl border border-border bg-white/70 p-4"
+              className="flex items-start gap-4 rounded-2xl border border-border/50 bg-white/50 p-4"
             >
-              <Skeleton className="h-12 w-12 shrink-0 rounded-full" />
-              <div className="flex-1 space-y-2">
+              <Skeleton className="h-12 w-12 shrink-0 rounded-xl" />
+              <div className="flex-1 space-y-2.5 pt-1">
                 <Skeleton className="h-4 w-3/4" />
                 <Skeleton className="h-3 w-1/2" />
               </div>
             </div>
           ))}
         </div>
-      ) : items.length === 0 ? (
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-          className="flex flex-col items-center justify-center rounded-3xl border border-border bg-white/80 px-6 py-16 text-center shadow-[0_4px_20px_rgba(15,23,42,0.05)] backdrop-blur-xl"
-        >
-          <div className="mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-amber-100 to-orange-100">
-            <Bell className="h-10 w-10 text-orange-500" />
-          </div>
-          <h2 className="mb-2 text-lg font-bold text-foreground">لا توجد إشعارات بعد</h2>
-          <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
-            سنُعلمك هنا بأحدث الدورات والمنشورات والتحديثات المهمة في منصة GAB.
-          </p>
-        </motion.div>
       ) : (
         <>
-          <ul className="space-y-2.5">
-            {items.map((n, idx) => {
-              const meta = metaFor(n.type);
-              const Icon = meta.Icon;
-              return (
-                <motion.li
-                  key={n.id}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.22, delay: Math.min(idx * 0.02, 0.2) }}
-                >
-                  <button
-                    type="button"
-                    onClick={() => onOpen(n)}
-                    className={cn(
-                      "group flex w-full items-start gap-3 rounded-2xl border p-4 text-right transition-all",
-                      "hover:shadow-[0_6px_22px_rgba(15,23,42,0.08)]",
-                      n.isRead
-                        ? "border-border bg-white/70"
-                        : "border-primary/25 bg-primary/[0.06]",
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br",
-                        meta.ring,
-                      )}
+          {/* Empty State */}
+          {filteredItems.length === 0 ? (
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-8 flex flex-col items-center justify-center rounded-3xl border border-dashed border-border/60 bg-white/40 px-6 py-16 text-center"
+            >
+              <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-secondary/80">
+                <Bell className="h-8 w-8 text-muted-foreground/50" />
+              </div>
+              <h2 className="mb-1.5 text-lg font-bold text-foreground">
+                {filter === "all" ? "لا توجد إشعارات بعد" : "لا توجد إشعارات في هذا القسم"}
+              </h2>
+              <p className="max-w-[260px] text-sm leading-relaxed text-muted-foreground">
+                {filter === "all"
+                  ? "سنُعلمك هنا بأحدث الدروس والمنشورات والتحديثات المهمة."
+                  : "لم نجد أي إشعارات تطابق هذا التصنيف حالياً."}
+              </p>
+            </motion.div>
+          ) : (
+            /* Items List */
+            <ul className="space-y-3">
+              <AnimatePresence mode="popLayout">
+                {filteredItems.map((n) => {
+                  const meta = metaFor(n.type);
+                  const Icon = meta.Icon;
+                  return (
+                    <motion.li
+                      layout
+                      initial={{ opacity: 0, scale: 0.98, y: 10 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.15 } }}
+                      transition={{ duration: 0.2 }}
+                      key={n.id}
                     >
-                      <Icon className={cn("h-6 w-6", meta.color)} />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="flex items-center gap-2">
-                        <span
-                          className={cn(
-                            "truncate text-[15px] leading-snug",
-                            n.isRead ? "font-semibold text-foreground" : "font-bold text-foreground",
-                          )}
-                        >
-                          {n.title}
-                        </span>
-                        {!n.isRead && (
-                          <span className="h-2 w-2 shrink-0 rounded-full bg-primary" aria-label="غير مقروء" />
+                      <button
+                        type="button"
+                        onClick={() => onOpen(n)}
+                        className={cn(
+                          "group relative flex w-full items-start gap-4 rounded-2xl border p-4 text-right transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
+                          n.isRead
+                            ? "bg-white border-border/60 hover:border-border hover:shadow-sm"
+                            : "bg-primary/[0.03] border-primary/20 hover:border-primary/40 hover:bg-primary/[0.05] shadow-sm"
                         )}
-                      </span>
-                      {n.body && (
-                        <span className="mt-1 line-clamp-2 block text-sm leading-relaxed text-muted-foreground">
-                          {n.body}
-                        </span>
-                      )}
-                      <span className="mt-1.5 block text-xs text-muted-foreground/80">
-                        {formatRelative(n.createdAt)}
-                      </span>
-                    </span>
-                  </button>
-                </motion.li>
-              );
-            })}
-          </ul>
+                      >
+                        {/* Unread Left Indicator Stripe */}
+                        {!n.isRead && (
+                          <div className="absolute top-4 bottom-4 right-0 w-[3px] rounded-l-full bg-primary" />
+                        )}
 
+                        {/* Thumbnail / Icon */}
+                        {n.thumbnailUrl ? (
+                          <div className="relative shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl overflow-hidden bg-muted border border-border/50">
+                            <img
+                              src={n.thumbnailUrl}
+                              alt=""
+                              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                            />
+                            <div className="absolute inset-0 bg-black/10 flex items-center justify-center">
+                              <PlayCircle className="w-5 h-5 sm:w-6 sm:h-6 text-white drop-shadow-md" />
+                            </div>
+                          </div>
+                        ) : (
+                          <div className={cn("shrink-0 w-12 h-12 rounded-xl flex items-center justify-center bg-gradient-to-br border border-black/[0.03]", meta.ring)}>
+                            <Icon className={cn("w-5 h-5", meta.color)} />
+                          </div>
+                        )}
+
+                        {/* Content */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex justify-between items-start gap-3">
+                            <div className="min-w-0 space-y-0.5">
+                              {n.courseTitle && (
+                                <p className="text-[11px] font-bold text-primary truncate">
+                                  {n.courseTitle}
+                                </p>
+                              )}
+                              <h3 className={cn("text-sm truncate", n.isRead ? "font-semibold text-foreground/80" : "font-bold text-foreground")}>
+                                {n.title}
+                              </h3>
+                            </div>
+                            <span className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground whitespace-nowrap shrink-0 pt-1">
+                              {!n.isRead && <span className="h-1.5 w-1.5 rounded-full bg-primary shadow-sm" />}
+                              {formatRelative(n.createdAt)}
+                            </span>
+                          </div>
+
+                          {n.body && (
+                            <p className={cn("text-[13px] line-clamp-2 leading-relaxed mt-1.5", n.isRead ? "text-muted-foreground/70" : "text-muted-foreground")}>
+                              {n.body}
+                            </p>
+                          )}
+                        </div>
+                      </button>
+                    </motion.li>
+                  );
+                })}
+              </AnimatePresence>
+            </ul>
+          )}
+
+          {/* Load More */}
           {hasNextPage && (
-            <div className="mt-5 flex justify-center">
+            <div className="mt-6 flex justify-center">
               <Button
                 variant="outline"
+                size="sm"
                 onClick={() => fetchNextPage()}
                 disabled={isFetchingNextPage}
-                className="gap-2"
+                className="gap-2 rounded-full px-6 font-semibold shadow-sm"
               >
                 {isFetchingNextPage && <Loader2 className="h-4 w-4 animate-spin" />}
                 عرض المزيد

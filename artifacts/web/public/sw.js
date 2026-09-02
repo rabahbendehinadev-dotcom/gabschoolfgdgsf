@@ -92,7 +92,7 @@ async function trimImageCache(cache) {
 }
 
 // A push arrived: render a system notification. Payload shape (sent by the
-// server): { title, body, url?, tag? }. Everything is defensive so a malformed
+// server): { title, body, url?, tag?, image?, actions? }. Everything is defensive so a malformed
 // payload never throws inside the SW.
 self.addEventListener("push", (event) => {
   let payload = {};
@@ -103,6 +103,29 @@ self.addEventListener("push", (event) => {
   }
 
   const title = payload.title || "GAB School";
+  let image;
+  if (typeof payload.image === "string") {
+    try {
+      if (payload.image.startsWith("/")) {
+        image = new URL(payload.image.replace(/^\/+/, ""), self.registration.scope).href;
+      } else {
+        const candidate = new URL(payload.image);
+        if (candidate.protocol === "https:") image = candidate.href;
+      }
+    } catch (_e) {
+      image = undefined;
+    }
+  }
+  const actions = Array.isArray(payload.actions)
+    ? payload.actions
+        .filter(
+          (item) =>
+            item &&
+            typeof item.action === "string" &&
+            typeof item.title === "string",
+        )
+        .slice(0, 2)
+    : undefined;
   const options = {
     body: payload.body || "",
     tag: payload.tag || undefined,
@@ -111,6 +134,8 @@ self.addEventListener("push", (event) => {
     lang: "ar",
     badge: "./apple-touch-icon.png",
     icon: "./apple-touch-icon.png",
+    image,
+    actions,
   };
 
   event.waitUntil(self.registration.showNotification(title, options));
@@ -122,6 +147,7 @@ self.addEventListener("push", (event) => {
 // a sub-path.
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
+  if (event.action === "later") return;
 
   const scope = self.registration.scope;
   const rawTarget = (event.notification.data && event.notification.data.url) || "/";
