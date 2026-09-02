@@ -8,12 +8,14 @@ function Cell({
   item,
   username,
   className,
+  imageClassName,
   onZoom,
   onPlay,
 }: {
   item: CommunityMediaItem;
   username?: string | null;
   className?: string;
+  imageClassName?: string;
   onZoom: (url: string) => void;
   onPlay: (id: number) => void;
 }) {
@@ -55,12 +57,12 @@ function Cell({
     <button
       type="button"
       onClick={() => item.fullUrl && onZoom(item.fullUrl)}
-      className={`group relative cursor-zoom-in ${className || ""}`}
+      className={`group relative flex cursor-zoom-in items-center justify-center bg-slate-100 ${className || ""}`}
     >
       <img
         src={item.fullUrl || item.previewUrl || ""}
         alt=""
-        className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+        className={`block max-h-full max-w-full object-contain transition-transform duration-300 group-hover:scale-[1.01] ${imageClassName || "h-full w-full"}`}
       />
     </button>
   );
@@ -98,7 +100,8 @@ export function MediaGrid({
       <Cell
         item={it}
         username={username}
-        className={`${cellBase} w-full aspect-[4/3] sm:aspect-video`}
+        className={`${cellBase} w-full min-h-48 max-h-[420px] md:max-h-[520px]`}
+        imageClassName="h-auto w-auto max-h-[420px] md:max-h-[520px]"
         onZoom={setZoom}
         onPlay={setPlaying}
       />
@@ -177,7 +180,7 @@ export function MediaGrid({
         >
           <button
             type="button"
-            className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur-md hover:bg-white/25"
+            className="absolute right-4 top-4 z-10 flex h-11 w-11 items-center justify-center rounded-full border border-white/25 bg-black/55 text-white shadow-lg backdrop-blur-md transition-colors hover:bg-black/75"
             onClick={() => setZoom(null)}
             aria-label="إغلاق"
           >
