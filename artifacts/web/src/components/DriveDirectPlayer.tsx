@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ExternalLink, Maximize, Minimize, TriangleAlert } from "lucide-react";
+import { Maximize, Minimize, RefreshCw } from "lucide-react";
 
 interface DriveDirectPlayerProps {
   previewUrl: string;
@@ -19,7 +19,6 @@ const WATERMARK_POSITIONS = [
 
 export function DriveDirectPlayer({
   previewUrl,
-  viewUrl,
   title,
   username,
   email,
@@ -28,7 +27,8 @@ export function DriveDirectPlayer({
   const containerRef = useRef<HTMLDivElement>(null);
   const [watermarkIndex, setWatermarkIndex] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [showFallback, setShowFallback] = useState(false);
+  const [iframeFailed, setIframeFailed] = useState(false);
+  const [iframeKey, setIframeKey] = useState(0);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -38,7 +38,8 @@ export function DriveDirectPlayer({
   }, []);
 
   useEffect(() => {
-    setShowFallback(false);
+    setIframeFailed(false);
+    setIframeKey(0);
   }, [previewUrl]);
 
   useEffect(() => {
@@ -95,7 +96,6 @@ export function DriveDirectPlayer({
       } else if (container.webkitRequestFullscreen) {
         await container.webkitRequestFullscreen();
       } else {
-        setShowFallback(true);
         return;
       }
 
@@ -107,9 +107,12 @@ export function DriveDirectPlayer({
       } catch {
         // Orientation locking is best-effort and is not supported by every browser.
       }
-    } catch {
-      setShowFallback(true);
-    }
+    } catch {}
+  };
+
+  const retryPreview = () => {
+    setIframeFailed(false);
+    setIframeKey((current) => current + 1);
   };
 
   const identity = username || email || (userId ? `ID: ${userId}` : "مستخدم مصرح");
@@ -126,12 +129,13 @@ export function DriveDirectPlayer({
         }`}
       >
         <iframe
+          key={`${previewUrl}-${iframeKey}`}
           src={previewUrl}
           title={title ? `تشغيل ${title}` : "تشغيل الفيديو"}
           className="absolute inset-0 h-full w-full border-0"
           allow="autoplay"
           referrerPolicy="no-referrer"
-          onError={() => setShowFallback(true)}
+          onError={() => setIframeFailed(true)}
         />
 
         <div
@@ -168,32 +172,23 @@ export function DriveDirectPlayer({
         >
           GAB Online · {identity}
         </div>
-      </div>
 
-      {viewUrl && (
-        <div className="flex flex-col items-stretch gap-2 sm:items-start">
-          {!showFallback ? (
+        {iframeFailed && (
+          <div className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-4 bg-black px-6 text-center text-white">
+            <p className="text-sm font-semibold sm:text-base">
+              تعذر تشغيل الفيديو حالياً. حاول مرة أخرى.
+            </p>
             <button
               type="button"
-              onClick={() => setShowFallback(true)}
-              className="inline-flex min-h-10 items-center justify-center gap-2 self-start rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              onClick={retryPreview}
+              className="inline-flex min-h-11 touch-manipulation items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-black transition hover:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
             >
-              <TriangleAlert className="h-4 w-4" />
-              تعذر تشغيل الفيديو داخل المشغل؟
+              <RefreshCw className="h-4 w-4" />
+              إعادة المحاولة
             </button>
-          ) : (
-          <a
-              href={viewUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex min-h-11 items-center justify-center gap-2 self-start rounded-lg bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground transition-opacity hover:opacity-90"
-            >
-              <ExternalLink className="h-4 w-4" />
-              فتح الفيديو في نافذة جديدة
-            </a>
-          )}
-        </div>
-      )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
