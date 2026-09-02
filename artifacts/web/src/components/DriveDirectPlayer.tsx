@@ -27,6 +27,7 @@ export function DriveDirectPlayer({
   const containerRef = useRef<HTMLDivElement>(null);
   const [watermarkIndex, setWatermarkIndex] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [mobileFullscreenMode, setMobileFullscreenMode] = useState(false);
   const [iframeFailed, setIframeFailed] = useState(false);
   const [iframeKey, setIframeKey] = useState(0);
 
@@ -51,8 +52,9 @@ export function DriveDirectPlayer({
         document.fullscreenElement ?? fullscreenDocument.webkitFullscreenElement;
       const active = fullscreenElement === containerRef.current;
       setIsFullscreen(active);
+      if (active) setMobileFullscreenMode(false);
 
-      if (!active && "orientation" in screen) {
+      if (!active && !mobileFullscreenMode && "orientation" in screen) {
         const orientation = screen.orientation as ScreenOrientation & {
           unlock?: () => void;
         };
@@ -66,7 +68,42 @@ export function DriveDirectPlayer({
       document.removeEventListener("fullscreenchange", syncFullscreenState);
       document.removeEventListener("webkitfullscreenchange", syncFullscreenState);
     };
-  }, []);
+  }, [mobileFullscreenMode]);
+
+  useEffect(() => {
+    if (!mobileFullscreenMode) return;
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+
+    const exitOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobileFullscreenMode(false);
+    };
+    document.addEventListener("keydown", exitOnEscape);
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+      document.removeEventListener("keydown", exitOnEscape);
+      const orientation = screen.orientation as ScreenOrientation & {
+        unlock?: () => void;
+      };
+      orientation.unlock?.();
+    };
+  }, [mobileFullscreenMode]);
+
+  const tryLandscape = async () => {
+    try {
+      const orientation = screen.orientation as ScreenOrientation & {
+        lock?: (orientation: "landscape") => Promise<void>;
+      };
+      await orientation.lock?.("landscape");
+    } catch {
+      // Orientation locking is best-effort and is commonly rejected by Safari.
+    }
+  };
 
   const toggleFullscreen = async () => {
     const container = containerRef.current as (HTMLDivElement & {
@@ -80,6 +117,11 @@ export function DriveDirectPlayer({
 
     const fullscreenElement =
       document.fullscreenElement ?? fullscreenDocument.webkitFullscreenElement;
+
+    if (mobileFullscreenMode) {
+      setMobileFullscreenMode(false);
+      return;
+    }
 
     try {
       if (fullscreenElement) {
@@ -96,18 +138,22 @@ export function DriveDirectPlayer({
       } else if (container.webkitRequestFullscreen) {
         await container.webkitRequestFullscreen();
       } else {
+        setMobileFullscreenMode(true);
+        void tryLandscape();
         return;
       }
 
-      try {
-        const orientation = screen.orientation as ScreenOrientation & {
-          lock?: (orientation: "landscape") => Promise<void>;
-        };
-        await orientation.lock?.("landscape");
-      } catch {
-        // Orientation locking is best-effort and is not supported by every browser.
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      const activeElement =
+        document.fullscreenElement ?? fullscreenDocument.webkitFullscreenElement;
+      if (activeElement !== container) {
+        setMobileFullscreenMode(true);
       }
-    } catch {}
+      void tryLandscape();
+    } catch {
+      setMobileFullscreenMode(true);
+      void tryLandscape();
+    }
   };
 
   const retryPreview = () => {
@@ -117,14 +163,17 @@ export function DriveDirectPlayer({
 
   const identity = username || email || (userId ? `ID: ${userId}` : "مستخدم مصرح");
   const position = WATERMARK_POSITIONS[watermarkIndex];
+  const fullscreenActive = isFullscreen || mobileFullscreenMode;
 
   return (
     <div className="-mx-2 w-[calc(100%+1rem)] max-w-none space-y-3 lg:mx-0 lg:w-full">
       <div
         ref={containerRef}
         className={`relative w-full overflow-hidden bg-black shadow-2xl ${
-          isFullscreen
-            ? "h-[100dvh] w-[100dvw] max-w-none rounded-none border-0"
+          fullscreenActive
+            ? mobileFullscreenMode
+              ? "fixed inset-0 z-[99999] m-0 h-screen h-[100dvh] w-screen w-[100dvw] max-w-none rounded-none border-0 p-0"
+              : "h-[100dvh] w-[100dvw] max-w-none rounded-none border-0"
             : "aspect-video rounded-2xl border border-border"
         }`}
       >
@@ -154,11 +203,11 @@ export function DriveDirectPlayer({
         <button
           type="button"
           onClick={toggleFullscreen}
-          aria-label={isFullscreen ? "الخروج من ملء الشاشة" : "ملء الشاشة"}
-          title={isFullscreen ? "الخروج من ملء الشاشة" : "ملء الشاشة"}
+          aria-label={fullscreenActive ? "الخروج من ملء الشاشة" : "ملء الشاشة"}
+          title={fullscreenActive ? "الخروج من ملء الشاشة" : "ملء الشاشة"}
           className="absolute left-3 top-3 z-30 flex h-11 w-11 touch-manipulation items-center justify-center rounded-xl border border-white/20 bg-black/65 text-white shadow-lg backdrop-blur-md transition hover:bg-black/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80 sm:h-10 sm:w-10"
         >
-          {isFullscreen ? (
+          {fullscreenActive ? (
             <Minimize className="h-5 w-5" />
           ) : (
             <Maximize className="h-5 w-5" />
