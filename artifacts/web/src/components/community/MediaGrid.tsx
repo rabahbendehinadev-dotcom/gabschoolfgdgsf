@@ -88,7 +88,7 @@ export function MediaGrid({
     );
   }
 
-  const cellBase = "relative overflow-hidden rounded-xl bg-muted";
+  const cellBase = "relative overflow-hidden rounded-[20px] bg-slate-100 border border-slate-200/60";
 
   // Layout: 1 → tall single; 2 → 2-up; 3 → 1 wide + 2; 4+ → 2×2 (+N overlay).
   let layout: React.ReactNode;
@@ -155,7 +155,7 @@ export function MediaGrid({
               onPlay={setPlaying}
             />
             {idx === 3 && extra > 0 && (
-              <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-xl bg-black/55 text-2xl font-extrabold text-white">
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-[20px] bg-black/55 text-2xl font-extrabold text-white">
                 +{extra}
               </div>
             )}

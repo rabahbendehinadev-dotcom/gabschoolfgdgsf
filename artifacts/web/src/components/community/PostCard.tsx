@@ -64,12 +64,17 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
   const [editOpen, setEditOpen] = useState(false);
   const [editText, setEditText] = useState(post.content || "");
   const [confirmDel, setConfirmDel] = useState(false);
+  const [authorAvatarFailed, setAuthorAvatarFailed] = useState(false);
 
   const vip = post.author.accountType === "vip";
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState("");
   const [reportSent, setReportSent] = useState(false);
   const [reporting, setReporting] = useState(false);
+
+  useEffect(() => {
+    setAuthorAvatarFailed(false);
+  }, [post.author.profileImageUrl]);
 
   const likeM = useLikeCommunityPost({ request: getAuthHeaders() });
   const unlikeM = useUnlikeCommunityPost({ request: getAuthHeaders() });
@@ -159,44 +164,45 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: Math.min(index, 6) * 0.05, duration: 0.35 }}
     >
-      <Card className="overflow-hidden rounded-2xl border-border bg-white shadow-sm hover:shadow-md transition-shadow">
+      <Card className="overflow-hidden rounded-[24px] border-slate-200 bg-white shadow-sm hover:shadow-md transition-shadow">
         {/* Header */}
-        <div className="flex items-start gap-3 p-4 pb-2">
-          {post.author.profileImageUrl ? (
+        <div className="flex items-start gap-4 p-5 pb-3">
+          {post.author.profileImageUrl && !authorAvatarFailed ? (
             <img
               src={post.author.profileImageUrl}
-              alt={post.author.username}
-              className="h-10 w-10 shrink-0 rounded-full object-cover shadow-sm border border-slate-100"
+              alt=""
+              onError={() => setAuthorAvatarFailed(true)}
+              className="h-12 w-12 shrink-0 rounded-full object-cover shadow-sm border-2 border-white ring-1 ring-slate-100"
             />
           ) : (
             <div
-              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-base font-bold text-white shadow-sm ${
+              className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-lg font-black text-white shadow-sm border-2 border-white ring-1 ring-slate-100 ${
                 vip
                   ? "bg-gradient-to-br from-amber-400 to-orange-500"
-                  : "bg-gradient-to-br from-slate-400 to-slate-500"
+                  : "bg-gradient-to-br from-slate-400 to-slate-600"
               }`}
             >
-              {post.author.username.trim().charAt(0) || "؟"}
+              {post.author.username.trim().charAt(0).toUpperCase() || "؟"}
             </div>
           )}
 
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center flex-wrap gap-x-2 gap-y-0.5">
-              <span className="truncate font-bold text-slate-900 text-[15px]">{post.author.username}</span>
+          <div className="min-w-0 flex-1 pt-0.5">
+            <div className="flex items-center flex-wrap gap-x-2 gap-y-1">
+              <span className="truncate font-black text-slate-900 text-[16px]">{post.author.username}</span>
               {vip && (
-                <span className="flex items-center text-[10px] font-bold text-orange-500 tracking-wider">
+                <span className="flex items-center px-2 py-0.5 bg-amber-50 rounded-md text-[11px] font-black text-amber-600 tracking-wide border border-amber-100/50">
                   VIP
-                  <CheckCircle2 className="w-3 h-3 ml-0.5 text-blue-500 fill-blue-500/20" />
+                  <CheckCircle2 className="w-3.5 h-3.5 ml-1 text-blue-500 fill-blue-500/20" />
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+            <div className="flex items-center gap-2 text-[13px] text-slate-500 font-bold mt-0.5">
               <span>{timeAgo(post.createdAt)}</span>
               {post.isPinned && (
                 <>
                   <span className="w-1 h-1 rounded-full bg-slate-300" />
-                  <span className="flex items-center gap-0.5 text-orange-500">
-                    <Pin className="h-3 w-3" /> مثبّت
+                  <span className="flex items-center gap-1 text-orange-500 bg-orange-50 px-2 rounded-md">
+                    <Pin className="h-3.5 w-3.5" /> مثبّت
                   </span>
                 </>
               )}
@@ -285,32 +291,32 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
 
         {/* Content */}
         {post.content && (
-          <p className="whitespace-pre-wrap break-words px-4 pt-1 pb-3 text-[14px] leading-relaxed text-slate-800">
+          <p className="whitespace-pre-wrap break-words px-5 pt-1 pb-4 text-[15px] leading-[1.7] text-slate-800 font-medium">
             {post.content}
           </p>
         )}
 
         {/* Media */}
         {post.media.length > 0 && (
-          <div className="px-4 pb-4">
+          <div className="px-5 pb-5">
             <MediaGrid media={post.media} username={post.author.username} />
           </div>
         )}
 
         {/* Actions Footer */}
-        <div className="mx-4 mb-2 border-t border-slate-100 flex items-center justify-between flex-wrap gap-2 pt-2">
+        <div className="mx-5 mb-3 border-t border-slate-100 flex items-center justify-between flex-wrap gap-2 pt-3">
 
-          <div className="flex items-center gap-2 sm:gap-4">
+          <div className="flex items-center gap-2 sm:gap-3">
             {/* Like */}
             <button
               type="button"
               onClick={toggleLike}
               data-testid={`button-like-${post.id}`}
-              className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[13px] font-semibold transition-colors ${
-                liked ? "text-orange-500" : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
+              className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[14px] font-bold transition-all active:scale-[0.97] ${
+                liked ? "text-orange-600 bg-orange-50" : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
               }`}
             >
-              <ThumbsUp className={`h-4 w-4 ${liked ? "fill-orange-500 text-orange-500" : "text-slate-400"}`} />
+              <ThumbsUp className={`h-5 w-5 ${liked ? "fill-orange-500 text-orange-500" : "text-slate-400"}`} />
               <span data-testid={`text-likes-${post.id}`}>{likes > 0 ? likes : "إعجاب"}</span>
             </button>
 
@@ -319,19 +325,19 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
               type="button"
               onClick={() => setShowComments((v) => !v)}
               data-testid={`button-comment-${post.id}`}
-              className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[13px] font-semibold transition-colors ${
-                showComments ? "text-orange-500" : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
+              className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[14px] font-bold transition-all active:scale-[0.97] ${
+                showComments ? "text-orange-600 bg-orange-50" : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
               }`}
             >
-              <MessageCircle className={`h-4 w-4 ${showComments ? "fill-orange-500/20 text-orange-500" : "text-slate-400"}`} />
+              <MessageCircle className={`h-5 w-5 ${showComments ? "fill-orange-500/20 text-orange-500" : "text-slate-400"}`} />
               <span data-testid={`text-comments-${post.id}`}>{commentsCount > 0 ? commentsCount : "تعليق"}</span>
             </button>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-4 text-slate-500 font-semibold px-2" title="عدد المشاهدات" aria-label="عدد المشاهدات">
+          <div className="flex items-center gap-4 text-slate-500 font-bold px-3" title="عدد المشاهدات" aria-label="عدد المشاهدات">
             {/* Views */}
-            <div className="flex items-center gap-1.5 text-[13px]">
-              <Eye className="h-4 w-4 text-slate-400" />
+            <div className="flex items-center gap-1.5 text-[14px]">
+              <Eye className="h-5 w-5 text-slate-400" />
               <span data-testid={`text-views-${post.id}`}>{views}</span>
             </div>
           </div>
