@@ -1,5 +1,4 @@
 uploads = []
-outputs = []
 
 [[generated]]
 id = "Hz29l1IHoV0j4mVFChfuG"
@@ -30,3 +29,31 @@ id = "ar4z1-PQaYKrCrxiw_Rah"
 uri = "file://attached_assets/generated_images/hero_tablet_clean.png"
 type = "image"
 title = "clean dark tablet"
+
+[[outputs]]
+id = "naKOYZX86tvo3Rl7vU-6R"
+uri = "file://reports/drive-link-audit-2026-09-04.csv"
+type = "table"
+title = "Production Drive Link Audit — CSV"
+description = "كل 186 رابطاً مع File ID، الحالة، Drive metadata، duplicate flags، والبدائل المطابقة المؤكدة."
+logical_id = "783f9c21-0dd1-447d-af3e-a088972c76ea"
+content_hash = "sha256:e3cf644a5a8e42a1e2243904b4c3af5f6334a841e1686ea507e83f714b641866"
+size = 58947
+mtime_ms = 1788478851103
+storage_uri = "gcs://replit-rams-assets-riker/rams/assets/repl:9f43631c-179c-4eb8-9cc4-07f4efb3c6ed/783f9c21-0dd1-447d-af3e-a088972c76ea/9bb0e6c6-f97a-4ea5-b92f-128f3736288d"
+storage_version_token = "1788478887759122"
+content_type = "text/csv"
+
+[[outputs]]
+id = "7iUIsA33jS13T-JjfPSKu"
+uri = "file://reports/drive-link-audit-2026-09-04.md"
+type = "text"
+title = "Production Drive Link Audit — Full Report"
+description = "الخلاصة الكاملة، الروابط المفقودة، الروابط المكسورة، null driveParts، ومجموعات الفيديو المتطابقة."
+logical_id = "bc0b80e3-ac6e-45a4-9c0c-8550a2b65484"
+content_hash = "sha256:27463d5cf240c7eba70dcb06868ab1cad6a5752228447fe797500cd2b146affa"
+size = 15604
+mtime_ms = 1788478876231
+storage_uri = "gcs://replit-rams-assets-riker/rams/assets/repl:9f43631c-179c-4eb8-9cc4-07f4efb3c6ed/bc0b80e3-ac6e-45a4-9c0c-8550a2b65484/a4a4d588-3bfa-48ce-ac40-9d716cfe27cd"
+storage_version_token = "1788478888348602"
+content_type = "text/markdown"
