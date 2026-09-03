@@ -19,7 +19,7 @@ const WATERMARK_POSITIONS = [
 
 const REPAIR_PENDING_KEY = "gab-video-repair-pending";
 const REPAIR_ATTEMPTS_KEY = "gab-video-repair-attempts";
-const ACCOUNT_INITIALIZATION_URL = "https://accounts.google.com/";
+const ACCOUNT_INITIALIZATION_URL = "https://drive.google.com/";
 
 export function DriveDirectPlayer({
   previewUrl,
