@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Maximize, Minimize, RefreshCw } from "lucide-react";
+import { Maximize, Minimize } from "lucide-react";
 
 interface DriveDirectPlayerProps {
   previewUrl: string;
@@ -27,8 +27,6 @@ export function DriveDirectPlayer({
   const containerRef = useRef<HTMLDivElement>(null);
   const [watermarkIndex, setWatermarkIndex] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [iframeFailed, setIframeFailed] = useState(false);
-  const [iframeKey, setIframeKey] = useState(0);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -36,11 +34,6 @@ export function DriveDirectPlayer({
     }, 5000);
     return () => window.clearInterval(timer);
   }, []);
-
-  useEffect(() => {
-    setIframeFailed(false);
-    setIframeKey(0);
-  }, [previewUrl]);
 
   useEffect(() => {
     const syncFullscreenState = () => {
@@ -110,11 +103,6 @@ export function DriveDirectPlayer({
     } catch {}
   };
 
-  const retryPreview = () => {
-    setIframeFailed(false);
-    setIframeKey((current) => current + 1);
-  };
-
   const identity = username || email || (userId ? `ID: ${userId}` : "مستخدم مصرح");
   const position = WATERMARK_POSITIONS[watermarkIndex];
 
@@ -129,13 +117,11 @@ export function DriveDirectPlayer({
         }`}
       >
         <iframe
-          key={`${previewUrl}-${iframeKey}`}
           src={previewUrl}
           title={title ? `تشغيل ${title}` : "تشغيل الفيديو"}
           className="absolute inset-0 h-full w-full border-0"
           allow="autoplay"
           referrerPolicy="no-referrer"
-          onError={() => setIframeFailed(true)}
         />
 
         <div
@@ -173,21 +159,6 @@ export function DriveDirectPlayer({
           GAB Online · {identity}
         </div>
 
-        {iframeFailed && (
-          <div className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-4 bg-black px-6 text-center text-white">
-            <p className="text-sm font-semibold sm:text-base">
-              تعذر تشغيل الفيديو حالياً. حاول مرة أخرى.
-            </p>
-            <button
-              type="button"
-              onClick={retryPreview}
-              className="inline-flex min-h-11 touch-manipulation items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-black transition hover:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-            >
-              <RefreshCw className="h-4 w-4" />
-              إعادة المحاولة
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );
