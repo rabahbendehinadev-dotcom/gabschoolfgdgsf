@@ -27,13 +27,8 @@ export function DriveDirectPlayer({
   const containerRef = useRef<HTMLDivElement>(null);
   const [watermarkIndex, setWatermarkIndex] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [mobileFullscreenMode, setMobileFullscreenMode] = useState(false);
   const [iframeFailed, setIframeFailed] = useState(false);
   const [iframeKey, setIframeKey] = useState(0);
-  const isIOS =
-    typeof navigator !== "undefined" &&
-    (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
-      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1));
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -56,9 +51,8 @@ export function DriveDirectPlayer({
         document.fullscreenElement ?? fullscreenDocument.webkitFullscreenElement;
       const active = fullscreenElement === containerRef.current;
       setIsFullscreen(active);
-      if (active) setMobileFullscreenMode(false);
 
-      if (!active && !mobileFullscreenMode && "orientation" in screen) {
+      if (!active && "orientation" in screen) {
         const orientation = screen.orientation as ScreenOrientation & {
           unlock?: () => void;
         };
@@ -72,56 +66,7 @@ export function DriveDirectPlayer({
       document.removeEventListener("fullscreenchange", syncFullscreenState);
       document.removeEventListener("webkitfullscreenchange", syncFullscreenState);
     };
-  }, [mobileFullscreenMode]);
-
-  useEffect(() => {
-    if (!mobileFullscreenMode) return;
-
-    const scrollY = window.scrollY;
-    const previousBodyOverflow = document.body.style.overflow;
-    const previousBodyPosition = document.body.style.position;
-    const previousBodyTop = document.body.style.top;
-    const previousBodyLeft = document.body.style.left;
-    const previousBodyRight = document.body.style.right;
-    const previousBodyWidth = document.body.style.width;
-    const previousHtmlOverflow = document.documentElement.style.overflow;
-
-    document.body.style.overflow = "hidden";
-    document.body.style.position = "fixed";
-    document.body.style.top = `-${scrollY}px`;
-    document.body.style.left = "0";
-    document.body.style.right = "0";
-    document.body.style.width = "100%";
-    document.documentElement.style.overflow = "hidden";
-
-    const exitOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setMobileFullscreenMode(false);
-    };
-    document.addEventListener("keydown", exitOnEscape);
-
-    return () => {
-      document.body.style.overflow = previousBodyOverflow;
-      document.body.style.position = previousBodyPosition;
-      document.body.style.top = previousBodyTop;
-      document.body.style.left = previousBodyLeft;
-      document.body.style.right = previousBodyRight;
-      document.body.style.width = previousBodyWidth;
-      document.documentElement.style.overflow = previousHtmlOverflow;
-      document.removeEventListener("keydown", exitOnEscape);
-      window.scrollTo(0, scrollY);
-    };
-  }, [mobileFullscreenMode]);
-
-  const tryLandscape = async () => {
-    try {
-      const orientation = screen.orientation as ScreenOrientation & {
-        lock?: (orientation: "landscape") => Promise<void>;
-      };
-      await orientation.lock?.("landscape");
-    } catch {
-      // Orientation locking is best-effort and is commonly rejected by Safari.
-    }
-  };
+  }, []);
 
   const toggleFullscreen = async () => {
     const container = containerRef.current as (HTMLDivElement & {
@@ -135,16 +80,6 @@ export function DriveDirectPlayer({
 
     const fullscreenElement =
       document.fullscreenElement ?? fullscreenDocument.webkitFullscreenElement;
-
-    if (mobileFullscreenMode) {
-      setMobileFullscreenMode(false);
-      return;
-    }
-
-    if (isIOS) {
-      setMobileFullscreenMode(true);
-      return;
-    }
 
     try {
       if (fullscreenElement) {
@@ -161,22 +96,18 @@ export function DriveDirectPlayer({
       } else if (container.webkitRequestFullscreen) {
         await container.webkitRequestFullscreen();
       } else {
-        setMobileFullscreenMode(true);
-        void tryLandscape();
         return;
       }
 
-      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-      const activeElement =
-        document.fullscreenElement ?? fullscreenDocument.webkitFullscreenElement;
-      if (activeElement !== container) {
-        setMobileFullscreenMode(true);
+      try {
+        const orientation = screen.orientation as ScreenOrientation & {
+          lock?: (orientation: "landscape") => Promise<void>;
+        };
+        await orientation.lock?.("landscape");
+      } catch {
+        // Orientation locking is best-effort and is not supported by every browser.
       }
-      void tryLandscape();
-    } catch {
-      setMobileFullscreenMode(true);
-      void tryLandscape();
-    }
+    } catch {}
   };
 
   const retryPreview = () => {
@@ -186,25 +117,22 @@ export function DriveDirectPlayer({
 
   const identity = username || email || (userId ? `ID: ${userId}` : "مستخدم مصرح");
   const position = WATERMARK_POSITIONS[watermarkIndex];
-  const fullscreenActive = isFullscreen || mobileFullscreenMode;
 
   return (
     <div className="-mx-2 w-[calc(100%+1rem)] max-w-none space-y-3 lg:mx-0 lg:w-full">
       <div
         ref={containerRef}
-        className={`w-full overflow-hidden bg-black shadow-2xl ${
-          fullscreenActive
-            ? mobileFullscreenMode
-              ? "fixed inset-0 z-[999999] m-0 h-[100dvh] w-[100dvw] max-w-none rounded-none border-0 p-0"
-              : "relative h-[100dvh] w-[100dvw] max-w-none rounded-none border-0"
-            : "relative aspect-video rounded-2xl border border-border"
+        className={`relative w-full overflow-hidden bg-black shadow-2xl ${
+          isFullscreen
+            ? "h-[100dvh] w-[100dvw] max-w-none rounded-none border-0"
+            : "aspect-video rounded-2xl border border-border"
         }`}
       >
         <iframe
           key={`${previewUrl}-${iframeKey}`}
           src={previewUrl}
           title={title ? `تشغيل ${title}` : "تشغيل الفيديو"}
-          className="absolute inset-0 z-0 h-full w-full border-0"
+          className="absolute inset-0 h-full w-full border-0"
           allow="autoplay"
           referrerPolicy="no-referrer"
           onError={() => setIframeFailed(true)}
@@ -212,7 +140,7 @@ export function DriveDirectPlayer({
 
         <div
           aria-hidden="true"
-          className="pointer-events-auto absolute right-0 top-0 z-40 h-[52px] w-[52px] cursor-default bg-transparent"
+          className="pointer-events-auto absolute right-1.5 top-1.5 z-30 h-11 w-11 cursor-default bg-transparent sm:right-2 sm:top-2 sm:h-12 sm:w-12"
           onClick={(event) => {
             event.preventDefault();
             event.stopPropagation();
@@ -226,11 +154,11 @@ export function DriveDirectPlayer({
         <button
           type="button"
           onClick={toggleFullscreen}
-          aria-label={fullscreenActive ? "الخروج من ملء الشاشة" : "ملء الشاشة"}
-          title={fullscreenActive ? "الخروج من ملء الشاشة" : "ملء الشاشة"}
-          className="pointer-events-auto absolute left-3 top-3 z-40 flex h-11 w-11 touch-manipulation items-center justify-center rounded-xl border border-white/20 bg-black/65 text-white shadow-lg backdrop-blur-md transition hover:bg-black/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80 sm:h-10 sm:w-10"
+          aria-label={isFullscreen ? "الخروج من ملء الشاشة" : "ملء الشاشة"}
+          title={isFullscreen ? "الخروج من ملء الشاشة" : "ملء الشاشة"}
+          className="absolute left-3 top-3 z-30 flex h-11 w-11 touch-manipulation items-center justify-center rounded-xl border border-white/20 bg-black/65 text-white shadow-lg backdrop-blur-md transition hover:bg-black/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80 sm:h-10 sm:w-10"
         >
-          {fullscreenActive ? (
+          {isFullscreen ? (
             <Minimize className="h-5 w-5" />
           ) : (
             <Maximize className="h-5 w-5" />
@@ -246,14 +174,14 @@ export function DriveDirectPlayer({
         </div>
 
         {iframeFailed && (
-          <div className="pointer-events-none absolute inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-black px-6 text-center text-white">
+          <div className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-4 bg-black px-6 text-center text-white">
             <p className="text-sm font-semibold sm:text-base">
               تعذر تشغيل الفيديو حالياً. حاول مرة أخرى.
             </p>
             <button
               type="button"
               onClick={retryPreview}
-              className="pointer-events-auto inline-flex min-h-11 touch-manipulation items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-black transition hover:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              className="inline-flex min-h-11 touch-manipulation items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-black transition hover:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
             >
               <RefreshCw className="h-4 w-4" />
               إعادة المحاولة
@@ -261,7 +189,6 @@ export function DriveDirectPlayer({
           </div>
         )}
       </div>
-
     </div>
   );
 }
