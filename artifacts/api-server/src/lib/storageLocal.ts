@@ -125,6 +125,13 @@ export async function signLocalObjectURL({
   const token = randomUUID();
   const expires = Date.now() + 900_000;
   const signedPath = `/api/storage/local-signed?b=${encodeURIComponent(bucketName)}&o=${encodeURIComponent(objectName)}&t=${token}&exp=${expires}`;
-  const baseUrl = process.env.APP_BASE_URL || "http://localhost:3000";
+  const configuredBaseUrl = process.env.APP_BASE_URL?.replace(/\/+$/, "");
+  if (
+    process.env.NODE_ENV === "production" &&
+    (!configuredBaseUrl || !configuredBaseUrl.startsWith("https://"))
+  ) {
+    throw new Error("APP_BASE_URL must use HTTPS in production");
+  }
+  const baseUrl = configuredBaseUrl || "http://localhost:3000";
   return `${baseUrl}${signedPath}`;
 }
