@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Maximize, Minimize, RefreshCw } from "lucide-react";
+import { AlertTriangle, ExternalLink, Maximize, Minimize, RefreshCw, Wrench } from "lucide-react";
 
 interface DriveDirectPlayerProps {
   previewUrl: string;
@@ -17,6 +17,9 @@ const WATERMARK_POSITIONS = [
   { top: "70%", right: "55%" },
 ];
 
+const REPAIR_PENDING_KEY = "gab-video-repair-pending";
+const ACCOUNT_INITIALIZATION_URL = "https://accounts.google.com/";
+
 export function DriveDirectPlayer({
   previewUrl,
   title,
@@ -30,6 +33,8 @@ export function DriveDirectPlayer({
   const [mobileFullscreenMode, setMobileFullscreenMode] = useState(false);
   const [iframeFailed, setIframeFailed] = useState(false);
   const [iframeKey, setIframeKey] = useState(0);
+  const [repairPromptOpen, setRepairPromptOpen] = useState(false);
+  const [repairStatus, setRepairStatus] = useState<"idle" | "waiting" | "retried" | "failed">("idle");
   const isIOS =
     typeof navigator !== "undefined" &&
     (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
@@ -45,7 +50,47 @@ export function DriveDirectPlayer({
   useEffect(() => {
     setIframeFailed(false);
     setIframeKey(0);
+    setRepairPromptOpen(false);
+    setRepairStatus("idle");
   }, [previewUrl]);
+
+  useEffect(() => {
+    let retryTimer: number | undefined;
+
+    const retryPendingRepair = () => {
+      const pendingValue = window.sessionStorage.getItem(REPAIR_PENDING_KEY);
+      if (!pendingValue) return;
+
+      const openedAt = Number(pendingValue);
+      const elapsed = Number.isFinite(openedAt) ? Date.now() - openedAt : 1500;
+      const delay = Math.max(0, 1200 - elapsed);
+
+      window.clearTimeout(retryTimer);
+      retryTimer = window.setTimeout(() => {
+        if (!window.sessionStorage.getItem(REPAIR_PENDING_KEY)) return;
+
+        window.sessionStorage.removeItem(REPAIR_PENDING_KEY);
+        setIframeFailed(false);
+        setIframeKey((current) => current + 1);
+        setRepairStatus("retried");
+      }, delay);
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") retryPendingRepair();
+    };
+
+    window.addEventListener("pageshow", retryPendingRepair);
+    window.addEventListener("focus", retryPendingRepair);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.clearTimeout(retryTimer);
+      window.removeEventListener("pageshow", retryPendingRepair);
+      window.removeEventListener("focus", retryPendingRepair);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, []);
 
   useEffect(() => {
     const syncFullscreenState = () => {
@@ -184,6 +229,13 @@ export function DriveDirectPlayer({
     setIframeKey((current) => current + 1);
   };
 
+  const startRepairFlow = () => {
+    window.sessionStorage.setItem(REPAIR_PENDING_KEY, String(Date.now()));
+    setRepairPromptOpen(false);
+    setRepairStatus("waiting");
+    window.open(ACCOUNT_INITIALIZATION_URL, "_blank", "noopener,noreferrer");
+  };
+
   const identity = username || email || (userId ? `ID: ${userId}` : "مستخدم مصرح");
   const position = WATERMARK_POSITIONS[watermarkIndex];
   const fullscreenActive = isFullscreen || mobileFullscreenMode;
@@ -258,6 +310,78 @@ export function DriveDirectPlayer({
               <RefreshCw className="h-4 w-4" />
               إعادة المحاولة
             </button>
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-xl border border-border bg-card px-3 py-3">
+        <button
+          type="button"
+          onClick={() => setRepairPromptOpen((current) => !current)}
+          className="flex min-h-11 w-full touch-manipulation items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 py-2.5 text-sm font-bold text-foreground transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        >
+          <Wrench className="h-4 w-4" />
+          إصلاح تشغيل الفيديو
+        </button>
+
+        {repairPromptOpen && (
+          <div className="mt-3 rounded-lg bg-muted/60 p-3 text-sm text-foreground">
+            <p className="leading-6">
+              ستفتح نافذة لإعادة تهيئة جلسة المشاهدة. أكمل الخطوات ثم ارجع إلى المنصة.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={startRepairFlow}
+                className="inline-flex min-h-10 touch-manipulation items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-bold text-primary-foreground"
+              >
+                <ExternalLink className="h-4 w-4" />
+                متابعة
+              </button>
+              <button
+                type="button"
+                onClick={() => setRepairPromptOpen(false)}
+                className="inline-flex min-h-10 touch-manipulation items-center justify-center rounded-lg border border-border bg-background px-4 py-2 text-sm font-bold"
+              >
+                إلغاء
+              </button>
+            </div>
+          </div>
+        )}
+
+        {repairStatus === "waiting" && (
+          <p className="mt-3 text-center text-xs leading-5 text-muted-foreground">
+            أكمل الخطوات في النافذة المفتوحة، ثم ارجع إلى المنصة.
+          </p>
+        )}
+
+        {repairStatus === "retried" && (
+          <div className="mt-3 text-center">
+            <p className="text-xs leading-5 text-muted-foreground">
+              تمت إعادة تحميل جلسة المشاهدة.
+            </p>
+            <button
+              type="button"
+              onClick={() => setRepairStatus("failed")}
+              className="mt-2 min-h-9 touch-manipulation text-xs font-bold text-primary underline underline-offset-4"
+            >
+              ما زالت المشكلة
+            </button>
+          </div>
+        )}
+
+        {repairStatus === "failed" && (
+          <div className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm">
+            <p className="flex items-center gap-2 font-bold text-amber-700">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              تعذر تهيئة جلسة المشاهدة على هذا الجهاز.
+            </p>
+            <ol className="mt-2 list-decimal space-y-1 pe-5 text-xs leading-5 text-foreground/75">
+              <li>افتح إعدادات iPhone ثم التطبيقات ثم Safari.</li>
+              <li>افتح متقدم ثم بيانات المواقع.</li>
+              <li>احذف بيانات المواقع المرتبطة بجلسة تسجيل الدخول فقط.</li>
+              <li>ارجع إلى المنصة واضغط إصلاح تشغيل الفيديو مرة أخرى.</li>
+            </ol>
           </div>
         )}
       </div>
