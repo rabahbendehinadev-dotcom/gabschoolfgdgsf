@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
+import { isActiveVip, isVideoLocked } from "@/lib/videoAccess";
 
 type SectionVideo = {
   id: number;
@@ -143,17 +144,10 @@ function LessonRow({ video, index, locked }: { video: SectionVideo; index: numbe
 /* ════════════════════════════════════════════════════════════ */
 export function CourseDetail({ id }: { id: number }) {
   const { user, getAuthHeaders } = useAuth();
-  const isVip =
-    user?.accountType === "vip" &&
-    !user.subscriptionIsExpired &&
-    (!user.subscriptionExpiresAt || new Date(user.subscriptionExpiresAt) > new Date());
-  const isSubscriptionLocked = !user || user.subscriptionType === "demo";
+  const isVip = isActiveVip(user);
 
   const computeLocked = (v: SectionVideo): boolean => {
-    const at = v.accessType ?? "normal";
-    if (at === "visitor") return false;
-    if (at === "vip") return !isVip;
-    return isSubscriptionLocked;
+    return isVideoLocked(v.accessType, user);
   };
   const [, navigate] = useLocation();
   const [activeSection, setActiveSection] = useState<Section | null>(null);

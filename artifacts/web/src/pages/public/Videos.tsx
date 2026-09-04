@@ -11,6 +11,7 @@ import { CoursePlayer } from "@/components/public/CoursePlayer";
 import { CourseVideoPlayer } from "@/components/CourseVideoPlayer";
 import { getCategoryMeta } from "@/lib/categoryMeta";
 import { warmImages } from "@/lib/warmImages";
+import { isActiveVip, isVideoLocked } from "@/lib/videoAccess";
 
 export function Videos() {
   const { user, getAuthHeaders, bootstrapped } = useAuth();
@@ -104,18 +105,14 @@ export function Videos() {
 
   const isLoggedIn = !!user;
   const isDemo = user?.subscriptionType === "demo";
-  const isVipUser =
-    user?.accountType === "vip" &&
-    !user.subscriptionIsExpired &&
-    (!user.subscriptionExpiresAt || new Date(user.subscriptionExpiresAt) > new Date());
-  const isLocked = !isLoggedIn || isDemo;
+  const isVipUser = isActiveVip(user);
 
   /* ── منطق وصول الفيديو (لم يتغير) ── */
   const accessInfo = (video: { accessType?: string }) => {
     const at = video.accessType || "normal";
     const isVipVideo = at === "vip";
     const isVisitorVideo = at === "visitor";
-    const videoLocked = isVisitorVideo ? false : isVipVideo ? !isVipUser : isLocked;
+    const videoLocked = isVideoLocked(at, user);
     const lockMessage = isVipVideo
       ? "مخصص لحسابات VIP فقط"
       : isDemo
