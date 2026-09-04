@@ -5,7 +5,7 @@ import { optionalUserAuth } from "../middlewares/auth";
 import { getClientIp } from "../lib/ipPolicy";
 import { deviceTypeFromUA } from "../lib/device";
 import { isActiveVip } from "../lib/vipUtils";
-import { verifyVideoStreamToken } from "../lib/auth";
+import { generateVideoStreamToken, verifyVideoStreamToken } from "../lib/auth";
 import { extractDriveFileId, resolveVideoParts, streamDriveFile } from "../lib/googleDrive";
 import { streamGcsObjectToResponse, parseObjectParts } from "../lib/videoStorage";
 import { parseLowParts } from "../lib/driveTranscode";
@@ -312,20 +312,24 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
     });
     let streamParts: {
       label: string;
+      url?: string;
       drivePreviewUrl?: string;
       driveViewUrl?: string;
     }[];
-    // GOOGLE_DRIVE_DIRECT_ONLY: construct direct URLs only here, after the full
+    // Generate same-origin, short-lived stream URLs only after the full
     // entitlement check. Lists and playlist payloads never receive Drive IDs.
-    streamParts = partsList.map((p) => {
+    streamParts = partsList.map((p, part) => {
       const driveFileId = hasDirectDriveAccess ? extractDriveFileId(p.url) : null;
-      const drivePreviewUrl = driveFileId
-        ? `https://drive.google.com/file/d/${driveFileId}/preview`
-        : undefined;
-      const driveViewUrl = driveFileId
-        ? `https://drive.google.com/file/d/${driveFileId}/view`
-        : undefined;
-      return { label: p.label, drivePreviewUrl, driveViewUrl };
+      if (!driveFileId) return { label: p.label };
+      const token = generateVideoStreamToken({
+        userId: user?.id ?? 0,
+        videoId: id,
+        part,
+      });
+      return {
+        label: p.label,
+        url: `/api/videos/${id}/stream/${part}?token=${encodeURIComponent(token)}`,
+      };
     });
 
     res.json({
@@ -349,11 +353,11 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
   }
 });
 
-// GOOGLE_DRIVE_DIRECT_ONLY: reject legacy platform streaming URLs, including
-// previously issued signed links. Drive bytes must travel Drive → browser.
+// Keep unused object/HLS streaming routes disabled. The authenticated Drive
+// MP4 route below remains enabled because restricted Drive iframes cannot keep
+// a stable Google session across mobile browsers and installed PWAs.
 router.use(
   [
-    "/videos/:id/stream/:part",
     "/videos/:id/stream-object/:part",
     "/videos/:id/hls/:part",
   ],
@@ -541,18 +545,41 @@ async function authorizeStreamRequest(
   // If the video belongs to a course (via direct playlistId or category linkedPlaylistId),
   // the user MUST have an explicit entry in user_courses — VIP/subscription is NOT enough.
   const coursePlaylistId = video.playlistId ?? video.categoryLinkedPlaylistId ?? null;
+  if (video.accessType === "visitor") {
+    return { id, part, video };
+  }
+  const [streamUser] = payload.userId
+    ? await db
+        .select({
+          accountType: usersTable.accountType,
+          subscriptionType: usersTable.subscriptionType,
+          subscriptionExpiresAt: usersTable.subscriptionExpiresAt,
+          isActive: usersTable.isActive,
+        })
+        .from(usersTable)
+        .where(eq(usersTable.id, payload.userId))
+        .limit(1)
+    : [undefined];
+  if (!streamUser?.isActive) {
+    console.warn(`[${logTag}] DENY 403: user missing or inactive`, {
+      videoId: id,
+      userId: payload.userId,
+    });
+    res.status(403).end();
+    return null;
+  }
   if (coursePlaylistId) {
-    if (!payload.userId) {
-      console.warn(`[${logTag}] DENY 403: course video, no userId in token`, { videoId: id, coursePlaylistId });
-      res.status(403).end();
-      return null;
-    }
     const [courseAccess] = await db
       .select({ playlistId: userCoursesTable.playlistId })
       .from(userCoursesTable)
       .where(and(
         eq(userCoursesTable.userId, payload.userId),
         eq(userCoursesTable.playlistId, coursePlaylistId),
+        eq(userCoursesTable.status, "active"),
+        or(
+          isNull(userCoursesTable.expiresAt),
+          gt(userCoursesTable.expiresAt, new Date()),
+        ),
       ))
       .limit(1);
     if (!courseAccess) {
@@ -571,25 +598,16 @@ async function authorizeStreamRequest(
   // ── Non-course video: check VIP / subscription ──
   const accessType = video.accessType || "normal";
   if (accessType === "vip" || accessType === "normal") {
-    const [u] = payload.userId
-      ? await db
-          .select({
-            accountType: usersTable.accountType,
-            subscriptionType: usersTable.subscriptionType,
-            subscriptionExpiresAt: usersTable.subscriptionExpiresAt,
-            isActive: usersTable.isActive,
-          })
-          .from(usersTable)
-          .where(eq(usersTable.id, payload.userId))
-          .limit(1)
-      : [undefined];
-    const isVipUser = isActiveVip(u);
-    const isSubscribed = !!u && u.subscriptionType !== "demo";
+    const isVipUser = isActiveVip(streamUser);
+    const isSubscribed = Boolean(
+      streamUser.subscriptionType !== "demo" &&
+      (!streamUser.subscriptionExpiresAt || new Date(streamUser.subscriptionExpiresAt) > new Date()),
+    );
     if (accessType === "vip" && !isVipUser) {
       console.warn(`[${logTag}] DENY 403: VIP video, user not VIP`, {
         videoId: id,
         userId: payload.userId,
-        accountType: u?.accountType ?? null,
+        accountType: streamUser.accountType,
       });
       res.status(403).end();
       return null;
@@ -598,8 +616,8 @@ async function authorizeStreamRequest(
       console.warn(`[${logTag}] DENY 403: not VIP and not subscribed`, {
         videoId: id,
         userId: payload.userId,
-        accountType: u?.accountType ?? null,
-        subscriptionType: u?.subscriptionType ?? null,
+        accountType: streamUser.accountType,
+        subscriptionType: streamUser.subscriptionType,
       });
       res.status(403).end();
       return null;

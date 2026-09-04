@@ -67,7 +67,7 @@ interface CourseVideoPlayerProps {
   userId?: number;
   onViolation?: (count: number) => void;
   /** عند النقر على "إعادة المحاولة" — يُستخدم لتجديد رابط البثّ من الخادم */
-  onRetry?: () => void;
+  onRetry?: () => string | undefined | Promise<string | undefined>;
 }
 
 const HLS_MIME = "application/vnd.apple.mpegurl";
@@ -1303,12 +1303,17 @@ export function CourseVideoPlayer({
                 setLoadError(false);
                 setErrorCode(null);
                 setWaiting(true);
-                if (onRetry) {
-                  onRetry();
-                } else {
-                  videoRef.current?.load();
-                  videoRef.current?.play().catch(() => {});
-                }
+                void (async () => {
+                  const refreshedSrc = await onRetry?.();
+                  const video = videoRef.current;
+                  if (!video) return;
+                  if (refreshedSrc) {
+                    srcRef.current = refreshedSrc;
+                    video.src = refreshedSrc;
+                  }
+                  video.load();
+                  await video.play().catch(() => {});
+                })();
               }}
               className="gap-2"
             >

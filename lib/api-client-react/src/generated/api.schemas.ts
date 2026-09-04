@@ -138,11 +138,13 @@ export interface ChangePasswordInput {
 }
 
 /**
- * A Google Drive Direct-only video part returned after entitlement checks.
+ * A protected video part returned after entitlement checks.
  */
 export interface VideoStreamPart {
   label: string;
-  /** Google Drive preview URL returned only by the entitled single-video response. Video bytes travel directly from Google Drive to the viewer, never through the platform server. */
+  /** Short-lived, same-origin MP4 stream URL. The server re-checks the viewer's entitlement on every request. */
+  url?: string | null;
+  /** Legacy Google Drive preview URL. */
   drivePreviewUrl?: string | null;
   /** Google Drive top-level view URL for mobile and Safari users when embedded Google authentication is unavailable. */
   driveViewUrl?: string | null;

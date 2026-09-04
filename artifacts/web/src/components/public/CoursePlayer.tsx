@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Card, Badge, Button } from "@/components/ui";
 import { useAuth } from "@/lib/auth";
 import { useGetVideo, getGetVideoQueryKey } from "@workspace/api-client-react/src/generated/api";
-import { DriveDirectPlayer } from "@/components/DriveDirectPlayer";
+import { CourseVideoPlayer } from "@/components/CourseVideoPlayer";
 
 const FALLBACK_THUMB =
   "https://images.unsplash.com/photo-1580927752452-89d86da3fa0a?w=800&q=80";
@@ -80,7 +80,7 @@ export function CoursePlayer({ lessons, accessInfo }: CoursePlayerProps) {
 
   /* ── جلب الفيديو الكامل (الأجزاء المتعددة + برنامج VIP) فقط عند فتح درس متاح ── */
   const shouldFetch = !!currentLesson && !currentLocked;
-  const { data: detailRaw, isLoading: detailLoading, error: detailError } = useGetVideo(
+  const { data: detailRaw, isLoading: detailLoading, error: detailError, refetch: refetchDetail } = useGetVideo(
     lessonId,
     {
       request: getAuthHeaders(),
@@ -91,11 +91,11 @@ export function CoursePlayer({ lessons, accessInfo }: CoursePlayerProps) {
     | (typeof detailRaw & { softwareLink?: string | null })
     | undefined;
 
-  // روابط Google Drive Direct لا تصل إلا من endpoint التفاصيل بعد فحص الصلاحية.
+  // روابط البث الموقعة لا تصل إلا من endpoint التفاصيل بعد فحص الصلاحية.
   const parts = useMemo(() => detail?.streamParts ?? [], [detail]);
 
   const activePart = parts[selectedPartIndex];
-  const activePreviewUrl = activePart?.drivePreviewUrl ?? "";
+  const activeStreamUrl = activePart?.url ?? "";
 
   const selectLesson = (i: number) => {
     if (i < 0 || i >= total) return;
@@ -130,7 +130,7 @@ export function CoursePlayer({ lessons, accessInfo }: CoursePlayerProps) {
             subscribeHref={subscribeHref}
             thumb={currentLesson?.thumbnailUrl}
           />
-        ) : !activePreviewUrl && detailLoading ? (
+        ) : !activeStreamUrl && detailLoading ? (
           <div
             className="relative w-full rounded-2xl bg-black/90 border border-border"
             style={{ paddingBottom: "56.25%" }}
@@ -139,13 +139,13 @@ export function CoursePlayer({ lessons, accessInfo }: CoursePlayerProps) {
               <Loader2 className="w-8 h-8 text-white/70 animate-spin" />
             </div>
           </div>
-        ) : !activePreviewUrl && detailError ? (
+        ) : !activeStreamUrl && detailError ? (
           <LockedPane
             access={currentAccess}
             subscribeHref={subscribeHref}
             thumb={currentLesson?.thumbnailUrl}
           />
-        ) : activePreviewUrl ? (
+        ) : activeStreamUrl ? (
           <>
             {parts.length > 1 && (
               <div className="flex flex-wrap gap-2 mb-4">
@@ -165,14 +165,19 @@ export function CoursePlayer({ lessons, accessInfo }: CoursePlayerProps) {
                 ))}
               </div>
             )}
-            <DriveDirectPlayer
+            <CourseVideoPlayer
               key={`${lessonId}-${selectedPartIndex}`}
-              previewUrl={activePreviewUrl}
-              viewUrl={activePart?.driveViewUrl}
+              src={activeStreamUrl}
+              poster={currentLesson?.thumbnailUrl}
               title={currentLesson?.title}
+              videoId={lessonId}
               username={user?.username}
               email={user?.email}
               userId={user?.id}
+              onRetry={async () => {
+                const refreshed = await refetchDetail();
+                return refreshed.data?.streamParts?.[selectedPartIndex]?.url ?? undefined;
+              }}
             />
           </>
         ) : (

@@ -186,12 +186,16 @@ export const GetVideosResponseItem = zod.object({
       zod
         .object({
           label: zod.string(),
-          drivePreviewUrl: zod
+          url: zod
             .string()
             .nullish()
             .describe(
-              "Google Drive preview URL returned only by the entitled single-video response. Video bytes travel directly from Google Drive to the viewer, never through the platform server.",
+              "Short-lived, same-origin MP4 stream URL. The server re-checks the viewer's entitlement on every request.",
             ),
+          drivePreviewUrl: zod
+            .string()
+            .nullish()
+            .describe("Legacy Google Drive preview URL."),
           driveViewUrl: zod
             .string()
             .nullish()
@@ -199,9 +203,7 @@ export const GetVideosResponseItem = zod.object({
               "Google Drive top-level view URL for mobile and Safari users when embedded Google authentication is unavailable.",
             ),
         })
-        .describe(
-          "A Google Drive Direct-only video part returned after entitlement checks.",
-        ),
+        .describe("A protected video part returned after entitlement checks."),
     )
     .nullish()
     .describe(
@@ -235,12 +237,16 @@ export const GetVideoResponse = zod.object({
       zod
         .object({
           label: zod.string(),
-          drivePreviewUrl: zod
+          url: zod
             .string()
             .nullish()
             .describe(
-              "Google Drive preview URL returned only by the entitled single-video response. Video bytes travel directly from Google Drive to the viewer, never through the platform server.",
+              "Short-lived, same-origin MP4 stream URL. The server re-checks the viewer's entitlement on every request.",
             ),
+          drivePreviewUrl: zod
+            .string()
+            .nullish()
+            .describe("Legacy Google Drive preview URL."),
           driveViewUrl: zod
             .string()
             .nullish()
@@ -248,9 +254,7 @@ export const GetVideoResponse = zod.object({
               "Google Drive top-level view URL for mobile and Safari users when embedded Google authentication is unavailable.",
             ),
         })
-        .describe(
-          "A Google Drive Direct-only video part returned after entitlement checks.",
-        ),
+        .describe("A protected video part returned after entitlement checks."),
     )
     .nullish()
     .describe(

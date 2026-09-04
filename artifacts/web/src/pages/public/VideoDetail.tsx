@@ -6,7 +6,7 @@ import { Card, Badge, Button } from "@/components/ui";
 import { Crown, ArrowRight, PlaySquare, Lock, CalendarDays, Tag, Download } from "lucide-react";
 import { Link } from "wouter";
 import { formatDate } from "@/lib/utils";
-import { DriveDirectPlayer } from "@/components/DriveDirectPlayer";
+import { CourseVideoPlayer } from "@/components/CourseVideoPlayer";
 
 const FALLBACK_THUMB =
   "https://images.unsplash.com/photo-1580927752452-89d86da3fa0a?w=800&q=80";
@@ -19,7 +19,7 @@ export function VideoDetail() {
 
   const id = params?.id ? parseInt(params.id) : 0;
 
-  const { data: videoRaw, isLoading, error } = useGetVideo(id, {
+  const { data: videoRaw, isLoading, error, refetch: refetchVideo } = useGetVideo(id, {
     request: getAuthHeaders(),
   });
 
@@ -158,7 +158,7 @@ export function VideoDetail() {
 
   const parts = video.streamParts ?? [];
   const activePart = parts[selectedPartIndex];
-  const driveDirectAvailable = Boolean(activePart?.drivePreviewUrl);
+  const streamAvailable = Boolean(activePart?.url);
 
   return (
     <div className="min-h-screen py-8">
@@ -214,17 +214,22 @@ export function VideoDetail() {
               </div>
             )}
 
-            {/* Google Drive Direct-only player */}
-            {driveDirectAvailable && activePart?.drivePreviewUrl ? (
+            {/* Same-origin protected player */}
+            {streamAvailable && activePart?.url ? (
               <div className="mb-8">
-                <DriveDirectPlayer
-                  key={`drive-${id}-${selectedPartIndex}`}
-                  previewUrl={activePart.drivePreviewUrl}
-                  viewUrl={activePart.driveViewUrl}
+                <CourseVideoPlayer
+                  key={`stream-${id}-${selectedPartIndex}`}
+                  src={activePart.url}
+                  poster={video.thumbnailUrl}
                   title={video.title}
+                  videoId={id}
                   username={user?.username}
                   email={user?.email}
                   userId={user?.id}
+                  onRetry={async () => {
+                    const refreshed = await refetchVideo();
+                    return refreshed.data?.streamParts?.[selectedPartIndex]?.url ?? undefined;
+                  }}
                 />
               </div>
             ) : (
@@ -232,7 +237,7 @@ export function VideoDetail() {
                 <div className="absolute inset-0 flex items-center justify-center">
                   <p className="text-foreground/40 text-sm flex items-center gap-2">
                     <PlaySquare className="w-5 h-5" />
-                    Google Drive غير متاح لهذا الحساب
+                    الفيديو غير متاح لهذا الحساب
                   </p>
                 </div>
               </div>

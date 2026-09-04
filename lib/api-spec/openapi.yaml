@@ -1868,14 +1868,18 @@ components:
 
     VideoStreamPart:
       type: object
-      description: A Google Drive Direct-only video part returned after entitlement checks.
+      description: A protected video part returned after entitlement checks.
       properties:
         label:
           type: string
+        url:
+          type: string
+          nullable: true
+          description: Short-lived, same-origin MP4 stream URL. The server re-checks the viewer's entitlement on every request.
         drivePreviewUrl:
           type: string
           nullable: true
-          description: Google Drive preview URL returned only by the entitled single-video response. Video bytes travel directly from Google Drive to the viewer, never through the platform server.
+          description: Legacy Google Drive preview URL.
         driveViewUrl:
           type: string
           nullable: true

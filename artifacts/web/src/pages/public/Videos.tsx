@@ -8,7 +8,7 @@ import { motion } from "framer-motion";
 import { CategoryCard } from "@/components/public/CategoryCard";
 import { LessonCard } from "@/components/public/LessonCard";
 import { CoursePlayer } from "@/components/public/CoursePlayer";
-import { DriveDirectPlayer } from "@/components/DriveDirectPlayer";
+import { CourseVideoPlayer } from "@/components/CourseVideoPlayer";
 import { getCategoryMeta } from "@/lib/categoryMeta";
 import { warmImages } from "@/lib/warmImages";
 
@@ -66,7 +66,7 @@ export function Videos() {
   const freeVideo = allVideosUnfiltered?.find(v => v.accessType === "visitor");
 
   /* تفاصيل الفيديو المجاني (روابط البثّ الآمنة) — تُجلب فقط عند فتح النافذة */
-  const { data: freeDetail, isLoading: freeDetailLoading } = useGetVideo(freeVideo?.id ?? 0, {
+  const { data: freeDetail, isLoading: freeDetailLoading, refetch: refetchFreeDetail } = useGetVideo(freeVideo?.id ?? 0, {
     request: getAuthHeaders(),
     query: {
       queryKey: getGetVideoQueryKey(freeVideo?.id ?? 0),
@@ -160,14 +160,19 @@ export function Videos() {
           </div>
           <div className="w-full bg-black p-3">
             {videoModalOpen && (
-              freePart?.drivePreviewUrl ? (
-                <DriveDirectPlayer
-                  previewUrl={freePart.drivePreviewUrl}
-                  viewUrl={freePart.driveViewUrl}
+              freePart?.url ? (
+                <CourseVideoPlayer
+                  src={freePart.url}
+                  poster={freeVideo?.thumbnailUrl}
                   title={freeVideo?.title}
+                  videoId={freeVideo?.id}
                   username={user?.username}
                   email={user?.email}
                   userId={user?.id}
+                  onRetry={async () => {
+                    const refreshed = await refetchFreeDetail();
+                    return refreshed.data?.streamParts?.[0]?.url ?? undefined;
+                  }}
                 />
               ) : freeDetailLoading ? (
                 <div
@@ -178,7 +183,7 @@ export function Videos() {
                 </div>
               ) : (
                 <div className="flex aspect-video w-full items-center justify-center rounded-2xl bg-zinc-950 px-6 text-center text-sm text-white/70">
-                  سجّل الدخول بحساب لديه صلاحية Google Drive لمشاهدة الفيديو.
+                  الفيديو غير متاح حالياً.
                 </div>
               )
             )}

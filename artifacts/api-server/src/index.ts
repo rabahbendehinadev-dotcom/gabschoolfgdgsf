@@ -445,9 +445,9 @@ runMigrations().then(() => ensureSeed()).then(() => {
   startIpResetScheduler();
   app.listen(port, () => {
     console.log(`Server listening on port ${port}`);
-    // GOOGLE_DRIVE_DIRECT_ONLY: no automatic Drive→Storage migration and no
-    // 720p/FFmpeg worker. Video bytes must travel Google Drive → browser.
-    console.log("[video] Google Drive Direct-only mode — migration and transcoding disabled.");
+    // Videos stay in Drive; migration and the 720p/FFmpeg worker remain disabled.
+    // Authorized playback uses the signed same-origin MP4 stream route.
+    console.log("[video] Signed Google Drive MP4 streaming enabled — migration and transcoding disabled.");
     // عامل ضغط الصور المخزّنة (الصور القديمة الضخمة) — إنتاج فقط، ويمكن تعطيله
     if (
       process.env.ENABLE_IMAGE_OPTIMIZE !== "false" &&
