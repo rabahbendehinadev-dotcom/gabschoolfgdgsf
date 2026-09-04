@@ -9,6 +9,7 @@ type AuthState = {
   adminToken: string | null;
   admin: AdminAuthResponseAdmin | null;
   bootstrapped: boolean;
+  driveIframeRevision: number;
   setAuth: (token: string, user: UserProfile) => void;
   updateUser: (user: UserProfile) => void;
   setAdminAuth: (token: string, admin: AdminAuthResponseAdmin) => void;
@@ -53,6 +54,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // (or there is no session). The phone gate waits for this so a stale cached
   // user object never triggers a false redirect for existing users.
   const [bootstrapped, setBootstrapped] = useState(false);
+  // Google Drive's cross-origin preview can retain a stale embedded auth/error
+  // document after a mobile browser or installed PWA resumes. A successful GAB
+  // session revalidation advances this revision so mounted Drive iframes are
+  // recreated with the same URL, mirroring the relevant part of logout/login.
+  const [driveIframeRevision, setDriveIframeRevision] = useState(0);
 
   const tokenRef = useRef(token);
   useEffect(() => { tokenRef.current = token; }, [token]);
@@ -112,6 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    let disposed = false;
     refreshUser();
     const timer = setInterval(refreshUser, REFRESH_INTERVAL_MS);
 
@@ -125,20 +132,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       lastResumeRefreshAtRef.current = now;
+      const refreshToken = tokenRef.current;
+      if (!refreshToken) return;
+
       const request = (async () => {
         const sessionIsValid = await refreshUser();
-        if (!sessionIsValid) return;
+        if (
+          !sessionIsValid ||
+          disposed ||
+          tokenRef.current !== refreshToken
+        ) {
+          return;
+        }
 
-        await queryClient.invalidateQueries({
-          predicate: ({ queryKey }) => {
-            const root = queryKey[0];
-            return (
-              typeof root === "string" &&
-              (root.startsWith("/api/videos") || root.startsWith("/api/playlists"))
-            );
-          },
-          refetchType: "active",
-        });
+        try {
+          await queryClient.invalidateQueries({
+            predicate: ({ queryKey }) => {
+              const root = queryKey[0];
+              return (
+                typeof root === "string" &&
+                (root.startsWith("/api/videos") || root.startsWith("/api/playlists"))
+              );
+            },
+            refetchType: "active",
+          });
+        } finally {
+          if (!disposed && tokenRef.current === refreshToken) {
+            setDriveIframeRevision((current) => current + 1);
+          }
+        }
       })().finally(() => {
         resumeRefreshInFlightRef.current = null;
       });
@@ -149,13 +171,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const onVisibilityChange = () => {
       if (document.visibilityState === "visible") refreshAfterResume();
     };
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) refreshAfterResume();
+    };
     document.addEventListener("visibilitychange", onVisibilityChange);
-    window.addEventListener("pageshow", refreshAfterResume);
+    window.addEventListener("pageshow", onPageShow);
 
     return () => {
+      disposed = true;
       clearInterval(timer);
       document.removeEventListener("visibilitychange", onVisibilityChange);
-      window.removeEventListener("pageshow", refreshAfterResume);
+      window.removeEventListener("pageshow", onPageShow);
     };
   }, [token, refreshUser, queryClient]);
 
@@ -197,6 +223,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem("user", JSON.stringify(newUser));
     setTokenState(newToken);
     setUser(newUser);
+    setDriveIframeRevision((current) => current + 1);
   };
 
   const updateUser = (newUser: UserProfile) => {
@@ -246,7 +273,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider value={{
-      token, user, adminToken, admin, bootstrapped,
+      token, user, adminToken, admin, bootstrapped, driveIframeRevision,
       setAuth, updateUser, setAdminAuth, logout, adminLogout, getAuthHeaders, getAdminAuthHeaders
     }}>
       {children}

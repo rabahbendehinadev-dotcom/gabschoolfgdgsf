@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Maximize, Minimize } from "lucide-react";
+import { useAuth } from "@/lib/auth";
 
 interface DriveDirectPlayerProps {
   previewUrl: string;
@@ -24,6 +25,7 @@ export function DriveDirectPlayer({
   email,
   userId,
 }: DriveDirectPlayerProps) {
+  const { driveIframeRevision } = useAuth();
   const containerRef = useRef<HTMLDivElement>(null);
   const [watermarkIndex, setWatermarkIndex] = useState(0);
   const [isNativeFullscreen, setIsNativeFullscreen] = useState(false);
@@ -148,6 +150,7 @@ export function DriveDirectPlayer({
         }`}
       >
         <iframe
+          key={driveIframeRevision}
           src={previewUrl}
           title={title ? `تشغيل ${title}` : "تشغيل الفيديو"}
           className="absolute inset-0 h-full w-full border-0"
