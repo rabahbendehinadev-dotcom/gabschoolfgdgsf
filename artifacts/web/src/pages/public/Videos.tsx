@@ -11,7 +11,7 @@ import { CoursePlayer } from "@/components/public/CoursePlayer";
 import { CourseVideoPlayer } from "@/components/CourseVideoPlayer";
 import { getCategoryMeta } from "@/lib/categoryMeta";
 import { warmImages } from "@/lib/warmImages";
-import { isActiveVip, isVideoLocked } from "@/lib/videoAccess";
+import { hasActiveSubscription, isActiveVip, isVideoLocked } from "@/lib/videoAccess";
 
 export function Videos() {
   const { user, getAuthHeaders, bootstrapped } = useAuth();
@@ -106,6 +106,7 @@ export function Videos() {
   const isLoggedIn = !!user;
   const isDemo = user?.subscriptionType === "demo";
   const isVipUser = isActiveVip(user);
+  const isLocked = !isVipUser && !hasActiveSubscription(user);
 
   /* ── منطق وصول الفيديو (لم يتغير) ── */
   const accessInfo = (video: { accessType?: string }) => {
