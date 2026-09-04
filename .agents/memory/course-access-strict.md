@@ -39,5 +39,17 @@ Role is checked in `req.admin.role` (set by adminAuth middleware from DB).
 Course-linked videos check `user_courses` table exclusively (no VIP fallback).
 Non-course videos: VIP for `accessType=vip`, VIP or `subscriptionType!='demo'` for normal.
 
+## Production compatibility
+Production may still have the legacy `user_courses` shape containing only
+`id`, `user_id`, `playlist_id`, and `granted_at`.
+
+**Why:** Requiring newer `status` or `expires_at` columns in video entitlement
+queries caused valid, explicitly assigned users to fail opening lessons.
+
+**How to apply:** Until those columns are explicitly migrated in Production,
+course video detail and stream/HLS authorization must verify the existing
+`(user_id, playlist_id)` assignment only. Keep VIP/subscription checks unchanged
+for non-course content.
+
 ## Admin panel path
 `/gab-ctrl-9x` (obfuscated) — not `/admin`
