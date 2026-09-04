@@ -140,11 +140,19 @@ export function CoursePlayer({ lessons, accessInfo }: CoursePlayerProps) {
             </div>
           </div>
         ) : !activeStreamUrl && detailError ? (
-          <LockedPane
-            access={currentAccess}
-            subscribeHref={subscribeHref}
-            thumb={currentLesson?.thumbnailUrl}
-          />
+          <div
+            className="relative flex w-full flex-col items-center justify-center gap-3 rounded-2xl border border-border bg-muted/40 px-6 text-center"
+            style={{ aspectRatio: "16 / 9" }}
+          >
+            <PlaySquare className="h-10 w-10 text-muted-foreground" />
+            <p className="font-bold text-foreground">تعذر تحميل الدرس</p>
+            <p className="text-sm text-muted-foreground">
+              أعد المحاولة بعد لحظات.
+            </p>
+            <Button variant="outline" onClick={() => refetchDetail()}>
+              إعادة المحاولة
+            </Button>
+          </div>
         ) : activeStreamUrl ? (
           <>
             {parts.length > 1 && (
