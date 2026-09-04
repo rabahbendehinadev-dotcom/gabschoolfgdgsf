@@ -15,6 +15,7 @@ declare global {
             callback: (resp: { credential?: string }) => void;
             cancel_on_tap_outside?: boolean;
             use_fedcm_for_prompt?: boolean;
+            itp_support?: boolean;
           }) => void;
           renderButton: (el: HTMLElement, options: Record<string, unknown>) => void;
           prompt: (notification?: (n: {
@@ -155,6 +156,12 @@ export function GoogleSignInButton({ redirectTo = "/videos" }: { redirectTo?: st
             client_id: clientId,
             callback: (resp) => handlerRef.current(resp),
             cancel_on_tap_outside: false,
+            // Keep iOS/Safari on Google's ITP-compatible button flow. FedCM and
+            // One Tap prompt fallbacks can hand off to a localized Google
+            // country domain (for example accounts.google.dz) in an insecure
+            // browser sheet on some iPhones.
+            itp_support: true,
+            use_fedcm_for_prompt: false,
           });
 
           buttonRef.current.innerHTML = "";
@@ -190,65 +197,21 @@ export function GoogleSignInButton({ redirectTo = "/videos" }: { redirectTo?: st
     return () => { cancelled = true; };
   }, [clientId]);
 
-  // Fallback click handler: called when the user clicks the visible button area
-  // and the GIS iframe either didn't render or missed the pointer event.
-  // Uses google.accounts.id.prompt() which triggers One Tap / FedCM / sign-in
-  // dialog without needing a direct user gesture on the iframe.
-  const handleFallbackClick = useCallback(() => {
-    if (!window.google?.accounts?.id) {
-      toast({
-        variant: "destructive",
-        title: "تسجيل الدخول عبر Google غير متاح",
-        description: "تعذّر الاتصال بـ Google. تحقق من اتصالك بالإنترنت وأعد المحاولة.",
-      });
-      return;
-    }
-
-    window.google.accounts.id.prompt((notification) => {
-      if (notification.isNotDisplayed()) {
-        const reason = notification.getNotDisplayedReason();
-        // Suppressed by browser (popup blocked, third-party cookies disabled, etc.)
-        if (
-          reason === "suppressed_by_user" ||
-          reason === "opt_out_or_no_session" ||
-          reason === "unknown_reason"
-        ) {
-          toast({
-            variant: "destructive",
-            title: "تعذّر فتح نافذة Google",
-            description:
-              "يبدو أن المتصفح منع النافذة. جرّب تعطيل حظر النوافذ المنبثقة أو استخدام متصفح آخر.",
-          });
-        }
-      } else if (notification.isSkippedMoment()) {
-        // Browser or OS suppressed One Tap silently — not an error the user caused.
-        // No toast: the button still works via the GIS iframe when available.
-      }
-    });
-  }, [toast]);
-
   const pending = googleLoginMut.isPending;
   // Google not configured at all, or its script failed to load (true outage).
-  const unavailable = (configLoaded && !clientId) || gisStatus === "error";
+  const unavailable =
+    (configLoaded && !clientId) ||
+    gisStatus === "error" ||
+    (gisStatus === "ready" && !gisRendered);
   // Config or GIS still initializing.
   const initializing = !configLoaded || (!!clientId && gisStatus === "loading");
 
   return (
     <div className="w-full">
-      {/*
-        Wrapper captures clicks that miss the GIS iframe (e.g. edges, Safari,
-        third-party-cookie-blocked contexts) and routes them through prompt().
-        Only active when GIS is ready, Google is available, and not pending.
-      */}
       <div
         ref={wrapperRef}
         className="group relative h-14 w-full"
         aria-busy={pending}
-        onClick={
-          !pending && !unavailable && !initializing && gisStatus === "ready"
-            ? handleFallbackClick
-            : undefined
-        }
         style={{ cursor: pending || unavailable ? undefined : "pointer" }}
       >
         {/* Visible custom button (presentation layer, pointer-events-none) */}
@@ -304,12 +267,6 @@ export function GoogleSignInButton({ redirectTo = "/videos" }: { redirectTo?: st
         )}
       </div>
 
-      {/* Hint shown when GIS didn't render an iframe (popup-blocked environments) */}
-      {gisStatus === "ready" && !gisRendered && !unavailable && !initializing && (
-        <p className="mt-2 text-center text-xs text-foreground/50">
-          إذا لم تنفتح نافذة Google، تأكد من السماح بالنوافذ المنبثقة في متصفحك.
-        </p>
-      )}
     </div>
   );
 }
