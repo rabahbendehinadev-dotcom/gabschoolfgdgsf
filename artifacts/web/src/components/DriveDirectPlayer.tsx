@@ -26,7 +26,9 @@ export function DriveDirectPlayer({
 }: DriveDirectPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [watermarkIndex, setWatermarkIndex] = useState(0);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isNativeFullscreen, setIsNativeFullscreen] = useState(false);
+  const [isCssFullscreen, setIsCssFullscreen] = useState(false);
+  const isFullscreen = isNativeFullscreen || isCssFullscreen;
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -43,7 +45,7 @@ export function DriveDirectPlayer({
       const fullscreenElement =
         document.fullscreenElement ?? fullscreenDocument.webkitFullscreenElement;
       const active = fullscreenElement === containerRef.current;
-      setIsFullscreen(active);
+      setIsNativeFullscreen(active);
 
       if (!active && "orientation" in screen) {
         const orientation = screen.orientation as ScreenOrientation & {
@@ -61,6 +63,20 @@ export function DriveDirectPlayer({
     };
   }, []);
 
+  useEffect(() => {
+    if (!isCssFullscreen) return;
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+    };
+  }, [isCssFullscreen]);
+
   const toggleFullscreen = async () => {
     const container = containerRef.current as (HTMLDivElement & {
       webkitRequestFullscreen?: () => Promise<void> | void;
@@ -70,6 +86,17 @@ export function DriveDirectPlayer({
       webkitFullscreenElement?: Element | null;
     };
     if (!container) return;
+
+    if (isCssFullscreen) {
+      setIsCssFullscreen(false);
+      return;
+    }
+
+    const isIPhone = /iPhone|iPod/i.test(navigator.userAgent);
+    if (isIPhone) {
+      setIsCssFullscreen(true);
+      return;
+    }
 
     const fullscreenElement =
       document.fullscreenElement ?? fullscreenDocument.webkitFullscreenElement;
@@ -110,10 +137,14 @@ export function DriveDirectPlayer({
     <div className="-mx-2 w-[calc(100%+1rem)] max-w-none space-y-3 lg:mx-0 lg:w-full">
       <div
         ref={containerRef}
-        className={`relative w-full overflow-hidden bg-black shadow-2xl ${
-          isFullscreen
-            ? "h-[100dvh] w-[100dvw] max-w-none rounded-none border-0"
-            : "aspect-video rounded-2xl border border-border"
+        className={`overflow-hidden bg-black shadow-2xl ${
+          isCssFullscreen
+            ? "fixed inset-0 z-[9999] h-[100dvh] w-screen max-w-none rounded-none border-0"
+            : `relative w-full ${
+                isNativeFullscreen
+                  ? "h-[100dvh] w-[100dvw] max-w-none rounded-none border-0"
+                  : "aspect-video rounded-2xl border border-border"
+              }`
         }`}
       >
         <iframe
