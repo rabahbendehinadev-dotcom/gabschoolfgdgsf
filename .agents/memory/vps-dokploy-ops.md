@@ -5,6 +5,9 @@ description: How the Hostinger VPS (Dokploy + Docker Swarm) deployment actually 
 
 # VPS Dokploy operations (online.gab-school.com)
 
+- **Production is exclusively `online.gab-school.com` on the external VPS through Dokploy. Replit Publish and `online-gab.replit.app` are not part of production and must never be used to deploy or validate this project.**
+- **Why:** the owner’s release path is Replit workspace → commit → push to GitHub `master` → Dokploy pulls/builds/deploys on the VPS.
+- **How to apply:** validate locally, commit every required change, push `origin/master`, then reason about the Dokploy/VPS deployment only; do not change Replit deployment settings.
 - **Dokploy env panel edits did NOT reach the running swarm service** in at least one incident (panel showed new values, containers kept old ones). Working fix: `docker service update --env-add KEY=value online-minio-zcvr9e` (service name is misleading — it is the API server, not MinIO).
 - **Why:** panel save/deploy linkage is unreliable or user edits a different scope; always verify with `docker inspect <container> | grep ENV` after any deploy.
 - **Any Dokploy redeploy resets service env to the panel values** — env fixed via `docker service update` is lost unless the panel is corrected first. Before every deploy: confirm panel has `STORAGE_PROVIDER=s3` + S3_* vars + real `GOOGLE_CLIENT_ID` (long .apps.googleusercontent.com) + `GOOGLE_CLIENT_SECRET` + `GOOGLE_DRIVE_REFRESH_TOKEN` + `DISABLE_VIDEO_AUTO_MIGRATE=true`.
