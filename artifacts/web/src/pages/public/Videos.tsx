@@ -108,7 +108,12 @@ export function Videos() {
     user?.accountType === "vip" &&
     !user.subscriptionIsExpired &&
     (!user.subscriptionExpiresAt || new Date(user.subscriptionExpiresAt) > new Date());
-  const isLocked = !isLoggedIn || isDemo;
+  const hasActiveSubscription =
+    isLoggedIn &&
+    !isDemo &&
+    !user?.subscriptionIsExpired &&
+    (!user?.subscriptionExpiresAt || new Date(user.subscriptionExpiresAt) > new Date());
+  const isLocked = !isVipUser && !hasActiveSubscription;
 
   /* ── منطق وصول الفيديو (لم يتغير) ── */
   const accessInfo = (video: { accessType?: string }) => {
