@@ -186,11 +186,26 @@ export async function resolveAvailableHlsParts(
     { length: partCount },
     (_, index) => stored?.[index] ?? null,
   );
-  await Promise.all(
-    resolved.map(async (part, index) => {
-      if (!part) resolved[index] = await readHlsMarker(videoId, index);
-    }),
-  );
+
+  // HLS is an optional enhancement. VPS/Dokploy deployments use the existing
+  // Drive MP4 proxy and do not necessarily configure Replit App Storage.
+  // Stored HLS metadata remains usable without probing storage for markers.
+  if (!process.env.PRIVATE_OBJECT_DIR) {
+    return resolved.some(Boolean) ? resolved : null;
+  }
+
+  try {
+    await Promise.all(
+      resolved.map(async (part, index) => {
+        if (!part) resolved[index] = await readHlsMarker(videoId, index);
+      }),
+    );
+  } catch (error) {
+    console.warn(
+      "[video-hls] Optional HLS detection unavailable; using MP4 fallback",
+      error instanceof Error ? error.message : error,
+    );
+  }
   return resolved.some(Boolean) ? resolved : null;
 }
 
