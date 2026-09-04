@@ -1876,6 +1876,10 @@ components:
           type: string
           nullable: true
           description: Short-lived, same-origin MP4 stream URL. The server re-checks the viewer's entitlement on every request.
+        hlsUrl:
+          type: string
+          nullable: true
+          description: Short-lived, same-origin adaptive HLS master playlist URL. Present after this part has been transcoded.
         drivePreviewUrl:
           type: string
           nullable: true

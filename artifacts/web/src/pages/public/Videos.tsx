@@ -163,6 +163,7 @@ export function Videos() {
               freePart?.url ? (
                 <CourseVideoPlayer
                   src={freePart.url}
+                  hlsSrc={freePart.hlsUrl}
                   poster={freeVideo?.thumbnailUrl}
                   title={freeVideo?.title}
                   videoId={freeVideo?.id}

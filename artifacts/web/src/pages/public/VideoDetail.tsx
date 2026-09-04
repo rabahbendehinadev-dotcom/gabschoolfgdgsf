@@ -220,6 +220,7 @@ export function VideoDetail() {
                 <CourseVideoPlayer
                   key={`stream-${id}-${selectedPartIndex}`}
                   src={activePart.url}
+                  hlsSrc={activePart.hlsUrl}
                   poster={video.thumbnailUrl}
                   title={video.title}
                   videoId={id}

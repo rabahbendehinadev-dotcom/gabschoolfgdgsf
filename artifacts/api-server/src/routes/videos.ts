@@ -9,7 +9,7 @@ import { generateVideoStreamToken, verifyVideoStreamToken } from "../lib/auth";
 import { extractDriveFileId, resolveVideoParts, streamDriveFile } from "../lib/googleDrive";
 import { streamGcsObjectToResponse, parseObjectParts } from "../lib/videoStorage";
 import { parseLowParts } from "../lib/driveTranscode";
-import { parseHlsParts, buildMasterPlaylist, renderMediaPlaylist, buildHlsBasePath, RENDITION_NAME_RE, SAFE_SEGMENT_RE } from "../lib/hlsStorage";
+import { resolveAvailableHlsParts, buildMasterPlaylist, renderMediaPlaylist, buildHlsBasePath, RENDITION_NAME_RE, SAFE_SEGMENT_RE } from "../lib/hlsStorage";
 
 /* ── Per-token concurrent-connection guard ────────────────────────────────
    Tracks how many in-flight streaming responses are using each stream token.
@@ -310,9 +310,15 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
       driveEmbedUrl: video.driveEmbedUrl,
       driveParts: video.driveParts,
     });
+    const availableHlsParts = await resolveAvailableHlsParts(
+      id,
+      video.hlsParts,
+      partsList.length,
+    );
     let streamParts: {
       label: string;
       url?: string;
+      hlsUrl?: string;
       drivePreviewUrl?: string;
       driveViewUrl?: string;
     }[];
@@ -329,6 +335,11 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
       return {
         label: p.label,
         url: `/api/videos/${id}/stream/${part}?token=${encodeURIComponent(token)}`,
+        ...(availableHlsParts?.[part]
+          ? {
+              hlsUrl: `/api/videos/${id}/hls/${part}/master.m3u8?token=${encodeURIComponent(token)}`,
+            }
+          : {}),
       };
     });
 
@@ -353,14 +364,10 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
   }
 });
 
-// Keep unused object/HLS streaming routes disabled. The authenticated Drive
-// MP4 route below remains enabled because restricted Drive iframes cannot keep
-// a stable Google session across mobile browsers and installed PWAs.
+// Keep the unused object-stream route disabled. Signed HLS routes are enabled
+// below and fall back to the authenticated Drive MP4 route when no ladder is ready.
 router.use(
-  [
-    "/videos/:id/stream-object/:part",
-    "/videos/:id/hls/:part",
-  ],
+  ["/videos/:id/stream-object/:part"],
   (_req, res) => {
     res.status(410).json({
       message: "Platform streaming is disabled. Use Google Drive Direct playback.",
@@ -748,7 +755,8 @@ router.get("/videos/:id/hls/:part/master.m3u8", async (req, res) => {
     if (!auth) return;
     const { id, part, video } = auth;
 
-    const hlsParts = parseHlsParts(video.hlsParts);
+    const partCount = resolveVideoParts(video).length;
+    const hlsParts = await resolveAvailableHlsParts(id, video.hlsParts, partCount);
     const hlsPart = hlsParts?.[part];
     if (!hlsPart) {
       console.warn("[video-hls] DENY 404: no HLS ladder for part", { videoId: id, part });
@@ -775,7 +783,8 @@ router.get("/videos/:id/hls/:part/:rendition.m3u8", async (req, res) => {
     if (!auth) return;
     const { id, part, video } = auth;
 
-    const hlsParts = parseHlsParts(video.hlsParts);
+    const partCount = resolveVideoParts(video).length;
+    const hlsParts = await resolveAvailableHlsParts(id, video.hlsParts, partCount);
     const hlsPart = hlsParts?.[part];
     const rendition = String(req.params.rendition);
     if (!hlsPart || !hlsPart.renditions.some((r) => r.name === rendition)) {
@@ -823,7 +832,7 @@ router.get("/videos/:id/hls/:part/:rendition/segment/:filename", async (req, res
   try {
     const auth = await authorizeStreamRequest(req, res, "video-hls-seg");
     if (!auth) return;
-    const { id, part } = auth;
+    const { id, part, video } = auth;
 
     const rendition = String(req.params.rendition);
     const filename = String(req.params.filename);
@@ -833,6 +842,18 @@ router.get("/videos/:id/hls/:part/:rendition/segment/:filename", async (req, res
         videoId: id, part, rendition, filename,
       });
       res.status(400).end();
+      return;
+    }
+    const partCount = resolveVideoParts(video).length;
+    const hlsParts = await resolveAvailableHlsParts(id, video.hlsParts, partCount);
+    const hlsPart = hlsParts?.[part];
+    if (!hlsPart?.renditions.some((item) => item.name === rendition)) {
+      console.warn("[video-hls-seg] DENY 404: rendition is not active", {
+        videoId: id,
+        part,
+        rendition,
+      });
+      res.status(404).end();
       return;
     }
 
@@ -863,10 +884,16 @@ router.get("/videos/:id/hls/:part/:rendition/segment/:filename", async (req, res
   }
 });
 
-// Legacy server-player token refresh is disabled in Direct-only mode.
-router.get("/videos/:id/token/:part", (_req, res) => {
-  res.status(410).json({
-    message: "Platform streaming is disabled. Use Google Drive Direct playback.",
+router.get("/videos/:id/token/:part", async (req, res) => {
+  const auth = await authorizeStreamRequest(req, res, "video-token");
+  if (!auth) return;
+  res.setHeader("Cache-Control", "no-store");
+  res.json({
+    token: generateVideoStreamToken({
+      userId: Number(verifyVideoStreamToken(String(req.query.token))?.userId ?? 0),
+      videoId: auth.id,
+      part: auth.part,
+    }),
   });
 });
 

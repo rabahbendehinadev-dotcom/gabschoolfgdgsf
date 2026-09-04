@@ -192,6 +192,12 @@ export const GetVideosResponseItem = zod.object({
             .describe(
               "Short-lived, same-origin MP4 stream URL. The server re-checks the viewer's entitlement on every request.",
             ),
+          hlsUrl: zod
+            .string()
+            .nullish()
+            .describe(
+              "Short-lived, same-origin adaptive HLS master playlist URL. Present after this part has been transcoded.",
+            ),
           drivePreviewUrl: zod
             .string()
             .nullish()
@@ -242,6 +248,12 @@ export const GetVideoResponse = zod.object({
             .nullish()
             .describe(
               "Short-lived, same-origin MP4 stream URL. The server re-checks the viewer's entitlement on every request.",
+            ),
+          hlsUrl: zod
+            .string()
+            .nullish()
+            .describe(
+              "Short-lived, same-origin adaptive HLS master playlist URL. Present after this part has been transcoded.",
             ),
           drivePreviewUrl: zod
             .string()

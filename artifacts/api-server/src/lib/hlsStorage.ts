@@ -10,7 +10,7 @@ import {
    The original MP4 sources are huge (up to ~23 Mbps) and non-faststart, so
    students on slow mobile connections stall constantly and every seek costs
    a full moov download. Each video part is transcoded ONCE (offline) into a
-   small HLS ladder (720p/480p/360p, 4s segments) stored additively under
+   small HLS ladder (1080p/720p/360p, 4s segments) stored additively under
    `.private/hls/{videoId}/part-{i}/{rendition}/` in App Storage. The
    original MP4s are untouched and remain the fallback.
 
@@ -104,11 +104,10 @@ export function buildHlsBasePath(videoId: number, partIndex: number): string {
 /* ── Master playlist ──────────────────────────────────────────────────────
    Variant URIs are RELATIVE ("480p.m3u8?token=...") so they resolve against
    this same API route prefix — same-origin, token still enforced. The first
-   listed variant is what native players (iOS Safari) start with, so 480p
-   leads: fast startup on slow connections, ABR upgrades from there. */
+   listed variant is what native players (iOS Safari) start with, so the
+   smallest rendition leads and ABR can upgrade from there. */
 export function buildMasterPlaylist(part: HlsPart, token: string): string {
-  const order = (r: HlsRendition) => (r.height === 480 ? 0 : r.height > 480 ? 1 : 2);
-  const sorted = [...part.renditions].sort((a, b) => order(a) - order(b) || b.height - a.height);
+  const sorted = [...part.renditions].sort((a, b) => a.height - b.height);
   const lines = ["#EXTM3U", "#EXT-X-VERSION:3"];
   for (const r of sorted) {
     const attrs = [
@@ -143,6 +142,57 @@ interface PlaylistSkeleton {
 }
 
 const skeletonCache = new Map<string, PlaylistSkeleton>();
+const markerCache = new Map<string, {
+  part: HlsPart | null;
+  freshUntilMs: number;
+}>();
+
+async function readHlsMarker(
+  videoId: number,
+  partIndex: number,
+): Promise<HlsPart | null> {
+  const cacheKey = `${videoId}/${partIndex}`;
+  const cached = markerCache.get(cacheKey);
+  if (cached && cached.freshUntilMs > Date.now()) return cached.part;
+
+  const markerPath = `${buildHlsBasePath(videoId, partIndex)}/.complete`;
+  const { bucketName, objectName } = parseObjectPath(markerPath);
+  const file = objectStorageClient.bucket(bucketName).file(objectName);
+  let part: HlsPart | null = null;
+  try {
+    const [buf] = await file.download();
+    const parsed = parseHlsParts(`[${buf.toString("utf8")}]`);
+    part = parsed?.[0] ?? null;
+  } catch (err) {
+    const code = (err as { code?: number }).code;
+    if (code !== 404) throw err;
+  }
+
+  markerCache.set(cacheKey, {
+    part,
+    // Discover newly completed transcodes quickly while caching stable markers.
+    freshUntilMs: Date.now() + (part ? 60 * 60_000 : 30_000),
+  });
+  return part;
+}
+
+export async function resolveAvailableHlsParts(
+  videoId: number,
+  raw: string | null | undefined,
+  partCount: number,
+): Promise<(HlsPart | null)[] | null> {
+  const stored = parseHlsParts(raw);
+  const resolved = Array.from(
+    { length: partCount },
+    (_, index) => stored?.[index] ?? null,
+  );
+  await Promise.all(
+    resolved.map(async (part, index) => {
+      if (!part) resolved[index] = await readHlsMarker(videoId, index);
+    }),
+  );
+  return resolved.some(Boolean) ? resolved : null;
+}
 
 async function getPlaylistSkeleton(
   videoId: number,
@@ -233,6 +283,9 @@ export async function renderMediaPlaylist(
 export function invalidateRenderedPlaylists(videoId: number): void {
   for (const key of skeletonCache.keys()) {
     if (key.startsWith(`${videoId}/`)) skeletonCache.delete(key);
+  }
+  for (const key of markerCache.keys()) {
+    if (key.startsWith(`${videoId}/`)) markerCache.delete(key);
   }
 }
 

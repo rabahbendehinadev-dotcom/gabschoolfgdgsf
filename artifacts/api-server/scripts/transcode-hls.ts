@@ -1,11 +1,10 @@
 /* ════════════════════════════════════════════════════════════════════════
    Offline HLS transcoder for course videos.
 
-   For each video part (source MP4 in App Storage at
-   `.private/videos/{id}/part-{i}.mp4`):
+   For each video part (source MP4 in App Storage or Google Drive):
      1. skip if `.private/hls/{id}/part-{i}/.complete` exists (idempotent)
      2. download the source MP4 to /tmp
-     3. one ffmpeg pass → 720p/480p/360p HLS ladder (4s segments, CRF 23
+     3. one ffmpeg pass → 1080p/720p/360p HLS ladder (4s segments, CRF 23
         with per-rendition maxrate caps, keyframe every 4s, fps ≤ 30)
      4. upload segments + skeleton playlists to
         `.private/hls/{id}/part-{i}/{rendition}/`
@@ -24,14 +23,18 @@
      npx tsx scripts/transcode-hls.ts --all --flag-only --api-base ...
          # no transcoding; just re-PUT flags for parts already .complete
    ════════════════════════════════════════════════════════════════════════ */
-import { execFileSync, execFile } from "node:child_process";
-import { promisify } from "node:util";
-import { readFileSync, mkdirSync, rmSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { readFileSync, mkdirSync, rmSync, readdirSync, statSync, writeFileSync, createWriteStream } from "node:fs";
 import { join } from "node:path";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import { objectStorageClient, parseObjectPath } from "../src/lib/objectStorage";
 import type { HlsPart, HlsRendition } from "../src/lib/hlsStorage";
-
-const execFileAsync = promisify(execFile);
+import {
+  extractDriveFileId,
+  getDriveAccessToken,
+  resolveVideoParts,
+} from "../src/lib/googleDrive";
 
 /* ── CLI args ── */
 const args = process.argv.slice(2);
@@ -54,17 +57,56 @@ if (!ALL && IDS.length === 0) {
 
 /* ── Ladder definition (target height → encoder caps) ── */
 const LADDER = [
-  { height: 720, maxrateK: 1600, bufsizeK: 3200, audioK: 96, profile: "high", level: "4.0", codecs: "avc1.640028,mp4a.40.2" },
-  { height: 480, maxrateK: 900, bufsizeK: 1800, audioK: 96, profile: "main", level: "3.1", codecs: "avc1.4d401f,mp4a.40.2" },
-  { height: 360, maxrateK: 500, bufsizeK: 1000, audioK: 64, profile: "main", level: "3.0", codecs: "avc1.4d401e,mp4a.40.2" },
+  { height: 1080, maxrateK: 3500, bufsizeK: 7000, audioK: 128, profile: "high", level: "4.1", codecs: "avc1.640029,mp4a.40.2" },
+  { height: 720, maxrateK: 1800, bufsizeK: 3600, audioK: 96, profile: "high", level: "4.0", codecs: "avc1.640028,mp4a.40.2" },
+  { height: 360, maxrateK: 600, bufsizeK: 1200, audioK: 64, profile: "main", level: "3.0", codecs: "avc1.4d401e,mp4a.40.2" },
 ];
 const SEG_SECONDS = 4;
 
 type ProdVideo = {
   id: number;
   title: string;
-  objectParts: { label?: string; objectPath: string }[] | null;
+  objectParts?: { label?: string; objectPath: string }[] | null;
+  driveFileIds?: string[] | null;
+  driveEmbedUrl?: string | null;
+  driveParts?: string | unknown[] | null;
+  drive_embed_url?: string | null;
+  drive_parts?: string | unknown[] | null;
 };
+
+type VideoSource =
+  | { kind: "object"; objectPath: string }
+  | { kind: "drive"; fileId: string };
+
+function videoSources(video: ProdVideo): VideoSource[] {
+  if (video.objectParts?.length) {
+    return video.objectParts.map((part) => ({
+      kind: "object",
+      objectPath: part.objectPath,
+    }));
+  }
+  const explicitIds = video.driveFileIds ?? [];
+  if (explicitIds.length) {
+    return explicitIds
+    .filter((fileId) => typeof fileId === "string" && fileId.length >= 10)
+    .map((fileId) => ({ kind: "drive" as const, fileId }));
+  }
+
+  const rawDriveParts = video.driveParts ?? video.drive_parts ?? null;
+  const resolved = resolveVideoParts({
+    driveEmbedUrl: video.driveEmbedUrl ?? video.drive_embed_url ?? null,
+    driveParts: typeof rawDriveParts === "string"
+      ? rawDriveParts
+      : rawDriveParts ? JSON.stringify(rawDriveParts) : null,
+  });
+  const ids = resolved.map((part) => extractDriveFileId(part.url));
+  // Never collapse an invalid part and shift every following part index.
+  if (ids.some((fileId) => !fileId)) return [];
+  return ids.map((fileId) => ({
+    kind: "drive" as const,
+    fileId: fileId as string,
+  }));
+}
 
 const PRIVATE_DIR = process.env.PRIVATE_OBJECT_DIR || "";
 if (!PRIVATE_DIR) { console.error("PRIVATE_OBJECT_DIR not set"); process.exit(1); }
@@ -128,7 +170,10 @@ function transcode(srcPath: string, outDir: string, info: ProbeInfo) {
     ...rungs.map((r, i) => `[vs${i}]scale=-2:${Math.min(r.height, info.height - (info.height % 2))}[vo${i}]`),
   ].join(";");
 
-  const cmd: string[] = ["-y", "-i", srcPath, "-filter_complex", filters];
+  const cmd: string[] = [
+    "-hide_banner", "-loglevel", "warning", "-stats",
+    "-y", "-i", srcPath, "-filter_complex", filters,
+  ];
   rungs.forEach((r, i) => {
     cmd.push("-map", `[vo${i}]`);
     if (info.hasAudio) cmd.push("-map", "0:a:0");
@@ -232,7 +277,46 @@ async function putHlsParts(videoId: number, parts: (HlsPart | null)[]): Promise<
 }
 
 /* ── per-part pipeline ── */
-async function processPart(videoId: number, partIndex: number, sourcePath: string): Promise<HlsPart | null> {
+async function downloadDriveSource(fileId: string, destination: string): Promise<void> {
+  const maxAttempts = 5;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const token = await getDriveAccessToken();
+      const response = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      if (response.ok && response.body) {
+        await pipeline(
+          Readable.fromWeb(response.body as import("node:stream/web").ReadableStream),
+          createWriteStream(destination),
+        );
+        return;
+      }
+
+      const body = await response.text();
+      const retryable =
+        response.status === 429 ||
+        response.status >= 500 ||
+        (response.status === 403 && /rateLimitExceeded|Too Many Requests/i.test(body));
+      if (!retryable || attempt === maxAttempts) {
+        const error = new Error(`Drive source download failed: HTTP ${response.status}`) as Error & {
+          permanent?: boolean;
+        };
+        error.permanent = !retryable;
+        throw error;
+      }
+    } catch (err) {
+      if ((err as Error & { permanent?: boolean }).permanent) throw err;
+      if (attempt === maxAttempts) throw err;
+      console.warn(`  Drive download retry ${attempt}/${maxAttempts - 1}…`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2_000 * 2 ** (attempt - 1)));
+  }
+  throw new Error("Drive source download exhausted retries");
+}
+
+async function processPart(videoId: number, partIndex: number, source: VideoSource): Promise<HlsPart | null> {
   const base = hlsPartPath(videoId, partIndex);
   const markerPath = `${base}/.complete`;
 
@@ -241,8 +325,12 @@ async function processPart(videoId: number, partIndex: number, sourcePath: strin
     try {
       const saved = JSON.parse(buf.toString("utf8")) as HlsPart;
       if (saved?.renditions?.length) {
-        console.log(`  part ${partIndex}: already complete (${saved.renditions.map((r) => r.name).join(",")})`);
-        return saved;
+        const names = saved.renditions.map((r) => r.name);
+        if (!names.includes("480p")) {
+          console.log(`  part ${partIndex}: already complete (${names.join(",")})`);
+          return saved;
+        }
+        console.log(`  part ${partIndex}: legacy ladder (${names.join(",")}) — upgrading`);
       }
     } catch { /* corrupt marker → redo */ }
   }
@@ -257,7 +345,11 @@ async function processPart(videoId: number, partIndex: number, sourcePath: strin
   const srcLocal = join(work, "src.mp4");
 
   console.log(`  part ${partIndex}: downloading source…`);
-  await gcsFile(sourcePath).download({ destination: srcLocal });
+  if (source.kind === "object") {
+    await gcsFile(source.objectPath).download({ destination: srcLocal });
+  } else {
+    await downloadDriveSource(source.fileId, srcLocal);
+  }
   const bytes = statSync(srcLocal).size;
 
   const info = probe(srcLocal);
@@ -297,11 +389,11 @@ async function processPart(videoId: number, partIndex: number, sourcePath: strin
 
 async function main() {
   const videos = (JSON.parse(readFileSync("/tmp/prod_videos.json", "utf8")) as ProdVideo[])
-    .filter((v) => v.objectParts?.length)
+    .filter((v) => videoSources(v).length > 0)
     .filter((v) => ALL || IDS.includes(v.id))
     .sort((a, b) => a.id - b.id);
 
-  if (videos.length === 0) { console.error("No matching videos with objectParts"); process.exit(1); }
+  if (videos.length === 0) { console.error("No matching videos with playable sources"); process.exit(1); }
   console.log(`Processing ${videos.length} video(s)…`);
 
   const failed: number[] = [];
@@ -309,8 +401,9 @@ async function main() {
     console.log(`\nvideo ${v.id}: ${v.title.slice(0, 60)}`);
     try {
       const parts: (HlsPart | null)[] = [];
-      for (let i = 0; i < v.objectParts!.length; i++) {
-        parts.push(await processPart(v.id, i, v.objectParts![i].objectPath));
+      const sources = videoSources(v);
+      for (let i = 0; i < sources.length; i++) {
+        parts.push(await processPart(v.id, i, sources[i]));
       }
       if (API_BASE && ADMIN_USER && ADMIN_PASS) {
         if (parts.every((p) => p === null)) {

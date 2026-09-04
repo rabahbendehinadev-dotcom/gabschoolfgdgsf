@@ -144,7 +144,6 @@ export function CourseVideoPlayer({
   const hlsKey = hlsSrc ? hlsSrc.split("?")[0] : null;
   const srcKey = (activeSrc ? activeSrc.split("?")[0] : "") + (usingLow ? "#low" : "");
   const hlsSrcRef = useRef<string | null>(hlsSrc ?? null);
-  hlsSrcRef.current = hlsSrc ?? null;
   const srcRef = useRef(activeSrc);
   srcRef.current = activeSrc;
   /* عند تبديل الجودة: نحفظ الموضع والحالة لنستأنف من نفس النقطة بعد إعادة الربط */
@@ -159,6 +158,13 @@ export function CourseVideoPlayer({
     catch { return ""; }
   };
   const currentTokenRef = useRef<string>(extractToken(hlsSrc));
+  const nativeHlsRef = useRef(false);
+  useEffect(() => {
+    hlsSrcRef.current = hlsSrc ?? null;
+    const token = extractToken(hlsSrc);
+    if (token) currentTokenRef.current = token;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hlsSrc]);
   // المصدر الفعّال — يُدار عبر useEffect (وليس خاصية src في JSX) لأن hls.js يربط MediaSource بنفسه
   const effectiveKey = useHls ? (hlsKey as string) : srcKey;
 
@@ -583,6 +589,7 @@ export function CourseVideoPlayer({
     let hls: HlsType | null = null;
 
     if (!useHls) {
+      nativeHlsRef.current = false;
       v.src = srcRef.current;
       // استئناف الموضع بعد تبديل الجودة (720p ↔ الأصلية)
       const resume = resumeAfterQualityRef.current;
@@ -602,6 +609,7 @@ export function CourseVideoPlayer({
         const HlsCtor = (await import("hls.js")).default;
         if (cancelled || !videoRef.current) return;
         if (HlsCtor.isSupported()) {
+          nativeHlsRef.current = false;
           hls = new HlsCtor({
             /* ── Buffer ──
                Desktop: أقل مسبقاً → يبدأ أسرع، ABR أقل تقلباً
@@ -673,6 +681,7 @@ export function CourseVideoPlayer({
           hls.loadSource(hlsSrcRef.current as string);
           hls.attachMedia(v);
         } else if (v.canPlayType(HLS_MIME)) {
+          nativeHlsRef.current = true;
           v.src = hlsSrcRef.current as string; // iOS Safari: دعم HLS أصلي بدون MSE
         } else {
           setHlsFailed(true);
@@ -684,6 +693,7 @@ export function CourseVideoPlayer({
 
     return () => {
       cancelled = true;
+      nativeHlsRef.current = false;
       hlsRef.current = null; // امسح قبل destroy لتجنّب استخدامه في setHlsLevel بعد تفكيك المكوّن
       if (hls) { hls.destroy(); hls = null; }
       else v.removeAttribute("src");
@@ -704,10 +714,35 @@ export function CourseVideoPlayer({
     const REFRESH_MS = 90 * 60 * 1000; // 90 دقيقة (قبل انتهاء الـ 2h بنصف ساعة)
     const id = setInterval(async () => {
       try {
-        const res = await fetch(`/api/videos/${videoId}/token/${part}`, { credentials: "include" });
+        const currentToken = currentTokenRef.current;
+        if (!currentToken) return;
+        const res = await fetch(
+          `/api/videos/${videoId}/token/${part}?token=${encodeURIComponent(currentToken)}`,
+          { credentials: "include" },
+        );
         if (!res.ok) return;
         const data = await res.json() as { token?: string };
-        if (data.token) currentTokenRef.current = data.token;
+        if (data.token) {
+          currentTokenRef.current = data.token;
+          const video = videoRef.current;
+          const currentHlsSrc = hlsSrcRef.current;
+          if (nativeHlsRef.current && video && currentHlsSrc) {
+            const nextUrl = new URL(currentHlsSrc, window.location.origin);
+            nextUrl.searchParams.set("token", data.token);
+            const nextSrc = nextUrl.origin === window.location.origin
+              ? `${nextUrl.pathname}${nextUrl.search}`
+              : nextUrl.toString();
+            hlsSrcRef.current = nextSrc;
+            const resumeAt = video.currentTime;
+            const wasPlaying = !video.paused;
+            video.addEventListener("loadedmetadata", () => {
+              try { if (resumeAt > 0) video.currentTime = resumeAt; } catch { /* */ }
+              if (wasPlaying) video.play().catch(() => { /* autoplay policy */ });
+            }, { once: true });
+            video.src = nextSrc;
+            video.load();
+          }
+        }
       } catch { /* best-effort — لا تكسر التشغيل عند فشل التجديد */ }
     }, REFRESH_MS);
     return () => clearInterval(id);

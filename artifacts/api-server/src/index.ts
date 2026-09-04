@@ -447,7 +447,7 @@ runMigrations().then(() => ensureSeed()).then(() => {
     console.log(`Server listening on port ${port}`);
     // Videos stay in Drive; migration and the 720p/FFmpeg worker remain disabled.
     // Authorized playback uses the signed same-origin MP4 stream route.
-    console.log("[video] Signed Google Drive MP4 streaming enabled — migration and transcoding disabled.");
+  console.log("[video] Adaptive HLS enabled with signed Google Drive MP4 fallback; transcoding runs offline.");
     // عامل ضغط الصور المخزّنة (الصور القديمة الضخمة) — إنتاج فقط، ويمكن تعطيله
     if (
       process.env.ENABLE_IMAGE_OPTIMIZE !== "false" &&

@@ -144,6 +144,8 @@ export interface VideoStreamPart {
   label: string;
   /** Short-lived, same-origin MP4 stream URL. The server re-checks the viewer's entitlement on every request. */
   url?: string | null;
+  /** Short-lived, same-origin adaptive HLS master playlist URL. Present after this part has been transcoded. */
+  hlsUrl?: string | null;
   /** Legacy Google Drive preview URL. */
   drivePreviewUrl?: string | null;
   /** Google Drive top-level view URL for mobile and Safari users when embedded Google authentication is unavailable. */
