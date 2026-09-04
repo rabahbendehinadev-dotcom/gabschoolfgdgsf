@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, videosTable, categoriesTable, visitLogsTable, playlistsTable, activityLogsTable, usersTable, userCoursesTable } from "@workspace/db";
-import { eq, and, or, asc, sql, isNull, inArray } from "drizzle-orm";
+import { eq, and, or, asc, sql, isNull, inArray, gt } from "drizzle-orm";
 import { optionalUserAuth } from "../middlewares/auth";
 import { getClientIp } from "../lib/ipPolicy";
 import { deviceTypeFromUA } from "../lib/device";
@@ -252,6 +252,11 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
         .where(and(
           eq(userCoursesTable.userId, user.id),
           eq(userCoursesTable.playlistId, coursePlaylistId),
+          eq(userCoursesTable.status, "active"),
+          or(
+            isNull(userCoursesTable.expiresAt),
+            gt(userCoursesTable.expiresAt, new Date()),
+          ),
         ))
         .limit(1);
       if (!courseAccess) {
@@ -577,6 +582,11 @@ async function authorizeStreamRequest(
       .where(and(
         eq(userCoursesTable.userId, payload.userId),
         eq(userCoursesTable.playlistId, coursePlaylistId),
+        eq(userCoursesTable.status, "active"),
+        or(
+          isNull(userCoursesTable.expiresAt),
+          gt(userCoursesTable.expiresAt, new Date()),
+        ),
       ))
       .limit(1);
     if (!courseAccess) {

@@ -147,17 +147,13 @@ export function CourseDetail({ id }: { id: number }) {
     user?.accountType === "vip" &&
     !user.subscriptionIsExpired &&
     (!user.subscriptionExpiresAt || new Date(user.subscriptionExpiresAt) > new Date());
-  const hasActiveSubscription =
-    !!user &&
-    user.subscriptionType !== "demo" &&
-    !user.subscriptionIsExpired &&
-    (!user.subscriptionExpiresAt || new Date(user.subscriptionExpiresAt) > new Date());
+  const isSubscriptionLocked = !user || user.subscriptionType === "demo";
 
   const computeLocked = (v: SectionVideo): boolean => {
     const at = v.accessType ?? "normal";
     if (at === "visitor") return false;
     if (at === "vip") return !isVip;
-    return !isVip && !hasActiveSubscription;
+    return isSubscriptionLocked;
   };
   const [, navigate] = useLocation();
   const [activeSection, setActiveSection] = useState<Section | null>(null);
