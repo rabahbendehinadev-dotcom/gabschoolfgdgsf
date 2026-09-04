@@ -10,10 +10,10 @@ import { CategoryCard } from "@/components/public/CategoryCard";
 import { CoursePlayer } from "@/components/public/CoursePlayer";
 import { InstallAppSection } from "@/components/public/InstallAppSection";
 import { warmImages } from "@/lib/warmImages";
-import iphoneLocked from "@assets/generated_images/hero_iphone_locked.png";
-import iphoneHome from "@assets/generated_images/hero_iphone_home.png";
-import androidUnlock from "@assets/generated_images/hero_android_unlock.png";
-import tabletClean from "@assets/generated_images/hero_tablet_clean.png";
+import iphoneLocked from "@assets/generated_images/hero_iphone_locked.webp";
+import iphoneHome from "@assets/generated_images/hero_iphone_home.webp";
+import androidUnlock from "@assets/generated_images/hero_android_unlock.webp";
+import tabletClean from "@assets/generated_images/hero_tablet_clean.webp";
 
 const HOME_ACCENTS = [
   { from: "#f97316", to: "#fb923c" },

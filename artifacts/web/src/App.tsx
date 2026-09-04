@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Switch, Route, Router as WouterRouter, useLocation, useSearch } from "wouter";
 import { Loader2 } from "lucide-react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -9,39 +9,40 @@ import { Navbar } from "@/components/layout/Navbar";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { Footer } from "@/components/layout/Footer";
 import { AdminLayout } from "@/components/layout/AdminLayout";
-import { Home } from "@/pages/public/Home";
-import { Login } from "@/pages/public/Login";
-import { Register } from "@/pages/public/Register";
-import { Courses } from "@/pages/public/Courses";
-import { CourseDetail } from "@/pages/public/CourseDetail";
-import { Videos } from "@/pages/public/Videos";
-import { VideoDetail } from "@/pages/public/VideoDetail";
-import { Dashboard } from "@/pages/public/Dashboard";
-import { Subscribe } from "@/pages/public/Subscribe";
-import { Community } from "@/pages/public/Community";
-import { Tools } from "@/pages/public/Tools";
-import { Notifications } from "@/pages/public/Notifications";
-import { CompletePhone } from "@/pages/public/CompletePhone";
-import { AdminLogin } from "@/pages/admin/AdminLogin";
-import { AdminDashboard } from "@/pages/admin/Dashboard";
-import { AdminUsers } from "@/pages/admin/Users";
-import { AdminVideos } from "@/pages/admin/Videos";
-import { AdminCategories } from "@/pages/admin/Categories";
-import { AdminCourses } from "@/pages/admin/Courses";
-import { AdminPlans } from "@/pages/admin/Plans";
-import { AdminSubscriptions } from "@/pages/admin/Subscriptions";
-import { AdminActivityLog } from "@/pages/admin/ActivityLog";
-import { AdminPayments } from "@/pages/admin/Payments";
-import { AdminChangePassword } from "@/pages/admin/ChangePassword";
-import { AdminSendNotification } from "@/pages/admin/SendNotification";
-import { AdminCommunity } from "@/pages/admin/AdminCommunity";
-import { AdminTools } from "@/pages/admin/AdminTools";
-import { AdminToolCategories } from "@/pages/admin/AdminToolCategories";
-import { AdminSubscriptionAlerts } from "@/pages/admin/SubscriptionAlerts";
-import { AdminAdmins } from "@/pages/admin/AdminAdmins";
-import { AdminAuditLog } from "@/pages/admin/AdminAuditLog";
 import { NotificationGate } from "@/components/notifications/NotificationGate";
-import NotFound from "@/pages/not-found";
+
+const Home = lazy(() => import("@/pages/public/Home").then((module) => ({ default: module.Home })));
+const Login = lazy(() => import("@/pages/public/Login").then((module) => ({ default: module.Login })));
+const Register = lazy(() => import("@/pages/public/Register").then((module) => ({ default: module.Register })));
+const Courses = lazy(() => import("@/pages/public/Courses").then((module) => ({ default: module.Courses })));
+const CourseDetail = lazy(() => import("@/pages/public/CourseDetail").then((module) => ({ default: module.CourseDetail })));
+const Videos = lazy(() => import("@/pages/public/Videos").then((module) => ({ default: module.Videos })));
+const VideoDetail = lazy(() => import("@/pages/public/VideoDetail").then((module) => ({ default: module.VideoDetail })));
+const Dashboard = lazy(() => import("@/pages/public/Dashboard").then((module) => ({ default: module.Dashboard })));
+const Subscribe = lazy(() => import("@/pages/public/Subscribe").then((module) => ({ default: module.Subscribe })));
+const Community = lazy(() => import("@/pages/public/Community").then((module) => ({ default: module.Community })));
+const Tools = lazy(() => import("@/pages/public/Tools").then((module) => ({ default: module.Tools })));
+const Notifications = lazy(() => import("@/pages/public/Notifications").then((module) => ({ default: module.Notifications })));
+const CompletePhone = lazy(() => import("@/pages/public/CompletePhone").then((module) => ({ default: module.CompletePhone })));
+const AdminLogin = lazy(() => import("@/pages/admin/AdminLogin").then((module) => ({ default: module.AdminLogin })));
+const AdminDashboard = lazy(() => import("@/pages/admin/Dashboard").then((module) => ({ default: module.AdminDashboard })));
+const AdminUsers = lazy(() => import("@/pages/admin/Users").then((module) => ({ default: module.AdminUsers })));
+const AdminVideos = lazy(() => import("@/pages/admin/Videos").then((module) => ({ default: module.AdminVideos })));
+const AdminCategories = lazy(() => import("@/pages/admin/Categories").then((module) => ({ default: module.AdminCategories })));
+const AdminCourses = lazy(() => import("@/pages/admin/Courses").then((module) => ({ default: module.AdminCourses })));
+const AdminPlans = lazy(() => import("@/pages/admin/Plans").then((module) => ({ default: module.AdminPlans })));
+const AdminSubscriptions = lazy(() => import("@/pages/admin/Subscriptions").then((module) => ({ default: module.AdminSubscriptions })));
+const AdminActivityLog = lazy(() => import("@/pages/admin/ActivityLog").then((module) => ({ default: module.AdminActivityLog })));
+const AdminPayments = lazy(() => import("@/pages/admin/Payments").then((module) => ({ default: module.AdminPayments })));
+const AdminChangePassword = lazy(() => import("@/pages/admin/ChangePassword").then((module) => ({ default: module.AdminChangePassword })));
+const AdminSendNotification = lazy(() => import("@/pages/admin/SendNotification").then((module) => ({ default: module.AdminSendNotification })));
+const AdminCommunity = lazy(() => import("@/pages/admin/AdminCommunity").then((module) => ({ default: module.AdminCommunity })));
+const AdminTools = lazy(() => import("@/pages/admin/AdminTools").then((module) => ({ default: module.AdminTools })));
+const AdminToolCategories = lazy(() => import("@/pages/admin/AdminToolCategories").then((module) => ({ default: module.AdminToolCategories })));
+const AdminSubscriptionAlerts = lazy(() => import("@/pages/admin/SubscriptionAlerts").then((module) => ({ default: module.AdminSubscriptionAlerts })));
+const AdminAdmins = lazy(() => import("@/pages/admin/AdminAdmins").then((module) => ({ default: module.AdminAdmins })));
+const AdminAuditLog = lazy(() => import("@/pages/admin/AdminAuditLog").then((module) => ({ default: module.AdminAuditLog })));
+const NotFound = lazy(() => import("@/pages/not-found"));
 
 const queryClient = new QueryClient();
 
@@ -201,7 +202,15 @@ function App() {
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
           <AuthProvider>
-            <GatedRouter />
+            <Suspense
+              fallback={
+                <div className="min-h-screen flex items-center justify-center" dir="rtl">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              }
+            >
+              <GatedRouter />
+            </Suspense>
           </AuthProvider>
         </WouterRouter>
         <Toaster />
