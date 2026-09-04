@@ -23,6 +23,12 @@ const SEG_CONCURRENT: Map<string, number> = new Map();
 const MP4_MAX = 3; // 3 is safe for a seeking browser; IDM needs 8+
 const SEG_MAX = 5; // hls.js may prefetch a few segments at level switches
 
+// Production pilot: Video 64 uses a separate fast-start remux while the
+// original Drive file and database record remain untouched for easy rollback.
+const FASTSTART_PILOT_FILES: Readonly<Record<number, string>> = {
+  64: "1an86XBMwA7KbQkiDK6nPmzlwCoPiw4eb",
+};
+
 function acquireSlot(map: Map<string, number>, key: string, max: number): boolean {
   const n = map.get(key) ?? 0;
   if (n >= max) return false;
@@ -656,7 +662,10 @@ router.get("/videos/:id/stream/:part", async (req, res) => {
       res.status(404).end();
       return;
     }
-    let fileId = extractDriveFileId(target.url);
+    let fileId =
+      part === 0
+        ? (FASTSTART_PILOT_FILES[id] ?? extractDriveFileId(target.url))
+        : extractDriveFileId(target.url);
     // ?q=low → stream the lightweight 720p Drive copy when it exists.
     // Falls back silently to the original if no copy is ready yet.
     if (req.query.q === "low") {
