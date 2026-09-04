@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Maximize, Minimize } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 
@@ -31,6 +31,21 @@ export function DriveDirectPlayer({
   const [isNativeFullscreen, setIsNativeFullscreen] = useState(false);
   const [isCssFullscreen, setIsCssFullscreen] = useState(false);
   const isFullscreen = isNativeFullscreen || isCssFullscreen;
+  const iframeUrl = useMemo(() => {
+    if (!email) return previewUrl;
+    try {
+      const url = new URL(previewUrl);
+      if (url.hostname === "drive.google.com") {
+        // A top-level Drive tab can choose among several signed-in Google
+        // accounts, while an embedded preview may keep using the wrong default
+        // account. Pin the preview to the same Google identity used for GAB.
+        url.searchParams.set("authuser", email);
+      }
+      return url.toString();
+    } catch {
+      return previewUrl;
+    }
+  }, [previewUrl, email]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -151,10 +166,11 @@ export function DriveDirectPlayer({
       >
         <iframe
           key={driveIframeRevision}
-          src={previewUrl}
+          src={iframeUrl}
           title={title ? `تشغيل ${title}` : "تشغيل الفيديو"}
           className="absolute inset-0 h-full w-full border-0"
-          allow="autoplay"
+          allow="autoplay; fullscreen"
+          allowFullScreen
           referrerPolicy="no-referrer"
         />
 
