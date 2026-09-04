@@ -6,7 +6,7 @@ import { getClientIp } from "../lib/ipPolicy";
 import { deviceTypeFromUA } from "../lib/device";
 import { isActiveVip } from "../lib/vipUtils";
 import { generateVideoStreamToken, verifyVideoStreamToken } from "../lib/auth";
-import { extractDriveFileId, resolveVideoParts, streamDriveFile } from "../lib/googleDrive";
+import { extractDriveFileId, getDriveFileMetadata, resolveVideoParts, streamDriveFile } from "../lib/googleDrive";
 import { streamGcsObjectToResponse, parseObjectParts } from "../lib/videoStorage";
 import { parseLowParts } from "../lib/driveTranscode";
 import { resolveAvailableHlsParts, buildMasterPlaylist, renderMediaPlaylist, buildHlsBasePath, RENDITION_NAME_RE, SAFE_SEGMENT_RE } from "../lib/hlsStorage";
@@ -639,6 +639,110 @@ async function authorizeStreamRequest(
 
   return { id, part, video };
 }
+
+// HEAD must never enter the GET media pipeline. Safari and other native players
+// use it to inspect byte-range support before opening the media body.
+router.head("/videos/:id/stream/:part", async (req, res) => {
+  try {
+    const auth = await authorizeStreamRequest(req, res, "video-stream");
+    if (!auth) return;
+    const { id, part, video } = auth;
+
+    const partsList = resolveVideoParts({
+      driveEmbedUrl: video.driveEmbedUrl,
+      driveParts: video.driveParts,
+    });
+    const target = partsList[part];
+    if (!target) {
+      res.status(404).end();
+      return;
+    }
+
+    let fileId =
+      part === 0
+        ? (FASTSTART_PILOT_FILES[id] ?? extractDriveFileId(target.url))
+        : extractDriveFileId(target.url);
+    if (req.query.q === "low") {
+      const lowEntry = parseLowParts(video.lowParts)?.[part];
+      if (lowEntry && "fileId" in lowEntry && lowEntry.fileId) {
+        fileId = lowEntry.fileId;
+      }
+    }
+    if (!fileId) {
+      res.status(404).end();
+      return;
+    }
+
+    const metadata = await getDriveFileMetadata(fileId);
+    res.setHeader("Accept-Ranges", "bytes");
+    res.setHeader("Content-Type", metadata.contentType);
+    res.setHeader("Content-Disposition", "inline");
+    res.setHeader("Cache-Control", "private, max-age=3600");
+    res.setHeader("Vary", "Range");
+
+    const range = req.headers.range;
+    if (!range) {
+      res.status(200);
+      res.setHeader("Content-Length", String(metadata.size));
+      res.end();
+      return;
+    }
+
+    const match = /^bytes=(\d*)-(\d*)$/.exec(range.trim());
+    if (!match || (!match[1] && !match[2]) || metadata.size === 0) {
+      res.status(416);
+      res.setHeader("Content-Range", `bytes */${metadata.size}`);
+      res.setHeader("Content-Length", "0");
+      res.end();
+      return;
+    }
+
+    let start: number;
+    let end: number;
+    if (!match[1]) {
+      const suffixLength = Number(match[2]);
+      if (!Number.isSafeInteger(suffixLength) || suffixLength <= 0) {
+        res.status(416);
+        res.setHeader("Content-Range", `bytes */${metadata.size}`);
+        res.setHeader("Content-Length", "0");
+        res.end();
+        return;
+      }
+      start = Math.max(0, metadata.size - suffixLength);
+      end = metadata.size - 1;
+    } else {
+      start = Number(match[1]);
+      end = match[2] ? Number(match[2]) : metadata.size - 1;
+      if (
+        !Number.isSafeInteger(start) ||
+        !Number.isSafeInteger(end) ||
+        start < 0 ||
+        start >= metadata.size ||
+        end < start
+      ) {
+        res.status(416);
+        res.setHeader("Content-Range", `bytes */${metadata.size}`);
+        res.setHeader("Content-Length", "0");
+        res.end();
+        return;
+      }
+      end = Math.min(end, metadata.size - 1);
+    }
+
+    res.status(206);
+    res.setHeader("Content-Range", `bytes ${start}-${end}/${metadata.size}`);
+    res.setHeader("Content-Length", String(end - start + 1));
+    res.end();
+  } catch (error: unknown) {
+    console.error("[video-stream] HEAD ERROR", {
+      videoId: req.params.id,
+      part: req.params.part,
+      message: error instanceof Error ? error.message : String(error),
+    });
+    if (!res.headersSent) res.status(502).end();
+    else res.end();
+  }
+});
 
 // Token-protected, same-origin video stream (Drive proxy fallback for
 // unmigrated videos).

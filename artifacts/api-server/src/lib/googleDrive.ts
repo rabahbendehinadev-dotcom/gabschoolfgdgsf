@@ -151,6 +151,32 @@ export async function getDriveAccessToken(): Promise<string> {
   return cached.token;
 }
 
+export async function getDriveFileMetadata(
+  fileId: string,
+): Promise<{ size: number; contentType: string }> {
+  const token = await getDriveAccessToken();
+  const resp = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?supportsAllDrives=true&fields=size%2CmimeType`,
+    { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } },
+  );
+  if (!resp.ok) {
+    throw new Error(`Google Drive metadata request failed (${resp.status})`);
+  }
+  const metadata = (await resp.json()) as {
+    size?: string;
+    mimeType?: string;
+  };
+  const size = Number(metadata.size);
+  if (!Number.isSafeInteger(size) || size < 0) {
+    throw new Error("Google Drive metadata returned an invalid file size");
+  }
+  return {
+    size,
+    contentType:
+      metadata.mimeType?.startsWith("video/") ? metadata.mimeType : "video/mp4",
+  };
+}
+
 // Build the ordered list of playable parts for a video. driveParts (when
 // present) is a JSON string of [{label,url}]; otherwise we fall back to the
 // single driveEmbedUrl. The returned URLs are RAW Drive URLs used ONLY
