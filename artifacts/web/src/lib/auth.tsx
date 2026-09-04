@@ -21,6 +21,7 @@ type AuthState = {
 const AuthContext = createContext<AuthState | null>(null);
 
 const REFRESH_INTERVAL_MS = 20_000;
+const RESUME_DEDUP_MS = 1_500;
 
 export function hasActiveCommunityAccess(user: UserProfile | null | undefined): boolean {
   if (!user?.isActive) return false;
@@ -55,13 +56,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const tokenRef = useRef(token);
   useEffect(() => { tokenRef.current = token; }, [token]);
+  const resumeRefreshInFlightRef = useRef<Promise<void> | null>(null);
+  const lastResumeRefreshAtRef = useRef(0);
 
   const adminTokenRef = useRef(adminToken);
   useEffect(() => { adminTokenRef.current = adminToken; }, [adminToken]);
 
   const refreshUser = useCallback(async () => {
     const currentToken = tokenRef.current;
-    if (!currentToken) return;
+    if (!currentToken) return false;
     try {
       const res = await fetch("/api/auth/me", {
         headers: { Authorization: `Bearer ${currentToken}` },
@@ -72,13 +75,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setTokenState(null);
         setUser(null);
         setBootstrapped(true);
-        return;
+        return false;
       }
       if (!res.ok) {
         // Non-401 failure (e.g. transient 403/5xx): keep the cached profile but
         // still mark bootstrap complete so the app/phone-gate never hangs.
         setBootstrapped(true);
-        return;
+        return false;
       }
       const fresh: UserProfile = await res.json();
       setUser(prev => {
@@ -95,9 +98,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return fresh;
       });
       setBootstrapped(true);
+      return true;
     } catch {
       // Network error: don't trap the app in a perpetual loading state.
       setBootstrapped(true);
+      return false;
     }
   }, []);
 
@@ -110,16 +115,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refreshUser();
     const timer = setInterval(refreshUser, REFRESH_INTERVAL_MS);
 
+    const refreshAfterResume = () => {
+      const now = Date.now();
+      if (
+        resumeRefreshInFlightRef.current ||
+        now - lastResumeRefreshAtRef.current < RESUME_DEDUP_MS
+      ) {
+        return;
+      }
+
+      lastResumeRefreshAtRef.current = now;
+      const request = (async () => {
+        const sessionIsValid = await refreshUser();
+        if (!sessionIsValid) return;
+
+        await queryClient.invalidateQueries({
+          predicate: ({ queryKey }) => {
+            const root = queryKey[0];
+            return (
+              typeof root === "string" &&
+              (root.startsWith("/api/videos") || root.startsWith("/api/playlists"))
+            );
+          },
+          refetchType: "active",
+        });
+      })().finally(() => {
+        resumeRefreshInFlightRef.current = null;
+      });
+
+      resumeRefreshInFlightRef.current = request;
+    };
+
     const onVisibilityChange = () => {
-      if (document.visibilityState === "visible") refreshUser();
+      if (document.visibilityState === "visible") refreshAfterResume();
     };
     document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("pageshow", refreshAfterResume);
 
     return () => {
       clearInterval(timer);
       document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("pageshow", refreshAfterResume);
     };
-  }, [token, refreshUser]);
+  }, [token, refreshUser, queryClient]);
 
   // Validates the admin JWT against the server on mount and periodically.
   // Clears state and redirects to admin login when the token is expired/invalid.
