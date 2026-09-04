@@ -211,18 +211,13 @@ export function isFolderDriveUrl(url: string): boolean {
 }
 
 // ─── Pre-fetch cache ─────────────────────────────────────────────────────────
-// A 64 MiB mobile response is roughly 3–5 minutes at common 720p bitrates.
-// It is still live-piped (never accumulated in RAM); only the following window
-// may be held by the bounded prefetch cache.
-const MAX_CHUNK_MOBILE = 64 * 1024 * 1024;
-const MAX_CHUNK_DESKTOP = 32 * 1024 * 1024;
-const MAX_PREFETCH_ENTRIES = 3;
-const PREFETCH_TTL_MS = 5 * 60_000;
-
-function isMobileUA(ua: string | undefined): boolean {
-  if (!ua) return false;
-  return /Mobile|Android|iPhone|iPad|iPod/i.test(ua);
-}
+// Keep every proxied response short enough for Autoscale/reverse proxies.
+// Large open-ended responses (previously 32–64 MiB) could stay open for close
+// to a minute on high-bitrate videos, then be cut mid-window and leave Safari
+// buffering forever. Eight 8 MiB prefetched windows cap memory at 64 MiB.
+const STREAM_WINDOW_BYTES = 8 * 1024 * 1024;
+const MAX_PREFETCH_ENTRIES = 8;
+const PREFETCH_TTL_MS = 2 * 60_000;
 
 interface PrefetchEntry {
   promise: Promise<PrefetchResult | null>;
@@ -356,21 +351,17 @@ export async function streamDriveFile(
 
   const isSuffix = !!(match && match[1] === "" && match[2] !== "");
 
-  const mobileClient = isMobileUA(req.headers["user-agent"]);
-  // Mobile browsers tend to request conservative byte ranges and then wait
-  // until they are nearly exhausted before requesting more. Default them to
-  // bounded windows with an overlapping next-window prefetch. Desktop keeps
-  // the uninterrupted live pipe. The env flag remains an explicit override.
+  // Bounded windows are the safe default for every browser when this route is
+  // behind Autoscale. Self-hosted/VPS operators may opt back into an
+  // uninterrupted pipe with DRIVE_STREAM_WINDOWED=false.
   const windowedSetting = process.env.DRIVE_STREAM_WINDOWED;
-  const windowed =
-    windowedSetting === "true" ||
-    (windowedSetting !== "false" && mobileClient);
+  const windowed = windowedSetting !== "false";
 
   let start = 0;
   let end: number | null = null;
   let driveRange: string;
 
-  const chunkSize = mobileClient ? MAX_CHUNK_MOBILE : MAX_CHUNK_DESKTOP;
+  const chunkSize = STREAM_WINDOW_BYTES;
 
   if (isSuffix) {
     driveRange = `bytes=-${match![2]}`;
