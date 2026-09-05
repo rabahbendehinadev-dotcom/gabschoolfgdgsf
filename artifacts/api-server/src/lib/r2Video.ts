@@ -4,6 +4,7 @@ import {
   S3Client,
   S3ServiceException,
 } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import type { Request, Response } from "express";
 import { pipeline } from "stream/promises";
 
@@ -29,6 +30,22 @@ function getR2Bucket(): string {
   const bucket = process.env.R2_BUCKET_NAME;
   if (!bucket) throw new Error("R2_BUCKET_NAME is not configured");
   return bucket;
+}
+
+export async function getPresignedR2VideoUrl(
+  key: string,
+  expiresInSeconds = 15 * 60,
+): Promise<string> {
+  return getSignedUrl(
+    getR2Client(),
+    new GetObjectCommand({
+      Bucket: getR2Bucket(),
+      Key: key,
+      ResponseContentType: "video/mp4",
+      ResponseContentDisposition: "inline",
+    }),
+    { expiresIn: expiresInSeconds },
+  );
 }
 
 export async function getR2VideoMetadata(

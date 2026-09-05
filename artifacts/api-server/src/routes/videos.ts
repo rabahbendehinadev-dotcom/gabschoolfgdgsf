@@ -10,7 +10,7 @@ import { extractDriveFileId, getDriveFileMetadata, resolveVideoParts, streamDriv
 import { streamGcsObjectToResponse, parseObjectParts } from "../lib/videoStorage";
 import { parseLowParts } from "../lib/driveTranscode";
 import { resolveAvailableHlsParts, buildMasterPlaylist, renderMediaPlaylist, buildHlsBasePath, RENDITION_NAME_RE, SAFE_SEGMENT_RE } from "../lib/hlsStorage";
-import { getR2VideoMetadata, streamR2Video } from "../lib/r2Video";
+import { getPresignedR2VideoUrl, getR2VideoMetadata, streamR2Video } from "../lib/r2Video";
 
 /* ── Per-token concurrent-connection guard ────────────────────────────────
    Tracks how many in-flight streaming responses are using each stream token.
@@ -326,6 +326,9 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
       video.hlsParts,
       partsList.length,
     );
+    const directR2Url = R2_PILOT_OBJECTS[id]
+      ? await getPresignedR2VideoUrl(R2_PILOT_OBJECTS[id])
+      : null;
     let streamParts: {
       label: string;
       url?: string;
@@ -345,7 +348,10 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
       });
       return {
         label: p.label,
-        url: `/api/videos/${id}/stream/${part}?token=${encodeURIComponent(token)}`,
+        url:
+          part === 0 && directR2Url
+            ? directR2Url
+            : `/api/videos/${id}/stream/${part}?token=${encodeURIComponent(token)}`,
         ...(availableHlsParts?.[part]
           ? {
               hlsUrl: `/api/videos/${id}/hls/${part}/master.m3u8?token=${encodeURIComponent(token)}`,
