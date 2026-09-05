@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { UpdateVideoInputAccessType } from "./updateVideoInputAccessType";
+import type { UpdateVideoInputStorageProvider } from "./updateVideoInputStorageProvider";
 
 export interface UpdateVideoInput {
   title?: string;
@@ -20,4 +21,7 @@ export interface UpdateVideoInput {
   partNumber?: number | null;
   softwareLink?: string | null;
   driveParts?: string | null;
+  storageProvider?: UpdateVideoInputStorageProvider;
+  r2ObjectKey?: string | null;
+  r2UploadReceipt?: string | null;
 }

@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, text, integer, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, varchar, text, integer, boolean, timestamp, bigint } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { categoriesTable } from "./categories";
@@ -18,6 +18,10 @@ export const videosTable = pgTable("videos", {
   isVisible: boolean("is_visible").notNull().default(true),
   softwareLink: text("software_link"),
   driveParts: text("drive_parts"),
+  // Explicit source metadata for direct private R2 playback. Legacy rows keep
+  // the default Drive provider and remain unchanged.
+  storageProvider: varchar("storage_provider", { length: 20 }).notNull().default("drive"),
+  r2ObjectKey: text("r2_object_key"),
   // JSON [{label, objectPath}] — set once the video bytes are copied to App
   // Storage. When present, playback uses direct presigned GCS URLs instead of
   // proxying Drive bytes through this server (fixes buffering at scale).
@@ -44,3 +48,19 @@ export const videosTable = pgTable("videos", {
 export const insertVideoSchema = createInsertSchema(videosTable).omit({ id: true, createdAt: true });
 export type InsertVideo = z.infer<typeof insertVideoSchema>;
 export type Video = typeof videosTable.$inferSelect;
+
+export const r2VideoUploadsTable = pgTable("r2_video_uploads", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  objectKey: text("object_key").notNull().unique(),
+  adminId: integer("admin_id").notNull(),
+  courseId: integer("course_id").notNull(),
+  intendedVideoId: integer("intended_video_id"),
+  attachedVideoId: integer("attached_video_id"),
+  fileName: varchar("file_name", { length: 255 }).notNull(),
+  fileSize: bigint("file_size", { mode: "number" }).notNull(),
+  contentType: varchar("content_type", { length: 100 }).notNull(),
+  status: varchar("status", { length: 20 }).notNull().default("initiated"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  completedAt: timestamp("completed_at"),
+  attachedAt: timestamp("attached_at"),
+});

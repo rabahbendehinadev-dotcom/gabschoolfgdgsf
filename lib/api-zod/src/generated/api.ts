@@ -539,6 +539,8 @@ export const GetAdminVideosResponseItem = zod.object({
   isVisible: zod.boolean(),
   sortOrder: zod.number(),
   driveParts: zod.string().nullish(),
+  storageProvider: zod.enum(["drive", "r2"]),
+  r2ObjectKey: zod.string().nullish(),
   softwareLink: zod.string().nullish(),
   migratedAt: zod.date().nullish(),
   createdAt: zod.date(),
@@ -561,6 +563,9 @@ export const CreateVideoBody = zod.object({
   partNumber: zod.number().nullish(),
   softwareLink: zod.string().nullish(),
   driveParts: zod.string().nullish(),
+  storageProvider: zod.enum(["drive", "r2"]).optional(),
+  r2ObjectKey: zod.string().nullish(),
+  r2UploadReceipt: zod.string().nullish(),
 });
 
 /**
@@ -583,6 +588,9 @@ export const UpdateVideoBody = zod.object({
   partNumber: zod.number().nullish(),
   softwareLink: zod.string().nullish(),
   driveParts: zod.string().nullish(),
+  storageProvider: zod.enum(["drive", "r2"]).optional(),
+  r2ObjectKey: zod.string().nullish(),
+  r2UploadReceipt: zod.string().nullish(),
 });
 
 export const UpdateVideoResponse = zod.object({
@@ -600,6 +608,8 @@ export const UpdateVideoResponse = zod.object({
   isVisible: zod.boolean(),
   sortOrder: zod.number(),
   driveParts: zod.string().nullish(),
+  storageProvider: zod.enum(["drive", "r2"]),
+  r2ObjectKey: zod.string().nullish(),
   softwareLink: zod.string().nullish(),
   migratedAt: zod.date().nullish(),
   createdAt: zod.date(),
@@ -627,6 +637,93 @@ export const MigrateVideoStorageResponse = zod.object({
   message: zod.string(),
   parts: zod.number(),
   totalBytes: zod.number(),
+});
+
+/**
+ * @summary Initiate a direct multipart video upload to private R2
+ */
+
+export const initiateR2VideoUploadBodyFileNameMax = 255;
+
+export const initiateR2VideoUploadBodyFileSizeMax = 5497558138880;
+
+export const initiateR2VideoUploadBodyContentTypeMax = 100;
+
+export const InitiateR2VideoUploadBody = zod.object({
+  courseId: zod.number().min(1),
+  videoId: zod.number().min(1).nullish(),
+  fileName: zod.string().min(1).max(initiateR2VideoUploadBodyFileNameMax),
+  fileSize: zod.number().min(1).max(initiateR2VideoUploadBodyFileSizeMax),
+  contentType: zod.string().max(initiateR2VideoUploadBodyContentTypeMax),
+});
+
+export const InitiateR2VideoUploadResponse = zod.object({
+  receipt: zod.string(),
+  objectKey: zod.string(),
+  partSize: zod.number(),
+  totalParts: zod.number(),
+});
+
+/**
+ * @summary Sign one multipart upload part
+ */
+export const signR2VideoUploadPartBodyPartNumberMax = 10000;
+
+export const SignR2VideoUploadPartBody = zod.object({
+  receipt: zod.string(),
+  partNumber: zod.number().min(1).max(signR2VideoUploadPartBodyPartNumberMax),
+});
+
+export const SignR2VideoUploadPartResponse = zod.object({
+  url: zod.string(),
+});
+
+/**
+ * @summary Complete and verify a direct multipart R2 video upload
+ */
+
+export const completeR2VideoUploadBodyPartsMax = 10000;
+
+export const CompleteR2VideoUploadBody = zod.object({
+  receipt: zod.string(),
+  parts: zod
+    .array(
+      zod.object({
+        partNumber: zod.number().min(1),
+        etag: zod.string(),
+      }),
+    )
+    .min(1)
+    .max(completeR2VideoUploadBodyPartsMax),
+});
+
+export const CompleteR2VideoUploadResponse = zod.object({
+  objectKey: zod.string(),
+  fileSize: zod.number(),
+  contentType: zod.string(),
+  commitReceipt: zod.string(),
+});
+
+/**
+ * @summary Abort an incomplete multipart R2 video upload
+ */
+export const AbortR2VideoUploadBody = zod.object({
+  receipt: zod.string(),
+});
+
+export const AbortR2VideoUploadResponse = zod.object({
+  message: zod.string(),
+});
+
+/**
+ * @summary Delete a completed R2 upload that was not attached to a lesson
+ */
+export const DiscardR2VideoUploadBody = zod.object({
+  commitReceipt: zod.string(),
+});
+
+export const DiscardR2VideoUploadResponse = zod.object({
+  message: zod.string(),
 });
 
 /**

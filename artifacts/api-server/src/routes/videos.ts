@@ -202,6 +202,8 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
       objectParts: videosTable.objectParts,
       hlsParts: videosTable.hlsParts,
       lowParts: videosTable.lowParts,
+      storageProvider: videosTable.storageProvider,
+      r2ObjectKey: videosTable.r2ObjectKey,
       createdAt: videosTable.createdAt,
     })
     .from(videosTable)
@@ -317,17 +319,21 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
       }
     }
 
-    const partsList = resolveVideoParts({
-      driveEmbedUrl: video.driveEmbedUrl,
-      driveParts: video.driveParts,
-    });
+    const isR2Video = video.storageProvider === "r2" && Boolean(video.r2ObjectKey);
+    const partsList = isR2Video
+      ? [{ label: "Vidéo", url: "" }]
+      : resolveVideoParts({
+          driveEmbedUrl: video.driveEmbedUrl,
+          driveParts: video.driveParts,
+        });
     const availableHlsParts = await resolveAvailableHlsParts(
       id,
       video.hlsParts,
       partsList.length,
     );
-    const directR2Url = R2_PILOT_OBJECTS[id]
-      ? await getPresignedR2VideoUrl(R2_PILOT_OBJECTS[id])
+    const directR2ObjectKey = R2_PILOT_OBJECTS[id] ?? (isR2Video ? video.r2ObjectKey : null);
+    const directR2Url = directR2ObjectKey
+      ? await getPresignedR2VideoUrl(directR2ObjectKey)
       : null;
     let streamParts: {
       label: string;
@@ -339,6 +345,9 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
     // Generate same-origin, short-lived stream URLs only after the full
     // entitlement check. Lists and playlist payloads never receive Drive IDs.
     streamParts = partsList.map((p, part) => {
+      if (part === 0 && directR2Url) {
+        return { label: p.label, url: directR2Url };
+      }
       const driveFileId = hasDirectDriveAccess ? extractDriveFileId(p.url) : null;
       if (!driveFileId) return { label: p.label };
       const token = generateVideoStreamToken({
@@ -348,10 +357,7 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
       });
       return {
         label: p.label,
-        url:
-          part === 0 && directR2Url
-            ? directR2Url
-            : `/api/videos/${id}/stream/${part}?token=${encodeURIComponent(token)}`,
+        url: `/api/videos/${id}/stream/${part}?token=${encodeURIComponent(token)}`,
         ...(availableHlsParts?.[part]
           ? {
               hlsUrl: `/api/videos/${id}/hls/${part}/master.m3u8?token=${encodeURIComponent(token)}`,

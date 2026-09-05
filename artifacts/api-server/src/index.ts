@@ -152,6 +152,26 @@ async function runMigrations() {
     await db.execute(sql`ALTER TABLE videos ADD COLUMN IF NOT EXISTS object_parts TEXT`);
     await db.execute(sql`ALTER TABLE videos ADD COLUMN IF NOT EXISTS migrated_at TIMESTAMP`);
     await db.execute(sql`ALTER TABLE videos ADD COLUMN IF NOT EXISTS hls_parts TEXT`);
+    await db.execute(sql`ALTER TABLE videos ADD COLUMN IF NOT EXISTS storage_provider VARCHAR(20) NOT NULL DEFAULT 'drive'`);
+    await db.execute(sql`ALTER TABLE videos ADD COLUMN IF NOT EXISTS r2_object_key TEXT`);
+    await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS videos_r2_object_key_unique ON videos(r2_object_key) WHERE r2_object_key IS NOT NULL`);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS r2_video_uploads (
+        id VARCHAR(36) PRIMARY KEY,
+        object_key TEXT NOT NULL UNIQUE,
+        admin_id INTEGER NOT NULL,
+        course_id INTEGER NOT NULL,
+        intended_video_id INTEGER,
+        attached_video_id INTEGER,
+        file_name VARCHAR(255) NOT NULL,
+        file_size BIGINT NOT NULL,
+        content_type VARCHAR(100) NOT NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'initiated',
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        completed_at TIMESTAMP,
+        attached_at TIMESTAMP
+      )
+    `);
 
     // 720p transcode worker columns (safe, additive)
     await db.execute(sql`ALTER TABLE videos ADD COLUMN IF NOT EXISTS low_parts TEXT`);

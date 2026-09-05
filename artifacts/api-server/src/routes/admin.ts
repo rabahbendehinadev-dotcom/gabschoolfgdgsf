@@ -2,7 +2,7 @@ import path from "path";
 import fs from "fs";
 import { Router, type IRouter } from "express";
 import multer from "multer";
-import { db, usersTable, videosTable, categoriesTable, playlistsTable, subscriptionPlansTable, visitLogsTable, activityLogsTable, notificationsTable, notificationRecipientsTable, pushSubscriptionsTable, adminPushSubscriptionsTable, communityPostsTable, communityCommentsTable, communityReportsTable, userCoursesTable, paymentSubmissionsTable, planCoursesTable, courseAccessLogsTable, adminsTable, adminCoursePermissionsTable } from "@workspace/db";
+import { db, usersTable, videosTable, categoriesTable, playlistsTable, subscriptionPlansTable, visitLogsTable, activityLogsTable, notificationsTable, notificationRecipientsTable, pushSubscriptionsTable, adminPushSubscriptionsTable, communityPostsTable, communityCommentsTable, communityReportsTable, userCoursesTable, paymentSubmissionsTable, planCoursesTable, courseAccessLogsTable, adminsTable, adminCoursePermissionsTable, r2VideoUploadsTable } from "@workspace/db";
 import { eq, sql, count, desc, asc, lt, and, gte, isNull, isNotNull, inArray, max, ilike, or } from "drizzle-orm";
 
 import { adminAuth } from "../middlewares/auth";
@@ -22,6 +22,18 @@ import {
 } from "../lib/videoStorage";
 import { normalizeHlsPartsInput, deleteHlsObjects, invalidateRenderedPlaylists } from "../lib/hlsStorage";
 import { deleteLowCopiesBestEffort } from "../lib/driveTranscode";
+import {
+  abortR2MultipartVideoUpload,
+  completeR2MultipartVideoUpload,
+  deleteR2UploadedVideoObject,
+  getPresignedR2UploadPartUrl,
+  getCompletedR2VideoUpload,
+  getR2VideoMetadata,
+  initiateR2MultipartVideoUpload,
+  isValidR2VideoObjectKey,
+  verifyR2CommitReceipt,
+  verifyR2UploadReceipt,
+} from "../lib/r2Video";
 import * as zod from "zod";
 import {
   UpdateAdminUserBody,
@@ -33,6 +45,11 @@ import {
   SendAdminNotificationBody,
   CreateToolBody,
   UpdateToolBody,
+  InitiateR2VideoUploadBody,
+  SignR2VideoUploadPartBody,
+  CompleteR2VideoUploadBody,
+  AbortR2VideoUploadBody,
+  DiscardR2VideoUploadBody,
 } from "@workspace/api-zod";
 import { toolsTable, toolCategoriesTable } from "@workspace/db";
 import { generateThumbnail, thumbPathToUrl } from "../lib/imageThumbnail";
@@ -64,6 +81,15 @@ async function hasAdminCoursePermission(
     .limit(1);
   if (!perm) return false;
   return perm[field] === true;
+}
+
+async function deleteR2ObjectIfUnreferenced(objectKey: string): Promise<void> {
+  const [reference] = await db
+    .select({ id: videosTable.id })
+    .from(videosTable)
+    .where(eq(videosTable.r2ObjectKey, objectKey))
+    .limit(1);
+  if (!reference) await deleteR2UploadedVideoObject(objectKey);
 }
 
 async function logActivity(
@@ -1392,6 +1418,238 @@ router.get("/admin/users/:id/detail", adminAuth, async (req, res) => {
   }
 });
 
+router.post("/admin/r2/uploads/initiate", adminAuth, async (req, res) => {
+  try {
+    const body = InitiateR2VideoUploadBody.parse(req.body);
+    const allowed = await hasAdminCoursePermission(
+      req.admin!.id,
+      req.admin!.role,
+      body.courseId,
+      "canManageVideos",
+    );
+    if (!allowed) {
+      res.status(403).json({ message: "Vous n'avez pas la permission de gérer les vidéos de ce cours" });
+      return;
+    }
+    if (body.videoId) {
+      const [video] = await db
+        .select({
+          playlistId: videosTable.playlistId,
+          linkedPlaylistId: categoriesTable.linkedPlaylistId,
+        })
+        .from(videosTable)
+        .leftJoin(categoriesTable, eq(videosTable.categoryId, categoriesTable.id))
+        .where(eq(videosTable.id, body.videoId))
+        .limit(1);
+      if (!video || (video.playlistId ?? video.linkedPlaylistId) !== body.courseId) {
+        res.status(400).json({ message: "La vidéo ne correspond pas au cours sélectionné" });
+        return;
+      }
+    }
+    const initiated = await initiateR2MultipartVideoUpload({
+      ...body,
+      adminId: req.admin!.id,
+    });
+    const payload = verifyR2UploadReceipt(initiated.receipt);
+    try {
+      await db.insert(r2VideoUploadsTable).values({
+        id: payload.sessionId,
+        objectKey: payload.objectKey,
+        adminId: payload.adminId,
+        courseId: payload.courseId,
+        intendedVideoId: payload.videoId,
+        fileName: body.fileName,
+        fileSize: payload.fileSize,
+        contentType: payload.contentType,
+      });
+    } catch (error) {
+      await abortR2MultipartVideoUpload(initiated.receipt).catch(() => undefined);
+      throw error;
+    }
+    res.json(initiated);
+  } catch (error: unknown) {
+    res.status(400).json({ message: error instanceof Error ? error.message : "Failed to initiate upload" });
+  }
+});
+
+router.post("/admin/r2/uploads/part", adminAuth, async (req, res) => {
+  try {
+    const body = SignR2VideoUploadPartBody.parse(req.body);
+    const payload = verifyR2UploadReceipt(body.receipt);
+    const [session] = await db.select({ id: r2VideoUploadsTable.id })
+      .from(r2VideoUploadsTable)
+      .where(and(
+        eq(r2VideoUploadsTable.id, payload.sessionId),
+        eq(r2VideoUploadsTable.objectKey, payload.objectKey),
+        eq(r2VideoUploadsTable.adminId, payload.adminId),
+        eq(r2VideoUploadsTable.courseId, payload.courseId),
+        eq(r2VideoUploadsTable.status, "initiated"),
+      ))
+      .limit(1);
+    const allowed =
+      Boolean(session) &&
+      payload.adminId === req.admin!.id &&
+      await hasAdminCoursePermission(req.admin!.id, req.admin!.role, payload.courseId, "canManageVideos");
+    if (!allowed) {
+      res.status(403).json({ message: "Upload receipt does not belong to this admin or course" });
+      return;
+    }
+    const url = await getPresignedR2UploadPartUrl(body.receipt, body.partNumber);
+    res.json({ url });
+  } catch (error: unknown) {
+    res.status(400).json({ message: error instanceof Error ? error.message : "Failed to sign upload part" });
+  }
+});
+
+router.post("/admin/r2/uploads/complete", adminAuth, async (req, res) => {
+  try {
+    const body = CompleteR2VideoUploadBody.parse(req.body);
+    const payload = verifyR2UploadReceipt(body.receipt);
+    const allowed =
+      payload.adminId === req.admin!.id &&
+      await hasAdminCoursePermission(req.admin!.id, req.admin!.role, payload.courseId, "canManageVideos");
+    if (!allowed) {
+      res.status(403).json({ message: "Upload receipt does not belong to this admin or course" });
+      return;
+    }
+    const [reserved] = await db.update(r2VideoUploadsTable)
+      .set({ status: "completing" })
+      .where(and(
+        eq(r2VideoUploadsTable.id, payload.sessionId),
+        eq(r2VideoUploadsTable.objectKey, payload.objectKey),
+        eq(r2VideoUploadsTable.adminId, payload.adminId),
+        eq(r2VideoUploadsTable.courseId, payload.courseId),
+        eq(r2VideoUploadsTable.status, "initiated"),
+      ))
+      .returning({ id: r2VideoUploadsTable.id });
+    if (!reserved) {
+      const [current] = await db.select({ status: r2VideoUploadsTable.status })
+        .from(r2VideoUploadsTable)
+        .where(eq(r2VideoUploadsTable.id, payload.sessionId))
+        .limit(1);
+      if (current?.status === "completed" || current?.status === "completing") {
+        try {
+          const recovered = await getCompletedR2VideoUpload(body.receipt);
+          if (current.status === "completing") {
+            await db.update(r2VideoUploadsTable)
+              .set({ status: "completed", completedAt: new Date() })
+              .where(and(
+                eq(r2VideoUploadsTable.id, payload.sessionId),
+                eq(r2VideoUploadsTable.status, "completing"),
+              ));
+          }
+          res.json(recovered);
+          return;
+        } catch {
+          throw new Error("Upload completion is still in progress; retry shortly");
+        }
+      }
+      throw new Error("Upload session is no longer completable");
+    }
+    let completed;
+    try {
+      completed = await completeR2MultipartVideoUpload(body.receipt, body.parts);
+    } catch (error) {
+      try {
+        completed = await getCompletedR2VideoUpload(body.receipt);
+      } catch {
+        await db.update(r2VideoUploadsTable)
+          .set({ status: "initiated" })
+          .where(and(
+            eq(r2VideoUploadsTable.id, payload.sessionId),
+            eq(r2VideoUploadsTable.status, "completing"),
+          ));
+        throw error;
+      }
+    }
+    await db.update(r2VideoUploadsTable)
+      .set({ status: "completed", completedAt: new Date() })
+      .where(and(
+        eq(r2VideoUploadsTable.id, payload.sessionId),
+        eq(r2VideoUploadsTable.status, "completing"),
+      ));
+    res.json(completed);
+  } catch (error: unknown) {
+    res.status(400).json({ message: error instanceof Error ? error.message : "Failed to complete upload" });
+  }
+});
+
+router.post("/admin/r2/uploads/abort", adminAuth, async (req, res) => {
+  try {
+    const body = AbortR2VideoUploadBody.parse(req.body);
+    const payload = verifyR2UploadReceipt(body.receipt);
+    const [session] = await db.select({ id: r2VideoUploadsTable.id })
+      .from(r2VideoUploadsTable)
+      .where(and(
+        eq(r2VideoUploadsTable.id, payload.sessionId),
+        eq(r2VideoUploadsTable.objectKey, payload.objectKey),
+        eq(r2VideoUploadsTable.adminId, payload.adminId),
+        eq(r2VideoUploadsTable.courseId, payload.courseId),
+        eq(r2VideoUploadsTable.status, "initiated"),
+      ))
+      .limit(1);
+    const allowed =
+      Boolean(session) &&
+      payload.adminId === req.admin!.id &&
+      await hasAdminCoursePermission(req.admin!.id, req.admin!.role, payload.courseId, "canManageVideos");
+    if (!allowed) {
+      res.status(403).json({ message: "Upload receipt does not belong to this admin or course" });
+      return;
+    }
+    await abortR2MultipartVideoUpload(body.receipt);
+    await db.update(r2VideoUploadsTable)
+      .set({ status: "aborted" })
+      .where(and(
+        eq(r2VideoUploadsTable.id, payload.sessionId),
+        eq(r2VideoUploadsTable.status, "initiated"),
+      ));
+    res.json({ message: "Upload aborted" });
+  } catch (error: unknown) {
+    res.status(400).json({ message: error instanceof Error ? error.message : "Failed to abort upload" });
+  }
+});
+
+router.post("/admin/r2/uploads/discard", adminAuth, async (req, res) => {
+  try {
+    const body = DiscardR2VideoUploadBody.parse(req.body);
+    const payload = verifyR2CommitReceipt(body.commitReceipt);
+    const allowed =
+      payload.adminId === req.admin!.id &&
+      await hasAdminCoursePermission(req.admin!.id, req.admin!.role, payload.courseId, "canManageVideos");
+    if (!allowed) {
+      res.status(403).json({ message: "Completion receipt does not belong to this admin or course" });
+      return;
+    }
+    const [discarded] = await db.update(r2VideoUploadsTable)
+      .set({ status: "discarding" })
+      .where(and(
+        eq(r2VideoUploadsTable.id, payload.sessionId),
+        eq(r2VideoUploadsTable.objectKey, payload.objectKey),
+        eq(r2VideoUploadsTable.adminId, payload.adminId),
+        eq(r2VideoUploadsTable.status, "completed"),
+      ))
+      .returning({ id: r2VideoUploadsTable.id });
+    if (!discarded) throw new Error("Completed upload is already attached or discarded");
+    try {
+      await deleteR2ObjectIfUnreferenced(payload.objectKey);
+      await db.update(r2VideoUploadsTable)
+        .set({ status: "discarded" })
+        .where(eq(r2VideoUploadsTable.id, payload.sessionId));
+    } catch (error) {
+      await db.update(r2VideoUploadsTable)
+        .set({ status: "completed" })
+        .where(and(
+          eq(r2VideoUploadsTable.id, payload.sessionId),
+          eq(r2VideoUploadsTable.status, "discarding"),
+        ));
+      throw error;
+    }
+    res.json({ message: "Completed upload discarded" });
+  } catch (error: unknown) {
+    res.status(400).json({ message: error instanceof Error ? error.message : "Failed to discard upload" });
+  }
+});
+
 router.get("/admin/videos", adminAuth, async (req, res) => {
   try {
     const playlistId = req.query.playlistId ? Number(req.query.playlistId) : undefined;
@@ -1430,6 +1688,8 @@ router.get("/admin/videos", adminAuth, async (req, res) => {
       isVisible: videosTable.isVisible,
       sortOrder: videosTable.sortOrder,
       driveParts: videosTable.driveParts,
+      storageProvider: videosTable.storageProvider,
+      r2ObjectKey: videosTable.r2ObjectKey,
       softwareLink: videosTable.softwareLink,
       migratedAt: videosTable.migratedAt,
       createdAt: videosTable.createdAt,
@@ -1446,6 +1706,8 @@ router.get("/admin/videos", adminAuth, async (req, res) => {
       ...v,
       categoryName: v.categoryName || "",
       driveParts: v.driveParts ?? null,
+      storageProvider: v.storageProvider === "r2" ? "r2" : "drive",
+      r2ObjectKey: v.r2ObjectKey ?? null,
       softwareLink: v.softwareLink ?? null,
       migratedAt: v.migratedAt ? v.migratedAt.toISOString() : null,
       createdAt: v.createdAt.toISOString(),
@@ -1477,20 +1739,66 @@ router.post("/admin/videos", adminAuth, async (req, res) => {
   try {
     const body = CreateVideoBody.parse(req.body);
     const accessType = body.accessType ?? (body.isVipOnly ? "vip" : "normal");
-    const [video] = await db.insert(videosTable).values({
-      title: body.title,
-      description: body.description,
-      thumbnailUrl: body.thumbnailUrl,
-      driveEmbedUrl: body.driveEmbedUrl,
-      categoryId: body.categoryId,
-      isVipOnly: accessType === "vip",
-      accessType,
-      isVisible: body.isVisible ?? true,
-      playlistId: body.playlistId ?? null,
-      partNumber: body.partNumber ?? null,
-      softwareLink: body.softwareLink ?? null,
-      driveParts: body.driveParts ?? null,
-    }).returning();
+    const storageProvider = body.storageProvider ?? "drive";
+    let commitReceipt: ReturnType<typeof verifyR2CommitReceipt> | null = null;
+    if (storageProvider === "r2") {
+      if (!body.r2ObjectKey || !isValidR2VideoObjectKey(body.r2ObjectKey)) {
+        throw new Error("A valid completed R2 upload is required");
+      }
+      if (!body.r2UploadReceipt) throw new Error("R2 completion receipt is required");
+      const receipt = verifyR2CommitReceipt(body.r2UploadReceipt);
+      if (
+        receipt.adminId !== req.admin!.id ||
+        receipt.courseId !== body.playlistId ||
+        receipt.videoId !== null ||
+        receipt.objectKey !== body.r2ObjectKey
+      ) {
+        throw new Error("R2 completion receipt does not match this lesson");
+      }
+      const allowed = await hasAdminCoursePermission(
+        req.admin!.id, req.admin!.role, receipt.courseId, "canManageVideos",
+      );
+      if (!allowed) throw new Error("You no longer have permission to attach this upload");
+      await getR2VideoMetadata(body.r2ObjectKey);
+      commitReceipt = receipt;
+    }
+    const [video] = await db.transaction(async tx => {
+      if (commitReceipt) {
+        const [reserved] = await tx.update(r2VideoUploadsTable)
+          .set({ status: "attached", attachedAt: new Date() })
+          .where(and(
+            eq(r2VideoUploadsTable.id, commitReceipt.sessionId),
+            eq(r2VideoUploadsTable.objectKey, commitReceipt.objectKey),
+            eq(r2VideoUploadsTable.adminId, commitReceipt.adminId),
+            eq(r2VideoUploadsTable.courseId, commitReceipt.courseId),
+            eq(r2VideoUploadsTable.status, "completed"),
+          ))
+          .returning({ id: r2VideoUploadsTable.id });
+        if (!reserved) throw new Error("Completion receipt has already been used");
+      }
+      const [created] = await tx.insert(videosTable).values({
+        title: body.title,
+        description: body.description,
+        thumbnailUrl: body.thumbnailUrl,
+        driveEmbedUrl: body.driveEmbedUrl,
+        categoryId: body.categoryId,
+        isVipOnly: accessType === "vip",
+        accessType,
+        isVisible: body.isVisible ?? true,
+        playlistId: body.playlistId ?? null,
+        partNumber: body.partNumber ?? null,
+        softwareLink: body.softwareLink ?? null,
+        driveParts: body.driveParts ?? null,
+        storageProvider,
+        r2ObjectKey: storageProvider === "r2" ? body.r2ObjectKey : null,
+      }).returning();
+      if (commitReceipt) {
+        await tx.update(r2VideoUploadsTable)
+          .set({ attachedVideoId: created.id })
+          .where(eq(r2VideoUploadsTable.id, commitReceipt.sessionId));
+      }
+      return [created];
+    });
 
     const [cat] = await db.select().from(categoriesTable).where(eq(categoriesTable.id, video.categoryId)).limit(1);
     const coursePlaylistId = video.playlistId ?? cat?.linkedPlaylistId ?? null;
@@ -1544,6 +1852,8 @@ router.post("/admin/videos", adminAuth, async (req, res) => {
       isVipOnly: video.isVipOnly, accessType: video.accessType,
       isVisible: video.isVisible, softwareLink: video.softwareLink ?? null,
       driveParts: video.driveParts ?? null,
+      storageProvider: video.storageProvider === "r2" ? "r2" : "drive",
+      r2ObjectKey: video.r2ObjectKey ?? null,
       createdAt: video.createdAt.toISOString(),
     });
   } catch (error: unknown) {
@@ -1557,6 +1867,60 @@ router.patch("/admin/videos/:id", adminAuth, async (req, res) => {
     const body = UpdateVideoBody.parse(req.body);
 
     const updateData: Partial<Record<string, unknown>> = {};
+    let replacedR2ObjectKey: string | null = null;
+    let commitReceipt: ReturnType<typeof verifyR2CommitReceipt> | null = null;
+    if (body.storageProvider !== undefined || "r2ObjectKey" in body) {
+      const [existingSource] = await db
+        .select({
+          storageProvider: videosTable.storageProvider,
+          r2ObjectKey: videosTable.r2ObjectKey,
+          playlistId: videosTable.playlistId,
+        })
+        .from(videosTable)
+        .where(eq(videosTable.id, id))
+        .limit(1);
+      if (!existingSource) {
+        res.status(404).json({ message: "Video not found" });
+        return;
+      }
+      const storageProvider = body.storageProvider ?? existingSource.storageProvider;
+      const r2ObjectKey = "r2ObjectKey" in body
+        ? body.r2ObjectKey ?? null
+        : existingSource.r2ObjectKey;
+      if (storageProvider === "r2") {
+        if (!r2ObjectKey || !isValidR2VideoObjectKey(r2ObjectKey)) {
+          throw new Error("A valid completed R2 upload is required");
+        }
+        if (r2ObjectKey !== existingSource.r2ObjectKey) {
+          if (!body.r2UploadReceipt) throw new Error("R2 completion receipt is required");
+          const receipt = verifyR2CommitReceipt(body.r2UploadReceipt);
+          const targetCourseId = body.playlistId ?? existingSource.playlistId;
+          if (
+            receipt.adminId !== req.admin!.id ||
+            receipt.courseId !== targetCourseId ||
+            receipt.videoId !== id ||
+            receipt.objectKey !== r2ObjectKey
+          ) {
+            throw new Error("R2 completion receipt does not match this lesson");
+          }
+          const allowed = await hasAdminCoursePermission(
+            req.admin!.id, req.admin!.role, receipt.courseId, "canManageVideos",
+          );
+          if (!allowed) throw new Error("You no longer have permission to attach this upload");
+          commitReceipt = receipt;
+        }
+        await getR2VideoMetadata(r2ObjectKey);
+      }
+      if (
+        existingSource.storageProvider === "r2" &&
+        existingSource.r2ObjectKey &&
+        (storageProvider !== "r2" || r2ObjectKey !== existingSource.r2ObjectKey)
+      ) {
+        replacedR2ObjectKey = existingSource.r2ObjectKey;
+      }
+      updateData.storageProvider = storageProvider;
+      updateData.r2ObjectKey = storageProvider === "r2" ? r2ObjectKey : null;
+    }
     if (body.title !== undefined) updateData.title = body.title;
     if (body.description !== undefined) updateData.description = body.description;
     if (body.thumbnailUrl !== undefined) updateData.thumbnailUrl = body.thumbnailUrl;
@@ -1618,12 +1982,30 @@ router.patch("/admin/videos/:id", adminAuth, async (req, res) => {
       }
     }
 
-    const [video] = await db.update(videosTable).set(updateData)
-      .where(eq(videosTable.id, id)).returning();
+    const [video] = await db.transaction(async tx => {
+      if (commitReceipt) {
+        const [reserved] = await tx.update(r2VideoUploadsTable)
+          .set({ status: "attached", attachedVideoId: id, attachedAt: new Date() })
+          .where(and(
+            eq(r2VideoUploadsTable.id, commitReceipt.sessionId),
+            eq(r2VideoUploadsTable.objectKey, commitReceipt.objectKey),
+            eq(r2VideoUploadsTable.adminId, commitReceipt.adminId),
+            eq(r2VideoUploadsTable.courseId, commitReceipt.courseId),
+            eq(r2VideoUploadsTable.status, "completed"),
+          ))
+          .returning({ id: r2VideoUploadsTable.id });
+        if (!reserved) throw new Error("Completion receipt has already been used");
+      }
+      return tx.update(videosTable).set(updateData)
+        .where(eq(videosTable.id, id)).returning();
+    });
 
     if (staleObjectParts) void deleteVideoObjects(staleObjectParts);
     if (staleHls) void deleteHlsObjects(id);
     if (staleLowParts) deleteLowCopiesBestEffort(staleLowParts);
+    if (replacedR2ObjectKey) {
+      void deleteR2ObjectIfUnreferenced(replacedR2ObjectKey).catch(() => undefined);
+    }
 
     if (!video) {
       res.status(404).json({ message: "Video not found" });
@@ -1639,6 +2021,8 @@ router.patch("/admin/videos/:id", adminAuth, async (req, res) => {
       isVipOnly: video.isVipOnly, accessType: video.accessType,
       isVisible: video.isVisible, softwareLink: video.softwareLink ?? null,
       driveParts: video.driveParts ?? null,
+      storageProvider: video.storageProvider === "r2" ? "r2" : "drive",
+      r2ObjectKey: video.r2ObjectKey ?? null,
       createdAt: video.createdAt.toISOString(),
     });
   } catch (error: unknown) {
@@ -1650,7 +2034,12 @@ router.delete("/admin/videos/:id", adminAuth, async (req, res) => {
   try {
     const id = Number(req.params.id);
     const [existing] = await db
-      .select({ objectParts: videosTable.objectParts, hlsParts: videosTable.hlsParts })
+      .select({
+        objectParts: videosTable.objectParts,
+        hlsParts: videosTable.hlsParts,
+        storageProvider: videosTable.storageProvider,
+        r2ObjectKey: videosTable.r2ObjectKey,
+      })
       .from(videosTable)
       .where(eq(videosTable.id, id))
       .limit(1);
@@ -1658,6 +2047,9 @@ router.delete("/admin/videos/:id", adminAuth, async (req, res) => {
     const parts = parseObjectParts(existing?.objectParts);
     if (parts) void deleteVideoObjects(parts);
     if (existing?.hlsParts) void deleteHlsObjects(id);
+    if (existing?.storageProvider === "r2" && existing.r2ObjectKey) {
+      void deleteR2ObjectIfUnreferenced(existing.r2ObjectKey).catch(() => undefined);
+    }
     res.json({ message: "Video deleted successfully" });
   } catch (error: unknown) {
     res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" || "Failed to delete video" });

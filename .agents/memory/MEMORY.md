@@ -45,3 +45,4 @@
 - [SW image cache](sw-image-cache.md) — sw.js caches destination==="image" cache-first; MUST exclude /community/media (gated) and /avatar (mutable stable URL); bump gab-img-vN on rule changes.
 - [Community upload receipts](community-upload-receipts.md) — protected uploads require owner-bound HMAC receipts; never negative-cache object ownership or expose direct presigned PUTs.
 - [Shared Drive access boundary](shared-drive-access-boundary.md) — iframe viewers come from the containing Shared Drive; identical URLs can expose unrelated cohorts.
+- [Direct private R2 video](direct-private-r2-video.md) — new uploads use browser↔private R2 multipart and short-lived direct playback; this eliminated buffering on iPhone and desktop.

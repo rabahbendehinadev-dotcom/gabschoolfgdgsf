@@ -610,6 +610,111 @@ paths:
               schema:
                 $ref: "#/components/schemas/MigrateVideoStorageResponse"
 
+  /admin/r2/uploads/initiate:
+    post:
+      operationId: initiateR2VideoUpload
+      tags: [admin]
+      summary: Initiate a direct multipart video upload to private R2
+      security:
+        - adminAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/R2MultipartInitiateInput"
+      responses:
+        "200":
+          description: Multipart upload initiated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/R2MultipartInitiateResponse"
+
+  /admin/r2/uploads/part:
+    post:
+      operationId: signR2VideoUploadPart
+      tags: [admin]
+      summary: Sign one multipart upload part
+      security:
+        - adminAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/R2UploadPartInput"
+      responses:
+        "200":
+          description: Upload part URL signed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/R2UploadPartResponse"
+
+  /admin/r2/uploads/complete:
+    post:
+      operationId: completeR2VideoUpload
+      tags: [admin]
+      summary: Complete and verify a direct multipart R2 video upload
+      security:
+        - adminAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/R2MultipartCompleteInput"
+      responses:
+        "200":
+          description: Multipart upload completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/R2MultipartCompleteResponse"
+
+  /admin/r2/uploads/abort:
+    post:
+      operationId: abortR2VideoUpload
+      tags: [admin]
+      summary: Abort an incomplete multipart R2 video upload
+      security:
+        - adminAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/R2MultipartAbortInput"
+      responses:
+        "200":
+          description: Multipart upload aborted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /admin/r2/uploads/discard:
+    post:
+      operationId: discardR2VideoUpload
+      tags: [admin]
+      summary: Delete a completed R2 upload that was not attached to a lesson
+      security:
+        - adminAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/R2MultipartDiscardInput"
+      responses:
+        "200":
+          description: Completed upload discarded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
   /admin/videos/reorder:
     post:
       operationId: reorderVideos
@@ -1988,6 +2093,12 @@ components:
         driveParts:
           type: string
           nullable: true
+        storageProvider:
+          type: string
+          enum: [drive, r2]
+        r2ObjectKey:
+          type: string
+          nullable: true
         softwareLink:
           type: string
           nullable: true
@@ -2009,6 +2120,7 @@ components:
         - accessType
         - isVisible
         - sortOrder
+        - storageProvider
         - createdAt
 
     CreateVideoInput:
@@ -2041,6 +2153,15 @@ components:
           type: string
           nullable: true
         driveParts:
+          type: string
+          nullable: true
+        storageProvider:
+          type: string
+          enum: [drive, r2]
+        r2ObjectKey:
+          type: string
+          nullable: true
+        r2UploadReceipt:
           type: string
           nullable: true
       required:
@@ -2082,6 +2203,119 @@ components:
         driveParts:
           type: string
           nullable: true
+        storageProvider:
+          type: string
+          enum: [drive, r2]
+        r2ObjectKey:
+          type: string
+          nullable: true
+        r2UploadReceipt:
+          type: string
+          nullable: true
+
+    R2MultipartInitiateInput:
+      type: object
+      properties:
+        courseId:
+          type: integer
+          minimum: 1
+        videoId:
+          type: integer
+          minimum: 1
+          nullable: true
+        fileName:
+          type: string
+          minLength: 1
+          maxLength: 255
+        fileSize:
+          type: integer
+          minimum: 1
+          maximum: 5497558138880
+        contentType:
+          type: string
+          maxLength: 100
+      required: [courseId, fileName, fileSize, contentType]
+
+    R2MultipartInitiateResponse:
+      type: object
+      properties:
+        receipt:
+          type: string
+        objectKey:
+          type: string
+        partSize:
+          type: integer
+        totalParts:
+          type: integer
+      required: [receipt, objectKey, partSize, totalParts]
+
+    R2UploadPartInput:
+      type: object
+      properties:
+        receipt:
+          type: string
+        partNumber:
+          type: integer
+          minimum: 1
+          maximum: 10000
+      required: [receipt, partNumber]
+
+    R2UploadPartResponse:
+      type: object
+      properties:
+        url:
+          type: string
+      required: [url]
+
+    R2CompletedPart:
+      type: object
+      properties:
+        partNumber:
+          type: integer
+          minimum: 1
+        etag:
+          type: string
+      required: [partNumber, etag]
+
+    R2MultipartCompleteInput:
+      type: object
+      properties:
+        receipt:
+          type: string
+        parts:
+          type: array
+          minItems: 1
+          maxItems: 10000
+          items:
+            $ref: "#/components/schemas/R2CompletedPart"
+      required: [receipt, parts]
+
+    R2MultipartCompleteResponse:
+      type: object
+      properties:
+        objectKey:
+          type: string
+        fileSize:
+          type: integer
+        contentType:
+          type: string
+        commitReceipt:
+          type: string
+      required: [objectKey, fileSize, contentType, commitReceipt]
+
+    R2MultipartAbortInput:
+      type: object
+      properties:
+        receipt:
+          type: string
+      required: [receipt]
+
+    R2MultipartDiscardInput:
+      type: object
+      properties:
+        commitReceipt:
+          type: string
+      required: [commitReceipt]
 
     ReorderVideosInput:
       type: object

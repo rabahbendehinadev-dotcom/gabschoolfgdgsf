@@ -16,9 +16,42 @@ import { useAuth } from "@/lib/auth";
 import { compressImageForUpload } from "@/lib/imageCompress";
 import { Card, Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label } from "@/components/ui";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Edit, Trash2, Upload, ImageIcon, X, Loader2, Layers, GripVertical, Save, Zap, GraduationCap, ArrowRight, Video } from "lucide-react";
+import { Plus, Edit, Trash2, Upload, ImageIcon, X, Loader2, Layers, GripVertical, Save, Zap, GraduationCap, ArrowRight, Video, CloudUpload, CheckCircle2, AlertCircle, RotateCcw, HardDrive } from "lucide-react";
 
 interface DrivePart { label: string; url: string; }
+type VideoSource = "drive" | "r2";
+type R2UploadState = {
+  status: "idle" | "uploading" | "completed" | "failed";
+  file: File | null;
+  fileName: string;
+  fileSize: number;
+  uploadedBytes: number;
+  progress: number;
+  receipt: string | null;
+  commitReceipt: string | null;
+  objectKey: string | null;
+  error: string | null;
+};
+
+const EMPTY_R2_UPLOAD: R2UploadState = {
+  status: "idle",
+  file: null,
+  fileName: "",
+  fileSize: 0,
+  uploadedBytes: 0,
+  progress: 0,
+  receipt: null,
+  commitReceipt: null,
+  objectKey: null,
+  error: null,
+};
+
+function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "0 MB";
+  const units = ["o", "Ko", "Mo", "Go", "To"];
+  const power = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  return `${(bytes / 1024 ** power).toFixed(power >= 3 ? 2 : 1)} ${units[power]}`;
+}
 
 function validateDriveUrl(url: string): string | null {
   if (!url || !url.trim()) return null;
@@ -160,13 +193,18 @@ function SortableVideoCard({
                 <Zap className="w-3 h-3 mr-0.5" /> Rapide
               </Badge>
             )}
+            {video.storageProvider === "r2" && (
+              <Badge variant="outline" className="text-xs border-green-500/40 text-green-500">
+                <CloudUpload className="w-3 h-3 mr-0.5" /> R2 direct
+              </Badge>
+            )}
           </div>
           <h3 className="font-bold line-clamp-1 mb-1">{video.title}</h3>
           <div className="mt-auto pt-4 flex gap-2 border-t border-white/5">
             <Button variant="secondary" className="flex-1 text-xs" onClick={() => onEdit(video)}>
               <Edit className="w-3 h-3 mr-1" /> Modifier
             </Button>
-            {!video.migratedAt && (
+            {!video.migratedAt && video.storageProvider !== "r2" && (
               <Button
                 variant="outline"
                 size="icon"
@@ -303,7 +341,11 @@ export function AdminVideos() {
   const [previewUrl, setPreviewUrl] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [driveParts, setDriveParts] = useState<DrivePart[]>([]);
-  const [driveUrlErrors, setDriveUrlErrors] = useState<Record<number | "single", string>>({});
+  const [driveUrlErrors, setDriveUrlErrors] = useState<Partial<Record<number | "single", string>>>({});
+  const [videoSource, setVideoSource] = useState<VideoSource>("drive");
+  const [r2Upload, setR2Upload] = useState<R2UploadState>(EMPTY_R2_UPLOAD);
+  const videoFileInputRef = useRef<HTMLInputElement>(null);
+  const activeUploadXhrs = useRef<Set<XMLHttpRequest>>(new Set());
 
   const defaultForm = (): CreateVideoInput => ({
     title: "", description: "", thumbnailUrl: "", driveEmbedUrl: "",
@@ -343,14 +385,204 @@ export function AdminVideos() {
         const parsed = video.driveParts ? JSON.parse(video.driveParts) as DrivePart[] : [];
         setDriveParts(Array.isArray(parsed) ? parsed : []);
       } catch { setDriveParts([]); }
+      const source: VideoSource = video.storageProvider === "r2" ? "r2" : "drive";
+      setVideoSource(source);
+      setR2Upload(source === "r2" && video.r2ObjectKey
+        ? {
+            ...EMPTY_R2_UPLOAD,
+            status: "completed",
+            fileName: video.r2ObjectKey.split("/").pop() || "Vidéo R2",
+            objectKey: video.r2ObjectKey,
+            commitReceipt: null,
+            progress: 100,
+          }
+        : EMPTY_R2_UPLOAD);
     } else {
       setEditingId(null);
       setFormData(defaultForm());
       setDriveParts([]);
       setPreviewUrl("");
+      setVideoSource("drive");
+      setR2Upload(EMPTY_R2_UPLOAD);
     }
     setDriveUrlErrors({});
     setIsOpen(true);
+  };
+
+  const adminJsonRequest = async <T,>(url: string, body: unknown): Promise<T> => {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { ...(getAdminAuthHeaders()?.headers ?? {}), "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      const detail = await response.json().catch(() => ({})) as { message?: string; error?: string };
+      throw new Error(detail.message || detail.error || `HTTP ${response.status}`);
+    }
+    return response.json() as Promise<T>;
+  };
+
+  const uploadPartDirectly = (
+    url: string,
+    blob: Blob,
+    onProgress: (loaded: number) => void,
+  ): Promise<string> => new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    activeUploadXhrs.current.add(xhr);
+    xhr.open("PUT", url);
+    xhr.upload.onprogress = event => {
+      if (event.lengthComputable) onProgress(event.loaded);
+    };
+    xhr.onerror = () => reject(new Error("Connexion interrompue pendant l'upload"));
+    xhr.onabort = () => reject(new Error("Upload annulé"));
+    xhr.onload = () => {
+      if (xhr.status < 200 || xhr.status >= 300) {
+        reject(new Error(`R2 a refusé une partie (HTTP ${xhr.status})`));
+        return;
+      }
+      const etag = xhr.getResponseHeader("ETag");
+      if (!etag) {
+        reject(new Error("R2 n'a pas retourné l'ETag requis"));
+        return;
+      }
+      resolve(etag);
+    };
+    xhr.onloadend = () => activeUploadXhrs.current.delete(xhr);
+    xhr.send(blob);
+  });
+
+  const uploadVideoToR2 = async (file: File) => {
+    if (!courseId) return;
+    if (!/\.(mp4|mov)$/i.test(file.name)) {
+      toast({ variant: "destructive", title: "Format non pris en charge", description: "Choisissez un fichier MP4 ou MOV." });
+      return;
+    }
+    let receipt: string | null = null;
+    if (r2Upload.commitReceipt) {
+      void adminJsonRequest("/api/admin/r2/uploads/discard", {
+        commitReceipt: r2Upload.commitReceipt,
+      }).catch(() => undefined);
+    }
+    setVideoSource("r2");
+    setR2Upload({
+      status: "uploading",
+      file,
+      fileName: file.name,
+      fileSize: file.size,
+      uploadedBytes: 0,
+      progress: 0,
+      receipt: null,
+      commitReceipt: null,
+      objectKey: null,
+      error: null,
+    });
+    try {
+      const initiated = await adminJsonRequest<{
+        receipt: string;
+        objectKey: string;
+        partSize: number;
+        totalParts: number;
+      }>("/api/admin/r2/uploads/initiate", {
+        courseId,
+        videoId: editingId,
+        fileName: file.name,
+        fileSize: file.size,
+        contentType: file.type || "application/octet-stream",
+      });
+      receipt = initiated.receipt;
+      setR2Upload(prev => ({ ...prev, receipt, objectKey: initiated.objectKey }));
+
+      const partProgress = new Array<number>(initiated.totalParts).fill(0);
+      const completedParts: { partNumber: number; etag: string }[] = new Array(initiated.totalParts);
+      let nextPartIndex = 0;
+      const updateProgress = (partIndex: number, loaded: number) => {
+        partProgress[partIndex] = loaded;
+        const uploadedBytes = partProgress.reduce((sum, value) => sum + value, 0);
+        setR2Upload(prev => ({
+          ...prev,
+          uploadedBytes,
+          progress: Math.min(99, Math.round((uploadedBytes / file.size) * 100)),
+        }));
+      };
+      const worker = async () => {
+        while (true) {
+          const partIndex = nextPartIndex++;
+          if (partIndex >= initiated.totalParts) return;
+          const partNumber = partIndex + 1;
+          const start = partIndex * initiated.partSize;
+          const end = Math.min(file.size, start + initiated.partSize);
+          const signed = await adminJsonRequest<{ url: string }>("/api/admin/r2/uploads/part", {
+            receipt: initiated.receipt,
+            partNumber,
+          });
+          const blob = file.slice(start, end, file.type || "application/octet-stream");
+          const etag = await uploadPartDirectly(signed.url, blob, loaded => updateProgress(partIndex, loaded));
+          updateProgress(partIndex, end - start);
+          completedParts[partIndex] = { partNumber, etag };
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(3, initiated.totalParts) }, () => worker()));
+      const completed = await adminJsonRequest<{
+        objectKey: string;
+        fileSize: number;
+        contentType: string;
+        commitReceipt: string;
+      }>("/api/admin/r2/uploads/complete", {
+        receipt: initiated.receipt,
+        parts: completedParts,
+      });
+      setR2Upload(prev => ({
+        ...prev,
+        status: "completed",
+        uploadedBytes: completed.fileSize,
+        progress: 100,
+        receipt: null,
+        commitReceipt: completed.commitReceipt,
+        objectKey: completed.objectKey,
+        error: null,
+      }));
+      toast({ title: "Vidéo envoyée vers R2", description: `${file.name} — ${formatBytes(file.size)}` });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (receipt) {
+        void adminJsonRequest("/api/admin/r2/uploads/abort", { receipt }).catch(() => undefined);
+      }
+      setR2Upload(prev => ({ ...prev, status: "failed", receipt: null, error: message }));
+      toast({ variant: "destructive", title: "Échec de l'upload vidéo", description: message });
+    } finally {
+      activeUploadXhrs.current.clear();
+      if (videoFileInputRef.current) videoFileInputRef.current.value = "";
+    }
+  };
+
+  const cancelR2Upload = () => {
+    activeUploadXhrs.current.forEach(xhr => xhr.abort());
+    if (r2Upload.receipt) {
+      void adminJsonRequest("/api/admin/r2/uploads/abort", { receipt: r2Upload.receipt }).catch(() => undefined);
+    }
+    setR2Upload(prev => ({ ...prev, status: "failed", receipt: null, error: "Upload annulé" }));
+  };
+
+  const discardCompletedR2Upload = () => {
+    if (!r2Upload.commitReceipt) return;
+    void adminJsonRequest("/api/admin/r2/uploads/discard", {
+      commitReceipt: r2Upload.commitReceipt,
+    }).catch(() => undefined);
+  };
+
+  const selectDriveSource = () => {
+    if (r2Upload.status === "uploading") return;
+    discardCompletedR2Upload();
+    setR2Upload(EMPTY_R2_UPLOAD);
+    setVideoSource("drive");
+  };
+
+  const handleDialogOpenChange = (open: boolean) => {
+    if (!open) {
+      if (r2Upload.status === "uploading") cancelR2Upload();
+      else discardCompletedR2Upload();
+    }
+    setIsOpen(open);
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -398,30 +630,45 @@ export function AdminVideos() {
       toast({ variant: "destructive", title: "Veuillez choisir une catégorie" });
       return;
     }
-    const newErrors: Record<number | "single", string> = {};
-    if (driveParts.length === 0) {
-      const err = validateDriveUrl(formData.driveEmbedUrl);
-      if (err) newErrors["single"] = err;
+    if (videoSource === "r2") {
+      if (r2Upload.status !== "completed" || !r2Upload.objectKey) {
+        toast({ variant: "destructive", title: "Upload vidéo incomplet", description: "Attendez la fin de l'upload R2 avant d'enregistrer." });
+        return;
+      }
     } else {
-      driveParts.forEach((p, i) => {
-        const err = validateDriveUrl(p.url);
-        if (err) newErrors[i] = err;
-      });
-    }
-    if (Object.keys(newErrors).length > 0) {
-      setDriveUrlErrors(newErrors);
-      toast({ variant: "destructive", title: "Lien Google Drive invalide", description: Object.values(newErrors)[0] });
-      return;
+      const newErrors: Partial<Record<number | "single", string>> = {};
+      if (driveParts.length === 0) {
+        const err = validateDriveUrl(formData.driveEmbedUrl);
+        if (err) newErrors["single"] = err;
+      } else {
+        driveParts.forEach((p, i) => {
+          const err = validateDriveUrl(p.url);
+          if (err) newErrors[i] = err;
+        });
+      }
+      if (Object.keys(newErrors).length > 0) {
+        setDriveUrlErrors(newErrors);
+        toast({ variant: "destructive", title: "Lien Google Drive invalide", description: Object.values(newErrors)[0] });
+        return;
+      }
     }
     setDriveUrlErrors({});
     const drivePartsJson = driveParts.length > 0 ? JSON.stringify(driveParts) : null;
     const firstPartUrl = driveParts.length > 0 ? driveParts[0].url : formData.driveEmbedUrl;
-    const finalForm = { ...formData, driveParts: drivePartsJson, driveEmbedUrl: firstPartUrl || formData.driveEmbedUrl };
+    const finalForm = {
+      ...formData,
+      driveParts: drivePartsJson,
+      driveEmbedUrl: firstPartUrl || formData.driveEmbedUrl,
+      storageProvider: videoSource,
+      r2ObjectKey: videoSource === "r2" ? r2Upload.objectKey : null,
+      r2UploadReceipt: videoSource === "r2" ? r2Upload.commitReceipt : null,
+    };
     const action = editingId
       ? updateMut.mutateAsync({ id: editingId, data: finalForm })
       : createMut.mutateAsync({ data: finalForm });
     action.then(() => {
       toast({ title: "Sauvegardé avec succès" });
+      setR2Upload(prev => ({ ...prev, commitReceipt: null }));
       setIsOpen(false);
       refetch();
     }).catch(() => toast({ variant: "destructive", title: "Une erreur est survenue" }));
@@ -433,7 +680,7 @@ export function AdminVideos() {
   };
 
   const handleBulkMigrate = async () => {
-    const unmigrated = (videos || []).filter(v => !v.migratedAt);
+    const unmigrated = (videos || []).filter(v => !v.migratedAt && v.storageProvider !== "r2");
     if (unmigrated.length === 0) { toast({ title: "Toutes les vidéos sont déjà migrées ✓" }); return; }
     if (!confirm(`Migrer ${unmigrated.length} vidéo(s) vers le stockage cloud ?\n\nLes copies seront faites une par une. Ne fermez pas la page.`)) return;
     setBulkMigrating(true);
@@ -633,7 +880,7 @@ export function AdminVideos() {
       )}
 
       {/* Create / Edit Dialog */}
-      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <Dialog open={isOpen} onOpenChange={handleDialogOpenChange}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingId ? "Modifier la vidéo" : "Ajouter une nouvelle vidéo"}</DialogTitle>
@@ -711,7 +958,147 @@ export function AdminVideos() {
                 <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
               </div>
 
-              {/* Drive parts / URL */}
+              {/* Video source */}
+              <div className="space-y-2 col-span-2">
+                <Label>Source de la vidéo</Label>
+                <div className="grid grid-cols-2 gap-2 rounded-xl border border-border bg-muted/30 p-1.5">
+                  <button
+                    type="button"
+                    onClick={selectDriveSource}
+                    disabled={r2Upload.status === "uploading"}
+                    className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                      videoSource === "drive"
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    } disabled:opacity-50`}
+                  >
+                    <HardDrive className="h-4 w-4" />
+                    Google Drive
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setVideoSource("r2")}
+                    disabled={r2Upload.status === "uploading"}
+                    className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                      videoSource === "r2"
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    } disabled:opacity-50`}
+                  >
+                    <CloudUpload className="h-4 w-4" />
+                    Upload direct R2
+                  </button>
+                </div>
+              </div>
+
+              {videoSource === "r2" ? (
+                <div className="space-y-3 col-span-2 rounded-xl border border-primary/25 bg-primary/5 p-4">
+                  <div>
+                    <Label className="flex items-center gap-2">
+                      <CloudUpload className="h-4 w-4 text-primary" />
+                      Fichier vidéo privé
+                    </Label>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      MP4 ou MOV — upload multipart direct vers R2, sans passage par le serveur.
+                    </p>
+                  </div>
+
+                  {r2Upload.status === "idle" && (
+                    <button
+                      type="button"
+                      onClick={() => videoFileInputRef.current?.click()}
+                      className="flex w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-primary/35 px-4 py-8 text-sm text-muted-foreground transition-colors hover:border-primary hover:bg-primary/5 hover:text-primary"
+                    >
+                      <CloudUpload className="h-8 w-8" />
+                      <span className="font-medium">Sélectionner une vidéo depuis l'ordinateur</span>
+                      <span className="text-xs">100 MB, 500 MB, 1 GB, 2 GB, 5 GB et plus</span>
+                    </button>
+                  )}
+
+                  {r2Upload.status !== "idle" && (
+                    <div className="space-y-3 rounded-xl border border-border bg-background/70 p-4">
+                      <div className="flex items-start gap-3">
+                        {r2Upload.status === "uploading" && <Loader2 className="mt-0.5 h-5 w-5 shrink-0 animate-spin text-primary" />}
+                        {r2Upload.status === "completed" && <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-green-500" />}
+                        {r2Upload.status === "failed" && <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />}
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold">{r2Upload.fileName || "Vidéo R2 existante"}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {r2Upload.fileSize > 0 ? formatBytes(r2Upload.fileSize) : "Fichier déjà stocké dans R2"}
+                          </p>
+                        </div>
+                        <Badge
+                          variant="outline"
+                          className={
+                            r2Upload.status === "completed"
+                              ? "border-green-500/40 text-green-500"
+                              : r2Upload.status === "failed"
+                                ? "border-destructive/40 text-destructive"
+                                : "border-primary/40 text-primary"
+                          }
+                        >
+                          {r2Upload.status === "uploading" ? "Upload..." : r2Upload.status === "completed" ? "Terminé" : "Échec"}
+                        </Badge>
+                      </div>
+
+                      {r2Upload.status === "uploading" && (
+                        <>
+                          <div className="h-2 overflow-hidden rounded-full bg-muted">
+                            <div
+                              className="h-full rounded-full bg-primary transition-[width] duration-200"
+                              style={{ width: `${r2Upload.progress}%` }}
+                            />
+                          </div>
+                          <div className="flex items-center justify-between text-xs text-muted-foreground">
+                            <span>{formatBytes(r2Upload.uploadedBytes)} / {formatBytes(r2Upload.fileSize)}</span>
+                            <span className="font-semibold text-primary">{r2Upload.progress}%</span>
+                          </div>
+                          <Button type="button" variant="outline" size="sm" onClick={cancelR2Upload} className="w-full">
+                            Annuler l'upload
+                          </Button>
+                        </>
+                      )}
+
+                      {r2Upload.status === "completed" && (
+                        <div className="flex gap-2">
+                          <Button type="button" variant="outline" size="sm" onClick={() => videoFileInputRef.current?.click()} className="flex-1">
+                            <RotateCcw className="mr-2 h-3.5 w-3.5" />
+                            Remplacer le fichier
+                          </Button>
+                        </div>
+                      )}
+
+                      {r2Upload.status === "failed" && (
+                        <>
+                          <p className="text-xs text-destructive">{r2Upload.error}</p>
+                          <div className="flex gap-2">
+                            {r2Upload.file && (
+                              <Button type="button" variant="outline" size="sm" onClick={() => void uploadVideoToR2(r2Upload.file!)} className="flex-1">
+                                <RotateCcw className="mr-2 h-3.5 w-3.5" />
+                                Réessayer
+                              </Button>
+                            )}
+                            <Button type="button" variant="outline" size="sm" onClick={() => videoFileInputRef.current?.click()} className="flex-1">
+                              Choisir un autre fichier
+                            </Button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+                  <input
+                    ref={videoFileInputRef}
+                    type="file"
+                    accept=".mp4,.mov,video/mp4,video/quicktime"
+                    className="hidden"
+                    onChange={event => {
+                      const file = event.target.files?.[0];
+                      if (file) void uploadVideoToR2(file);
+                    }}
+                  />
+                </div>
+              ) : (
+              /* Drive parts / URL */
               <div className="space-y-2 col-span-2">
                 <div className="flex items-center justify-between">
                   <Label className="flex items-center gap-1.5">
@@ -778,6 +1165,7 @@ export function AdminVideos() {
                   </div>
                 )}
               </div>
+              )}
 
               {/* VIP software link */}
               <div className="space-y-2 col-span-2">
@@ -850,7 +1238,7 @@ export function AdminVideos() {
               </div>
             </div>
 
-            <Button className="w-full mt-4" onClick={handleSave} disabled={createMut.isPending || updateMut.isPending || uploading}>
+            <Button className="w-full mt-4" onClick={handleSave} disabled={createMut.isPending || updateMut.isPending || uploading || r2Upload.status === "uploading"}>
               {(createMut.isPending || updateMut.isPending) ? <Loader2 className="w-4 h-4 animate-spin" /> : "Enregistrer"}
             </Button>
           </div>

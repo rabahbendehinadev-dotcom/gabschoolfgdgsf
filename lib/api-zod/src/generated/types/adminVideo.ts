@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { AdminVideoAccessType } from "./adminVideoAccessType";
+import type { AdminVideoStorageProvider } from "./adminVideoStorageProvider";
 
 export interface AdminVideo {
   id: number;
@@ -22,6 +23,8 @@ export interface AdminVideo {
   isVisible: boolean;
   sortOrder: number;
   driveParts?: string | null;
+  storageProvider: AdminVideoStorageProvider;
+  r2ObjectKey?: string | null;
   softwareLink?: string | null;
   migratedAt?: Date | null;
   createdAt: Date;

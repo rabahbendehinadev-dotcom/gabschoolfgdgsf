@@ -193,6 +193,14 @@ export const AdminVideoAccessType = {
   vip: "vip",
 } as const;
 
+export type AdminVideoStorageProvider =
+  (typeof AdminVideoStorageProvider)[keyof typeof AdminVideoStorageProvider];
+
+export const AdminVideoStorageProvider = {
+  drive: "drive",
+  r2: "r2",
+} as const;
+
 export interface AdminVideo {
   id: number;
   title: string;
@@ -208,6 +216,8 @@ export interface AdminVideo {
   isVisible: boolean;
   sortOrder: number;
   driveParts?: string | null;
+  storageProvider: AdminVideoStorageProvider;
+  r2ObjectKey?: string | null;
   softwareLink?: string | null;
   migratedAt?: string | null;
   createdAt: string;
@@ -220,6 +230,14 @@ export const CreateVideoInputAccessType = {
   visitor: "visitor",
   normal: "normal",
   vip: "vip",
+} as const;
+
+export type CreateVideoInputStorageProvider =
+  (typeof CreateVideoInputStorageProvider)[keyof typeof CreateVideoInputStorageProvider];
+
+export const CreateVideoInputStorageProvider = {
+  drive: "drive",
+  r2: "r2",
 } as const;
 
 export interface CreateVideoInput {
@@ -235,6 +253,9 @@ export interface CreateVideoInput {
   partNumber?: number | null;
   softwareLink?: string | null;
   driveParts?: string | null;
+  storageProvider?: CreateVideoInputStorageProvider;
+  r2ObjectKey?: string | null;
+  r2UploadReceipt?: string | null;
 }
 
 export type UpdateVideoInputAccessType =
@@ -244,6 +265,14 @@ export const UpdateVideoInputAccessType = {
   visitor: "visitor",
   normal: "normal",
   vip: "vip",
+} as const;
+
+export type UpdateVideoInputStorageProvider =
+  (typeof UpdateVideoInputStorageProvider)[keyof typeof UpdateVideoInputStorageProvider];
+
+export const UpdateVideoInputStorageProvider = {
+  drive: "drive",
+  r2: "r2",
 } as const;
 
 export interface UpdateVideoInput {
@@ -259,6 +288,78 @@ export interface UpdateVideoInput {
   partNumber?: number | null;
   softwareLink?: string | null;
   driveParts?: string | null;
+  storageProvider?: UpdateVideoInputStorageProvider;
+  r2ObjectKey?: string | null;
+  r2UploadReceipt?: string | null;
+}
+
+export interface R2MultipartInitiateInput {
+  /** @minimum 1 */
+  courseId: number;
+  /** @minimum 1 */
+  videoId?: number | null;
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  fileName: string;
+  /**
+   * @minimum 1
+   * @maximum 5497558138880
+   */
+  fileSize: number;
+  /** @maxLength 100 */
+  contentType: string;
+}
+
+export interface R2MultipartInitiateResponse {
+  receipt: string;
+  objectKey: string;
+  partSize: number;
+  totalParts: number;
+}
+
+export interface R2UploadPartInput {
+  receipt: string;
+  /**
+   * @minimum 1
+   * @maximum 10000
+   */
+  partNumber: number;
+}
+
+export interface R2UploadPartResponse {
+  url: string;
+}
+
+export interface R2CompletedPart {
+  /** @minimum 1 */
+  partNumber: number;
+  etag: string;
+}
+
+export interface R2MultipartCompleteInput {
+  receipt: string;
+  /**
+   * @minItems 1
+   * @maxItems 10000
+   */
+  parts: R2CompletedPart[];
+}
+
+export interface R2MultipartCompleteResponse {
+  objectKey: string;
+  fileSize: number;
+  contentType: string;
+  commitReceipt: string;
+}
+
+export interface R2MultipartAbortInput {
+  receipt: string;
+}
+
+export interface R2MultipartDiscardInput {
+  commitReceipt: string;
 }
 
 export type ReorderVideosInputItemsItem = {

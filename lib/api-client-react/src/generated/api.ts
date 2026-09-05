@@ -65,6 +65,14 @@ import type {
   PushStatusResponse,
   PushSubscriptionInput,
   PushUnsubscribeInput,
+  R2MultipartAbortInput,
+  R2MultipartCompleteInput,
+  R2MultipartCompleteResponse,
+  R2MultipartDiscardInput,
+  R2MultipartInitiateInput,
+  R2MultipartInitiateResponse,
+  R2UploadPartInput,
+  R2UploadPartResponse,
   RegisterInput,
   ReorderCategoriesInput,
   ReorderVideosInput,
@@ -2367,6 +2375,445 @@ export const useMigrateVideoStorage = <
   TContext
 > => {
   return useMutation(getMigrateVideoStorageMutationOptions(options));
+};
+
+/**
+ * @summary Initiate a direct multipart video upload to private R2
+ */
+export const getInitiateR2VideoUploadUrl = () => {
+  return `/api/admin/r2/uploads/initiate`;
+};
+
+export const initiateR2VideoUpload = async (
+  r2MultipartInitiateInput: R2MultipartInitiateInput,
+  options?: RequestInit,
+): Promise<R2MultipartInitiateResponse> => {
+  return customFetch<R2MultipartInitiateResponse>(
+    getInitiateR2VideoUploadUrl(),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(r2MultipartInitiateInput),
+    },
+  );
+};
+
+export const getInitiateR2VideoUploadMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof initiateR2VideoUpload>>,
+    TError,
+    { data: BodyType<R2MultipartInitiateInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof initiateR2VideoUpload>>,
+  TError,
+  { data: BodyType<R2MultipartInitiateInput> },
+  TContext
+> => {
+  const mutationKey = ["initiateR2VideoUpload"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof initiateR2VideoUpload>>,
+    { data: BodyType<R2MultipartInitiateInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return initiateR2VideoUpload(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type InitiateR2VideoUploadMutationResult = NonNullable<
+  Awaited<ReturnType<typeof initiateR2VideoUpload>>
+>;
+export type InitiateR2VideoUploadMutationBody =
+  BodyType<R2MultipartInitiateInput>;
+export type InitiateR2VideoUploadMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Initiate a direct multipart video upload to private R2
+ */
+export const useInitiateR2VideoUpload = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof initiateR2VideoUpload>>,
+    TError,
+    { data: BodyType<R2MultipartInitiateInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof initiateR2VideoUpload>>,
+  TError,
+  { data: BodyType<R2MultipartInitiateInput> },
+  TContext
+> => {
+  return useMutation(getInitiateR2VideoUploadMutationOptions(options));
+};
+
+/**
+ * @summary Sign one multipart upload part
+ */
+export const getSignR2VideoUploadPartUrl = () => {
+  return `/api/admin/r2/uploads/part`;
+};
+
+export const signR2VideoUploadPart = async (
+  r2UploadPartInput: R2UploadPartInput,
+  options?: RequestInit,
+): Promise<R2UploadPartResponse> => {
+  return customFetch<R2UploadPartResponse>(getSignR2VideoUploadPartUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(r2UploadPartInput),
+  });
+};
+
+export const getSignR2VideoUploadPartMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof signR2VideoUploadPart>>,
+    TError,
+    { data: BodyType<R2UploadPartInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof signR2VideoUploadPart>>,
+  TError,
+  { data: BodyType<R2UploadPartInput> },
+  TContext
+> => {
+  const mutationKey = ["signR2VideoUploadPart"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof signR2VideoUploadPart>>,
+    { data: BodyType<R2UploadPartInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return signR2VideoUploadPart(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SignR2VideoUploadPartMutationResult = NonNullable<
+  Awaited<ReturnType<typeof signR2VideoUploadPart>>
+>;
+export type SignR2VideoUploadPartMutationBody = BodyType<R2UploadPartInput>;
+export type SignR2VideoUploadPartMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Sign one multipart upload part
+ */
+export const useSignR2VideoUploadPart = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof signR2VideoUploadPart>>,
+    TError,
+    { data: BodyType<R2UploadPartInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof signR2VideoUploadPart>>,
+  TError,
+  { data: BodyType<R2UploadPartInput> },
+  TContext
+> => {
+  return useMutation(getSignR2VideoUploadPartMutationOptions(options));
+};
+
+/**
+ * @summary Complete and verify a direct multipart R2 video upload
+ */
+export const getCompleteR2VideoUploadUrl = () => {
+  return `/api/admin/r2/uploads/complete`;
+};
+
+export const completeR2VideoUpload = async (
+  r2MultipartCompleteInput: R2MultipartCompleteInput,
+  options?: RequestInit,
+): Promise<R2MultipartCompleteResponse> => {
+  return customFetch<R2MultipartCompleteResponse>(
+    getCompleteR2VideoUploadUrl(),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(r2MultipartCompleteInput),
+    },
+  );
+};
+
+export const getCompleteR2VideoUploadMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof completeR2VideoUpload>>,
+    TError,
+    { data: BodyType<R2MultipartCompleteInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof completeR2VideoUpload>>,
+  TError,
+  { data: BodyType<R2MultipartCompleteInput> },
+  TContext
+> => {
+  const mutationKey = ["completeR2VideoUpload"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof completeR2VideoUpload>>,
+    { data: BodyType<R2MultipartCompleteInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return completeR2VideoUpload(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CompleteR2VideoUploadMutationResult = NonNullable<
+  Awaited<ReturnType<typeof completeR2VideoUpload>>
+>;
+export type CompleteR2VideoUploadMutationBody =
+  BodyType<R2MultipartCompleteInput>;
+export type CompleteR2VideoUploadMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Complete and verify a direct multipart R2 video upload
+ */
+export const useCompleteR2VideoUpload = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof completeR2VideoUpload>>,
+    TError,
+    { data: BodyType<R2MultipartCompleteInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof completeR2VideoUpload>>,
+  TError,
+  { data: BodyType<R2MultipartCompleteInput> },
+  TContext
+> => {
+  return useMutation(getCompleteR2VideoUploadMutationOptions(options));
+};
+
+/**
+ * @summary Abort an incomplete multipart R2 video upload
+ */
+export const getAbortR2VideoUploadUrl = () => {
+  return `/api/admin/r2/uploads/abort`;
+};
+
+export const abortR2VideoUpload = async (
+  r2MultipartAbortInput: R2MultipartAbortInput,
+  options?: RequestInit,
+): Promise<MessageResponse> => {
+  return customFetch<MessageResponse>(getAbortR2VideoUploadUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(r2MultipartAbortInput),
+  });
+};
+
+export const getAbortR2VideoUploadMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof abortR2VideoUpload>>,
+    TError,
+    { data: BodyType<R2MultipartAbortInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof abortR2VideoUpload>>,
+  TError,
+  { data: BodyType<R2MultipartAbortInput> },
+  TContext
+> => {
+  const mutationKey = ["abortR2VideoUpload"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof abortR2VideoUpload>>,
+    { data: BodyType<R2MultipartAbortInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return abortR2VideoUpload(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AbortR2VideoUploadMutationResult = NonNullable<
+  Awaited<ReturnType<typeof abortR2VideoUpload>>
+>;
+export type AbortR2VideoUploadMutationBody = BodyType<R2MultipartAbortInput>;
+export type AbortR2VideoUploadMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Abort an incomplete multipart R2 video upload
+ */
+export const useAbortR2VideoUpload = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof abortR2VideoUpload>>,
+    TError,
+    { data: BodyType<R2MultipartAbortInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof abortR2VideoUpload>>,
+  TError,
+  { data: BodyType<R2MultipartAbortInput> },
+  TContext
+> => {
+  return useMutation(getAbortR2VideoUploadMutationOptions(options));
+};
+
+/**
+ * @summary Delete a completed R2 upload that was not attached to a lesson
+ */
+export const getDiscardR2VideoUploadUrl = () => {
+  return `/api/admin/r2/uploads/discard`;
+};
+
+export const discardR2VideoUpload = async (
+  r2MultipartDiscardInput: R2MultipartDiscardInput,
+  options?: RequestInit,
+): Promise<MessageResponse> => {
+  return customFetch<MessageResponse>(getDiscardR2VideoUploadUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(r2MultipartDiscardInput),
+  });
+};
+
+export const getDiscardR2VideoUploadMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof discardR2VideoUpload>>,
+    TError,
+    { data: BodyType<R2MultipartDiscardInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof discardR2VideoUpload>>,
+  TError,
+  { data: BodyType<R2MultipartDiscardInput> },
+  TContext
+> => {
+  const mutationKey = ["discardR2VideoUpload"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof discardR2VideoUpload>>,
+    { data: BodyType<R2MultipartDiscardInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return discardR2VideoUpload(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DiscardR2VideoUploadMutationResult = NonNullable<
+  Awaited<ReturnType<typeof discardR2VideoUpload>>
+>;
+export type DiscardR2VideoUploadMutationBody =
+  BodyType<R2MultipartDiscardInput>;
+export type DiscardR2VideoUploadMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a completed R2 upload that was not attached to a lesson
+ */
+export const useDiscardR2VideoUpload = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof discardR2VideoUpload>>,
+    TError,
+    { data: BodyType<R2MultipartDiscardInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof discardR2VideoUpload>>,
+  TError,
+  { data: BodyType<R2MultipartDiscardInput> },
+  TContext
+> => {
+  return useMutation(getDiscardR2VideoUploadMutationOptions(options));
 };
 
 /**
