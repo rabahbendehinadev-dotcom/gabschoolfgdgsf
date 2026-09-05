@@ -10,6 +10,7 @@ import { extractDriveFileId, getDriveFileMetadata, resolveVideoParts, streamDriv
 import { streamGcsObjectToResponse, parseObjectParts } from "../lib/videoStorage";
 import { parseLowParts } from "../lib/driveTranscode";
 import { resolveAvailableHlsParts, buildMasterPlaylist, renderMediaPlaylist, buildHlsBasePath, RENDITION_NAME_RE, SAFE_SEGMENT_RE } from "../lib/hlsStorage";
+import { getR2VideoMetadata, streamR2Video } from "../lib/r2Video";
 
 /* ── Per-token concurrent-connection guard ────────────────────────────────
    Tracks how many in-flight streaming responses are using each stream token.
@@ -27,6 +28,10 @@ const SEG_MAX = 5; // hls.js may prefetch a few segments at level switches
 // original Drive file and database record remain untouched for easy rollback.
 const FASTSTART_PILOT_FILES: Readonly<Record<number, string>> = {
   64: "1an86XBMwA7KbQkiDK6nPmzlwCoPiw4eb",
+};
+
+const R2_PILOT_OBJECTS: Readonly<Record<number, string>> = {
+  64: "videos/pilot/video-64-faststart.mp4",
 };
 
 function acquireSlot(map: Map<string, number>, key: string, max: number): boolean {
@@ -673,7 +678,10 @@ router.head("/videos/:id/stream/:part", async (req, res) => {
       return;
     }
 
-    const metadata = await getDriveFileMetadata(fileId);
+    const r2Key = part === 0 ? R2_PILOT_OBJECTS[id] : undefined;
+    const metadata = r2Key
+      ? await getR2VideoMetadata(r2Key)
+      : await getDriveFileMetadata(fileId);
     res.setHeader("Accept-Ranges", "bytes");
     res.setHeader("Content-Type", metadata.contentType);
     res.setHeader("Content-Disposition", "inline");
@@ -787,6 +795,11 @@ router.get("/videos/:id/stream/:part", async (req, res) => {
       return;
     }
 
+    const r2Key = part === 0 ? R2_PILOT_OBJECTS[id] : undefined;
+    if (r2Key) {
+      await streamR2Video(req, res, r2Key);
+      return;
+    }
     await streamDriveFile(req, res, fileId);
   } catch (error: unknown) {
     console.error("[video-stream] ROUTE ERROR: stream handler threw", {
