@@ -59,6 +59,9 @@ GOOGLE_CLIENT_ID = "193433676813-tq5d6c0elrnbscusljbc6n74n0k7h7g6.apps.googleuse
 VAPID_PUBLIC_KEY = "BEAfrJklMYprCgEcG-Ns0ANPhH6sDiM6iHIhOYyBMs05-i7gEr9E85RdAvhq3RSR5cRSZ6Dp0B6YiUyYbjKtUYU"
 VAPID_PRIVATE_KEY = "AcA4tiUOSA1dCdutlbw59557MI0vgGPvbFhuSQ15yR4"
 VAPID_SUBJECT = "mailto:notifications@gabschool.app"
+R2_BUCKET_NAME = "online-gabschool"
+R2_ENDPOINT = "https://0c9dbc05d48695c336fa4ac4fa16a725.r2.cloudflarestorage.com"
+R2_REGION = "auto"
 
 [[ports]]
 localPort = 8080
