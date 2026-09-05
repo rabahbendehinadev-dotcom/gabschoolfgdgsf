@@ -85,6 +85,8 @@ export interface UserProfile {
 
 export interface AuthResponse {
   token: string;
+  /** Opaque server-issued credential bound to the trusted browser device. */
+  deviceCredential: string;
   user: UserProfile;
 }
 

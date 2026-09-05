@@ -2,10 +2,10 @@ import app from "./app";
 import { db, adminsTable, categoriesTable, subscriptionPlansTable, videosTable } from "@workspace/db";
 import bcrypt from "bcryptjs";
 import { sql, eq, isNull, and } from "drizzle-orm";
-import { startIpResetScheduler } from "./lib/ipResetScheduler";
 import { copyDriveFileToStorage, buildVideoObjectPath } from "./lib/videoStorage";
 import { resolveVideoParts, extractDriveFileId } from "./lib/googleDrive";
 import { startImageOptimizeWorker } from "./lib/imageOptimize";
+import { assertDeviceCredentialSecretConfigured } from "./lib/deviceSecurity";
 import type { ObjectPart } from "./lib/videoStorage";
 
 const rawPort = process.env["PORT"];
@@ -24,6 +24,7 @@ if (Number.isNaN(port) || port <= 0) {
 
 async function runMigrations() {
   try {
+    assertDeviceCredentialSecretConfigured();
     await db.execute(sql`
       ALTER TABLE videos
         ADD COLUMN IF NOT EXISTS access_type VARCHAR(20) NOT NULL DEFAULT 'normal'
@@ -40,25 +41,6 @@ async function runMigrations() {
     await db.execute(sql`
       ALTER TABLE users
         ADD COLUMN IF NOT EXISTS ip_first_seen_at TIMESTAMP
-    `);
-    // VIP-only IP restriction: non-VIP accounts must have no IP recorded.
-    await db.execute(sql`
-      UPDATE users
-        SET ip_address = NULL, ip_address_2 = NULL, ip_first_seen_at = NULL
-        WHERE account_type <> 'vip'
-          AND (ip_address IS NOT NULL OR ip_address_2 IS NOT NULL OR ip_first_seen_at IS NOT NULL)
-    `);
-    // Legacy VIP rows that already had IP slots filled before the windowed
-    // system existed have a NULL window start, which would leave them stuck at
-    // 2/2 forever (never auto-resetting). Start their 24h window now so the
-    // background scheduler / lazy expiry can reset them. Idempotent: only rows
-    // with a NULL window start are touched, so reruns are no-ops.
-    await db.execute(sql`
-      UPDATE users
-        SET ip_first_seen_at = NOW()
-        WHERE account_type = 'vip'
-          AND ip_first_seen_at IS NULL
-          AND (ip_address IS NOT NULL OR ip_address_2 IS NOT NULL)
     `);
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS playlists (
@@ -299,6 +281,74 @@ async function runMigrations() {
       )
     `);
 
+    // Trusted-device security. Additive only: legacy IP columns/history remain
+    // untouched while existing users safely claim their first device slots.
+    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS security_blocked_at TIMESTAMP`);
+    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS security_blocked_reason TEXT`);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS trusted_devices (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        credential_hash VARCHAR(64) NOT NULL UNIQUE,
+        category VARCHAR(20) NOT NULL CHECK (category IN ('PHONE', 'COMPUTER')),
+        os VARCHAR(100), browser VARCHAR(100), user_agent TEXT,
+        first_seen_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        last_seen_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        last_ip VARCHAR(45), country VARCHAR(100), region VARCHAR(150), city VARCHAR(150),
+        latitude REAL, longitude REAL,
+        status VARCHAR(20) NOT NULL DEFAULT 'TRUSTED' CHECK (status IN ('TRUSTED', 'BLOCKED', 'REVOKED')),
+        created_by VARCHAR(20) NOT NULL DEFAULT 'AUTO',
+        revoked_at TIMESTAMP, created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS trusted_devices_user_idx ON trusted_devices(user_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS trusted_devices_status_idx ON trusted_devices(status)`);
+    await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS trusted_devices_one_trusted_category ON trusted_devices(user_id, category) WHERE status = 'TRUSTED'`);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS user_security_sessions (
+        id VARCHAR(36) PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        device_id INTEGER NOT NULL REFERENCES trusted_devices(id) ON DELETE CASCADE,
+        ip_address VARCHAR(45), created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        last_seen_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        expires_at TIMESTAMP NOT NULL, revoked_at TIMESTAMP
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS user_security_sessions_user_idx ON user_security_sessions(user_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS user_security_sessions_device_idx ON user_security_sessions(device_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS user_security_sessions_expires_idx ON user_security_sessions(expires_at)`);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS security_events (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        device_id INTEGER REFERENCES trusted_devices(id) ON DELETE SET NULL,
+        session_id VARCHAR(36), event_type VARCHAR(80) NOT NULL,
+        outcome VARCHAR(20) NOT NULL DEFAULT 'INFO', risk_score INTEGER NOT NULL DEFAULT 0,
+        risk_reasons JSONB, ip_address VARCHAR(45), country VARCHAR(100), region VARCHAR(150), city VARCHAR(150),
+        latitude REAL, longitude REAL, distance_km REAL, elapsed_seconds INTEGER,
+        reputation JSONB, metadata JSONB,
+        admin_id INTEGER REFERENCES admins(id) ON DELETE SET NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS security_events_user_idx ON security_events(user_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS security_events_ip_idx ON security_events(ip_address)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS security_events_type_idx ON security_events(event_type)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS security_events_created_idx ON security_events(created_at)`);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS security_whitelists (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        ip_address VARCHAR(45), reason TEXT,
+        created_by_admin_id INTEGER NOT NULL REFERENCES admins(id) ON DELETE CASCADE,
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        CHECK (user_id IS NOT NULL OR ip_address IS NOT NULL)
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS security_whitelists_user_idx ON security_whitelists(user_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS security_whitelists_ip_idx ON security_whitelists(ip_address)`);
+
     console.log("[migrations] Schema up to date.");
   } catch (err) {
     console.error("[migrations] Migration error:", err);
@@ -462,7 +512,6 @@ async function runAutoStorageMigration(): Promise<void> {
 }
 
 runMigrations().then(() => ensureSeed()).then(() => {
-  startIpResetScheduler();
   app.listen(port, () => {
     console.log(`Server listening on port ${port}`);
     // Videos stay in Drive; migration and the 720p/FFmpeg worker remain disabled.

@@ -14,9 +14,22 @@ async function uploadBlob(
 ): Promise<{ objectPath: string; uploadToken: string }> {
   const fd = new FormData();
   fd.append("file", new File([blob], filename, { type: blob.type || "application/octet-stream" }));
+  const reqHeaders: Record<string, string> = {};
+  if (headers) {
+    if (headers instanceof Headers) {
+      headers.forEach((v, k) => (reqHeaders[k] = v));
+    } else if (Array.isArray(headers)) {
+      headers.forEach(([k, v]) => (reqHeaders[k] = v));
+    } else {
+      Object.assign(reqHeaders, headers);
+    }
+  }
+  const cred = localStorage.getItem("device_credential");
+  if (cred) reqHeaders["X-Device-Credential"] = cred;
+
   const res = await fetch("/api/community/uploads/data", {
     method: "POST",
-    headers,
+    headers: reqHeaders,
     body: fd,
   });
   if (!res.ok) {

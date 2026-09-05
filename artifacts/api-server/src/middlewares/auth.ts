@@ -1,9 +1,16 @@
 import { Request, Response, NextFunction } from "express";
 import { verifyToken, verifyAdminToken } from "../lib/auth";
-import { applyVipIpPolicy, getClientIp, VIP_IP_LIMIT_MESSAGE } from "../lib/ipPolicy";
-import { db, usersTable, adminsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { getClientIp } from "../lib/ipPolicy";
+import { db, usersTable, adminsTable, adminSessionsTable } from "@workspace/db";
+import { and, eq, gt } from "drizzle-orm";
 import { isActiveCommunitySubscriber } from "../lib/vipUtils";
+import { credentialFromRequest, credentialHash, isRequestIpAllowed, validateDeviceCredential, validateSecuritySession } from "../lib/deviceSecurity";
+import { canManageSecurity, parseAdminPermissions } from "../lib/adminSecurity";
+
+function hasMatchingDeviceCredential(req: Request, expectedHash: string): boolean {
+  const credential = credentialFromRequest(req);
+  return !!credential && validateDeviceCredential(credential) && credentialHash(credential) === expectedHash;
+}
 
 declare global {
   namespace Express {
@@ -27,8 +34,11 @@ declare global {
         email: string | null;
         displayName: string | null;
         role: string;
+        permissions: string[];
       };
       userCreatedAt?: Date;
+      securitySessionId?: string;
+      securityDeviceId?: number;
     }
   }
 }
@@ -37,7 +47,7 @@ async function authenticateUser(
   req: Request,
   res: Response,
   next: NextFunction,
-  enforceIpPolicy: boolean,
+  _enforceIpPolicy: boolean,
   requireCommunitySubscription = false,
 ) {
   const authHeader = req.headers.authorization;
@@ -54,28 +64,21 @@ async function authenticateUser(
   }
 
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, payload.userId)).limit(1);
-  if (!user || !user.isActive) {
+  if (!user || !user.isActive || user.securityBlockedAt) {
     res.status(401).json({ message: "Account not found or deactivated" });
     return;
   }
 
   const clientIp = getClientIp(req);
 
-  // IP restriction applies to VIP accounts only (max 2 IPs / 24h window).
-  // Normal & demo accounts are never IP-restricted, so skip the locking
-  // transaction entirely for them (runs on every authenticated request).
-  //
-  // Benign per-user endpoints (notifications: reading the feed, registering a
-  // push device, reporting permission state) opt out via `userAuthNoIpLimit`.
-  // A VIP's mobile IP rotates often, so enforcing the 2-IP limit there would
-  // (a) block them from enabling notifications and (b) burn their device slots
-  // on transient IPs, locking them out of paid content.
-  if (enforceIpPolicy && user.accountType === "vip") {
-    const ipPolicy = await applyVipIpPolicy(user.id, clientIp);
-    if (!ipPolicy.allowed) {
-      res.status(403).json({ message: VIP_IP_LIMIT_MESSAGE });
-      return;
-    }
+  const securitySession = await validateSecuritySession(payload.userId, payload.deviceId, payload.sessionId);
+  if (!securitySession || !hasMatchingDeviceCredential(req, securitySession.device.credentialHash)) {
+    res.status(401).json({ message: "Session or trusted device is no longer valid" });
+    return;
+  }
+  if (!await isRequestIpAllowed(user.id, clientIp)) {
+    res.status(403).json({ message: "تعذر الوصول لأسباب أمنية. يرجى التواصل مع الإدارة." });
+    return;
   }
 
   const communityAdmin = user.communityRole === "admin";
@@ -110,6 +113,8 @@ async function authenticateUser(
     communityRole: user.communityRole,
   };
   req.userCreatedAt = user.createdAt;
+  req.securitySessionId = payload.sessionId;
+  req.securityDeviceId = payload.deviceId;
 
   next();
 }
@@ -151,11 +156,20 @@ export async function userAuthAllowExpired(req: Request, res: Response, next: Ne
     return;
   }
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, payload.userId)).limit(1);
-  if (!user || !user.isActive) {
+  if (!user || !user.isActive || user.securityBlockedAt) {
     res.status(401).json({ message: "Account not found or deactivated" });
     return;
   }
   const clientIp = getClientIp(req);
+  const securitySession = await validateSecuritySession(payload.userId, payload.deviceId, payload.sessionId);
+  if (!securitySession || !hasMatchingDeviceCredential(req, securitySession.device.credentialHash)) {
+    res.status(401).json({ message: "Session or trusted device is no longer valid" });
+    return;
+  }
+  if (!await isRequestIpAllowed(user.id, clientIp)) {
+    res.status(403).json({ message: "تعذر الوصول لأسباب أمنية. يرجى التواصل مع الإدارة." });
+    return;
+  }
   req.user = {
     id: user.id,
     username: user.username,
@@ -170,6 +184,8 @@ export async function userAuthAllowExpired(req: Request, res: Response, next: Ne
     communityRole: user.communityRole,
   };
   req.userCreatedAt = user.createdAt;
+  req.securitySessionId = payload.sessionId;
+  req.securityDeviceId = payload.deviceId;
   next();
 }
 
@@ -183,7 +199,11 @@ export async function optionalUserAuth(req: Request, _res: Response, next: NextF
   const payload = verifyToken(token);
   if (!payload) { next(); return; }
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, payload.userId)).limit(1);
-  if (user && user.isActive) {
+  const securitySession = user && !user.securityBlockedAt
+    ? await validateSecuritySession(payload.userId, payload.deviceId, payload.sessionId)
+    : null;
+  const requestIpAllowed = user ? await isRequestIpAllowed(user.id, getClientIp(req)) : false;
+  if (user && user.isActive && securitySession && hasMatchingDeviceCredential(req, securitySession.device.credentialHash) && requestIpAllowed) {
     req.user = {
       id: user.id,
       username: user.username,
@@ -198,6 +218,8 @@ export async function optionalUserAuth(req: Request, _res: Response, next: NextF
       communityRole: user.communityRole,
     };
     req.userCreatedAt = user.createdAt;
+    req.securitySessionId = payload.sessionId;
+    req.securityDeviceId = payload.deviceId;
   }
   next();
 }
@@ -217,7 +239,13 @@ export async function adminAuth(req: Request, res: Response, next: NextFunction)
   }
 
   const [admin] = await db.select().from(adminsTable).where(eq(adminsTable.id, payload.adminId)).limit(1);
-  if (!admin) {
+  const [adminSession] = await db.select({ id: adminSessionsTable.id }).from(adminSessionsTable)
+    .where(and(
+      eq(adminSessionsTable.adminId, payload.adminId),
+      eq(adminSessionsTable.token, token),
+      gt(adminSessionsTable.expiresAt, new Date()),
+    )).limit(1);
+  if (!admin || !(admin as any).isActive || !adminSession) {
     res.status(401).json({ message: "Admin not found" });
     return;
   }
@@ -228,6 +256,15 @@ export async function adminAuth(req: Request, res: Response, next: NextFunction)
     email: (admin as any).email ?? null,
     displayName: (admin as any).displayName ?? null,
     role: (admin as any).role ?? "super_admin",
+    permissions: parseAdminPermissions((admin as any).permissions),
   };
+  next();
+}
+
+export function securityManageAuth(req: Request, res: Response, next: NextFunction) {
+  if (!req.admin || !canManageSecurity(req.admin)) {
+    res.status(403).json({ message: "Security management permission required" });
+    return;
+  }
   next();
 }

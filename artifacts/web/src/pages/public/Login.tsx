@@ -29,10 +29,17 @@ export function Login() {
     resolver: zodResolver(loginSchema)
   });
 
-  const navigateAfterLogin = async (token: string, phone: string | null | undefined) => {
+  const navigateAfterLogin = async (token: string, phone: string | null | undefined, deviceCredential?: string) => {
     if (!phone) { navigate("/complete-phone"); return; }
     try {
-      const res = await fetch("/api/user/courses", { headers: { Authorization: `Bearer ${token}` } });
+      const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+      if (deviceCredential) {
+        headers["X-Device-Credential"] = deviceCredential;
+      } else {
+        const stored = localStorage.getItem("device_credential");
+        if (stored) headers["X-Device-Credential"] = stored;
+      }
+      const res = await fetch("/api/user/courses", { headers });
       const courses: { id: number }[] = res.ok ? await res.json() : [];
       navigate(courses.length === 1 ? `/courses/${courses[0].id}` : "/courses");
     } catch {
@@ -43,12 +50,15 @@ export function Login() {
   const onSubmit = (data: LoginForm) => {
     loginMut.mutate({ data }, {
       onSuccess: (res) => {
-        setAuth(res.token, res.user);
+        setAuth(res.token, res.user, res.deviceCredential);
         toast({ title: "تم تسجيل الدخول بنجاح", className: "bg-green-600 text-white border-none" });
-        void navigateAfterLogin(res.token, res.user.phone);
+        void navigateAfterLogin(res.token, res.user.phone, res.deviceCredential);
       },
       onError: (err) => {
-        const apiErr = err as Error & { status?: number; data?: { message?: string } };
+        const apiErr = err as Error & { status?: number; data?: { message?: string, deviceCredential?: string } };
+        if (apiErr.data?.deviceCredential) {
+          localStorage.setItem("device_credential", apiErr.data.deviceCredential);
+        }
         const description = apiErr.data?.message || "بيانات الدخول غير صحيحة";
         const title = apiErr.status === 403 ? "جهاز غير مسموح به" : "فشل تسجيل الدخول";
         toast({ variant: "destructive", title, description });

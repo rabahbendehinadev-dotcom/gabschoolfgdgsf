@@ -141,7 +141,7 @@ export function Tools() {
   const { data: tools = [], isLoading } = useQuery<PublicTool[]>({
     queryKey: ["tools"],
     queryFn: async () => {
-      const res = await fetch(`${base}/api/tools`, { headers: getAuthHeaders() });
+      const res = await fetch(`${base}/api/tools`, getAuthHeaders());
       if (!res.ok) throw new Error("فشل تحميل الأدوات");
       return res.json();
     },

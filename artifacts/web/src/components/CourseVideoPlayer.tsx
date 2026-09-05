@@ -244,6 +244,15 @@ export function CourseVideoPlayer({
     setPipSupported(Boolean(supported));
   }, []);
 
+  const getAuthHeadersLocal = () => {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    const token = typeof localStorage !== "undefined" ? localStorage.getItem("token") : null;
+    const cred = typeof localStorage !== "undefined" ? localStorage.getItem("device_credential") : null;
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    if (cred) headers["X-Device-Credential"] = cred;
+    return headers;
+  };
+
   /* ── تسجيل حدث أمني (مرة واحدة لكل نوع) ── */
   const reportSecurity = useCallback(async (eventType: string, details?: string) => {
     if (!videoId || reportedRef.current.has(eventType)) return;
@@ -251,7 +260,7 @@ export function CourseVideoPlayer({
     try {
       await fetch(`/api/videos/${videoId}/security-event`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeadersLocal(),
         credentials: "include",
         body: JSON.stringify({ eventType, details }),
       });
@@ -272,7 +281,7 @@ export function CourseVideoPlayer({
     }).connection;
     void fetch(`/api/videos/${videoId}/playback-metric`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: getAuthHeadersLocal(),
       credentials: "include",
       keepalive: true,
       body: JSON.stringify({
@@ -293,7 +302,7 @@ export function CourseVideoPlayer({
       if (videoId) {
         await fetch(`/api/videos/${videoId}/violation`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: getAuthHeadersLocal(),
           credentials: "include",
           body: JSON.stringify({ count }),
         });

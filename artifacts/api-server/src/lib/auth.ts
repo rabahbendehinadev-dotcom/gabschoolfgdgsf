@@ -12,13 +12,17 @@ export async function comparePassword(password: string, hash: string): Promise<b
   return bcrypt.compare(password, hash);
 }
 
-export function generateToken(payload: { userId: number }): string {
+export type UserTokenPayload = { userId: number; deviceId: number; sessionId: string };
+
+export function generateToken(payload: UserTokenPayload): string {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: "30d" });
 }
 
-export function verifyToken(token: string): { userId: number } | null {
+export function verifyToken(token: string): UserTokenPayload | null {
   try {
-    return jwt.verify(token, JWT_SECRET) as { userId: number };
+    const payload = jwt.verify(token, JWT_SECRET) as Partial<UserTokenPayload>;
+    if (typeof payload.userId !== "number" || typeof payload.deviceId !== "number" || typeof payload.sessionId !== "string") return null;
+    return payload as UserTokenPayload;
   } catch {
     return null;
   }
@@ -73,19 +77,26 @@ export function generateVideoStreamToken(payload: {
   userId: number;
   videoId: number;
   part: number;
+  deviceId?: number;
+  securitySessionId?: string;
 }): string {
+  if (payload.userId > 0 && (typeof payload.deviceId !== "number" || !payload.securitySessionId)) {
+    throw new Error("Protected video stream tokens require a trusted device session");
+  }
   return jwt.sign({ ...payload, kind: "course-video" }, JWT_SECRET, { expiresIn: "2h" });
 }
 
 export function verifyVideoStreamToken(
   token: string,
-): { userId: number; videoId: number; part: number } | null {
+): { userId: number; videoId: number; part: number; deviceId?: number; securitySessionId?: string } | null {
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as {
       userId?: number;
       videoId?: number;
       part?: number;
       kind?: string;
+      deviceId?: number;
+      securitySessionId?: string;
     };
     if (decoded.kind !== "course-video") return null;
     if (
@@ -95,7 +106,8 @@ export function verifyVideoStreamToken(
     ) {
       return null;
     }
-    return { userId: decoded.userId, videoId: decoded.videoId, part: decoded.part };
+    if (decoded.userId > 0 && (typeof decoded.deviceId !== "number" || typeof decoded.securitySessionId !== "string")) return null;
+    return { userId: decoded.userId, videoId: decoded.videoId, part: decoded.part, deviceId: decoded.deviceId, securitySessionId: decoded.securitySessionId };
   } catch {
     return null;
   }

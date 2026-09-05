@@ -2,16 +2,17 @@ import path from "path";
 import fs from "fs";
 import { Router, type IRouter } from "express";
 import multer from "multer";
-import { db, usersTable, videosTable, categoriesTable, playlistsTable, subscriptionPlansTable, visitLogsTable, activityLogsTable, notificationsTable, notificationRecipientsTable, pushSubscriptionsTable, adminPushSubscriptionsTable, communityPostsTable, communityCommentsTable, communityReportsTable, userCoursesTable, paymentSubmissionsTable, planCoursesTable, courseAccessLogsTable, adminsTable, adminCoursePermissionsTable, r2VideoUploadsTable } from "@workspace/db";
+import { db, usersTable, videosTable, categoriesTable, playlistsTable, subscriptionPlansTable, visitLogsTable, activityLogsTable, notificationsTable, notificationRecipientsTable, pushSubscriptionsTable, adminPushSubscriptionsTable, communityPostsTable, communityCommentsTable, communityReportsTable, userCoursesTable, paymentSubmissionsTable, planCoursesTable, courseAccessLogsTable, adminsTable, adminCoursePermissionsTable, r2VideoUploadsTable, trustedDevicesTable, userSecuritySessionsTable, securityEventsTable, securityWhitelistsTable } from "@workspace/db";
 import { eq, sql, count, desc, asc, lt, and, gte, isNull, isNotNull, inArray, max, ilike, or } from "drizzle-orm";
 
-import { adminAuth } from "../middlewares/auth";
+import { adminAuth, securityManageAuth } from "../middlewares/auth";
 import { effectiveIpState } from "../lib/ipPolicy";
 import { hashPassword, comparePassword } from "../lib/auth";
 import { createNotification, type AudienceType, type TargetType } from "../lib/notifications";
 import { sendPushToUsers, getVapidPublicKey } from "../lib/webPush";
 import { sendPushToAdmins } from "../lib/adminWebPush";
 import { normalizePhone, INVALID_PHONE_MESSAGE } from "../lib/phone";
+import { safeDeviceDto, safeSecurityUserDto } from "../lib/deviceSecurity";
 import { extractDriveFileId, isFolderDriveUrl, resolveVideoParts } from "../lib/googleDrive";
 import {
   buildVideoObjectPath,
@@ -3283,6 +3284,175 @@ router.delete("/admin/tools/:id", adminAuth, async (req, res) => {
     console.error("[admin] DELETE /admin/tools/:id error:", err);
     res.status(500).json({ message: "حدث خطأ في حذف الأداة" });
   }
+});
+
+const SecurityReasonBody = zod.object({ reason: zod.string().trim().max(1000).optional() });
+const SecurityWhitelistBody = zod.object({
+  ipAddress: zod.string().trim().min(2).max(45).optional(),
+  userWide: zod.boolean().optional().default(false),
+  reason: zod.string().trim().max(1000).optional(),
+}).refine((v) => v.userWide || !!v.ipAddress, { message: "ipAddress or userWide is required" });
+
+router.get("/admin/security/users", adminAuth, async (req, res) => {
+  const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 500);
+  const users = await db.select({
+    id: usersTable.id, username: usersTable.username, email: usersTable.email,
+    isActive: usersTable.isActive, accountType: usersTable.accountType,
+    subscriptionType: usersTable.subscriptionType, subscriptionExpiresAt: usersTable.subscriptionExpiresAt,
+    securityBlockedAt: usersTable.securityBlockedAt, securityBlockedReason: usersTable.securityBlockedReason,
+  }).from(usersTable).orderBy(desc(usersTable.createdAt)).limit(limit);
+  const ids = users.map((u) => u.id);
+  const devices = ids.length ? await db.select().from(trustedDevicesTable)
+    .where(inArray(trustedDevicesTable.userId, ids)).orderBy(desc(trustedDevicesTable.lastSeenAt)) : [];
+  res.json(users.map((user) => ({
+    ...safeSecurityUserDto(user),
+    devices: devices.filter((device) => device.userId === user.id).map(safeDeviceDto),
+  })));
+});
+
+router.get("/admin/security/users/:id", adminAuth, async (req, res) => {
+  const userId = Number(req.params.id);
+  if (!Number.isInteger(userId)) { res.status(400).json({ message: "Invalid user id" }); return; }
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  if (!user) { res.status(404).json({ message: "User not found" }); return; }
+  const [devices, events, whitelists, sessions] = await Promise.all([
+    db.select().from(trustedDevicesTable).where(eq(trustedDevicesTable.userId, userId)).orderBy(desc(trustedDevicesTable.lastSeenAt)),
+    db.select().from(securityEventsTable).where(eq(securityEventsTable.userId, userId)).orderBy(desc(securityEventsTable.createdAt)).limit(200),
+    db.select().from(securityWhitelistsTable).where(eq(securityWhitelistsTable.userId, userId)).orderBy(desc(securityWhitelistsTable.createdAt)),
+    db.select().from(userSecuritySessionsTable).where(eq(userSecuritySessionsTable.userId, userId)).orderBy(desc(userSecuritySessionsTable.createdAt)),
+  ]);
+  res.json({
+    user: safeSecurityUserDto(user),
+    devices: devices.map(safeDeviceDto),
+    events: events.map((event) => ({
+      id: event.id, userId: event.userId, deviceId: event.deviceId, sessionId: event.sessionId,
+      eventType: event.eventType, outcome: event.outcome, riskScore: event.riskScore,
+      riskReasons: event.riskReasons, ipAddress: event.ipAddress, country: event.country,
+      region: event.region, city: event.city, latitude: event.latitude, longitude: event.longitude,
+      distanceKm: event.distanceKm, elapsedSeconds: event.elapsedSeconds, reputation: event.reputation,
+      metadata: event.metadata, adminId: event.adminId, createdAt: event.createdAt,
+    })),
+    whitelists: whitelists.map((entry) => ({
+      id: entry.id, userId: entry.userId, ipAddress: entry.ipAddress, reason: entry.reason,
+      createdByAdminId: entry.createdByAdminId, isActive: entry.isActive, createdAt: entry.createdAt,
+    })),
+    sessions: sessions.map((session) => ({
+      id: session.id, userId: session.userId, deviceId: session.deviceId, ipAddress: session.ipAddress,
+      createdAt: session.createdAt, lastSeenAt: session.lastSeenAt, expiresAt: session.expiresAt, revokedAt: session.revokedAt,
+    })),
+  });
+});
+
+router.post("/admin/security/users/:id/devices/:deviceId/revoke", adminAuth, securityManageAuth, async (req, res) => {
+  const userId = Number(req.params.id);
+  const deviceId = Number(req.params.deviceId);
+  const body = SecurityReasonBody.parse(req.body);
+  const [device] = await db.select().from(trustedDevicesTable)
+    .where(and(eq(trustedDevicesTable.id, deviceId), eq(trustedDevicesTable.userId, userId))).limit(1);
+  if (!device) { res.status(404).json({ message: "Device not found" }); return; }
+  const now = new Date();
+  await db.transaction(async (tx) => {
+    await tx.update(trustedDevicesTable).set({ status: "REVOKED", revokedAt: now }).where(eq(trustedDevicesTable.id, deviceId));
+    await tx.update(userSecuritySessionsTable).set({ revokedAt: now })
+      .where(and(eq(userSecuritySessionsTable.deviceId, deviceId), isNull(userSecuritySessionsTable.revokedAt)));
+    await tx.insert(securityEventsTable).values({
+      userId, deviceId, adminId: req.admin!.id, eventType: "DEVICE_REVOKED",
+      outcome: "ADMIN_ACTION", metadata: { reason: body.reason || null },
+    });
+  });
+  res.json({ ok: true });
+});
+
+router.post("/admin/security/users/:id/devices/reset/:category", adminAuth, securityManageAuth, async (req, res) => {
+  const userId = Number(req.params.id);
+  const category = String(req.params.category).toUpperCase();
+  if (category !== "PHONE" && category !== "COMPUTER") { res.status(400).json({ message: "Invalid category" }); return; }
+  const body = SecurityReasonBody.parse(req.body);
+  const now = new Date();
+  const active = await db.select({ id: trustedDevicesTable.id }).from(trustedDevicesTable)
+    .where(and(eq(trustedDevicesTable.userId, userId), eq(trustedDevicesTable.category, category), eq(trustedDevicesTable.status, "TRUSTED")));
+  await db.transaction(async (tx) => {
+    if (active.length) {
+      const deviceIds = active.map((d) => d.id);
+      await tx.update(trustedDevicesTable).set({ status: "REVOKED", revokedAt: now }).where(inArray(trustedDevicesTable.id, deviceIds));
+      await tx.update(userSecuritySessionsTable).set({ revokedAt: now }).where(inArray(userSecuritySessionsTable.deviceId, deviceIds));
+    }
+    await tx.insert(securityEventsTable).values({
+      userId, adminId: req.admin!.id, eventType: "DEVICE_RESET_BY_ADMIN", outcome: "ADMIN_ACTION",
+      riskReasons: [category], metadata: { reason: body.reason || null },
+    });
+  });
+  res.json({ ok: true });
+});
+
+router.post("/admin/security/users/:id/devices/:deviceId/approve", adminAuth, securityManageAuth, async (req, res) => {
+  const userId = Number(req.params.id);
+  const deviceId = Number(req.params.deviceId);
+  const body = SecurityReasonBody.parse(req.body);
+  const [candidate] = await db.select().from(trustedDevicesTable)
+    .where(and(eq(trustedDevicesTable.id, deviceId), eq(trustedDevicesTable.userId, userId), eq(trustedDevicesTable.status, "BLOCKED"))).limit(1);
+  if (!candidate) { res.status(404).json({ message: "Blocked device not found" }); return; }
+  const now = new Date();
+  await db.transaction(async (tx) => {
+    const old = await tx.select({ id: trustedDevicesTable.id }).from(trustedDevicesTable)
+      .where(and(eq(trustedDevicesTable.userId, userId), eq(trustedDevicesTable.category, candidate.category), eq(trustedDevicesTable.status, "TRUSTED")));
+    if (old.length) {
+      const ids = old.map((d) => d.id);
+      await tx.update(trustedDevicesTable).set({ status: "REVOKED", revokedAt: now }).where(inArray(trustedDevicesTable.id, ids));
+      await tx.update(userSecuritySessionsTable).set({ revokedAt: now }).where(inArray(userSecuritySessionsTable.deviceId, ids));
+    }
+    await tx.update(trustedDevicesTable).set({ status: "TRUSTED", createdBy: "ADMIN", revokedAt: null }).where(eq(trustedDevicesTable.id, deviceId));
+    await tx.insert(securityEventsTable).values({
+      userId, deviceId, adminId: req.admin!.id, eventType: "DEVICE_APPROVED_BY_ADMIN",
+      outcome: "ADMIN_ACTION", metadata: { reason: body.reason || null },
+    });
+  });
+  res.json({ ok: true });
+});
+
+router.post("/admin/security/users/:id/block", adminAuth, securityManageAuth, async (req, res) => {
+  const userId = Number(req.params.id);
+  const body = SecurityReasonBody.parse(req.body);
+  const now = new Date();
+  const [user] = await db.update(usersTable).set({ securityBlockedAt: now, securityBlockedReason: body.reason || null })
+    .where(eq(usersTable.id, userId)).returning({ id: usersTable.id });
+  if (!user) { res.status(404).json({ message: "User not found" }); return; }
+  await db.update(userSecuritySessionsTable).set({ revokedAt: now })
+    .where(and(eq(userSecuritySessionsTable.userId, userId), isNull(userSecuritySessionsTable.revokedAt)));
+  await db.insert(securityEventsTable).values({ userId, adminId: req.admin!.id, eventType: "USER_SECURITY_BLOCKED", outcome: "ADMIN_ACTION", metadata: { reason: body.reason || null } });
+  res.json({ ok: true });
+});
+
+router.post("/admin/security/users/:id/unblock", adminAuth, securityManageAuth, async (req, res) => {
+  const userId = Number(req.params.id);
+  const [user] = await db.update(usersTable).set({ securityBlockedAt: null, securityBlockedReason: null })
+    .where(eq(usersTable.id, userId)).returning({ id: usersTable.id });
+  if (!user) { res.status(404).json({ message: "User not found" }); return; }
+  await db.insert(securityEventsTable).values({ userId, adminId: req.admin!.id, eventType: "USER_SECURITY_UNBLOCKED", outcome: "ADMIN_ACTION" });
+  res.json({ ok: true });
+});
+
+router.post("/admin/security/users/:id/whitelists", adminAuth, securityManageAuth, async (req, res) => {
+  const userId = Number(req.params.id);
+  const body = SecurityWhitelistBody.parse(req.body);
+  const [entry] = await db.insert(securityWhitelistsTable).values({
+    userId: body.userWide ? userId : null,
+    ipAddress: body.userWide ? null : body.ipAddress,
+    reason: body.reason,
+    createdByAdminId: req.admin!.id,
+  }).returning();
+  await db.insert(securityEventsTable).values({ userId, adminId: req.admin!.id, eventType: "IP_WHITELISTED", outcome: "ADMIN_ACTION", ipAddress: entry.ipAddress, metadata: { whitelistId: entry.id, userWide: body.userWide } });
+  res.status(201).json(entry);
+});
+
+router.delete("/admin/security/users/:id/whitelists/:whitelistId", adminAuth, securityManageAuth, async (req, res) => {
+  const userId = Number(req.params.id);
+  const whitelistId = Number(req.params.whitelistId);
+  const [entry] = await db.update(securityWhitelistsTable).set({ isActive: false })
+    .where(and(eq(securityWhitelistsTable.id, whitelistId), or(eq(securityWhitelistsTable.userId, userId), isNull(securityWhitelistsTable.userId)))).returning();
+  if (!entry) { res.status(404).json({ message: "Whitelist entry not found" }); return; }
+  await db.insert(securityEventsTable).values({ userId, adminId: req.admin!.id, eventType: "IP_WHITELIST_REMOVED", outcome: "ADMIN_ACTION", ipAddress: entry.ipAddress, metadata: { whitelistId } });
+  res.json({ ok: true });
 });
 
 router.post("/admin/tools/reorder", adminAuth, async (req, res) => {

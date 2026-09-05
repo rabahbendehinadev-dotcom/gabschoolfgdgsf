@@ -11,6 +11,7 @@ import { streamGcsObjectToResponse, parseObjectParts } from "../lib/videoStorage
 import { parseLowParts } from "../lib/driveTranscode";
 import { resolveAvailableHlsParts, buildMasterPlaylist, renderMediaPlaylist, buildHlsBasePath, RENDITION_NAME_RE, SAFE_SEGMENT_RE } from "../lib/hlsStorage";
 import { getPresignedR2VideoUrl, getR2VideoMetadata, streamR2Video } from "../lib/r2Video";
+import { validateSecuritySession } from "../lib/deviceSecurity";
 
 /* ── Per-token concurrent-connection guard ────────────────────────────────
    Tracks how many in-flight streaming responses are using each stream token.
@@ -354,6 +355,7 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
         userId: user?.id ?? 0,
         videoId: id,
         part,
+        ...(user ? { deviceId: req.securityDeviceId, securitySessionId: req.securitySessionId } : {}),
       });
       return {
         label: p.label,
@@ -503,6 +505,7 @@ async function authorizeStreamRequest(
 ): Promise<{
   id: number;
   part: number;
+  payload: NonNullable<ReturnType<typeof verifyVideoStreamToken>>;
   video: {
     isVisible: boolean;
     accessType: string;
@@ -576,7 +579,7 @@ async function authorizeStreamRequest(
   // the user MUST have an explicit entry in user_courses — VIP/subscription is NOT enough.
   const coursePlaylistId = video.playlistId ?? video.categoryLinkedPlaylistId ?? null;
   if (video.accessType === "visitor") {
-    return { id, part, video };
+    return { id, part, video, payload };
   }
   const [streamUser] = payload.userId
     ? await db
@@ -585,16 +588,24 @@ async function authorizeStreamRequest(
           subscriptionType: usersTable.subscriptionType,
           subscriptionExpiresAt: usersTable.subscriptionExpiresAt,
           isActive: usersTable.isActive,
+          securityBlockedAt: usersTable.securityBlockedAt,
         })
         .from(usersTable)
         .where(eq(usersTable.id, payload.userId))
         .limit(1)
     : [undefined];
-  if (!streamUser?.isActive) {
+  if (!streamUser?.isActive || streamUser.securityBlockedAt) {
     console.warn(`[${logTag}] DENY 403: user missing or inactive`, {
       videoId: id,
       userId: payload.userId,
     });
+    res.status(403).end();
+    return null;
+  }
+  // Protected stream tokens are session-bound. Old unbound tokens are rejected
+  // by verifyVideoStreamToken; revocation/blocking is checked live here.
+  if (!payload.deviceId || !payload.securitySessionId ||
+    !await validateSecuritySession(payload.userId, payload.deviceId, payload.securitySessionId)) {
     res.status(403).end();
     return null;
   }
@@ -622,7 +633,7 @@ async function authorizeStreamRequest(
       return null;
     }
     // Explicit course access confirmed — skip VIP/subscription check entirely
-    return { id, part, video };
+    return { id, part, video, payload };
   }
 
   // ── Non-course video: check VIP / subscription ──
@@ -654,7 +665,7 @@ async function authorizeStreamRequest(
     }
   }
 
-  return { id, part, video };
+  return { id, part, video, payload };
 }
 
 // HEAD must never enter the GET media pipeline. Safari and other native players
@@ -1028,9 +1039,13 @@ router.get("/videos/:id/token/:part", async (req, res) => {
   res.setHeader("Cache-Control", "no-store");
   res.json({
     token: generateVideoStreamToken({
-      userId: Number(verifyVideoStreamToken(String(req.query.token))?.userId ?? 0),
+      userId: auth.payload.userId,
       videoId: auth.id,
       part: auth.part,
+      ...(auth.payload.userId > 0 ? {
+        deviceId: auth.payload.deviceId,
+        securitySessionId: auth.payload.securitySessionId,
+      } : {}),
     }),
   });
 });

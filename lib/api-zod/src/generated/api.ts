@@ -40,6 +40,11 @@ export const LoginBody = zod.object({
 
 export const LoginResponse = zod.object({
   token: zod.string(),
+  deviceCredential: zod
+    .string()
+    .describe(
+      "Opaque server-issued credential bound to the trusted browser device.",
+    ),
   user: zod.object({
     id: zod.number(),
     username: zod.string(),
@@ -65,6 +70,11 @@ export const GoogleLoginBody = zod.object({
 
 export const GoogleLoginResponse = zod.object({
   token: zod.string(),
+  deviceCredential: zod
+    .string()
+    .describe(
+      "Opaque server-issued credential bound to the trusted browser device.",
+    ),
   user: zod.object({
     id: zod.number(),
     username: zod.string(),

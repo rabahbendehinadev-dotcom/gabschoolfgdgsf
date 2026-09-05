@@ -10,7 +10,7 @@ type AuthState = {
   admin: AdminAuthResponseAdmin | null;
   bootstrapped: boolean;
   driveIframeRevision: number;
-  setAuth: (token: string, user: UserProfile) => void;
+  setAuth: (token: string, user: UserProfile, deviceCredential?: string) => void;
   updateUser: (user: UserProfile) => void;
   setAdminAuth: (token: string, admin: AdminAuthResponseAdmin) => void;
   logout: () => void;
@@ -72,8 +72,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const currentToken = tokenRef.current;
     if (!currentToken) return false;
     try {
+      const cred = localStorage.getItem("device_credential");
       const res = await fetch("/api/auth/me", {
-        headers: { Authorization: `Bearer ${currentToken}` },
+        headers: { Authorization: `Bearer ${currentToken}`, ...(cred ? { "X-Device-Credential": cred } : {}) },
       });
       if (res.status === 401) {
         localStorage.removeItem("token");
@@ -214,13 +215,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(timer);
   }, [adminToken, refreshAdmin]);
 
-  const setAuth = (newToken: string, newUser: UserProfile) => {
+  const setAuth = (newToken: string, newUser: UserProfile, deviceCredential?: string) => {
     // Drop any cached per-user data (notifications, unread count, feed, etc.) from
     // a previous session so one account never momentarily sees another's data on
     // the same device before refetch completes.
     queryClient.clear();
     localStorage.setItem("token", newToken);
     localStorage.setItem("user", JSON.stringify(newUser));
+    if (deviceCredential) {
+      localStorage.setItem("device_credential", deviceCredential);
+    }
     setTokenState(newToken);
     setUser(newUser);
     setDriveIframeRevision((current) => current + 1);
@@ -239,8 +243,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
+    if (token) {
+      const cred = localStorage.getItem("device_credential");
+      fetch("/api/auth/logout", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, ...(cred ? { "X-Device-Credential": cred } : {}) }
+      }).catch(() => {});
+    }
     localStorage.removeItem("token");
     localStorage.removeItem("user");
+    localStorage.removeItem("device_credential");
     setTokenState(null);
     setUser(null);
     // Clear cached per-user data so the next account starts clean.
@@ -264,7 +276,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const getAuthHeaders = () => {
-    return token ? { headers: { Authorization: `Bearer ${token}` } } : undefined;
+    const cred = localStorage.getItem("device_credential");
+    return token ? { headers: { Authorization: `Bearer ${token}`, ...(cred ? { "X-Device-Credential": cred } : {}) } } : undefined;
   };
 
   const getAdminAuthHeaders = () => {

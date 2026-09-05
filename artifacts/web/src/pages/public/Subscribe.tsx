@@ -163,7 +163,10 @@ function PaymentModal({ plan, onClose }: PaymentModalProps) {
     setUploading(true);
     try {
       const fd = new FormData(); fd.append("file", proofFile);
-      const res = await fetch("/api/storage/uploads/data", { method: "POST", body: fd });
+      const headers: Record<string, string> = {};
+      const cred = localStorage.getItem("device_credential");
+      if (cred) headers["X-Device-Credential"] = cred;
+      const res = await fetch("/api/storage/uploads/data", { method: "POST", headers, body: fd });
       if (!res.ok) { const d = await res.json().catch(() => ({})) as any; throw new Error(d.error ?? `HTTP ${res.status}`); }
       const { objectPath } = await res.json() as { objectPath: string };
       return objectPath;
@@ -180,8 +183,12 @@ function PaymentModal({ plan, onClose }: PaymentModalProps) {
       let objectPath: string | null = null;
       if (proofFile) { objectPath = await uploadProof(); if (!objectPath) { setSubmitting(false); return; } }
       const methodLabel = PAYMENT_METHODS.find(m => m.id === selectedMethod)?.label || selectedMethod;
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      const cred = localStorage.getItem("device_credential");
+      if (cred) headers["X-Device-Credential"] = cred;
+
       const res = await fetch("/api/payments/submit", {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST", headers,
         body: JSON.stringify({ customerName: customerName.trim(), planType: plan.type, planPrice: plan.price, paymentMethod: methodLabel, proofObjectPath: objectPath, userId: user?.id ?? null }),
       });
       if (!res.ok) throw new Error("فشل الإرسال");

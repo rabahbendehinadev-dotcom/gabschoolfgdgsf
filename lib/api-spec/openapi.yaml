@@ -1835,10 +1835,14 @@ components:
       properties:
         token:
           type: string
+        deviceCredential:
+          type: string
+          description: Opaque server-issued credential bound to the trusted browser device.
         user:
           $ref: "#/components/schemas/UserProfile"
       required:
         - token
+        - deviceCredential
         - user
 
     AdminAuthResponse:

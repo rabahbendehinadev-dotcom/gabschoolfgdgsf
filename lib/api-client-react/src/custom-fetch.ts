@@ -285,6 +285,17 @@ export async function customFetch<T = unknown>(
 
   const headers = mergeHeaders(isRequest(input) ? input.headers : undefined, headersInit);
 
+  // Automatically attach device credential if available
+  if (typeof localStorage !== "undefined") {
+    const cred = localStorage.getItem("device_credential");
+    if (cred && !headers.has("x-device-credential")) {
+      const urlStr = resolveUrl(input);
+      if (!urlStr.includes("/admin") && !urlStr.includes("/auth/admin-")) {
+        headers.set("x-device-credential", cred);
+      }
+    }
+  }
+
   if (
     typeof init.body === "string" &&
     !headers.has("content-type") &&

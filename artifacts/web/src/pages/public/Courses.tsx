@@ -11,7 +11,12 @@ function useUserCourseIds(token: string | null) {
   const [loaded, setLoaded] = useState(false);
   useEffect(() => {
     if (!token) { setLoaded(true); return; }
-    fetch("/api/user/courses", { headers: { Authorization: `Bearer ${token}` } })
+
+    const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+    const cred = localStorage.getItem("device_credential");
+    if (cred) headers["X-Device-Credential"] = cred;
+
+    fetch("/api/user/courses", { headers })
       .then(r => r.ok ? r.json() : [])
       .then((data: { id: number }[]) => {
         setIds(new Set(Array.isArray(data) ? data.map(d => d.id) : []));

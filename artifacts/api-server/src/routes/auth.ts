@@ -1,13 +1,20 @@
 import { Router, type IRouter } from "express";
 import { sendPushToAdmins } from "../lib/adminWebPush";
-import { db, usersTable, adminsTable, subscriptionPlansTable, activityLogsTable, adminSessionsTable } from "@workspace/db";
+import { db, usersTable, adminsTable, subscriptionPlansTable, activityLogsTable, adminSessionsTable, userSecuritySessionsTable } from "@workspace/db";
 import { eq, and, gte, sql, lt, count } from "drizzle-orm";
 
 import { hashPassword, comparePassword, generateToken, generateAdminToken } from "../lib/auth";
-import { applyVipIpPolicy, getClientIp, VIP_IP_LIMIT_MESSAGE } from "../lib/ipPolicy";
+import { getClientIp } from "../lib/ipPolicy";
 import { deviceTypeFromUA } from "../lib/device";
 import { userAuth, userAuthAllowExpired } from "../middlewares/auth";
 import { normalizePhone, INVALID_PHONE_MESSAGE } from "../lib/phone";
+import {
+  authorizeDeviceLogin,
+  createSecuritySession,
+  credentialFromRequest,
+  loginSuccessEventContext,
+  recordSecurityEvent,
+} from "../lib/deviceSecurity";
 
 import {
   RegisterBody,
@@ -21,6 +28,25 @@ import { OAuth2Client } from "google-auth-library";
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
+
+async function createDeviceBoundAuth(req: import("express").Request, userId: number) {
+  const ip = getClientIp(req);
+  const secured = await authorizeDeviceLogin({
+    userId,
+    ip,
+    userAgent: req.headers["user-agent"],
+    suppliedCredential: credentialFromRequest(req),
+  });
+  if (!secured.allowed) return secured;
+  const session = await createSecuritySession(userId, secured.device.id, ip);
+  const token = generateToken({ userId, deviceId: secured.device.id, sessionId: session.id });
+  await recordSecurityEvent({
+    userId, deviceId: secured.device.id, sessionId: session.id,
+    eventType: "LOGIN_SUCCESS", outcome: "ALLOWED", ipAddress: ip,
+    ...loginSuccessEventContext(secured),
+  });
+  return { allowed: true as const, token, deviceCredential: secured.deviceCredential };
+}
 
 /** Canonical user payload sent on every auth response. */
 function buildUserPayload(user: {
@@ -182,7 +208,11 @@ router.post("/auth/register", async (req, res) => {
       subscriptionExpiresAt,
     }).returning();
 
-    const token = generateToken({ userId: user.id });
+    const auth = await createDeviceBoundAuth(req, user.id);
+    if (!auth.allowed) {
+      res.status(auth.status).json({ message: auth.message, deviceCredential: auth.deviceCredential });
+      return;
+    }
     const regIp = getClientIp(req);
     await logActivity(user.id, user.username, "user_registered", `New user registered: ${user.username} (${user.email})`, regIp, req.headers["user-agent"]);
 
@@ -195,7 +225,8 @@ router.post("/auth/register", async (req, res) => {
     }).catch(() => {});
 
     res.status(201).json({
-      token,
+      token: auth.token,
+      deviceCredential: auth.deviceCredential,
       user: buildUserPayload(user),
     });
   } catch (error: unknown) {
@@ -215,17 +246,20 @@ router.post("/auth/login", async (req, res) => {
     }
 
     if (!user.passwordHash) {
+      await recordSecurityEvent({ userId: user.id, eventType: "LOGIN_FAILED", outcome: "DENIED", ipAddress: getClientIp(req), riskReasons: ["PASSWORD_LOGIN_UNAVAILABLE"] });
       res.status(401).json({ message: "Invalid email or password" });
       return;
     }
 
     const valid = await comparePassword(body.password, user.passwordHash);
     if (!valid) {
+      await recordSecurityEvent({ userId: user.id, eventType: "LOGIN_FAILED", outcome: "DENIED", ipAddress: getClientIp(req), riskReasons: ["INVALID_PASSWORD"] });
       res.status(401).json({ message: "Invalid email or password" });
       return;
     }
 
     if (!user.isActive) {
+      await recordSecurityEvent({ userId: user.id, eventType: "LOGIN_FAILED", outcome: "DENIED", ipAddress: getClientIp(req), riskReasons: ["ACCOUNT_DEACTIVATED"] });
       res.status(401).json({ message: "Account is deactivated. Contact admin." });
       return;
     }
@@ -233,23 +267,15 @@ router.post("/auth/login", async (req, res) => {
     const clientIp = getClientIp(req);
     const userAgent = req.headers["user-agent"];
 
-    // IP restriction applies to VIP accounts only (max 2 IPs / 24h window).
-    // Normal & demo accounts are never IP-restricted, so skip the locking
-    // transaction entirely for them.
-    if (user.accountType === "vip") {
-      const ipPolicy = await applyVipIpPolicy(user.id, clientIp);
-      if (!ipPolicy.allowed) {
-        await logActivity(user.id, user.username, "frequent_ip_change", "تجاوز الحد المسموح لعناوين IP لحساب VIP — تم رفض الدخول", clientIp, userAgent);
-        res.status(403).json({ message: VIP_IP_LIMIT_MESSAGE });
-        return;
-      }
+    const auth = await createDeviceBoundAuth(req, user.id);
+    if (!auth.allowed) {
+      res.status(auth.status).json({ message: auth.message, deviceCredential: auth.deviceCredential });
+      return;
     }
-
-    const token = generateToken({ userId: user.id });
     await detectSuspiciousAccess(user.id, user.username, clientIp, userAgent);
     await logActivity(user.id, user.username, "user_login", `Login from IP: ${clientIp}`, clientIp, userAgent);
 
-    res.json({ token, user: buildUserPayload(user) });
+    res.json({ token: auth.token, deviceCredential: auth.deviceCredential, user: buildUserPayload(user) });
   } catch (error: unknown) {
     res.status(400).json({ message: error instanceof Error ? error.message : "Unknown error" || "Login failed" });
   }
@@ -462,17 +488,9 @@ router.post("/auth/google", async (req, res) => {
     let user;
     if (existing) {
       if (!existing.isActive) {
+        await recordSecurityEvent({ userId: existing.id, eventType: "LOGIN_FAILED", outcome: "DENIED", ipAddress: clientIp, riskReasons: ["ACCOUNT_DEACTIVATED"] });
         res.status(401).json({ message: "Account is deactivated. Contact admin." });
         return;
-      }
-
-      if (existing.accountType === "vip") {
-        const ipPolicy = await applyVipIpPolicy(existing.id, clientIp);
-        if (!ipPolicy.allowed) {
-          await logActivity(existing.id, existing.username, "frequent_ip_change", "تجاوز الحد المسموح لعناوين IP لحساب VIP — تم رفض الدخول", clientIp, userAgent);
-          res.status(403).json({ message: VIP_IP_LIMIT_MESSAGE });
-          return;
-        }
       }
 
       const [updated] = await db.update(usersTable).set({
@@ -516,15 +534,22 @@ router.post("/auth/google", async (req, res) => {
       }).catch(() => {});
     }
 
-    const token = generateToken({ userId: user.id });
-
-    res.json({ token, user: buildUserPayload(user) });
+    const auth = await createDeviceBoundAuth(req, user.id);
+    if (!auth.allowed) {
+      res.status(auth.status).json({ message: auth.message, deviceCredential: auth.deviceCredential });
+      return;
+    }
+    res.json({ token: auth.token, deviceCredential: auth.deviceCredential, user: buildUserPayload(user) });
   } catch (error: unknown) {
     res.status(400).json({ message: error instanceof Error ? error.message : "Google login failed" });
   }
 });
 
-router.post("/auth/logout", userAuth, async (_req, res) => {
+router.post("/auth/logout", userAuth, async (req, res) => {
+  if (req.securitySessionId) {
+    await db.update(userSecuritySessionsTable).set({ revokedAt: new Date() })
+      .where(eq(userSecuritySessionsTable.id, req.securitySessionId));
+  }
   res.json({ message: "Logged out successfully" });
 });
 

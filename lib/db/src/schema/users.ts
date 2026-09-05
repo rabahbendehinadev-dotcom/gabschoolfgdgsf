@@ -30,6 +30,8 @@ export const usersTable = pgTable("users", {
   pushReminderSeenAt: timestamp("push_reminder_seen_at"),
   lastPushTestAt: timestamp("last_push_test_at"),
   driveRevokedAt: timestamp("drive_revoked_at"),
+  securityBlockedAt: timestamp("security_blocked_at"),
+  securityBlockedReason: text("security_blocked_reason"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

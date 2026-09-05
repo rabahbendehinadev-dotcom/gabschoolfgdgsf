@@ -6,10 +6,16 @@ import { Camera, Loader2, CheckCircle } from "lucide-react";
 
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
 
-async function uploadViaServer(file: File): Promise<string> {
+async function uploadViaServer(file: File, token?: string): Promise<string> {
   const fd = new FormData();
   fd.append("file", file);
-  const res = await fetch("/api/storage/uploads/data", { method: "POST", body: fd });
+
+  const headers: Record<string, string> = {};
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const cred = localStorage.getItem("device_credential");
+  if (cred) headers["X-Device-Credential"] = cred;
+
+  const res = await fetch("/api/storage/uploads/data", { method: "POST", headers, body: fd });
   if (!res.ok) {
     const detail = await res.json().catch(() => ({})) as { error?: string };
     throw new Error(detail.error ?? `فشل رفع الصورة (${res.status})`);
@@ -19,12 +25,16 @@ async function uploadViaServer(file: File): Promise<string> {
 }
 
 async function saveAvatar(token: string, objectPath: string): Promise<void> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  };
+  const cred = localStorage.getItem("device_credential");
+  if (cred) headers["X-Device-Credential"] = cred;
+
   const res = await fetch("/api/users/me/avatar", {
     method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
+    headers,
     body: JSON.stringify({ objectPath }),
   });
   if (!res.ok) throw new Error("تعذّر حفظ الصورة الشخصية");
@@ -81,7 +91,7 @@ export function ProfilePictureModal({
     if (!file || !token) return;
     setUploading(true);
     try {
-      const objectPath = await uploadViaServer(file);
+      const objectPath = await uploadViaServer(file, token);
       await saveAvatar(token, objectPath);
 
       const updatedUser = {

@@ -42,6 +42,7 @@ const AdminToolCategories = lazy(() => import("@/pages/admin/AdminToolCategories
 const AdminSubscriptionAlerts = lazy(() => import("@/pages/admin/SubscriptionAlerts").then((module) => ({ default: module.AdminSubscriptionAlerts })));
 const AdminAdmins = lazy(() => import("@/pages/admin/AdminAdmins").then((module) => ({ default: module.AdminAdmins })));
 const AdminAuditLog = lazy(() => import("@/pages/admin/AdminAuditLog").then((module) => ({ default: module.AdminAuditLog })));
+const AdminSecurity = lazy(() => import("@/pages/admin/Security").then((module) => ({ default: module.AdminSecurity })));
 const NotFound = lazy(() => import("@/pages/not-found"));
 
 const queryClient = new QueryClient();
@@ -68,7 +69,7 @@ function GatedRouter() {
   const { token, user, bootstrapped } = useAuth();
   const [location, navigate] = useLocation();
 
-  const isAdminRoute = location.startsWith("/bendehinaonline97");
+  const isAdminRoute = location.startsWith("/bendehinaonline97") || location.startsWith("/gab-ctrl-9x");
   const onCompletePhone = location === "/complete-phone";
   const phoneMissing = !!token && !!user && !user.phone && !isAdminRoute;
 
@@ -190,6 +191,9 @@ function Router() {
       </Route>
       <Route path="/bendehinaonline97/admin-audit">
         <AdminLayout><AdminAuditLog /></AdminLayout>
+      </Route>
+      <Route path="/gab-ctrl-9x/security">
+        <AdminLayout><AdminSecurity /></AdminLayout>
       </Route>
       <Route><PublicRoutes /></Route>
     </Switch>

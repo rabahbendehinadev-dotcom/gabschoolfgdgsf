@@ -122,6 +122,7 @@ const NAV_SECTIONS = [
   {
     section: "Administration",
     items: [
+      { name: "Sécurité appareils",   path: "/gab-ctrl-9x/security",                  icon: ShieldAlert },
       { name: "Comptes admins",       path: "/bendehinaonline97/admins",              icon: UserCog },
       { name: "Journal d'audit admin",path: "/bendehinaonline97/admin-audit",         icon: ClipboardList },
     ],
