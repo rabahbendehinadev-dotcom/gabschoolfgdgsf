@@ -75,9 +75,9 @@ export async function sendPushToUsers(
   userIds: number[],
   payload: PushPayload,
   opts: { pruneRejectedEvenIfAllFail?: boolean } = {},
-): Promise<{ attempted: number; success: number }> {
+): Promise<{ attempted: number; success: number; failed: number; expiredRemoved: number }> {
   if (!isPushConfigured() || userIds.length === 0) {
-    return { attempted: 0, success: 0 };
+    return { attempted: 0, success: 0, failed: 0, expiredRemoved: 0 };
   }
 
   const subs = await db
@@ -90,7 +90,7 @@ export async function sendPushToUsers(
       ),
     );
 
-  if (subs.length === 0) return { attempted: 0, success: 0 };
+  if (subs.length === 0) return { attempted: 0, success: 0, failed: 0, expiredRemoved: 0 };
 
   const data = JSON.stringify(payload);
   const goneIds: number[] = []; // 404/410 — definitely dead
@@ -142,5 +142,10 @@ export async function sendPushToUsers(
       .where(inArray(pushSubscriptionsTable.id, deadIds));
   }
 
-  return { attempted: subs.length, success };
+  return {
+    attempted: subs.length,
+    success,
+    failed: subs.length - success,
+    expiredRemoved: deadIds.length,
+  };
 }

@@ -15,6 +15,7 @@ import { communitySubscriberAuth } from "../middlewares/auth";
 import { generateMediaToken, verifyMediaToken } from "../lib/auth";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
 import { createNotification } from "../lib/notifications";
+import { buildCommunityPostNotification } from "../lib/communityNotifications";
 import {
   CreateCommunityPostBody,
   UpdateCommunityPostBody,
@@ -735,24 +736,19 @@ router.post("/community/posts", communitySubscriberAuth, async (req, res) => {
 
     console.log(`[post-create] created post id=${created.id} with ${mediaToInsert.length} media item(s)`);
 
-    // A new VIP post is broadcast to everyone (except the author). Notifications
-    // must never break post creation, so failures are swallowed.
-    if (isActiveVip(req.user)) {
-      try {
-        await createNotification({
-          type: "community_vip_post",
-          title: "منشور VIP جديد",
-          body: snippet(content ?? "") || "شاهد أحدث منشور في مجتمع GAB School",
-          actorUserId: req.user!.id,
-          audienceType: "all",
-          excludeUserIds: [req.user!.id],
-          targetType: "post",
-          targetId: created.id,
-          targetPath: "/community",
-        });
-      } catch {
-        /* notifications are best-effort */
-      }
+    // Every new post is broadcast to everyone except the author. Notification
+    // and push failures remain best-effort and never roll back a valid post.
+    try {
+      await createNotification(buildCommunityPostNotification({
+        authorUserId: req.user!.id,
+        postId: created.id,
+        body: snippet(content ?? "") || "شاهد أحدث منشور في مجتمع GAB School",
+      }));
+    } catch (notificationError) {
+      console.error("[community-post-notification] create failed", {
+        postId: created.id,
+        message: notificationError instanceof Error ? notificationError.message : "Unknown error",
+      });
     }
 
     const post = await getVisiblePostRow(created.id);

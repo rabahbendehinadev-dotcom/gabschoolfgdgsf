@@ -7,7 +7,8 @@
     "dev": "NODE_ENV=development tsx ./src/index.ts",
     "build": "tsx ./build.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test:security": "DATABASE_URL=postgres://unused:unused@127.0.0.1:1/unused tsx --test src/lib/deviceSecurity.test.ts"
+    "test:security": "DATABASE_URL=postgres://unused:unused@127.0.0.1:1/unused tsx --test src/lib/deviceSecurity.test.ts",
+    "test:community": "tsx --test src/lib/communityNotifications.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.840.0",

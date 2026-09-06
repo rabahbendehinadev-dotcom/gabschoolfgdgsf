@@ -147,16 +147,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         try {
-          await queryClient.invalidateQueries({
-            predicate: ({ queryKey }) => {
-              const root = queryKey[0];
-              return (
-                typeof root === "string" &&
-                (root.startsWith("/api/videos") || root.startsWith("/api/playlists"))
-              );
-            },
-            refetchType: "active",
-          });
+          await Promise.all([
+            queryClient.resetQueries({
+              queryKey: ["/api/community/posts", "infinite"],
+              exact: true,
+            }),
+            queryClient.invalidateQueries({
+              predicate: ({ queryKey }) => {
+                const root = queryKey[0];
+                const isInfiniteCommunityFeed =
+                  root === "/api/community/posts" && queryKey[1] === "infinite";
+                return (
+                  !isInfiniteCommunityFeed &&
+                  typeof root === "string" &&
+                  (
+                    root.startsWith("/api/videos") ||
+                    root.startsWith("/api/playlists") ||
+                    root.startsWith("/api/community")
+                  )
+                );
+              },
+              refetchType: "active",
+            }),
+          ]);
         } finally {
           if (!disposed && tokenRef.current === refreshToken) {
             setDriveIframeRevision((current) => current + 1);

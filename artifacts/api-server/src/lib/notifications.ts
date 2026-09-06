@@ -125,14 +125,27 @@ export function safeAppThumbnailUrl(value: unknown): string | undefined {
 
 async function dispatchPush(notificationId: number, userIds: number[], payload: PushPayload) {
   try {
-    const { attempted, success } = await sendPushToUsers(userIds, payload);
+    const { attempted, success, failed, expiredRemoved } = await sendPushToUsers(userIds, payload);
+    console.info("[notification-push]", {
+      notificationId,
+      recipients: userIds.length,
+      attempted,
+      success,
+      failed,
+      expiredRemoved,
+    });
     if (attempted > 0) {
       await db
         .update(notificationsTable)
         .set({ pushAttemptedCount: attempted, pushSuccessCount: success })
         .where(eq(notificationsTable.id, notificationId));
     }
-  } catch {
+  } catch (pushError) {
+    console.error("[notification-push] dispatch failed", {
+      notificationId,
+      recipients: userIds.length,
+      message: pushError instanceof Error ? pushError.message : "Unknown error",
+    });
     // Push is best-effort; never surface failures to the caller.
   }
 }
