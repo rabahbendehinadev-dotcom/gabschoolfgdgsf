@@ -13,6 +13,8 @@ import { deviceTypeFromUA } from "./device";
 
 export const UNAUTHORIZED_DEVICE_MESSAGE =
   "هذا الجهاز غير مصرح به لهذا الحساب. تواصل مع الإدارة لتغيير الجهاز.";
+export const UNAUTHORIZED_DEVICE_MESSAGE_FR =
+  "Cet appareil n’est pas autorisé pour ce compte. Contactez l’administrateur pour changer d’appareil.";
 export const SECURITY_BLOCKED_MESSAGE =
   "تعذر تسجيل الدخول لأسباب أمنية. يرجى التواصل مع الإدارة.";
 

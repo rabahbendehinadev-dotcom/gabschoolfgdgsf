@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request } from "express";
 import { sendPushToAdmins } from "../lib/adminWebPush";
 import { db, usersTable, adminsTable, subscriptionPlansTable, activityLogsTable, adminSessionsTable, userSecuritySessionsTable } from "@workspace/db";
 import { eq, and, gte, sql, lt, count } from "drizzle-orm";
@@ -14,6 +14,8 @@ import {
   credentialFromRequest,
   loginSuccessEventContext,
   recordSecurityEvent,
+  UNAUTHORIZED_DEVICE_MESSAGE,
+  UNAUTHORIZED_DEVICE_MESSAGE_FR,
 } from "../lib/deviceSecurity";
 
 import {
@@ -28,6 +30,13 @@ import { OAuth2Client } from "google-auth-library";
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
+
+function localizeDeviceAuthMessage(req: Request, message: string) {
+  const acceptLanguage = String(req.headers["accept-language"] ?? "").toLowerCase();
+  return message === UNAUTHORIZED_DEVICE_MESSAGE && acceptLanguage.startsWith("fr")
+    ? UNAUTHORIZED_DEVICE_MESSAGE_FR
+    : message;
+}
 
 async function createDeviceBoundAuth(req: import("express").Request, userId: number) {
   const ip = getClientIp(req);
@@ -210,7 +219,7 @@ router.post("/auth/register", async (req, res) => {
 
     const auth = await createDeviceBoundAuth(req, user.id);
     if (!auth.allowed) {
-      res.status(auth.status).json({ message: auth.message, deviceCredential: auth.deviceCredential });
+      res.status(auth.status).json({ message: localizeDeviceAuthMessage(req, auth.message), deviceCredential: auth.deviceCredential });
       return;
     }
     const regIp = getClientIp(req);
@@ -269,7 +278,7 @@ router.post("/auth/login", async (req, res) => {
 
     const auth = await createDeviceBoundAuth(req, user.id);
     if (!auth.allowed) {
-      res.status(auth.status).json({ message: auth.message, deviceCredential: auth.deviceCredential });
+      res.status(auth.status).json({ message: localizeDeviceAuthMessage(req, auth.message), deviceCredential: auth.deviceCredential });
       return;
     }
     await detectSuspiciousAccess(user.id, user.username, clientIp, userAgent);
@@ -536,7 +545,7 @@ router.post("/auth/google", async (req, res) => {
 
     const auth = await createDeviceBoundAuth(req, user.id);
     if (!auth.allowed) {
-      res.status(auth.status).json({ message: auth.message, deviceCredential: auth.deviceCredential });
+      res.status(auth.status).json({ message: localizeDeviceAuthMessage(req, auth.message), deviceCredential: auth.deviceCredential });
       return;
     }
     res.json({ token: auth.token, deviceCredential: auth.deviceCredential, user: buildUserPayload(user) });

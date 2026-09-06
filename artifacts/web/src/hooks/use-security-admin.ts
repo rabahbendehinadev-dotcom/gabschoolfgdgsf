@@ -25,6 +25,8 @@ export interface SecurityDevice {
   country: string | null;
   region: string | null;
   city: string | null;
+  createdBy: string | null;
+  revokedAt: string | null;
 }
 
 export interface SecurityEvent {
@@ -50,7 +52,30 @@ export interface SecurityEvent {
   city: string | null;
   distanceKm: number | null;
   elapsedSeconds: number | null;
+  adminId: number | null;
+  metadata: Record<string, unknown> | null;
   createdAt: string;
+}
+
+export interface DeviceAlertStat {
+  deviceId: number;
+  attemptCount: number;
+  lastAttemptAt: string;
+}
+
+export interface SecuritySummary {
+  trustedPhoneCount: number;
+  trustedComputerCount: number;
+  blockedAttemptCount: number;
+  distinctPhoneAttempts: number;
+  distinctComputerAttempts: number;
+  distinctReplacementAttempts: number;
+  rejectedChanges24h: number;
+  rejectedChanges7d: number;
+  distinctLocations: string[];
+  latestAlertAt: string | null;
+  frequentDeviceChanges: boolean;
+  sharingRisk: "LOW" | "MEDIUM" | "HIGH";
 }
 
 export interface SecurityWhitelist {
@@ -73,6 +98,8 @@ export interface SecuritySession {
 export interface SecurityUserDetails {
   user: Omit<SecurityUser, "devices">;
   devices: SecurityDevice[];
+  deviceAlertStats: DeviceAlertStat[];
+  securitySummary: SecuritySummary;
   events: SecurityEvent[];
   whitelists: SecurityWhitelist[];
   sessions: SecuritySession[];
@@ -125,12 +152,12 @@ export function useRevokeDevice() {
   const { getAdminAuthHeaders } = useAuth();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ userId, deviceId, reason }: { userId: number; deviceId: number; reason?: string }) => {
+    mutationFn: async ({ userId, deviceId, reason, expectedStatus = "TRUSTED" }: { userId: number; deviceId: number; reason?: string; expectedStatus?: "TRUSTED" | "BLOCKED" }) => {
       const res = await fetch(`/api/admin/security/users/${userId}/devices/${deviceId}/revoke`, {
         ...getAdminAuthHeaders(),
         method: "POST",
         headers: { ...getAdminAuthHeaders()?.headers, "Content-Type": "application/json" },
-        body: JSON.stringify({ reason }),
+        body: JSON.stringify({ reason, expectedStatus }),
       });
       if (!res.ok) throw new Error("Failed to revoke device");
     },
@@ -181,6 +208,29 @@ export function useApproveDevice() {
       qc.invalidateQueries({ queryKey: ["admin-security-user", vars.userId] });
       qc.invalidateQueries({ queryKey: ["admin-security-users"] });
     }
+  });
+}
+
+export function useIgnoreDeviceAlert() {
+  const { getAdminAuthHeaders } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ userId, deviceId, reason }: { userId: number; deviceId: number; reason?: string }) => {
+      const res = await fetch(`/api/admin/security/users/${userId}/devices/${deviceId}/ignore`, {
+        ...getAdminAuthHeaders(),
+        method: "POST",
+        headers: { ...getAdminAuthHeaders()?.headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.message || "Failed to ignore device alert");
+      }
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["admin-security-user", vars.userId] });
+      qc.invalidateQueries({ queryKey: ["admin-security-users"] });
+    },
   });
 }
 

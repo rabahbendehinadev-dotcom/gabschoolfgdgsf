@@ -96,7 +96,7 @@ export function Dashboard() {
               </h3>
               <div className="space-y-3">
                 <div className="text-xs text-muted-foreground p-3 bg-muted/40 rounded-lg mb-4 border border-border">
-                  ملاحظة: الحساب مرتبط بعنوان IP واحد فقط. في حال تغير الجهاز يرجى التواصل مع الإدارة.
+                   تتم حماية حسابك عبر الأجهزة المصرح بها. لتغيير جهاز، يرجى التواصل مع الإدارة.
                 </div>
                 <Button variant="outline" className="w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/10" onClick={logout}>
                   <LogOut className="w-4 h-4 ml-2" /> تسجيل الخروج

@@ -3261,13 +3261,16 @@ router.delete("/admin/tools/:id", adminAuth, async (req, res) => {
 });
 
 const SecurityReasonBody = zod.object({ reason: zod.string().trim().max(1000).optional() });
+const DeviceRevokeBody = SecurityReasonBody.extend({
+  expectedStatus: zod.enum(["TRUSTED", "BLOCKED"]).default("TRUSTED"),
+});
 const SecurityWhitelistBody = zod.object({
   ipAddress: zod.string().trim().min(2).max(45).optional(),
   userWide: zod.boolean().optional().default(false),
   reason: zod.string().trim().max(1000).optional(),
 }).refine((v) => v.userWide || !!v.ipAddress, { message: "ipAddress or userWide is required" });
 
-router.get("/admin/security/users", adminAuth, async (req, res) => {
+router.get("/admin/security/users", adminAuth, securityManageAuth, async (req, res) => {
   const page = Math.max(Number.parseInt(String(req.query.page || "1"), 10) || 1, 1);
   const requestedPageSize = Number.parseInt(String(req.query.pageSize || "20"), 10);
   const pageSize = [20, 50, 100].includes(requestedPageSize) ? requestedPageSize : 20;
@@ -3341,20 +3344,76 @@ router.get("/admin/security/users", adminAuth, async (req, res) => {
   });
 });
 
-router.get("/admin/security/users/:id", adminAuth, async (req, res) => {
+router.get("/admin/security/users/:id", adminAuth, securityManageAuth, async (req, res) => {
   const userId = Number(req.params.id);
   if (!Number.isInteger(userId)) { res.status(400).json({ message: "Invalid user id" }); return; }
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
   if (!user) { res.status(404).json({ message: "User not found" }); return; }
-  const [devices, events, whitelists, sessions] = await Promise.all([
+  const [devices, events, blockedEvents, whitelists, sessions] = await Promise.all([
     db.select().from(trustedDevicesTable).where(eq(trustedDevicesTable.userId, userId)).orderBy(desc(trustedDevicesTable.lastSeenAt)),
     db.select().from(securityEventsTable).where(eq(securityEventsTable.userId, userId)).orderBy(desc(securityEventsTable.createdAt)).limit(200),
+    db.select({
+      deviceId: securityEventsTable.deviceId,
+      category: trustedDevicesTable.category,
+      createdAt: securityEventsTable.createdAt,
+      city: securityEventsTable.city,
+      region: securityEventsTable.region,
+    }).from(securityEventsTable)
+      .leftJoin(trustedDevicesTable, eq(securityEventsTable.deviceId, trustedDevicesTable.id))
+      .where(and(eq(securityEventsTable.userId, userId), eq(securityEventsTable.eventType, "DEVICE_BLOCKED")))
+      .orderBy(desc(securityEventsTable.createdAt)),
     db.select().from(securityWhitelistsTable).where(eq(securityWhitelistsTable.userId, userId)).orderBy(desc(securityWhitelistsTable.createdAt)),
     db.select().from(userSecuritySessionsTable).where(eq(userSecuritySessionsTable.userId, userId)).orderBy(desc(userSecuritySessionsTable.createdAt)),
   ]);
+  const now = Date.now();
+  const dayAgo = now - 24 * 60 * 60 * 1000;
+  const weekAgo = now - 7 * 24 * 60 * 60 * 1000;
+  const phoneDeviceIds = new Set<number>();
+  const computerDeviceIds = new Set<number>();
+  const distinctDeviceIds = new Set<number>();
+  const distinctLocations = new Set<string>();
+  const attemptsByDevice = new Map<number, { attemptCount: number; lastAttemptAt: Date }>();
+  for (const event of blockedEvents) {
+    if (event.deviceId != null) {
+      distinctDeviceIds.add(event.deviceId);
+      if (event.category === "PHONE") phoneDeviceIds.add(event.deviceId);
+      if (event.category === "COMPUTER") computerDeviceIds.add(event.deviceId);
+      const current = attemptsByDevice.get(event.deviceId);
+      attemptsByDevice.set(event.deviceId, {
+        attemptCount: (current?.attemptCount ?? 0) + 1,
+        lastAttemptAt: current?.lastAttemptAt ?? event.createdAt,
+      });
+    }
+    const location = [event.city, event.region].filter(Boolean).join(", ");
+    if (location) distinctLocations.add(location);
+  }
+  const rejectedChanges24h = blockedEvents.filter((event) => event.createdAt.getTime() >= dayAgo).length;
+  const rejectedChanges7d = blockedEvents.filter((event) => event.createdAt.getTime() >= weekAgo).length;
+  const frequentDeviceChanges = rejectedChanges7d >= 3 || distinctDeviceIds.size >= 3;
+  const sharingRisk = rejectedChanges24h >= 5 || distinctDeviceIds.size >= 4 ||
+    (distinctLocations.size >= 2 && rejectedChanges7d >= 3)
+    ? "HIGH"
+    : rejectedChanges7d >= 2 || distinctDeviceIds.size >= 2
+      ? "MEDIUM"
+      : "LOW";
   res.json({
     user: safeSecurityUserDto(user),
     devices: devices.map(safeDeviceDto),
+    deviceAlertStats: Array.from(attemptsByDevice.entries()).map(([deviceId, stats]) => ({ deviceId, ...stats })),
+    securitySummary: {
+      trustedPhoneCount: devices.filter((device) => device.category === "PHONE" && device.status === "TRUSTED").length,
+      trustedComputerCount: devices.filter((device) => device.category === "COMPUTER" && device.status === "TRUSTED").length,
+      blockedAttemptCount: blockedEvents.length,
+      distinctPhoneAttempts: phoneDeviceIds.size,
+      distinctComputerAttempts: computerDeviceIds.size,
+      distinctReplacementAttempts: distinctDeviceIds.size,
+      rejectedChanges24h,
+      rejectedChanges7d,
+      distinctLocations: Array.from(distinctLocations),
+      latestAlertAt: blockedEvents[0]?.createdAt ?? null,
+      frequentDeviceChanges,
+      sharingRisk,
+    },
     events: events.map((event) => ({
       id: event.id, userId: event.userId, deviceId: event.deviceId, sessionId: event.sessionId,
       eventType: event.eventType, outcome: event.outcome, riskScore: event.riskScore,
@@ -3377,20 +3436,60 @@ router.get("/admin/security/users/:id", adminAuth, async (req, res) => {
 router.post("/admin/security/users/:id/devices/:deviceId/revoke", adminAuth, securityManageAuth, async (req, res) => {
   const userId = Number(req.params.id);
   const deviceId = Number(req.params.deviceId);
-  const body = SecurityReasonBody.parse(req.body);
-  const [device] = await db.select().from(trustedDevicesTable)
-    .where(and(eq(trustedDevicesTable.id, deviceId), eq(trustedDevicesTable.userId, userId))).limit(1);
-  if (!device) { res.status(404).json({ message: "Device not found" }); return; }
+  const body = DeviceRevokeBody.parse(req.body);
   const now = new Date();
-  await db.transaction(async (tx) => {
-    await tx.update(trustedDevicesTable).set({ status: "REVOKED", revokedAt: now }).where(eq(trustedDevicesTable.id, deviceId));
+  const revoked = await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT id FROM users WHERE id = ${userId} FOR UPDATE`);
+    const [device] = await tx.select({ id: trustedDevicesTable.id }).from(trustedDevicesTable)
+      .where(and(
+        eq(trustedDevicesTable.id, deviceId),
+        eq(trustedDevicesTable.userId, userId),
+        eq(trustedDevicesTable.status, body.expectedStatus),
+      )).limit(1);
+    if (!device) return false;
+    await tx.update(trustedDevicesTable)
+      .set({ status: "REVOKED", revokedAt: now })
+      .where(and(eq(trustedDevicesTable.id, deviceId), eq(trustedDevicesTable.status, body.expectedStatus)));
     await tx.update(userSecuritySessionsTable).set({ revokedAt: now })
       .where(and(eq(userSecuritySessionsTable.deviceId, deviceId), isNull(userSecuritySessionsTable.revokedAt)));
     await tx.insert(securityEventsTable).values({
       userId, deviceId, adminId: req.admin!.id, eventType: "DEVICE_REVOKED",
       outcome: "ADMIN_ACTION", metadata: { reason: body.reason || null },
     });
+    return true;
   });
+  if (!revoked) { res.status(409).json({ message: "Device state changed; refresh before retrying" }); return; }
+  res.json({ ok: true });
+});
+
+router.post("/admin/security/users/:id/devices/:deviceId/ignore", adminAuth, securityManageAuth, async (req, res) => {
+  const userId = Number(req.params.id);
+  const deviceId = Number(req.params.deviceId);
+  const body = SecurityReasonBody.parse(req.body);
+  const now = new Date();
+  const ignored = await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT id FROM users WHERE id = ${userId} FOR UPDATE`);
+    const [device] = await tx.select({ id: trustedDevicesTable.id }).from(trustedDevicesTable)
+      .where(and(
+        eq(trustedDevicesTable.id, deviceId),
+        eq(trustedDevicesTable.userId, userId),
+        eq(trustedDevicesTable.status, "BLOCKED"),
+      )).limit(1);
+    if (!device) return false;
+    await tx.update(trustedDevicesTable)
+      .set({ status: "REVOKED", revokedAt: now })
+      .where(and(eq(trustedDevicesTable.id, deviceId), eq(trustedDevicesTable.status, "BLOCKED")));
+    await tx.insert(securityEventsTable).values({
+      userId,
+      deviceId,
+      adminId: req.admin!.id,
+      eventType: "DEVICE_ALERT_IGNORED",
+      outcome: "ADMIN_ACTION",
+      metadata: { reason: body.reason || null },
+    });
+    return true;
+  });
+  if (!ignored) { res.status(404).json({ message: "Blocked device alert not found" }); return; }
   res.json({ ok: true });
 });
 
