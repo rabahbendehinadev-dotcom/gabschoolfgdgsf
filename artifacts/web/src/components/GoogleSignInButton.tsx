@@ -4,6 +4,7 @@ import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { Loader2 } from "lucide-react";
+import { getGoogleLoginErrorDescription } from "@/lib/googleLoginError";
 
 declare global {
   interface Window {
@@ -116,13 +117,14 @@ export function GoogleSignInButton({ redirectTo = "/videos" }: { redirectTo?: st
         void navigateAfterLogin(res.token, res.user.phone, res.deviceCredential);
       },
       onError: (err) => {
-        const apiErr = err as Error & { status?: number; data?: { message?: string, deviceCredential?: string } };
+        const apiErr = err as Error & {
+          status?: number;
+          data?: { code?: string; message?: string; deviceCredential?: string };
+        };
         if (apiErr.data?.deviceCredential) {
           localStorage.setItem("device_credential", apiErr.data.deviceCredential);
         }
-        const description = apiErr.status === 403
-          ? "تم الوصول للحد الأقصى من الأجهزة المسموح بها لهذا الحساب"
-          : (apiErr.data?.message || "تعذّر تسجيل الدخول عبر Google، حاول مرة أخرى");
+        const description = getGoogleLoginErrorDescription(apiErr);
         toast({ variant: "destructive", title: "فشل تسجيل الدخول عبر Google", description });
       },
     });

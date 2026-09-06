@@ -16,7 +16,7 @@
 - [db schema change needs lib/db rebuild](db-schema-typecheck-rebuild.md) — after editing lib/db schema, consumer typecheck reads stale .d.ts; run `tsc -b lib/db --force` (project references).
 - [GIS custom-button overlay](gis-custom-button-overlay.md) — restyle Google Sign-In by layering the real GIS button transparently on top; keep its target node always mounted; dev 403 origin error is expected, gate only on script load.
 - [Stale/orphan workflow process](stale-workflow-process.md) — if a workflow restart doesn't reflect on-disk edits, an older orphan process tree may still hold the port; ps + kill it, then restart.
-- [Google Sign-In (GIS ID-token)](google-signin-gis.md) — no redirect URI; needs Authorized JS origins not redirect URIs; client secret unused; client id is public; after codegen/schema run `tsc --build` so artifact typecheck sees new exports.
+- [Google Sign-In (GIS ID-token)](google-signin-gis.md) — no redirect URI; uses persistent device credential; never replace all Google 403 messages by status; configure Authorized JS origins.
 - [Fragment + Replit metadata warning](fragment-metadata-warning.md) — Vite metadata plugin adds data-* to Fragment → React "invalid prop" warning; use flatMap/keyed elements or a DOM wrapper, not a keyed <Fragment>.
 - [Gated lesson/video views](gated-lesson-views.md) — VideoDetail handles 403 with locked preview; route ordering in App.tsx critical (/:id before /); ApiError.data holds parsed body, not response.data.
 - [wouter v3 route ordering](wouter-route-ordering.md) — in Switch, put /path/:id BEFORE /path or prefix-match may render wrong component; also guard redirect effects with bootstrapped to avoid firing during auth load.

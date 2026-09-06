@@ -25,3 +25,14 @@ flow**, not the OAuth authorization-code/redirect flow.
   client ID` + a 403 means the current origin isn't in Authorized JavaScript
   origins. Add the exact dev domain (`$REPLIT_DEV_DOMAIN`) and the production
   domain. Each Replit dev domain change requires re-adding the origin.
+- Google login uses the same persistent trusted-device credential as password
+  login. The generated request transport attaches it independently from the
+  Google ID token, auth session, and IP address.
+- Never replace every Google HTTP 403 with one frontend message. Preserve the
+  API's machine-readable security code and localized message; 403 can represent
+  several distinct security decisions.
+
+**Why:** A status-only frontend override once displayed an obsolete
+maximum-device warning even though the API returned the newer trusted-device
+reason. This hid the real denial cause and made correct server behavior appear
+broken.

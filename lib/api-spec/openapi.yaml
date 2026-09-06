@@ -90,6 +90,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Device or security check denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /auth/google:
     post:
@@ -111,6 +117,12 @@ paths:
                 $ref: "#/components/schemas/AuthResponse"
         "401":
           description: Invalid Google credential
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Device or security check denied
           content:
             application/json:
               schema:
@@ -1747,7 +1759,11 @@ components:
     ErrorResponse:
       type: object
       properties:
+        code:
+          type: string
         message:
+          type: string
+        deviceCredential:
           type: string
       required:
         - message

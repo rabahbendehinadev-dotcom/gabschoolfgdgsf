@@ -55,7 +55,10 @@ export function Login() {
         void navigateAfterLogin(res.token, res.user.phone, res.deviceCredential);
       },
       onError: (err) => {
-        const apiErr = err as Error & { status?: number; data?: { message?: string, deviceCredential?: string } };
+        const apiErr = err as Error & {
+          status?: number;
+          data?: { code?: string; message?: string; deviceCredential?: string };
+        };
         if (apiErr.data?.deviceCredential) {
           localStorage.setItem("device_credential", apiErr.data.deviceCredential);
         }

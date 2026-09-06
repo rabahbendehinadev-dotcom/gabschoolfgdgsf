@@ -14,7 +14,15 @@ import { deviceTypeFromUA } from "./device";
 export const UNAUTHORIZED_DEVICE_MESSAGE =
   "هذا الجهاز غير مصرح به لهذا الحساب. تواصل مع الإدارة لتغيير الجهاز.";
 export const UNAUTHORIZED_DEVICE_MESSAGE_FR =
-  "Cet appareil n’est pas autorisé pour ce compte. Contactez l’administrateur pour changer d’appareil.";
+  "Cet appareil n’est pas autorisé pour ce compte. Contactez l’administration pour changer d’appareil.";
+export const DEVICE_NOT_AUTHORIZED_CODE = "DEVICE_NOT_AUTHORIZED";
+export const SECURITY_CHECK_BLOCKED_CODE = "SECURITY_CHECK_BLOCKED";
+
+export function localizeDeviceAuthMessage(message: string, acceptLanguage?: string): string {
+  return message === UNAUTHORIZED_DEVICE_MESSAGE && acceptLanguage?.toLowerCase().startsWith("fr")
+    ? UNAUTHORIZED_DEVICE_MESSAGE_FR
+    : message;
+}
 export const SECURITY_BLOCKED_MESSAGE =
   "تعذر تسجيل الدخول لأسباب أمنية. يرجى التواصل مع الإدارة.";
 
@@ -250,7 +258,24 @@ export async function recordSecurityEvent(values: typeof securityEventsTable.$in
 
 export type LoginSecurityResult =
   | { allowed: true; device: typeof trustedDevicesTable.$inferSelect; deviceCredential: string; riskScore: number; riskReasons: string[]; assessment: IpAssessment; distanceKm?: number; elapsedSeconds?: number }
-  | { allowed: false; message: string; deviceCredential?: string; status: 403 };
+  | {
+      allowed: false;
+      code: typeof DEVICE_NOT_AUTHORIZED_CODE | typeof SECURITY_CHECK_BLOCKED_CODE;
+      message: string;
+      deviceCredential?: string;
+      status: 403;
+    };
+
+export function deviceAuthErrorPayload(
+  result: Extract<LoginSecurityResult, { allowed: false }>,
+  acceptLanguage?: string,
+) {
+  return {
+    code: result.code,
+    message: localizeDeviceAuthMessage(result.message, acceptLanguage),
+    ...(result.deviceCredential ? { deviceCredential: result.deviceCredential } : {}),
+  };
+}
 
 export function loginSuccessEventContext(result: Extract<LoginSecurityResult, { allowed: true }>) {
   return {
@@ -283,7 +308,7 @@ export async function authorizeDeviceLogin(args: {
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, args.userId)).limit(1);
   if (!user || user.securityBlockedAt) {
     await recordSecurityEvent({ userId: args.userId, eventType: "LOGIN_FAILED", outcome: "BLOCKED", ipAddress: args.ip, riskReasons: ["USER_SECURITY_BLOCKED"], riskScore: 100 });
-    return { allowed: false, message: SECURITY_BLOCKED_MESSAGE, status: 403 };
+    return { allowed: false, code: SECURITY_CHECK_BLOCKED_CODE, message: SECURITY_BLOCKED_MESSAGE, status: 403 };
   }
 
   const reputation = await assessIp(args.ip);
@@ -292,7 +317,7 @@ export async function authorizeDeviceLogin(args: {
     const eventType = reputation.tor ? "TOR_DETECTED" : reputation.vpn ? "VPN_DETECTED"
       : reputation.proxy ? "PROXY_DETECTED" : reputation.datacenter ? "DATACENTER_IP_DETECTED" : "ANONYMOUS_IP_DETECTED";
     await recordSecurityEvent({ userId: args.userId, eventType, outcome: "BLOCKED", ipAddress: args.ip, reputation, riskScore: 100, riskReasons: ["VPN_PROXY"] });
-    return { allowed: false, message: SECURITY_BLOCKED_MESSAGE, status: 403 };
+    return { allowed: false, code: SECURITY_CHECK_BLOCKED_CODE, message: SECURITY_BLOCKED_MESSAGE, status: 403 };
   }
 
   const category = categoryFromUserAgent(args.userAgent);
@@ -330,7 +355,7 @@ export async function authorizeDeviceLogin(args: {
       .where(and(eq(securityEventsTable.userId, args.userId), eq(securityEventsTable.eventType, "DEVICE_BLOCKED"), gte(securityEventsTable.createdAt, since)));
     const repeated = previousAttempts.length >= 2;
     await recordSecurityEvent({ userId: args.userId, deviceId: deviceResult.device.id, eventType: "DEVICE_BLOCKED", outcome: "BLOCKED", ipAddress: args.ip, riskScore: Math.min(100, 90 + previousAttempts.length * 3), riskReasons: repeated ? ["NEW_DEVICE", "CATEGORY_SLOT_OCCUPIED", "MULTIPLE_FAILED_DEVICE_ATTEMPTS"] : ["NEW_DEVICE", "CATEGORY_SLOT_OCCUPIED"], reputation });
-    return { allowed: false, message: UNAUTHORIZED_DEVICE_MESSAGE, deviceCredential: credential, status: 403 };
+    return { allowed: false, code: DEVICE_NOT_AUTHORIZED_CODE, message: UNAUTHORIZED_DEVICE_MESSAGE, deviceCredential: credential, status: 403 };
   }
 
   if (!deviceResult.fresh) credential = args.suppliedCredential!;
@@ -349,7 +374,7 @@ export async function authorizeDeviceLogin(args: {
   if (travel.impossible) {
       await recordSecurityEvent({ userId: args.userId, deviceId: deviceResult.device.id, eventType: "IMPOSSIBLE_TRAVEL", outcome: "ALERT", ipAddress: args.ip, riskScore, riskReasons: reasons, distanceKm: travel.distanceKm, elapsedSeconds: Math.round(travel.elapsedSeconds!), country: reputation.country, region: reputation.region, city: reputation.city, latitude: reputation.latitude, longitude: reputation.longitude });
       if (riskScore >= Number(process.env.SECURITY_HIGH_RISK_SCORE || 70)) {
-        return { allowed: false, message: SECURITY_BLOCKED_MESSAGE, status: 403 };
+        return { allowed: false, code: SECURITY_CHECK_BLOCKED_CODE, message: SECURITY_BLOCKED_MESSAGE, status: 403 };
       }
   }
   if (reasons.includes("DISTANT_LOCATION")) {

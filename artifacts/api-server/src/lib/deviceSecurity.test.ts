@@ -3,16 +3,21 @@ import test from "node:test";
 import {
   categoryFromUserAgent,
   credentialHash,
+  DEVICE_NOT_AUTHORIZED_CODE,
+  deviceAuthErrorPayload,
   deviceSlotDecision,
   evaluateTravelRisk,
   isHighConfidenceAnonymous,
   isSecuritySessionUsable,
   issueDeviceCredential,
+  localizeDeviceAuthMessage,
   loginSuccessEventContext,
   safeDeviceDto,
   safeSecurityUserDto,
   resolveDeviceCredentialSecret,
   shouldBlockIpForReputation,
+  UNAUTHORIZED_DEVICE_MESSAGE,
+  UNAUTHORIZED_DEVICE_MESSAGE_FR,
   validateDeviceCredential,
   type IpAssessment,
 } from "./deviceSecurity";
@@ -44,6 +49,35 @@ test("slot policy permits first device and denies same-category replacement", ()
   assert.equal(deviceSlotDecision({ userId: 7, category: "PHONE", status: "TRUSTED" }, 7, "PHONE", true), "REUSE_TRUSTED");
   assert.equal(deviceSlotDecision({ userId: 7, category: "PHONE", status: "REVOKED" }, 7, "PHONE", false), "DENY_KNOWN");
   assert.equal(deviceSlotDecision({ userId: 7, category: "PHONE", status: "BLOCKED" }, 7, "PHONE", false), "DENY_KNOWN");
+});
+
+test("device-denial contract has no legacy slot-count wording and localizes consistently", () => {
+  assert.equal(DEVICE_NOT_AUTHORIZED_CODE, "DEVICE_NOT_AUTHORIZED");
+  assert.equal(
+    UNAUTHORIZED_DEVICE_MESSAGE,
+    "هذا الجهاز غير مصرح به لهذا الحساب. تواصل مع الإدارة لتغيير الجهاز.",
+  );
+  assert.equal(
+    UNAUTHORIZED_DEVICE_MESSAGE_FR,
+    "Cet appareil n’est pas autorisé pour ce compte. Contactez l’administration pour changer d’appareil.",
+  );
+  assert.equal(localizeDeviceAuthMessage(UNAUTHORIZED_DEVICE_MESSAGE, "ar-DZ"), UNAUTHORIZED_DEVICE_MESSAGE);
+  assert.equal(localizeDeviceAuthMessage(UNAUTHORIZED_DEVICE_MESSAGE, "fr-FR"), UNAUTHORIZED_DEVICE_MESSAGE_FR);
+  assert.equal(UNAUTHORIZED_DEVICE_MESSAGE.includes("الحد الأقصى"), false);
+  assert.deepEqual(
+    deviceAuthErrorPayload({
+      allowed: false,
+      code: DEVICE_NOT_AUTHORIZED_CODE,
+      message: UNAUTHORIZED_DEVICE_MESSAGE,
+      deviceCredential: "blocked-device-credential",
+      status: 403,
+    }, "fr-FR"),
+    {
+      code: DEVICE_NOT_AUTHORIZED_CODE,
+      message: UNAUTHORIZED_DEVICE_MESSAGE_FR,
+      deviceCredential: "blocked-device-credential",
+    },
+  );
 });
 
 test("a trusted credential is reusable across IP changes and login sessions", () => {

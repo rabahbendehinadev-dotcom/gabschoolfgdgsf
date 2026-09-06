@@ -10,7 +10,9 @@ export interface HealthStatus {
 }
 
 export interface ErrorResponse {
+  code?: string;
   message: string;
+  deviceCredential?: string;
 }
 
 export interface MessageResponse {
