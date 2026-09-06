@@ -28,7 +28,7 @@ interface UserDetail {
   id: number; username: string; email: string; phone: string | null; fullName: string | null;
   profileImage: string | null; accountType: string; subscriptionType: string;
   subscriptionExpiresAt: string | null; subscriptionStartedAt: string | null;
-  isActive: boolean; ipAddress: string | null; ipAddress2: string | null; ipCount: number;
+  isActive: boolean; ipAddress: string | null; ipAddress2: string | null;
   createdAt: string; pushPermission: string; pushSupported: boolean;
   courses: CourseAccess[];
   recentActivity: { id: number; action: string; details: string | null; videoTitle: string | null; createdAt: string }[];

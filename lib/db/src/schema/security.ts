@@ -1,4 +1,5 @@
 import { pgTable, serial, integer, text, varchar, boolean, timestamp, real, jsonb, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { usersTable } from "./users";
 import { adminsTable } from "./admins";
 
@@ -25,6 +26,7 @@ export const trustedDevicesTable = pgTable("trusted_devices", {
 }, (t) => [
   index("trusted_devices_user_idx").on(t.userId),
   uniqueIndex("trusted_devices_credential_hash_uniq").on(t.credentialHash),
+  uniqueIndex("trusted_devices_one_trusted_category").on(t.userId, t.category).where(sql`${t.status} = 'TRUSTED'`),
   index("trusted_devices_status_idx").on(t.status),
 ]);
 

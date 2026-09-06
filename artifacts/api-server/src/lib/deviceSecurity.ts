@@ -75,6 +75,10 @@ export function credentialHash(value: string): string {
   return crypto.createHash("sha256").update(value).digest("hex");
 }
 
+export function retiredDeviceCredentialHash(): string {
+  return credentialHash(`retired:${crypto.randomUUID()}:${Date.now()}`);
+}
+
 export function credentialFromRequest(req: Request): string | null {
   const header = req.header("x-device-credential");
   const body = req.body && typeof req.body === "object" ? req.body.deviceCredential : null;
@@ -301,7 +305,9 @@ export async function authorizeDeviceLogin(args: {
       const [known] = await tx.select().from(trustedDevicesTable)
         .where(eq(trustedDevicesTable.credentialHash, suppliedHash)).limit(1);
       if (known?.userId === args.userId) return { device: known, fresh: false };
-      if (known) credential = issueDeviceCredential();
+      // A valid signed credential that is unknown, retired by an admin reset,
+      // or belongs to another account must never be adopted by a new device row.
+      credential = issueDeviceCredential();
     }
     const [occupied] = await tx.select().from(trustedDevicesTable)
       .where(and(eq(trustedDevicesTable.userId, args.userId), eq(trustedDevicesTable.category, category), eq(trustedDevicesTable.status, "TRUSTED"))).limit(1);

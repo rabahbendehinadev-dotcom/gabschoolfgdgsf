@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  useUpdateAdminUser, useResetUserIp,
+  useUpdateAdminUser,
   useDeleteAdminUser, useGetAdminNotificationStats,
   useSendUserTestPush, useGetAdminPlaylists,
 } from "@workspace/api-client-react/src/generated/api";
@@ -13,7 +13,7 @@ import { PhoneNumberInput } from "@/components/PhoneNumberInput";
 import { useToast } from "@/hooks/use-toast";
 import { UserDetailModal } from "@/components/admin/UserDetailModal";
 import {
-  Search, Edit, RefreshCw, ShieldOff, ShieldCheck, Trash2,
+  Search, Edit, ShieldOff, ShieldCheck, Trash2,
   MessageCircle, KeyRound, Eye, EyeOff, BellRing, BellOff,
   Clock, Send, Loader2, GraduationCap, Check, ChevronUp,
   ChevronDown, ChevronsUpDown, Crown, BookOpen,
@@ -89,7 +89,6 @@ const BULK = [
   { v: "extend_subscription", l: "Prolonger de 30 j" },
   { v: "grant_course",        l: "Accorder un cours…" },
   { v: "revoke_course",       l: "Retirer un cours…" },
-  { v: "reset_ip",            l: "Réinitialiser IP" },
   { v: "block",               l: "Bloquer" },
   { v: "unblock",             l: "Débloquer" },
 ];
@@ -117,7 +116,6 @@ export function AdminUsers() {
   const { data: notifStats }   = useGetAdminNotificationStats({ request: getAdminAuthHeaders() });
   const { data: allPlaylists } = useGetAdminPlaylists({ request: getAdminAuthHeaders() });
   const updateMut   = useUpdateAdminUser({ request: getAdminAuthHeaders() });
-  const resetIpMut  = useResetUserIp({ request: getAdminAuthHeaders() });
   const deleteMut   = useDeleteAdminUser({ request: getAdminAuthHeaders() });
   const testPushMut = useSendUserTestPush({ request: getAdminAuthHeaders() });
 
@@ -150,7 +148,6 @@ export function AdminUsers() {
   const [resetPwSuccess, setResetPwSuccess] = useState("");
   const [showPw, setShowPw]         = useState(false);
   const [showPwConfirm, setShowPwConfirm] = useState(false);
-  const [resetIpId, setResetIpId]   = useState<number | null>(null);
   const [detailId, setDetailId]     = useState<number | null>(null);
   const [bulkAction, setBulkAction] = useState("");
   const [bulkPl, setBulkPl]         = useState<number|"">("");
@@ -276,14 +273,6 @@ export function AdminUsers() {
     } catch { /* ignore */ }
     updateMut.mutate({ id: editingUser.id, data: formData }, {
       onSuccess: () => { toast({ title: "Enregistré" }); setEditingUser(null); refetch(); fetchStats(); },
-    });
-  };
-
-  const confirmResetIp = () => {
-    if (!resetIpId) return;
-    resetIpMut.mutate({ id: resetIpId }, {
-      onSuccess: () => { toast({ title: "IP réinitialisée" }); refetch(); setResetIpId(null); },
-      onError: () => { toast({ title: "Erreur", variant: "destructive" }); setResetIpId(null); },
     });
   };
 
@@ -511,7 +500,6 @@ export function AdminUsers() {
                   <TH onClick={() => toggleSort("lastVisitAt")} sort={<SortIco field="lastVisitAt" sortBy={sortBy} sortDir={sortDir} />}>Dernière visite</TH>
                   <TH onClick={() => toggleSort("createdAt")} sort={<SortIco field="createdAt" sortBy={sortBy} sortDir={sortDir} />}>Inscription</TH>
                   <TH>Appareils</TH>
-                  <TH>IP</TH>
                   <TH>Statut</TH>
                   <th className="ad-th" style={{ position: "sticky", right: 0, zIndex: 2, borderLeft: "1px solid #E5EAF2" }}>Actions</th>
                 </tr>
@@ -584,23 +572,12 @@ export function AdminUsers() {
                           {user.pushState === "broken"  && <BellOff  size={11} color="#B42318" />}
                         </span>
                       </td>
-                      <td className="ad-td">
-                        {user.accountType === "vip" ? (
-                          <div>
-                            <span className={`ad-badge ${user.ipCount >= 2 ? "ad-badge-expired" : "ad-badge-normal"}`} style={{ fontFamily: "monospace", fontSize: 10 }}>
-                              {user.ipCount}/2
-                            </span>
-                            {user.ipAddress && <div style={{ fontSize: 10, fontFamily: "monospace", color: "#94A3B8", marginTop: 2 }}>{user.ipAddress}</div>}
-                          </div>
-                        ) : <Dash />}
-                      </td>
                       <td className="ad-td"><StatusBadge isActive={user.isActive} /></td>
                       <td className="ad-td" style={{ position: "sticky", right: 0, background: rowBg, borderLeft: "1px solid #E5EAF2", zIndex: 1 }}>
                         <div style={{ display: "flex", gap: 1 }}>
                           <IBtn tip="Détails"           onClick={() => setDetailId(user.id)}><Eye size={13} /></IBtn>
                           <IBtn tip="Modifier"          onClick={() => handleEdit(user)}><Edit size={13} /></IBtn>
                           <IBtn tip="Mot de passe"      onClick={() => { setResetPwUser(user); setResetPwError(""); setResetPwSuccess(""); setShowPw(false); setShowPwConfirm(false); setResetPwForm({ newPassword: "", confirmPassword: "" }); }}><KeyRound size={13} /></IBtn>
-                          <IBtn tip="Réinitialiser IP"  onClick={() => setResetIpId(user.id)} disabled={user.ipCount === 0}><RefreshCw size={13} /></IBtn>
                           <IBtn tip="Notification test" onClick={() => handleTestPush(user)} disabled={testingId === user.id}>
                             {testingId === user.id ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
                           </IBtn>
@@ -614,7 +591,7 @@ export function AdminUsers() {
                   );
                 })}
                 {paginated.length === 0 && (
-                  <tr><td colSpan={12} style={{ padding: "60px 0", textAlign: "center" }}><EmptyState /></td></tr>
+                   <tr><td colSpan={11} style={{ padding: "60px 0", textAlign: "center" }}><EmptyState /></td></tr>
                 )}
               </tbody>
             </table>
@@ -726,21 +703,6 @@ export function AdminUsers() {
           </DialogContent>
         </Dialog>
 
-        {/* Reset IP confirm */}
-        <Dialog open={resetIpId !== null} onOpenChange={o => { if (!o) setResetIpId(null); }}>
-          <DialogContent dir="ltr">
-            <DialogHeader><DialogTitle style={{ fontSize: 15, color: "#1F2937", textAlign: "left" }}>Réinitialiser l'adresse IP</DialogTitle></DialogHeader>
-            <div style={{ display: "flex", flexDirection: "column", gap: 14, paddingTop: 8 }}>
-              <p style={{ fontSize: 13, color: "#475467" }}>L'utilisateur pourra se connecter depuis un nouvel appareil.</p>
-              <div style={{ display: "flex", gap: 10 }}>
-                <button type="button" onClick={confirmResetIp} disabled={resetIpMut.isPending} className="ad-btn-primary" style={{ flex:1, justifyContent:"center", height:38 }}>
-                  {resetIpMut.isPending ? "En cours…" : "Confirmer"}
-                </button>
-                <button type="button" onClick={() => setResetIpId(null)} className="ad-btn-sm" style={{ flex:1, justifyContent:"center", height:38 }}>Annuler</button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
       </div>
     </TooltipProvider>
   );

@@ -486,27 +486,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/TestPushResult"
 
-  /admin/users/{id}/reset-ip:
-    post:
-      operationId: resetUserIp
-      tags: [admin]
-      summary: Reset user IP
-      security:
-        - adminAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: IP reset
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/MessageResponse"
-
   /admin/videos:
     get:
       operationId: getAdminVideos
@@ -2819,8 +2798,6 @@ components:
           type: string
           format: date-time
           nullable: true
-        ipCount:
-          type: integer
         isActive:
           type: boolean
         pushEnabled:
@@ -2854,7 +2831,6 @@ components:
         - email
         - accountType
         - subscriptionType
-        - ipCount
         - isActive
         - pushEnabled
         - pushSupported

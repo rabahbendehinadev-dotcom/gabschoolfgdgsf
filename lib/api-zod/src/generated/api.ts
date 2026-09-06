@@ -428,7 +428,6 @@ export const GetAdminUsersResponseItem = zod.object({
   ipAddress: zod.string().nullish(),
   ipAddress2: zod.string().nullish(),
   ipFirstSeenAt: zod.date().nullish(),
-  ipCount: zod.number(),
   isActive: zod.boolean(),
   pushEnabled: zod.boolean(),
   pushSupported: zod.boolean(),
@@ -482,7 +481,6 @@ export const UpdateAdminUserResponse = zod.object({
   ipAddress: zod.string().nullish(),
   ipAddress2: zod.string().nullish(),
   ipFirstSeenAt: zod.date().nullish(),
-  ipCount: zod.number(),
   isActive: zod.boolean(),
   pushEnabled: zod.boolean(),
   pushSupported: zod.boolean(),
@@ -518,17 +516,6 @@ export const SendUserTestPushParams = zod.object({
 export const SendUserTestPushResponse = zod.object({
   attempted: zod.number(),
   success: zod.number(),
-});
-
-/**
- * @summary Reset user IP
- */
-export const ResetUserIpParams = zod.object({
-  id: zod.coerce.number(),
-});
-
-export const ResetUserIpResponse = zod.object({
-  message: zod.string(),
 });
 
 /**

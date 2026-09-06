@@ -225,6 +225,9 @@ function UserSecurityDialog({ userId, onClose }: { userId: number; onClose: () =
 
   const { user, devices, events, sessions, whitelists } = data;
   const isBlocked = user.securityBlockedAt !== null || !user.isActive;
+  const trustedDevices = devices.filter(device => device.status === "TRUSTED");
+  const pendingDevices = devices.filter(device => device.status === "BLOCKED");
+  const revokedDevices = devices.filter(device => device.status === "REVOKED");
 
   const handleAction = async (action: Promise<void>, successMsg: string) => {
     try {
@@ -233,6 +236,10 @@ function UserSecurityDialog({ userId, onClose }: { userId: number; onClose: () =
     } catch (e) {
       toast({ title: e instanceof Error ? e.message : "Erreur", variant: "destructive" });
     }
+  };
+
+  const confirmAction = (message: string, action: () => Promise<void>, successMsg: string) => {
+    if (window.confirm(message)) void handleAction(action(), successMsg);
   };
 
   return (
@@ -311,23 +318,23 @@ function UserSecurityDialog({ userId, onClose }: { userId: number; onClose: () =
         <div style={{ padding: 24, maxHeight: "60vh", overflowY: "auto" }}>
           {tab === "devices" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <h3 style={{ fontSize: 14, fontWeight: 600, color: "#1E293B" }}>Gestion des appareils approuvés</h3>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+                <h3 style={{ fontSize: 14, fontWeight: 600, color: "#1E293B" }}>Appareils de confiance</h3>
                 <div style={{ display: "flex", gap: 8 }}>
-                  <button className="ad-btn-sm" data-testid="btn-reset-phone" onClick={() => handleAction(resetMut.mutateAsync({ userId, category: "PHONE" }), "Téléphones réinitialisés")}>
+                  <button className="ad-btn-sm" data-testid="btn-reset-phone" onClick={() => confirmAction("Réinitialiser le slot téléphone ? Le téléphone de confiance sera révoqué et devra être enregistré à nouveau.", () => resetMut.mutateAsync({ userId, category: "PHONE" }), "Slot téléphone réinitialisé")}>
                     Réinitialiser Tél.
                   </button>
-                  <button className="ad-btn-sm" data-testid="btn-reset-computer" onClick={() => handleAction(resetMut.mutateAsync({ userId, category: "COMPUTER" }), "Ordinateurs réinitialisés")}>
+                  <button className="ad-btn-sm" data-testid="btn-reset-computer" onClick={() => confirmAction("Réinitialiser le slot ordinateur ? L'ordinateur de confiance sera révoqué et devra être enregistré à nouveau.", () => resetMut.mutateAsync({ userId, category: "COMPUTER" }), "Slot ordinateur réinitialisé")}>
                     Réinitialiser PC
                   </button>
                 </div>
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {devices.length === 0 ? (
-                  <p style={{ color: "#94A3B8", fontSize: 13 }}>Aucun appareil enregistré.</p>
+                {trustedDevices.length === 0 ? (
+                  <p style={{ color: "#94A3B8", fontSize: 13 }}>Aucun téléphone ou ordinateur de confiance.</p>
                 ) : (
-                  devices.map(d => (
+                  trustedDevices.map(d => (
                     <div key={d.id} className="ad-card" style={{ padding: "14px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                       <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
                         <div style={{ width: 36, height: 36, borderRadius: 8, background: "#F1F5F9", display: "flex", alignItems: "center", justifyContent: "center", color: "#64748B" }}>
@@ -335,32 +342,81 @@ function UserSecurityDialog({ userId, onClose }: { userId: number; onClose: () =
                         </div>
                         <div>
                           <div style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", display: "flex", alignItems: "center", gap: 6 }}>
-                            {d.os || "Inconnu"} · {d.browser || "Inconnu"}
+                            {d.category === "PHONE" ? "TÉLÉPHONE" : "ORDINATEUR"} · {d.os || "Inconnu"} · {d.browser || "Inconnu"}
                             <StatusBadge status={d.status} />
                           </div>
-                          <div style={{ fontSize: 12, color: "#64748B", marginTop: 2, display: "flex", gap: 12 }}>
-                            <span>Vu : {timeAgo(d.lastSeenAt)}</span>
-                            <span>IP : <span style={{ fontFamily: "monospace" }}>{d.lastIp || "—"}</span></span>
-                            {d.country && <span>{d.city ? `${d.city}, ` : ""}{d.country}</span>}
+                          <div style={{ fontSize: 12, color: "#64748B", marginTop: 2, display: "flex", gap: 12, flexWrap: "wrap" }}>
+                            <span>Enregistré : {formatDate(d.firstSeenAt)}</span>
+                            <span>Dernière connexion : {timeAgo(d.lastSeenAt)}</span>
+                            <span>Dernière IP : <span style={{ fontFamily: "monospace" }}>{d.lastIp || "—"}</span></span>
+                            <span>Région : {[d.city, d.region, d.country].filter(Boolean).join(", ") || "—"}</span>
                           </div>
                         </div>
                       </div>
                       <div style={{ display: "flex", gap: 6 }}>
-                        {d.status === "BLOCKED" && (
-                          <button className="ad-btn-sm" data-testid={`btn-approve-device-${d.id}`} style={{ color: "#15803D" }} onClick={() => handleAction(approveMut.mutateAsync({ userId, deviceId: d.id }), "Appareil approuvé")}>
-                            <CheckCircle2 size={14} /> Approuver
-                          </button>
-                        )}
-                        {d.status === "TRUSTED" && (
-                          <button className="ad-btn-sm" data-testid={`btn-revoke-device-${d.id}`} style={{ color: "#9F1239" }} onClick={() => handleAction(revokeMut.mutateAsync({ userId, deviceId: d.id }), "Appareil révoqué")}>
+                        <button className="ad-btn-sm" data-testid={`btn-revoke-device-${d.id}`} style={{ color: "#9F1239" }} onClick={() => confirmAction(`Révoquer cet ${d.category === "PHONE" ? "téléphone" : "ordinateur"} ? Ses sessions seront invalidées.`, () => revokeMut.mutateAsync({ userId, deviceId: d.id }), "Appareil révoqué")}>
                             <XCircle size={14} /> Révoquer
-                          </button>
-                        )}
+                        </button>
                       </div>
                     </div>
                   ))
                 )}
               </div>
+
+              <div style={{ borderTop: "1px solid #E2E8F0", paddingTop: 20 }}>
+                <h3 style={{ fontSize: 14, fontWeight: 600, color: "#1E293B", marginBottom: 8 }}>Appareils en attente / bloqués ({pendingDevices.length})</h3>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {pendingDevices.length === 0 ? <p style={{ color: "#94A3B8", fontSize: 13 }}>Aucune tentative bloquée.</p> : pendingDevices.map(d => {
+                    const blockedEvent = events.find(event =>
+                      event.deviceId === d.id && event.eventType === "DEVICE_BLOCKED"
+                    );
+                    const reputationFlags = blockedEvent?.reputation
+                      ? [
+                          blockedEvent.reputation.vpn && "VPN",
+                          blockedEvent.reputation.proxy && "Proxy",
+                          blockedEvent.reputation.tor && "Tor",
+                          blockedEvent.reputation.datacenter && "Datacenter",
+                        ].filter(Boolean)
+                      : [];
+                    return (
+                      <div key={d.id} className="ad-card" style={{ padding: "14px 16px", display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>{d.category === "PHONE" ? "NOUVEAU TÉLÉPHONE" : "NOUVEL ORDINATEUR"} · {d.os || "Inconnu"} · {d.browser || "Inconnu"} <StatusBadge status={d.status} /></div>
+                          <div style={{ fontSize: 12, color: "#64748B", marginTop: 4, display: "flex", gap: 12, flexWrap: "wrap" }}>
+                            <span>Première tentative : {formatDate(d.firstSeenAt)}</span><span>Dernière : {timeAgo(d.lastSeenAt)}</span>
+                            <span>IP : <span style={{ fontFamily: "monospace" }}>{d.lastIp || "—"}</span></span>
+                            <span>Région : {[d.city, d.region, d.country].filter(Boolean).join(", ") || "—"}</span>
+                            <span>Score de blocage (politique) : {blockedEvent?.riskScore ?? "—"}</span>
+                            <span>Réseau : {reputationFlags.length > 0 ? reputationFlags.join(", ") : "Normal / inconnu"}</span>
+                            <span>Raison : {blockedEvent?.riskReasons?.join(", ") || `${d.category}_SLOT_ALREADY_OCCUPIED`}</span>
+                          </div>
+                        </div>
+                        <button className="ad-btn-sm" data-testid={`btn-approve-device-${d.id}`} style={{ color: "#15803D", flexShrink: 0 }} onClick={() => confirmAction(`Approuver ce nouvel ${d.category === "PHONE" ? "téléphone" : "ordinateur"} et remplacer l'appareil de confiance actuel ? L'ancien appareil et ses sessions seront révoqués.`, () => approveMut.mutateAsync({ userId, deviceId: d.id }), "Appareil approuvé et appareil précédent remplacé")}>
+                          <CheckCircle2 size={14} /> Approuver et remplacer
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {revokedDevices.length > 0 && (
+                <div style={{ borderTop: "1px solid #E2E8F0", paddingTop: 20 }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 600, color: "#64748B", marginBottom: 8 }}>Appareils révoqués ({revokedDevices.length})</h3>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {revokedDevices.map(d => (
+                      <div key={d.id} className="ad-card" style={{ padding: "12px 16px", color: "#64748B" }}>
+                        <div style={{ fontSize: 13, fontWeight: 600 }}>
+                          {d.category === "PHONE" ? "TÉLÉPHONE" : "ORDINATEUR"} · {d.os || "Inconnu"} · {d.browser || "Inconnu"} <StatusBadge status={d.status} />
+                        </div>
+                        <div style={{ fontSize: 12, marginTop: 4 }}>
+                          Dernière connexion : {timeAgo(d.lastSeenAt)} · Dernière IP : {d.lastIp || "—"}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

@@ -27,10 +27,22 @@ export interface SecurityDevice {
 
 export interface SecurityEvent {
   id: number;
+  deviceId: number | null;
   eventType: string;
   outcome: string;
+  ipAddress: string | null;
   riskScore: number | null;
   riskReasons: string[] | null;
+  reputation: {
+    status?: string;
+    confidence?: number;
+    vpn?: boolean;
+    proxy?: boolean;
+    tor?: boolean;
+    datacenter?: boolean;
+    anonymous?: boolean;
+    abusive?: boolean;
+  } | null;
   country: string | null;
   region: string | null;
   city: string | null;

@@ -693,7 +693,6 @@ export interface AdminUser {
   ipAddress?: string | null;
   ipAddress2?: string | null;
   ipFirstSeenAt?: string | null;
-  ipCount: number;
   isActive: boolean;
   pushEnabled: boolean;
   pushSupported: boolean;

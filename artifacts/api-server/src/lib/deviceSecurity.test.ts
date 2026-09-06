@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   categoryFromUserAgent,
+  credentialHash,
   deviceSlotDecision,
   evaluateTravelRisk,
   isHighConfidenceAnonymous,
@@ -16,7 +17,7 @@ import {
   type IpAssessment,
 } from "./deviceSecurity";
 import { canManageSecurity, parseAdminPermissions } from "./adminSecurity";
-import { generateVideoStreamToken, verifyVideoStreamToken } from "./auth";
+import { generateToken, generateVideoStreamToken, verifyToken, verifyVideoStreamToken } from "./auth";
 
 const unknown: IpAssessment = {
   status: "UNKNOWN", confidence: 0, vpn: false, proxy: false, tor: false,
@@ -43,6 +44,21 @@ test("slot policy permits first device and denies same-category replacement", ()
   assert.equal(deviceSlotDecision({ userId: 7, category: "PHONE", status: "TRUSTED" }, 7, "PHONE", true), "REUSE_TRUSTED");
   assert.equal(deviceSlotDecision({ userId: 7, category: "PHONE", status: "REVOKED" }, 7, "PHONE", false), "DENY_KNOWN");
   assert.equal(deviceSlotDecision({ userId: 7, category: "PHONE", status: "BLOCKED" }, 7, "PHONE", false), "DENY_KNOWN");
+});
+
+test("a trusted credential is reusable across IP changes and login sessions", () => {
+  const credential = issueDeviceCredential();
+  const deviceId = 42;
+  // Recognition is credential/device based: an IP is deliberately not an input
+  // to the trusted-device slot decision.
+  assert.equal(deviceSlotDecision({ userId: 7, category: "COMPUTER", status: "TRUSTED" }, 7, "COMPUTER", true), "REUSE_TRUSTED");
+  assert.equal(credentialHash(credential), credentialHash(credential));
+
+  const first = verifyToken(generateToken({ userId: 7, deviceId, sessionId: "session-one" }));
+  const second = verifyToken(generateToken({ userId: 7, deviceId, sessionId: "session-two" }));
+  assert.equal(first?.deviceId, deviceId);
+  assert.equal(second?.deviceId, deviceId);
+  assert.notEqual(first?.sessionId, second?.sessionId);
 });
 
 test("revoked sessions are unusable immediately", () => {

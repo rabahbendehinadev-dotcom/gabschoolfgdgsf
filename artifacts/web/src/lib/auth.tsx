@@ -235,9 +235,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     queryClient.clear();
     localStorage.setItem("token", newToken);
     localStorage.setItem("user", JSON.stringify(newUser));
-    if (deviceCredential) {
-      localStorage.setItem("device_credential", deviceCredential);
-    }
+    // This credential identifies the trusted device, independently from the
+    // revocable auth session. A successful login always replaces it with the
+    // credential issued for that account; never retain another account's value.
+    if (deviceCredential) localStorage.setItem("device_credential", deviceCredential);
+    else localStorage.removeItem("device_credential");
     setTokenState(newToken);
     setUser(newUser);
     setDriveIframeRevision((current) => current + 1);
@@ -265,7 +267,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     localStorage.removeItem("token");
     localStorage.removeItem("user");
-    localStorage.removeItem("device_credential");
+    // Logout revokes only the auth session. Keep the server-issued device
+    // credential so this browser/PWA is recognized on its next login.
     setTokenState(null);
     setUser(null);
     // Clear cached per-user data so the next account starts clean.

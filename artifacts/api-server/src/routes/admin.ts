@@ -6,13 +6,12 @@ import { db, usersTable, videosTable, categoriesTable, playlistsTable, subscript
 import { eq, sql, count, desc, asc, lt, and, gte, isNull, isNotNull, inArray, max, ilike, or } from "drizzle-orm";
 
 import { adminAuth, securityManageAuth } from "../middlewares/auth";
-import { effectiveIpState } from "../lib/ipPolicy";
 import { hashPassword, comparePassword } from "../lib/auth";
 import { createNotification, type AudienceType, type TargetType } from "../lib/notifications";
 import { sendPushToUsers, getVapidPublicKey } from "../lib/webPush";
 import { sendPushToAdmins } from "../lib/adminWebPush";
 import { normalizePhone, INVALID_PHONE_MESSAGE } from "../lib/phone";
-import { safeDeviceDto, safeSecurityUserDto } from "../lib/deviceSecurity";
+import { retiredDeviceCredentialHash, safeDeviceDto, safeSecurityUserDto } from "../lib/deviceSecurity";
 import { extractDriveFileId, isFolderDriveUrl, resolveVideoParts } from "../lib/googleDrive";
 import {
   buildVideoObjectPath,
@@ -273,7 +272,6 @@ router.get("/admin/users", adminAuth, async (req, res) => {
     }
 
     const mapped = users.map(u => {
-      const ip = effectiveIpState(u);
       return {
         id: u.id,
         username: u.username,
@@ -287,10 +285,11 @@ router.get("/admin/users", adminAuth, async (req, res) => {
         subscriptionType: u.subscriptionType,
         subscriptionExpiresAt:  u.subscriptionExpiresAt?.toISOString()  || null,
         subscriptionStartedAt:  u.subscriptionStartedAt?.toISOString()  || null,
-        ipAddress:    ip.ipAddress,
-        ipAddress2:   ip.ipAddress2,
-        ipFirstSeenAt:ip.ipFirstSeenAt?.toISOString() || null,
-        ipCount:      ip.ipCount,
+        // Historical IP fields remain available for investigation only; they
+        // are not device slots and never affect authorization.
+        ipAddress: u.ipAddress,
+        ipAddress2: u.ipAddress2,
+        ipFirstSeenAt: u.ipFirstSeenAt?.toISOString() || null,
         isActive:     u.isActive,
         phone:        u.phone ?? null,
         pushEnabled:  enabledIds.has(u.id),
@@ -396,7 +395,7 @@ router.get("/admin/users/stats", adminAuth, async (_req, res) => {
 
 // POST /admin/users/bulk-action — apply an operation to multiple users at once.
 const BulkActionBody = zod.object({
-  action: zod.enum(["block", "unblock", "reset_ip", "grant_course", "revoke_course", "grant_vip", "revoke_vip", "extend_subscription"]),
+  action: zod.enum(["block", "unblock", "grant_course", "revoke_course", "grant_vip", "revoke_vip", "extend_subscription"]),
   userIds: zod.array(zod.number()).min(1).max(500),
   playlistId: zod.number().optional(),
   days: zod.number().min(1).max(3650).optional(),
@@ -414,11 +413,6 @@ router.post("/admin/users/bulk-action", adminAuth, async (req, res) => {
     } else if (action === "unblock") {
       await db.update(usersTable).set({ isActive: true }).where(inArray(usersTable.id, userIds));
       await logActivity(null, adminName, "bulk_unblock", `رفع الحظر عن ${userIds.length} مستخدم`, req.ip, adminCtxFrom(req));
-    } else if (action === "reset_ip") {
-      await db.update(usersTable)
-        .set({ ipAddress: null, ipAddress2: null, ipFirstSeenAt: null })
-        .where(inArray(usersTable.id, userIds));
-      await logActivity(null, adminName, "bulk_reset_ip", `تصفير IP لـ ${userIds.length} مستخدم`);
     } else if (action === "grant_course") {
       const pid = body.playlistId;
       if (!pid) { res.status(400).json({ message: "playlistId مطلوب" }); return; }
@@ -531,11 +525,6 @@ router.patch("/admin/users/:id", adminAuth, async (req, res) => {
     const updateData: Partial<Record<string, unknown>> = {};
     if (body.accountType !== undefined) {
       updateData.accountType = body.accountType;
-      // Changing account type resets IP tracking: non-VIP must have no IP
-      // recorded, and a VIP starts a fresh 24h window on next access.
-      updateData.ipAddress = null;
-      updateData.ipAddress2 = null;
-      updateData.ipFirstSeenAt = null;
     }
     if (body.subscriptionType !== undefined) {
       updateData.subscriptionType = body.subscriptionType;
@@ -583,7 +572,6 @@ router.patch("/admin/users/:id", adminAuth, async (req, res) => {
       return;
     }
 
-    const ip = effectiveIpState(user);
     res.json({
       id: user.id,
       username: user.username,
@@ -595,10 +583,9 @@ router.patch("/admin/users/:id", adminAuth, async (req, res) => {
           : "student",
       subscriptionType: user.subscriptionType,
       subscriptionExpiresAt: user.subscriptionExpiresAt?.toISOString() || null,
-      ipAddress: ip.ipAddress,
-      ipAddress2: ip.ipAddress2,
-      ipFirstSeenAt: ip.ipFirstSeenAt?.toISOString() || null,
-      ipCount: ip.ipCount,
+      ipAddress: user.ipAddress,
+      ipAddress2: user.ipAddress2,
+      ipFirstSeenAt: user.ipFirstSeenAt?.toISOString() || null,
       isActive: user.isActive,
       phone: user.phone ?? null,
       createdAt: user.createdAt.toISOString(),
@@ -838,17 +825,6 @@ router.post("/admin/users/:id/reset-password", adminAuth, async (req, res) => {
     res.json({ message: "تم تغيير كلمة المرور بنجاح" });
   } catch (error: unknown) {
     res.status(400).json({ message: error instanceof Error ? error.message : "فشل تغيير كلمة المرور" });
-  }
-});
-
-router.post("/admin/users/:id/reset-ip", adminAuth, async (req, res) => {
-  try {
-    const id = Number(req.params.id);
-    await db.update(usersTable).set({ ipAddress: null, ipAddress2: null, ipFirstSeenAt: null })
-      .where(eq(usersTable.id, id));
-    res.json({ message: "IP address reset successfully" });
-  } catch (error: unknown) {
-    res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" || "Failed to reset IP" });
   }
 });
 
@@ -1353,8 +1329,6 @@ router.get("/admin/users/:id/detail", adminAuth, async (req, res) => {
     const devices       = devicesResult.status   === "fulfilled" ? devicesResult.value  : [];
     const recentVisits  = visitsResult.status    === "fulfilled" ? visitsResult.value   : [];
 
-    const ip = effectiveIpState(user);
-
     res.json({
       id: user.id,
       username: user.username,
@@ -1367,9 +1341,9 @@ router.get("/admin/users/:id/detail", adminAuth, async (req, res) => {
       subscriptionExpiresAt: user.subscriptionExpiresAt?.toISOString() ?? null,
       subscriptionStartedAt: user.subscriptionStartedAt?.toISOString() ?? null,
       isActive: user.isActive,
-      ipAddress: ip.ipAddress,
-      ipAddress2: ip.ipAddress2,
-      ipCount: ip.ipCount,
+      // Legacy values are historical/informational only, never a limit.
+      ipAddress: user.ipAddress,
+      ipAddress2: user.ipAddress2,
       createdAt: user.createdAt.toISOString(),
       pushPermission: user.pushPermission,
       pushSupported: user.pushSupported,
@@ -3369,12 +3343,17 @@ router.post("/admin/security/users/:id/devices/reset/:category", adminAuth, secu
   if (category !== "PHONE" && category !== "COMPUTER") { res.status(400).json({ message: "Invalid category" }); return; }
   const body = SecurityReasonBody.parse(req.body);
   const now = new Date();
-  const active = await db.select({ id: trustedDevicesTable.id }).from(trustedDevicesTable)
-    .where(and(eq(trustedDevicesTable.userId, userId), eq(trustedDevicesTable.category, category), eq(trustedDevicesTable.status, "TRUSTED")));
   await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT id FROM users WHERE id = ${userId} FOR UPDATE`);
+    const active = await tx.select({ id: trustedDevicesTable.id }).from(trustedDevicesTable)
+      .where(and(eq(trustedDevicesTable.userId, userId), eq(trustedDevicesTable.category, category), eq(trustedDevicesTable.status, "TRUSTED")));
     if (active.length) {
       const deviceIds = active.map((d) => d.id);
-      await tx.update(trustedDevicesTable).set({ status: "REVOKED", revokedAt: now }).where(inArray(trustedDevicesTable.id, deviceIds));
+      for (const device of active) {
+        await tx.update(trustedDevicesTable)
+          .set({ status: "REVOKED", revokedAt: now, credentialHash: retiredDeviceCredentialHash() })
+          .where(eq(trustedDevicesTable.id, device.id));
+      }
       await tx.update(userSecuritySessionsTable).set({ revokedAt: now }).where(inArray(userSecuritySessionsTable.deviceId, deviceIds));
     }
     await tx.insert(securityEventsTable).values({
@@ -3389,11 +3368,12 @@ router.post("/admin/security/users/:id/devices/:deviceId/approve", adminAuth, se
   const userId = Number(req.params.id);
   const deviceId = Number(req.params.deviceId);
   const body = SecurityReasonBody.parse(req.body);
-  const [candidate] = await db.select().from(trustedDevicesTable)
-    .where(and(eq(trustedDevicesTable.id, deviceId), eq(trustedDevicesTable.userId, userId), eq(trustedDevicesTable.status, "BLOCKED"))).limit(1);
-  if (!candidate) { res.status(404).json({ message: "Blocked device not found" }); return; }
   const now = new Date();
-  await db.transaction(async (tx) => {
+  const approved = await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT id FROM users WHERE id = ${userId} FOR UPDATE`);
+    const [candidate] = await tx.select().from(trustedDevicesTable)
+      .where(and(eq(trustedDevicesTable.id, deviceId), eq(trustedDevicesTable.userId, userId), eq(trustedDevicesTable.status, "BLOCKED"))).limit(1);
+    if (!candidate) return false;
     const old = await tx.select({ id: trustedDevicesTable.id }).from(trustedDevicesTable)
       .where(and(eq(trustedDevicesTable.userId, userId), eq(trustedDevicesTable.category, candidate.category), eq(trustedDevicesTable.status, "TRUSTED")));
     if (old.length) {
@@ -3406,7 +3386,9 @@ router.post("/admin/security/users/:id/devices/:deviceId/approve", adminAuth, se
       userId, deviceId, adminId: req.admin!.id, eventType: "DEVICE_APPROVED_BY_ADMIN",
       outcome: "ADMIN_ACTION", metadata: { reason: body.reason || null },
     });
+    return true;
   });
+  if (!approved) { res.status(404).json({ message: "Blocked device not found" }); return; }
   res.json({ ok: true });
 });
 
