@@ -3268,20 +3268,77 @@ const SecurityWhitelistBody = zod.object({
 }).refine((v) => v.userWide || !!v.ipAddress, { message: "ipAddress or userWide is required" });
 
 router.get("/admin/security/users", adminAuth, async (req, res) => {
-  const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 500);
-  const users = await db.select({
+  const page = Math.max(Number.parseInt(String(req.query.page || "1"), 10) || 1, 1);
+  const requestedPageSize = Number.parseInt(String(req.query.pageSize || "20"), 10);
+  const pageSize = [20, 50, 100].includes(requestedPageSize) ? requestedPageSize : 20;
+  const search = String(req.query.search || "").trim();
+  const filter = String(req.query.filter || "all");
+  const offset = (page - 1) * pageSize;
+
+  const trustedPhone = sql<boolean>`EXISTS (
+    SELECT 1 FROM ${trustedDevicesTable}
+    WHERE ${trustedDevicesTable.userId} = ${usersTable.id}
+      AND ${trustedDevicesTable.category} = 'PHONE'
+      AND ${trustedDevicesTable.status} = 'TRUSTED'
+  )`;
+  const trustedComputer = sql<boolean>`EXISTS (
+    SELECT 1 FROM ${trustedDevicesTable}
+    WHERE ${trustedDevicesTable.userId} = ${usersTable.id}
+      AND ${trustedDevicesTable.category} = 'COMPUTER'
+      AND ${trustedDevicesTable.status} = 'TRUSTED'
+  )`;
+  const blockedDevice = sql<boolean>`EXISTS (
+    SELECT 1 FROM ${trustedDevicesTable}
+    WHERE ${trustedDevicesTable.userId} = ${usersTable.id}
+      AND ${trustedDevicesTable.status} = 'BLOCKED'
+  )`;
+
+  const conditions = [];
+  if (search) {
+    const pattern = `%${search}%`;
+    conditions.push(or(
+      ilike(usersTable.email, pattern),
+      ilike(usersTable.username, pattern),
+      ilike(usersTable.fullName, pattern),
+      ilike(usersTable.phone, pattern),
+      sql<boolean>`CAST(${usersTable.id} AS TEXT) ILIKE ${pattern}`,
+    ));
+  }
+  if (filter === "blocked_user") conditions.push(or(isNotNull(usersTable.securityBlockedAt), eq(usersTable.isActive, false)));
+  else if (filter === "blocked_device") conditions.push(blockedDevice);
+  else if (filter === "clean") conditions.push(and(isNull(usersTable.securityBlockedAt), eq(usersTable.isActive, true), sql<boolean>`NOT ${blockedDevice}`));
+  else if (filter === "phone") conditions.push(trustedPhone);
+  else if (filter === "computer") conditions.push(trustedComputer);
+  else if (filter === "two_devices") conditions.push(and(trustedPhone, trustedComputer));
+  else if (filter === "no_devices") conditions.push(and(sql<boolean>`NOT ${trustedPhone}`, sql<boolean>`NOT ${trustedComputer}`));
+
+  const where = conditions.length ? and(...conditions) : undefined;
+  const [users, totalRows] = await Promise.all([
+    db.select({
     id: usersTable.id, username: usersTable.username, email: usersTable.email,
+    fullName: usersTable.fullName, phone: usersTable.phone,
     isActive: usersTable.isActive, accountType: usersTable.accountType,
     subscriptionType: usersTable.subscriptionType, subscriptionExpiresAt: usersTable.subscriptionExpiresAt,
     securityBlockedAt: usersTable.securityBlockedAt, securityBlockedReason: usersTable.securityBlockedReason,
-  }).from(usersTable).orderBy(desc(usersTable.createdAt)).limit(limit);
+    }).from(usersTable).where(where).orderBy(desc(usersTable.createdAt)).limit(pageSize).offset(offset),
+    db.select({ total: count() }).from(usersTable).where(where),
+  ]);
   const ids = users.map((u) => u.id);
   const devices = ids.length ? await db.select().from(trustedDevicesTable)
     .where(inArray(trustedDevicesTable.userId, ids)).orderBy(desc(trustedDevicesTable.lastSeenAt)) : [];
-  res.json(users.map((user) => ({
-    ...safeSecurityUserDto(user),
-    devices: devices.filter((device) => device.userId === user.id).map(safeDeviceDto),
-  })));
+  const total = Number(totalRows[0]?.total || 0);
+  res.json({
+    users: users.map((user) => ({
+      ...safeSecurityUserDto(user),
+      fullName: user.fullName,
+      phone: user.phone,
+      devices: devices.filter((device) => device.userId === user.id).map(safeDeviceDto),
+    })),
+    total,
+    page,
+    pageSize,
+    pages: Math.ceil(total / pageSize),
+  });
 });
 
 router.get("/admin/security/users/:id", adminAuth, async (req, res) => {

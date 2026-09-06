@@ -5,6 +5,8 @@ export interface SecurityUser {
   id: number;
   username: string;
   email: string;
+  fullName: string | null;
+  phone: string | null;
   isActive: boolean;
   securityBlockedAt: string | null;
   devices: SecurityDevice[];
@@ -76,15 +78,32 @@ export interface SecurityUserDetails {
   sessions: SecuritySession[];
 }
 
-export function useSecurityUsers() {
+export type SecurityUserFilter = "all" | "blocked_user" | "blocked_device" | "clean" | "phone" | "computer" | "two_devices" | "no_devices";
+
+export interface SecurityUsersResponse {
+  users: SecurityUser[];
+  total: number;
+  page: number;
+  pageSize: number;
+  pages: number;
+}
+
+export function useSecurityUsers(params: { page: number; pageSize: number; search: string; filter: SecurityUserFilter }) {
   const { getAdminAuthHeaders } = useAuth();
   return useQuery({
-    queryKey: ["admin-security-users"],
+    queryKey: ["admin-security-users", params],
     queryFn: async () => {
-      const res = await fetch("/api/admin/security/users", getAdminAuthHeaders());
+      const query = new URLSearchParams({
+        page: String(params.page),
+        pageSize: String(params.pageSize),
+        filter: params.filter,
+      });
+      if (params.search.trim()) query.set("search", params.search.trim());
+      const res = await fetch(`/api/admin/security/users?${query}`, getAdminAuthHeaders());
       if (!res.ok) throw new Error("Failed to fetch users");
-      return (await res.json()) as SecurityUser[];
+      return (await res.json()) as SecurityUsersResponse;
     },
+    placeholderData: previous => previous,
   });
 }
 

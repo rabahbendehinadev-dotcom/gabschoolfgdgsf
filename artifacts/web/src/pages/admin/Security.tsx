@@ -1,9 +1,9 @@
-import { useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { 
   useSecurityUsers, useSecurityUserDetails, useRevokeDevice, useResetDeviceCategory, 
   useApproveDevice, useBlockUserSecurity, useUnblockUserSecurity,
   useAddWhitelist, useRemoveWhitelist,
-  SecurityUser, SecurityDevice
+  SecurityDevice, SecurityUserFilter
 } from "@/hooks/use-security-admin";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input, Label } from "@/components/ui";
@@ -34,25 +34,30 @@ function timeAgo(iso: string | null) {
 }
 
 export function AdminSecurity() {
-  const { data: users, refetch, isFetching, isError, error } = useSecurityUsers();
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [filter, setFilter] = useState<SecurityUserFilter>("all");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const { data, refetch, isFetching, isError, error } = useSecurityUsers({ page, pageSize, search: debouncedSearch, filter });
   const { toast } = useToast();
 
-  const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"all" | "blocked_user" | "blocked_device" | "clean">("all");
   const [detailId, setDetailId] = useState<number | null>(null);
+  const users = data?.users;
 
-  const filteredUsers = useMemo(() => {
-    if (!users) return [];
-    let r = users;
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      r = r.filter(u => u.username.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || String(u.id).includes(q));
-    }
-    if (filter === "blocked_user") r = r.filter(u => u.securityBlockedAt !== null || !u.isActive);
-    else if (filter === "blocked_device") r = r.filter(u => u.devices.some(d => d.status === "BLOCKED"));
-    else if (filter === "clean") r = r.filter(u => u.securityBlockedAt === null && u.isActive && !u.devices.some(d => d.status === "BLOCKED"));
-    return r;
-  }, [users, search, filter]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
+    if (!data) return;
+    const lastPage = Math.max(data.pages, 1);
+    if (page > lastPage) setPage(lastPage);
+  }, [data, page]);
 
   return (
     <div dir="ltr" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -60,8 +65,8 @@ export function AdminSecurity() {
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
         <div>
           <h1 style={{ fontSize: 24, fontWeight: 700, color: "#0F172A", lineHeight: 1.2, letterSpacing: "-0.02em" }}>Sécurité des appareils</h1>
-          <p style={{ fontSize: 14, color: "#667085", marginTop: 4 }}>
-            Contrôle d'accès strict, sessions et appareils de confiance
+           <p style={{ fontSize: 14, color: "#667085", marginTop: 4 }}>
+             Contrôle d'accès strict, sessions et appareils de confiance · Total utilisateurs : {data?.total ?? "—"}
           </p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -75,8 +80,8 @@ export function AdminSecurity() {
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
         <div style={{ position: "relative", flex: 1, minWidth: 240 }}>
           <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#98A2B3", pointerEvents: "none" }} />
-          <input type="text" placeholder="Rechercher utilisateur, e-mail, ID..." value={search}
-            onChange={e => setSearch(e.target.value)} className="ad-input" style={{ paddingLeft: 32 }} data-testid="input-security-search" />
+           <input type="text" placeholder="Rechercher nom, e-mail, téléphone ou ID..." value={search}
+             onChange={e => setSearch(e.target.value)} className="ad-input" style={{ paddingLeft: 32 }} data-testid="input-security-search" />
         </div>
         <div style={{ display: "flex", gap: 4, background: "#fff", padding: 3, borderRadius: 8, border: "1px solid #E2E8F0" }}>
           {[
@@ -84,10 +89,14 @@ export function AdminSecurity() {
             { id: "blocked_user", label: "Comptes bloqués" },
             { id: "blocked_device", label: "Appareils bloqués" },
             { id: "clean", label: "Sains" },
+             { id: "phone", label: "Téléphone enregistré" },
+             { id: "computer", label: "Ordinateur enregistré" },
+             { id: "two_devices", label: "2 appareils enregistrés" },
+             { id: "no_devices", label: "Aucun appareil" },
           ].map(f => (
             <button
               key={f.id} type="button"
-              onClick={() => setFilter(f.id as "all" | "blocked_user" | "blocked_device" | "clean")}
+               onClick={() => { setFilter(f.id as SecurityUserFilter); setPage(1); }}
               data-testid={`btn-filter-${f.id}`}
               style={{
                 padding: "6px 12px", fontSize: 12.5, fontWeight: 500, borderRadius: 6, cursor: "pointer",
@@ -116,7 +125,7 @@ export function AdminSecurity() {
               </tr>
             </thead>
             <tbody>
-              {filteredUsers.map((user, idx) => {
+               {(users ?? []).map(user => {
                 const isBlocked = user.securityBlockedAt !== null || !user.isActive;
                 const activePhones = user.devices.filter(d => d.category === "PHONE" && d.status === "TRUSTED").length;
                 const activePCs = user.devices.filter(d => d.category === "COMPUTER" && d.status === "TRUSTED").length;
@@ -172,11 +181,73 @@ export function AdminSecurity() {
             <div style={{ padding: "40px", textAlign: "center", color: "#94A3B8", fontSize: 13 }}>
               Chargement...
             </div>
-          ) : filteredUsers.length === 0 ? (
+           ) : (users?.length ?? 0) === 0 ? (
             <div style={{ padding: "40px", textAlign: "center", color: "#94A3B8", fontSize: 13 }}>
               Aucun utilisateur trouvé.
             </div>
           ) : null}
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-2.5 md:hidden">
+        {isError ? (
+          <div className="ad-card" style={{ padding: 20, textAlign: "center", color: "#9F1239", fontSize: 13 }}>
+            Erreur: {error instanceof Error ? error.message : "Échec du chargement."}
+          </div>
+        ) : !users && isFetching ? (
+          <div className="ad-card" style={{ padding: 20, textAlign: "center", color: "#94A3B8", fontSize: 13 }}>Chargement...</div>
+        ) : (users?.length ?? 0) === 0 ? (
+          <div className="ad-card" style={{ padding: 20, textAlign: "center", color: "#94A3B8", fontSize: 13 }}>Aucun utilisateur trouvé.</div>
+        ) : users?.map(user => {
+          const isBlocked = user.securityBlockedAt !== null || !user.isActive;
+          const phones = user.devices.filter(device => device.category === "PHONE" && device.status === "TRUSTED").length;
+          const computers = user.devices.filter(device => device.category === "COMPUTER" && device.status === "TRUSTED").length;
+          const blocked = user.devices.filter(device => device.status === "BLOCKED").length;
+          return (
+            <div key={user.id} className="ad-card" style={{ padding: 14 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start" }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, color: "#0F172A" }}>{user.fullName || user.username}</div>
+                  <div style={{ fontSize: 12, color: "#64748B", overflowWrap: "anywhere" }}>{user.email}</div>
+                </div>
+                {isBlocked ? (
+                  <span className="ad-badge ad-badge-blocked"><ShieldOff size={10}/> Bloqué</span>
+                ) : (
+                  <span className="ad-badge ad-badge-active"><ShieldCheck size={10}/> Actif</span>
+                )}
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 12, fontSize: 12, color: "#475569" }}>
+                <span><Smartphone size={13} style={{ display: "inline", marginRight: 4 }} />Téléphones : {phones}</span>
+                <span><Monitor size={13} style={{ display: "inline", marginRight: 4 }} />Ordinateurs : {computers}</span>
+                <span><AlertTriangle size={13} style={{ display: "inline", marginRight: 4 }} />Bloqués : {blocked}</span>
+              </div>
+              <button onClick={() => setDetailId(user.id)} className="ad-btn-sm" style={{ width: "100%", justifyContent: "center", marginTop: 12 }} data-testid={`btn-inspect-mobile-${user.id}`}>
+                Inspecter
+              </button>
+            </div>
+          );
+        })}
+      </div>
+
+      <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#64748B" }}>
+          Afficher
+          <select
+            className="ad-input"
+            value={pageSize}
+            onChange={e => { setPageSize(Number(e.target.value)); setPage(1); }}
+            data-testid="select-security-page-size"
+            style={{ width: 80 }}
+          >
+            <option value={20}>20</option>
+            <option value={50}>50</option>
+            <option value={100}>100</option>
+          </select>
+        </label>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#64748B" }}>
+          <button className="ad-btn-sm" disabled={page <= 1 || isFetching} onClick={() => setPage(p => p - 1)} data-testid="btn-security-previous">Précédent</button>
+          <span>Page {data?.page ?? page} sur {Math.max(data?.pages ?? 0, 1)}</span>
+          <button className="ad-btn-sm" disabled={page >= (data?.pages ?? 0) || isFetching} onClick={() => setPage(p => p + 1)} data-testid="btn-security-next">Suivant</button>
         </div>
       </div>
 
