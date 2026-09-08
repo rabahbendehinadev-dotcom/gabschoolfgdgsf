@@ -42,6 +42,7 @@ const MIB = 1024 * 1024;
 const MIN_PART_SIZE = 16 * MIB;
 const MAX_VIDEO_SIZE = 5 * 1024 * 1024 * 1024 * 1024;
 const UPLOAD_RECEIPT_TTL_SECONDS = 24 * 60 * 60;
+const PLAYBACK_URL_TTL_SECONDS = 4 * 60 * 60;
 const R2_VIDEO_KEY_PATTERN = /^videos\/\d+\/(?:new|\d+)\/[0-9a-f-]{36}\.(?:mp4|mov)$/;
 
 export type R2UploadReceipt = {
@@ -323,7 +324,7 @@ export async function deleteR2UploadedVideoObject(key: string): Promise<void> {
 
 export async function getPresignedR2VideoUrl(
   key: string,
-  expiresInSeconds = 15 * 60,
+  expiresInSeconds = PLAYBACK_URL_TTL_SECONDS,
 ): Promise<string> {
   return getSignedUrl(
     getR2Client(),
