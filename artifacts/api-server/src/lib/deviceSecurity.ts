@@ -112,6 +112,22 @@ export function deviceSlotDecision(
   return hasTrustedSlot ? "REGISTER_BLOCKED" : "REGISTER_TRUSTED";
 }
 
+export function browserFamilyApprovalDecision(
+  candidate: { category: DeviceCategory; status: DeviceStatus } | null,
+  trustedDevices: Array<{ category: DeviceCategory; status: DeviceStatus; physicalFamilyId: string }>,
+):
+  | { action: "ATTACH"; physicalFamilyId: string }
+  | { action: "CANDIDATE_MISSING" | "FAMILY_MISSING" | "FAMILY_CONFLICT" } {
+  if (!candidate || candidate.status !== "BLOCKED") return { action: "CANDIDATE_MISSING" };
+  const matching = trustedDevices.filter(
+    device => device.category === candidate.category && device.status === "TRUSTED",
+  );
+  if (!matching.length) return { action: "FAMILY_MISSING" };
+  const familyIds = new Set(matching.map(device => device.physicalFamilyId));
+  if (familyIds.size !== 1) return { action: "FAMILY_CONFLICT" };
+  return { action: "ATTACH", physicalFamilyId: matching[0]!.physicalFamilyId };
+}
+
 export function isHighConfidenceAnonymous(reputation: IpAssessment, threshold = 0.8): boolean {
   return reputation.status === "KNOWN" && reputation.confidence >= threshold &&
     (reputation.vpn || reputation.proxy || reputation.tor || reputation.datacenter || reputation.anonymous || reputation.abusive);
@@ -153,17 +169,20 @@ export function isSecuritySessionUsable(args: {
   return args.revokedAt === null && args.expiresAt > (args.now ?? new Date()) && args.deviceStatus === "TRUSTED";
 }
 
-function clientInfo(ua?: string | null): { os: string; browser: string } {
+export function clientInfo(ua?: string | null): { os: string; browser: string } {
   const value = ua || "";
   const os = /iPhone|iPad|iPod/i.test(value) ? "iOS"
     : /Android/i.test(value) ? "Android"
       : /Windows/i.test(value) ? "Windows"
         : /Mac OS|Macintosh/i.test(value) ? "macOS"
           : /Linux/i.test(value) ? "Linux" : "Unknown";
-  const browser = /Edg\//i.test(value) ? "Edge"
+  const browser = /EdgiOS\//i.test(value) ? "Edge"
+    : /Edg\//i.test(value) ? "Edge"
     : /OPR\//i.test(value) ? "Opera"
-      : /Firefox\//i.test(value) ? "Firefox"
-        : /Chrome\//i.test(value) ? "Chrome"
+      : /FxiOS\//i.test(value) ? "Firefox"
+        : /Firefox\//i.test(value) ? "Firefox"
+          : /CriOS\//i.test(value) ? "Chrome"
+            : /Chrome\//i.test(value) ? "Chrome"
           : /Safari\//i.test(value) ? "Safari" : "Unknown";
   return { os, browser };
 }
@@ -293,8 +312,8 @@ export function loginSuccessEventContext(result: Extract<LoginSecurityResult, { 
 }
 
 export function safeDeviceDto(device: Record<string, unknown>) {
-  const { id, userId, category, status, os, browser, userAgent, firstSeenAt, lastSeenAt, lastIp, country, region, city, latitude, longitude, createdBy, revokedAt } = device;
-  return { id, userId, category, status, os, browser, userAgent, firstSeenAt, lastSeenAt, lastIp, country, region, city, latitude, longitude, createdBy, revokedAt };
+  const { id, userId, physicalFamilyId, category, status, os, browser, userAgent, firstSeenAt, lastSeenAt, lastIp, country, region, city, latitude, longitude, createdBy, revokedAt } = device;
+  return { id, userId, physicalFamilyId, category, status, os, browser, userAgent, firstSeenAt, lastSeenAt, lastIp, country, region, city, latitude, longitude, createdBy, revokedAt };
 }
 
 export function safeSecurityUserDto(user: Record<string, unknown>) {
@@ -341,6 +360,7 @@ export async function authorizeDeviceLogin(args: {
     const decision = deviceSlotDecision(null, args.userId, category, !!occupied);
     const [created] = await tx.insert(trustedDevicesTable).values({
       userId: args.userId, credentialHash: credentialHash(credential), category,
+      physicalFamilyId: crypto.randomUUID(),
       os: info.os, browser: info.browser, userAgent: args.userAgent, lastIp: args.ip,
       country: reputation.country, region: reputation.region, city: reputation.city,
       latitude: reputation.latitude, longitude: reputation.longitude,

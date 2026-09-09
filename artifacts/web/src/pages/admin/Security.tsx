@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   useSecurityUsers, useSecurityUserDetails, useResetDeviceCategory,
   useApproveDevice, useBlockUserSecurity, useUnblockUserSecurity,
+  useApproveBrowserOnFamily,
   useAddWhitelist, useRemoveWhitelist, useIgnoreDeviceAlert,
   SecurityDevice, SecurityUserFilter
 } from "@/hooks/use-security-admin";
@@ -25,6 +26,10 @@ function timeAgo(iso: string | null) {
   if (h < 24) return `${h} h`;
   const dy = Math.floor(h / 24);
   return `${dy} j`;
+}
+
+function trustedFamilyCount(devices: SecurityDevice[], category: "PHONE" | "COMPUTER") {
+  return new Set(devices.filter(d => d.category === category && d.status === "TRUSTED").map(d => d.physicalFamilyId)).size;
 }
 
 export function AdminSecurity() {
@@ -121,8 +126,8 @@ export function AdminSecurity() {
             <tbody>
                {(users ?? []).map(user => {
                 const isBlocked = user.securityBlockedAt !== null || !user.isActive;
-                const activePhones = user.devices.filter(d => d.category === "PHONE" && d.status === "TRUSTED").length;
-                const activePCs = user.devices.filter(d => d.category === "COMPUTER" && d.status === "TRUSTED").length;
+                const activePhones = trustedFamilyCount(user.devices, "PHONE");
+                const activePCs = trustedFamilyCount(user.devices, "COMPUTER");
                 const blockedDevices = user.devices.filter(d => d.status === "BLOCKED").length;
 
                 return (
@@ -194,8 +199,8 @@ export function AdminSecurity() {
           <div className="ad-card" style={{ padding: 20, textAlign: "center", color: "#94A3B8", fontSize: 13 }}>Aucun utilisateur trouvé.</div>
         ) : users?.map(user => {
           const isBlocked = user.securityBlockedAt !== null || !user.isActive;
-          const phones = user.devices.filter(device => device.category === "PHONE" && device.status === "TRUSTED").length;
-          const computers = user.devices.filter(device => device.category === "COMPUTER" && device.status === "TRUSTED").length;
+          const phones = trustedFamilyCount(user.devices, "PHONE");
+          const computers = trustedFamilyCount(user.devices, "COMPUTER");
           const blocked = user.devices.filter(device => device.status === "BLOCKED").length;
           return (
             <div key={user.id} className="ad-card" style={{ padding: 14 }}>
@@ -253,12 +258,14 @@ export function AdminSecurity() {
 function SlotCard({
   category,
   device,
+  browsers,
   onReset,
   onReplace,
   replaceAvailable,
 }: {
   category: "PHONE" | "COMPUTER";
   device?: SecurityDevice;
+  browsers: SecurityDevice[];
   onReset: () => void;
   onReplace: () => void;
   replaceAvailable: boolean;
@@ -280,12 +287,16 @@ function SlotCard({
           <span className="ad-badge ad-badge-normal bg-slate-100 text-[10px] py-0.5">VIDE</span>
         )}
       </div>
-      <div className="p-4 h-[180px] flex flex-col">
+      <div className="p-4 min-h-[205px] flex flex-col">
         {device ? (
           <div className="flex-1 flex flex-col justify-between">
             <div>
               <div className="text-[14px] font-bold text-slate-900 mb-1">
-                {device.os || "OS inconnu"} · {device.browser || "Navigateur inconnu"}
+                {device.os || "OS inconnu"} · Appareil de confiance
+              </div>
+              <div className="mt-2 text-[11.5px] text-slate-600">
+                <span className="font-semibold text-slate-500">Navigateurs approuvés :</span>{" "}
+                {Array.from(new Set(browsers.map(item => item.browser || "Inconnu"))).join(" · ")}
               </div>
               <div className="grid grid-cols-1 gap-y-2 text-[12px] text-slate-600 mt-3">
                 <div className="flex justify-between"><span className="text-slate-400">Enregistré:</span> <span className="font-medium text-slate-800">{formatDate(device.firstSeenAt)}</span></div>
@@ -326,6 +337,7 @@ function UserSecurityDialog({ userId, onClose }: { userId: number; onClose: () =
   const { toast } = useToast();
   
   const approveMut = useApproveDevice();
+  const approveBrowserMut = useApproveBrowserOnFamily();
   const resetMut = useResetDeviceCategory();
   const blockMut = useBlockUserSecurity();
   const unblockMut = useUnblockUserSecurity();
@@ -505,6 +517,7 @@ function UserSecurityDialog({ userId, onClose }: { userId: number; onClose: () =
                 <SlotCard
                   category="PHONE"
                   device={trustedDevices.find(d => d.category === "PHONE")}
+                  browsers={trustedDevices.filter(d => d.category === "PHONE")}
                   onReset={() => confirmAction("Réinitialiser le téléphone autorisé ? Ses sessions actives seront invalidées et un nouveau téléphone pourra être enregistré.", () => resetMut.mutateAsync({ userId, category: "PHONE" }), "Téléphone réinitialisé")}
                   onReplace={() => focusReplacementAlerts("PHONE")}
                   replaceAvailable={pendingDevices.some(device => device.category === "PHONE")}
@@ -512,6 +525,7 @@ function UserSecurityDialog({ userId, onClose }: { userId: number; onClose: () =
                 <SlotCard
                   category="COMPUTER"
                   device={trustedDevices.find(d => d.category === "COMPUTER")}
+                  browsers={trustedDevices.filter(d => d.category === "COMPUTER")}
                   onReset={() => confirmAction("Réinitialiser l’ordinateur autorisé ? Ses sessions actives seront invalidées et un nouvel ordinateur pourra être enregistré.", () => resetMut.mutateAsync({ userId, category: "COMPUTER" }), "Ordinateur réinitialisé")}
                   onReplace={() => focusReplacementAlerts("COMPUTER")}
                   replaceAvailable={pendingDevices.some(device => device.category === "COMPUTER")}
@@ -581,11 +595,17 @@ function UserSecurityDialog({ userId, onClose }: { userId: number; onClose: () =
                                 </div>
                               </div>
                               <div className="flex flex-col gap-2 min-w-[180px]">
+                                 <button
+                                   className="ad-btn-sm justify-center text-blue-700 border-blue-200 hover:bg-blue-50 hover:border-blue-300"
+                                   onClick={() => confirmAction(`Approuver ${d.browser || "ce navigateur"} sur le ${d.category === "PHONE" ? "téléphone" : "l’ordinateur"} de confiance existant ? Utilisez cette action uniquement après confirmation qu’il s’agit du même appareil physique.`, () => approveBrowserMut.mutateAsync({ userId, deviceId: d.id }), "Navigateur rattaché à l’appareil existant")}
+                                 >
+                                   <ShieldCheck size={14} /> Approuver le navigateur sur l’appareil existant
+                                 </button>
                                 <button
                                   className="ad-btn-sm justify-center text-green-700 border-green-200 hover:bg-green-50 hover:border-green-300"
                                   onClick={() => confirmAction(`Approuver ce nouvel ${d.category === "PHONE" ? "téléphone" : "ordinateur"} et remplacer l'appareil de confiance actuel ?`, () => approveMut.mutateAsync({ userId, deviceId: d.id }), "Appareil approuvé")}
                                 >
-                                  <CheckCircle2 size={14} /> Approuver & Remplacer
+                                  <CheckCircle2 size={14} /> Remplacement complet de l’appareil
                                 </button>
                                 <button
                                   className="ad-btn-sm justify-center text-slate-600 hover:bg-slate-100"

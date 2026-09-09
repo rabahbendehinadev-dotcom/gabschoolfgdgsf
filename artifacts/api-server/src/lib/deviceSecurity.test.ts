@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  browserFamilyApprovalDecision,
   categoryFromUserAgent,
+  clientInfo,
   credentialHash,
   DEVICE_NOT_AUTHORIZED_CODE,
   deviceAuthErrorPayload,
@@ -43,12 +45,45 @@ test("phones and tablets share PHONE slot while desktop is COMPUTER", () => {
   assert.equal(categoryFromUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120"), "COMPUTER");
 });
 
+test("iOS Chrome and Safari are distinct browser clients in the same PHONE category", () => {
+  const chrome = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 CriOS/120.0 Mobile/15E148 Safari/604.1";
+  const safari = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Version/17.0 Mobile/15E148 Safari/604.1";
+  assert.equal(categoryFromUserAgent(chrome), "PHONE");
+  assert.equal(categoryFromUserAgent(safari), "PHONE");
+  assert.equal(clientInfo(chrome).browser, "Chrome");
+  assert.equal(clientInfo(safari).browser, "Safari");
+});
+
 test("slot policy permits first device and denies same-category replacement", () => {
   assert.equal(deviceSlotDecision(null, 7, "PHONE", false), "REGISTER_TRUSTED");
   assert.equal(deviceSlotDecision(null, 7, "PHONE", true), "REGISTER_BLOCKED");
   assert.equal(deviceSlotDecision({ userId: 7, category: "PHONE", status: "TRUSTED" }, 7, "PHONE", true), "REUSE_TRUSTED");
   assert.equal(deviceSlotDecision({ userId: 7, category: "PHONE", status: "REVOKED" }, 7, "PHONE", false), "DENY_KNOWN");
   assert.equal(deviceSlotDecision({ userId: 7, category: "PHONE", status: "BLOCKED" }, 7, "PHONE", false), "DENY_KNOWN");
+});
+
+test("Admin can attach a blocked browser only to one existing physical family", () => {
+  assert.deepEqual(
+    browserFamilyApprovalDecision(
+      { category: "PHONE", status: "BLOCKED" },
+      [{ category: "PHONE", status: "TRUSTED", physicalFamilyId: "phone-family" }],
+    ),
+    { action: "ATTACH", physicalFamilyId: "phone-family" },
+  );
+  assert.deepEqual(
+    browserFamilyApprovalDecision({ category: "PHONE", status: "BLOCKED" }, []),
+    { action: "FAMILY_MISSING" },
+  );
+  assert.deepEqual(
+    browserFamilyApprovalDecision(
+      { category: "PHONE", status: "BLOCKED" },
+      [
+        { category: "PHONE", status: "TRUSTED", physicalFamilyId: "phone-a" },
+        { category: "PHONE", status: "TRUSTED", physicalFamilyId: "phone-b" },
+      ],
+    ),
+    { action: "FAMILY_CONFLICT" },
+  );
 });
 
 test("device-denial contract has no legacy slot-count wording and localizes consistently", () => {

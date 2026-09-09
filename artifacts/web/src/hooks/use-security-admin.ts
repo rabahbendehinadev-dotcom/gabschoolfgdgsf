@@ -15,6 +15,7 @@ export interface SecurityUser {
 export interface SecurityDevice {
   id: number;
   userId: number;
+  physicalFamilyId: string;
   category: "PHONE" | "COMPUTER";
   status: "TRUSTED" | "BLOCKED" | "REVOKED";
   os: string | null;
@@ -208,6 +209,29 @@ export function useApproveDevice() {
       qc.invalidateQueries({ queryKey: ["admin-security-user", vars.userId] });
       qc.invalidateQueries({ queryKey: ["admin-security-users"] });
     }
+  });
+}
+
+export function useApproveBrowserOnFamily() {
+  const { getAdminAuthHeaders } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ userId, deviceId, reason }: { userId: number; deviceId: number; reason?: string }) => {
+      const res = await fetch(`/api/admin/security/users/${userId}/devices/${deviceId}/approve-browser`, {
+        ...getAdminAuthHeaders(),
+        method: "POST",
+        headers: { ...getAdminAuthHeaders()?.headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.message || "Failed to approve browser");
+      }
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["admin-security-user", vars.userId] });
+      qc.invalidateQueries({ queryKey: ["admin-security-users"] });
+    },
   });
 }
 

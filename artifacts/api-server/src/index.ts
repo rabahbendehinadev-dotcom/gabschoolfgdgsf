@@ -303,7 +303,11 @@ async function runMigrations() {
     `);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS trusted_devices_user_idx ON trusted_devices(user_id)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS trusted_devices_status_idx ON trusted_devices(status)`);
-    await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS trusted_devices_one_trusted_category ON trusted_devices(user_id, category) WHERE status = 'TRUSTED'`);
+    await db.execute(sql`ALTER TABLE trusted_devices ADD COLUMN IF NOT EXISTS physical_family_id VARCHAR(36)`);
+    await db.execute(sql`UPDATE trusted_devices SET physical_family_id = 'legacy-' || id::text WHERE physical_family_id IS NULL`);
+    await db.execute(sql`ALTER TABLE trusted_devices ALTER COLUMN physical_family_id SET NOT NULL`);
+    await db.execute(sql`DROP INDEX IF EXISTS trusted_devices_one_trusted_category`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS trusted_devices_family_idx ON trusted_devices(user_id, category, physical_family_id)`);
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS user_security_sessions (
         id VARCHAR(36) PRIMARY KEY,

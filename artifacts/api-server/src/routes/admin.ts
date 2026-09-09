@@ -11,7 +11,7 @@ import { createNotification, type AudienceType, type TargetType } from "../lib/n
 import { sendPushToUsers, getVapidPublicKey } from "../lib/webPush";
 import { sendPushToAdmins } from "../lib/adminWebPush";
 import { normalizePhone, INVALID_PHONE_MESSAGE } from "../lib/phone";
-import { retiredDeviceCredentialHash, safeDeviceDto, safeSecurityUserDto } from "../lib/deviceSecurity";
+import { browserFamilyApprovalDecision, retiredDeviceCredentialHash, safeDeviceDto, safeSecurityUserDto } from "../lib/deviceSecurity";
 import { extractDriveFileId, isFolderDriveUrl, resolveVideoParts } from "../lib/googleDrive";
 import {
   buildVideoObjectPath,
@@ -3401,8 +3401,8 @@ router.get("/admin/security/users/:id", adminAuth, securityManageAuth, async (re
     devices: devices.map(safeDeviceDto),
     deviceAlertStats: Array.from(attemptsByDevice.entries()).map(([deviceId, stats]) => ({ deviceId, ...stats })),
     securitySummary: {
-      trustedPhoneCount: devices.filter((device) => device.category === "PHONE" && device.status === "TRUSTED").length,
-      trustedComputerCount: devices.filter((device) => device.category === "COMPUTER" && device.status === "TRUSTED").length,
+      trustedPhoneCount: new Set(devices.filter((device) => device.category === "PHONE" && device.status === "TRUSTED").map((device) => device.physicalFamilyId)).size,
+      trustedComputerCount: new Set(devices.filter((device) => device.category === "COMPUTER" && device.status === "TRUSTED").map((device) => device.physicalFamilyId)).size,
       blockedAttemptCount: blockedEvents.length,
       distinctPhoneAttempts: phoneDeviceIds.size,
       distinctComputerAttempts: computerDeviceIds.size,
@@ -3545,6 +3545,63 @@ router.post("/admin/security/users/:id/devices/:deviceId/approve", adminAuth, se
     return true;
   });
   if (!approved) { res.status(404).json({ message: "Blocked device not found" }); return; }
+  res.json({ ok: true });
+});
+
+router.post("/admin/security/users/:id/devices/:deviceId/approve-browser", adminAuth, securityManageAuth, async (req, res) => {
+  const userId = Number(req.params.id);
+  const deviceId = Number(req.params.deviceId);
+  const body = SecurityReasonBody.parse(req.body);
+  const approved = await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT id FROM users WHERE id = ${userId} FOR UPDATE`);
+    const [candidate] = await tx.select().from(trustedDevicesTable)
+      .where(and(
+        eq(trustedDevicesTable.id, deviceId),
+        eq(trustedDevicesTable.userId, userId),
+        eq(trustedDevicesTable.status, "BLOCKED"),
+      )).limit(1);
+    if (!candidate) return "CANDIDATE_MISSING" as const;
+    const trusted = await tx.select().from(trustedDevicesTable)
+      .where(and(
+        eq(trustedDevicesTable.userId, userId),
+        eq(trustedDevicesTable.category, candidate.category),
+        eq(trustedDevicesTable.status, "TRUSTED"),
+      ));
+    const decision = browserFamilyApprovalDecision(
+      { category: candidate.category as "PHONE" | "COMPUTER", status: candidate.status as "BLOCKED" },
+      trusted.map(device => ({
+        category: device.category as "PHONE" | "COMPUTER",
+        status: device.status as "TRUSTED",
+        physicalFamilyId: device.physicalFamilyId,
+      })),
+    );
+    if (decision.action !== "ATTACH") return decision.action;
+    const physicalFamilyId = decision.physicalFamilyId;
+    await tx.update(trustedDevicesTable).set({
+      status: "TRUSTED",
+      createdBy: "ADMIN",
+      revokedAt: null,
+      physicalFamilyId,
+    }).where(and(eq(trustedDevicesTable.id, deviceId), eq(trustedDevicesTable.status, "BLOCKED")));
+    await tx.insert(securityEventsTable).values({
+      userId,
+      deviceId,
+      adminId: req.admin!.id,
+      eventType: "DEVICE_BROWSER_APPROVED",
+      outcome: "ADMIN_ACTION",
+      riskReasons: [candidate.category],
+      metadata: {
+        reason: body.reason || null,
+        physicalFamilyId,
+        browser: candidate.browser,
+        os: candidate.os,
+      },
+    });
+    return "APPROVED" as const;
+  });
+  if (approved === "CANDIDATE_MISSING") { res.status(404).json({ message: "Blocked browser not found" }); return; }
+  if (approved === "FAMILY_MISSING") { res.status(409).json({ message: "No trusted physical device exists; use full device replacement" }); return; }
+  if (approved === "FAMILY_CONFLICT") { res.status(409).json({ message: "Trusted device family conflict; reset the category before continuing" }); return; }
   res.json({ ok: true });
 });
 

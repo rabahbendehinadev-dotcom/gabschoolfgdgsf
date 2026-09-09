@@ -7,6 +7,7 @@ export const trustedDevicesTable = pgTable("trusted_devices", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
   credentialHash: varchar("credential_hash", { length: 64 }).notNull(),
+  physicalFamilyId: varchar("physical_family_id", { length: 36 }).notNull(),
   category: varchar("category", { length: 20 }).notNull(),
   os: varchar("os", { length: 100 }),
   browser: varchar("browser", { length: 100 }),
@@ -26,7 +27,7 @@ export const trustedDevicesTable = pgTable("trusted_devices", {
 }, (t) => [
   index("trusted_devices_user_idx").on(t.userId),
   uniqueIndex("trusted_devices_credential_hash_uniq").on(t.credentialHash),
-  uniqueIndex("trusted_devices_one_trusted_category").on(t.userId, t.category).where(sql`${t.status} = 'TRUSTED'`),
+  index("trusted_devices_family_idx").on(t.userId, t.category, t.physicalFamilyId),
   index("trusted_devices_status_idx").on(t.status),
 ]);
 
