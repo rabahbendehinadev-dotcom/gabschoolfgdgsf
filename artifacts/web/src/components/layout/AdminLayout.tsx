@@ -1,6 +1,12 @@
 import { ReactNode, useState, useEffect, useCallback, useRef } from "react";
 import { Link, useLocation } from "wouter";
-import { canManageDeviceSecurity, useAuth } from "@/lib/auth";
+import {
+  canAccessAdminPath,
+  getAdminHomePath,
+  hasAdminPermission,
+  type AdminAccessRequirement,
+  useAuth,
+} from "@/lib/auth";
 import {
   LayoutDashboard, Users, Video, FolderTree, CreditCard, LogOut,
   ShieldAlert, Activity, BadgeCheck, Banknote, KeyRound, Wrench,
@@ -88,43 +94,50 @@ function useAdminPush(adminToken: string | null) {
 }
 
 /* ── Nav structure with sections (Odoo-style) ───────────────────────────── */
-const NAV_SECTIONS = [
+type AdminNavItem = {
+  name: string;
+  path: string;
+  icon: typeof LayoutDashboard;
+  access: AdminAccessRequirement;
+};
+
+const NAV_SECTIONS: Array<{ section: string; items: AdminNavItem[] }> = [
   {
     section: "Gestion",
     items: [
-      { name: "Tableau de bord",      path: "/bendehinaonline97",                     icon: LayoutDashboard },
-      { name: "Utilisateurs",         path: "/bendehinaonline97/users",               icon: Users },
-      { name: "Abonnements",          path: "/bendehinaonline97/subscriptions",       icon: BadgeCheck },
-      { name: "Paiements",            path: "/bendehinaonline97/payments",            icon: Banknote },
+      { name: "Tableau de bord",      path: "/bendehinaonline97",                     icon: LayoutDashboard, access: "view_analytics" },
+      { name: "Utilisateurs",         path: "/bendehinaonline97/users",               icon: Users, access: "manage_users" },
+      { name: "Abonnements",          path: "/bendehinaonline97/subscriptions",       icon: BadgeCheck, access: "manage_subscriptions" },
+      { name: "Paiements",            path: "/bendehinaonline97/payments",            icon: Banknote, access: "manage_subscriptions" },
     ],
   },
   {
     section: "Contenu",
     items: [
-      { name: "Cours",                path: "/bendehinaonline97/courses",             icon: GraduationCap },
-      { name: "Vidéos",               path: "/bendehinaonline97/videos",              icon: Video },
-      { name: "Catégories",           path: "/bendehinaonline97/categories",          icon: FolderTree },
-      { name: "Outils",               path: "/bendehinaonline97/tools",               icon: Wrench },
-      { name: "Cat. d'outils",        path: "/bendehinaonline97/tool-categories",     icon: FolderTree },
-      { name: "Communauté",           path: "/bendehinaonline97/community",           icon: MessageSquare },
+      { name: "Cours",                path: "/bendehinaonline97/courses",             icon: GraduationCap, access: "manage_content" },
+      { name: "Vidéos",               path: "/bendehinaonline97/videos",              icon: Video, access: "manage_content" },
+      { name: "Catégories",           path: "/bendehinaonline97/categories",          icon: FolderTree, access: "manage_content" },
+      { name: "Outils",               path: "/bendehinaonline97/tools",               icon: Wrench, access: "manage_tools" },
+      { name: "Cat. d'outils",        path: "/bendehinaonline97/tool-categories",     icon: FolderTree, access: "manage_tools" },
+      { name: "Communauté",           path: "/bendehinaonline97/community",           icon: MessageSquare, access: "manage_community" },
     ],
   },
   {
     section: "Configuration",
     items: [
-      { name: "Plans tarifaires",     path: "/bendehinaonline97/plans",               icon: CreditCard },
-      { name: "Alertes abonnement",   path: "/bendehinaonline97/subscription-alerts", icon: AlertTriangle },
-      { name: "Notifications",        path: "/bendehinaonline97/send-notification",   icon: Megaphone },
-      { name: "Journal d'activité",   path: "/bendehinaonline97/activity-log",        icon: Activity },
-      { name: "Mot de passe",         path: "/bendehinaonline97/change-password",     icon: KeyRound },
+      { name: "Plans tarifaires",     path: "/bendehinaonline97/plans",               icon: CreditCard, access: "manage_plans" },
+      { name: "Alertes abonnement",   path: "/bendehinaonline97/subscription-alerts", icon: AlertTriangle, access: "manage_subscriptions" },
+      { name: "Notifications",        path: "/bendehinaonline97/send-notification",   icon: Megaphone, access: "send_notifications" },
+      { name: "Journal d'activité",   path: "/bendehinaonline97/activity-log",        icon: Activity, access: "manage_users" },
+      { name: "Mot de passe",         path: "/bendehinaonline97/change-password",     icon: KeyRound, access: "super_admin" },
     ],
   },
   {
     section: "Administration",
     items: [
-      { name: "Sécurité appareils",   path: "/gab-ctrl-9x/security",                  icon: ShieldAlert, permission: "manage_device_security" },
-      { name: "Comptes admins",       path: "/bendehinaonline97/admins",              icon: UserCog },
-      { name: "Journal d'audit admin",path: "/bendehinaonline97/admin-audit",         icon: ClipboardList },
+      { name: "Sécurité appareils",   path: "/gab-ctrl-9x/security",                  icon: ShieldAlert, access: "manage_device_security" },
+      { name: "Comptes admins",       path: "/bendehinaonline97/admins",              icon: UserCog, access: "super_admin" },
+      { name: "Journal d'audit admin",path: "/bendehinaonline97/admin-audit",         icon: ClipboardList, access: "super_admin" },
     ],
   },
 ];
@@ -166,13 +179,20 @@ function BellButton({
 }
 
 /* ── Sidebar nav with grouped sections ──────────────────────────────────── */
-function NavLinks({ location, canManageSecurity, onNavigate }: { location: string; canManageSecurity: boolean; onNavigate?: () => void }) {
+function NavLinks({ location, admin, onNavigate }: { location: string; admin: Parameters<typeof canAccessAdminPath>[0]; onNavigate?: () => void }) {
   return (
     <>
-      {NAV_SECTIONS.map((group) => (
-        <div key={group.section}>
-          <div className="ad-nav-section">{group.section}</div>
-          {group.items.filter((item) => !("permission" in item) || item.permission !== "manage_device_security" || canManageSecurity).map((item) => {
+      {NAV_SECTIONS.map((group) => {
+        const visibleItems = group.items.filter((item) =>
+          item.access === "super_admin"
+            ? admin?.role === "super_admin"
+            : hasAdminPermission(admin, item.access)
+        );
+        if (visibleItems.length === 0) return null;
+        return (
+          <div key={group.section}>
+            <div className="ad-nav-section">{group.section}</div>
+            {visibleItems.map((item) => {
             const isActive = item.path === "/bendehinaonline97"
               ? location === item.path
               : location.startsWith(item.path);
@@ -185,9 +205,10 @@ function NavLinks({ location, canManageSecurity, onNavigate }: { location: strin
                 </div>
               </Link>
             );
-          })}
-        </div>
-      ))}
+            })}
+          </div>
+        );
+      })}
     </>
   );
 }
@@ -243,7 +264,7 @@ function SidebarBrand({ username, role, pushReady, subscribed, loading, subscrib
 ═══════════════════════════════════════════════════════════════════════════ */
 export function AdminLayout({ children }: { children: ReactNode }) {
   const { admin, adminLogout } = useAuth();
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const drawerRef = useRef<HTMLDivElement>(null);
 
@@ -255,9 +276,10 @@ export function AdminLayout({ children }: { children: ReactNode }) {
   const pushSupported = typeof window !== "undefined" && "PushManager" in window && "serviceWorker" in navigator;
   const iosDevice = typeof window !== "undefined" && isIosSafari();
   const standalone = typeof window !== "undefined" && isStandalone();
-  const pushReady = pushSupported && (!iosDevice || standalone);
-  const { subscribed, loading, subscribe, unsubscribe } = useAdminPush(admin ? adminToken : null);
-  const hasDeviceSecurityAccess = canManageDeviceSecurity(admin);
+  const pushReady = pushSupported && (!iosDevice || standalone) && hasAdminPermission(admin, "send_notifications");
+  const { subscribed, loading, subscribe, unsubscribe } = useAdminPush(pushReady && admin ? adminToken : null);
+  const homePath = getAdminHomePath(admin);
+  const canAccessCurrentPage = canAccessAdminPath(admin, location);
 
   useEffect(() => {
     if (!drawerOpen) return;
@@ -268,6 +290,11 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     return () => document.removeEventListener("mousedown", h);
   }, [drawerOpen]);
   useEffect(() => { setDrawerOpen(false); }, [location]);
+  useEffect(() => {
+    if (admin && location === "/bendehinaonline97" && homePath !== location) {
+      navigate(homePath, { replace: true });
+    }
+  }, [admin, homePath, location, navigate]);
   useEffect(() => {
     document.body.style.overflow = drawerOpen ? "hidden" : "";
     return () => { document.body.style.overflow = ""; };
@@ -301,7 +328,11 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     );
   }
 
-  if (location.startsWith("/gab-ctrl-9x/security") && !hasDeviceSecurityAccess) {
+  if (location === "/bendehinaonline97" && homePath !== location) {
+    return null;
+  }
+
+  if (!canAccessCurrentPage) {
     return (
       <div className="ad-shell" dir="ltr" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh" }}>
         <div style={{ textAlign: "center", maxWidth: 420, padding: 24 }}>
@@ -309,9 +340,9 @@ export function AdminLayout({ children }: { children: ReactNode }) {
             <ShieldAlert size={26} color="#9F1239" />
           </div>
           <h2 style={{ fontSize: 17, fontWeight: 700, color: "#0F172A", marginBottom: 6 }}>Permission requise</h2>
-          <p style={{ fontSize: 12.5, color: "#64748B", marginBottom: 18 }}>Vous n’avez pas la permission de gérer la sécurité des appareils.</p>
-          <Link href="/bendehinaonline97">
-            <button className="ad-btn-primary">Retour au tableau de bord</button>
+          <p style={{ fontSize: 12.5, color: "#64748B", marginBottom: 18 }}>Vous n’avez pas la permission d’accéder à cette section.</p>
+          <Link href={homePath}>
+            <button className="ad-btn-primary">Retour à votre espace</button>
           </Link>
         </div>
       </div>
@@ -404,7 +435,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
         )}
 
         <nav style={{ flex: 1, padding: "4px 8px 8px", overflowY: "auto", display: "flex", flexDirection: "column" }}>
-          <NavLinks location={location} canManageSecurity={hasDeviceSecurityAccess} onNavigate={() => setDrawerOpen(false)} />
+          <NavLinks location={location} admin={admin} onNavigate={() => setDrawerOpen(false)} />
         </nav>
 
         <div style={{ padding: "8px 8px 16px", borderTop: "1px solid #E2E8F0" }}>
@@ -433,7 +464,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
         )}
 
         <nav style={{ flex: 1, padding: "4px 8px 8px", overflowY: "auto", display: "flex", flexDirection: "column" }}>
-          <NavLinks location={location} canManageSecurity={hasDeviceSecurityAccess} />
+          <NavLinks location={location} admin={admin} />
         </nav>
 
         <div style={{ padding: "8px 8px 16px", borderTop: "1px solid #E2E8F0" }}>

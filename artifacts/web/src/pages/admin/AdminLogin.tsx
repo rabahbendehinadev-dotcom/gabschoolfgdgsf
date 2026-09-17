@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useAdminLogin } from "@workspace/api-client-react/src/generated/api";
-import { useAuth } from "@/lib/auth";
+import { getAdminHomePath, useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { ShieldCheck, Loader2, Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
@@ -40,7 +40,7 @@ export function AdminLogin() {
         } else {
           toast({ title: "Connexion réussie", className: "bg-green-600 text-white" });
         }
-        navigate("/bendehinaonline97");
+        navigate(getAdminHomePath(res.admin));
       },
       onError: () => {
         toast({ variant: "destructive", title: "Erreur", description: "Identifiants incorrects" });

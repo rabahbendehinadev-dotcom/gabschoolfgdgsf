@@ -141,9 +141,6 @@ function Router() {
       <Route path="/bendehinaonline97/login">
         <AdminLogin />
       </Route>
-      <Route path="/bendehinaonline97">
-        <AdminLayout><AdminDashboard /></AdminLayout>
-      </Route>
       <Route path="/bendehinaonline97/users">
         <AdminLayout><AdminUsers /></AdminLayout>
       </Route>
@@ -194,6 +191,9 @@ function Router() {
       </Route>
       <Route path="/gab-ctrl-9x/security">
         <AdminLayout><AdminSecurity /></AdminLayout>
+      </Route>
+      <Route path="/bendehinaonline97">
+        <AdminLayout><AdminDashboard /></AdminLayout>
       </Route>
       <Route><PublicRoutes /></Route>
     </Switch>

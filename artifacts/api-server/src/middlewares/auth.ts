@@ -5,7 +5,7 @@ import { db, usersTable, adminsTable, adminSessionsTable } from "@workspace/db";
 import { and, eq, gt } from "drizzle-orm";
 import { isActiveCommunitySubscriber } from "../lib/vipUtils";
 import { credentialFromRequest, credentialHash, isRequestIpAllowed, validateDeviceCredential, validateSecuritySession } from "../lib/deviceSecurity";
-import { canManageSecurity, parseAdminPermissions } from "../lib/adminSecurity";
+import { canAccessAdminApi, canManageSecurity, parseAdminPermissions } from "../lib/adminSecurity";
 
 function hasMatchingDeviceCredential(req: Request, expectedHash: string): boolean {
   const credential = credentialFromRequest(req);
@@ -258,6 +258,10 @@ export async function adminAuth(req: Request, res: Response, next: NextFunction)
     role: (admin as any).role ?? "super_admin",
     permissions: parseAdminPermissions((admin as any).permissions),
   };
+  if (req.path.startsWith("/admin/") && !canAccessAdminApi(req.admin, req.method, req.path)) {
+    res.status(403).json({ message: "Admin permission required" });
+    return;
+  }
   next();
 }
 

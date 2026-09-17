@@ -36,7 +36,86 @@ export function hasActiveCommunityAccess(user: UserProfile | null | undefined): 
 }
 
 export function canManageDeviceSecurity(admin: AdminAuthResponseAdmin | null | undefined): boolean {
-  return admin?.role === "super_admin" || admin?.permissions?.includes("manage_device_security") === true;
+  return hasAdminPermission(admin, "manage_device_security");
+}
+
+export const ADMIN_PERMISSIONS = [
+  "manage_users",
+  "manage_subscriptions",
+  "manage_content",
+  "manage_community",
+  "view_analytics",
+  "send_notifications",
+  "manage_plans",
+  "manage_tools",
+  "manage_device_security",
+] as const;
+
+export type AdminPermission = typeof ADMIN_PERMISSIONS[number];
+export type AdminAccessRequirement = AdminPermission | "super_admin";
+
+export function hasAdminPermission(
+  admin: AdminAuthResponseAdmin | null | undefined,
+  permission: AdminPermission,
+): boolean {
+  return admin?.role === "super_admin" || admin?.permissions?.includes(permission) === true;
+}
+
+export function requiredAdminAccessForPath(path: string): AdminAccessRequirement | null {
+  if (path === "/bendehinaonline97") return "view_analytics";
+  if (path.startsWith("/bendehinaonline97/users")) return "manage_users";
+  if (
+    path.startsWith("/bendehinaonline97/subscriptions") ||
+    path.startsWith("/bendehinaonline97/payments") ||
+    path.startsWith("/bendehinaonline97/subscription-alerts")
+  ) return "manage_subscriptions";
+  if (
+    path.startsWith("/bendehinaonline97/courses") ||
+    path.startsWith("/bendehinaonline97/videos") ||
+    path.startsWith("/bendehinaonline97/categories")
+  ) return "manage_content";
+  if (
+    path.startsWith("/bendehinaonline97/tools") ||
+    path.startsWith("/bendehinaonline97/tool-categories")
+  ) return "manage_tools";
+  if (path.startsWith("/bendehinaonline97/community")) return "manage_community";
+  if (path.startsWith("/bendehinaonline97/plans")) return "manage_plans";
+  if (path.startsWith("/bendehinaonline97/send-notification")) return "send_notifications";
+  if (path.startsWith("/bendehinaonline97/activity-log")) return "manage_users";
+  if (
+    path.startsWith("/bendehinaonline97/admins") ||
+    path.startsWith("/bendehinaonline97/admin-audit")
+  ) return "super_admin";
+  if (path.startsWith("/gab-ctrl-9x/security")) return "manage_device_security";
+  if (path.startsWith("/bendehinaonline97/change-password")) return "super_admin";
+  return "super_admin";
+}
+
+export function canAccessAdminPath(
+  admin: AdminAuthResponseAdmin | null | undefined,
+  path: string,
+): boolean {
+  if (admin?.role === "super_admin") return true;
+  const requirement = requiredAdminAccessForPath(path);
+  return requirement === null || (requirement !== "super_admin" && hasAdminPermission(admin, requirement));
+}
+
+const ADMIN_HOME_ROUTES: Array<{ permission: AdminPermission; path: string }> = [
+  { permission: "view_analytics", path: "/bendehinaonline97" },
+  { permission: "manage_users", path: "/bendehinaonline97/users" },
+  { permission: "manage_subscriptions", path: "/bendehinaonline97/subscriptions" },
+  { permission: "manage_content", path: "/bendehinaonline97/courses" },
+  { permission: "manage_tools", path: "/bendehinaonline97/tools" },
+  { permission: "manage_community", path: "/bendehinaonline97/community" },
+  { permission: "manage_plans", path: "/bendehinaonline97/plans" },
+  { permission: "send_notifications", path: "/bendehinaonline97/send-notification" },
+  { permission: "manage_device_security", path: "/gab-ctrl-9x/security" },
+];
+
+export function getAdminHomePath(admin: AdminAuthResponseAdmin | null | undefined): string {
+  if (admin?.role === "super_admin") return "/bendehinaonline97";
+  return ADMIN_HOME_ROUTES.find(({ permission }) => hasAdminPermission(admin, permission))?.path
+    ?? "/bendehinaonline97";
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {

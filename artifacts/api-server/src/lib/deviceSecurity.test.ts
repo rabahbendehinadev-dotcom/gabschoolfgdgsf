@@ -23,7 +23,7 @@ import {
   validateDeviceCredential,
   type IpAssessment,
 } from "./deviceSecurity";
-import { canManageSecurity, parseAdminPermissions } from "./adminSecurity";
+import { canAccessAdminApi, canManageSecurity, parseAdminPermissions, requiredAdminAccessForApi } from "./adminSecurity";
 import { securityManageAuth } from "../middlewares/auth";
 import { generateToken, generateVideoStreamToken, verifyToken, verifyVideoStreamToken } from "./auth";
 
@@ -244,6 +244,43 @@ test("device-security middleware allows the dedicated permission and super admin
     );
     assert.equal(nextCalled, true);
   }
+});
+
+test("admin API permissions deny unrelated sections and allow only assigned sections", () => {
+  const securityOnly = { role: "support", permissions: ["manage_device_security"] };
+  assert.equal(canAccessAdminApi(securityOnly, "GET", "/admin/security/users"), true);
+  assert.equal(canAccessAdminApi(securityOnly, "GET", "/admin/stats"), false);
+  assert.equal(canAccessAdminApi(securityOnly, "GET", "/admin/users"), false);
+  assert.equal(canAccessAdminApi(securityOnly, "GET", "/admin/subscriptions"), false);
+  assert.equal(canAccessAdminApi(securityOnly, "GET", "/admin/payments"), false);
+  assert.equal(canAccessAdminApi(securityOnly, "GET", "/admin/videos"), false);
+  assert.equal(canAccessAdminApi(securityOnly, "GET", "/admin/community/posts"), false);
+  assert.equal(canAccessAdminApi(securityOnly, "GET", "/admin/tools"), false);
+  assert.equal(canAccessAdminApi(securityOnly, "GET", "/admin/admins"), false);
+  assert.equal(canAccessAdminApi(securityOnly, "GET", "/admin/not-yet-classified"), false);
+});
+
+test("admin API route mapping follows each saved permission and super-admin bypass", () => {
+  const cases = [
+    ["view_analytics", "/admin/stats"],
+    ["manage_users", "/admin/users"],
+    ["manage_subscriptions", "/admin/payments"],
+    ["manage_content", "/admin/videos"],
+    ["manage_community", "/admin/community/posts"],
+    ["send_notifications", "/admin/notifications"],
+    ["manage_plans", "/admin/subscription-plans"],
+    ["manage_tools", "/admin/tool-categories"],
+    ["manage_device_security", "/admin/security/users"],
+  ] as const;
+
+  for (const [permission, path] of cases) {
+    assert.equal(requiredAdminAccessForApi("GET", path), permission);
+    assert.equal(canAccessAdminApi({ role: "support", permissions: [permission] }, "GET", path), true);
+  }
+  assert.equal(canAccessAdminApi({ role: "super_admin", permissions: [] }, "DELETE", "/admin/not-yet-classified"), true);
+  assert.equal(canAccessAdminApi({ role: "support", permissions: ["manage_users"] }, "GET", "/admin/playlists"), true);
+  assert.equal(canAccessAdminApi({ role: "support", permissions: ["manage_plans"] }, "GET", "/admin/playlists"), true);
+  assert.equal(canAccessAdminApi({ role: "support", permissions: ["manage_users"] }, "POST", "/admin/playlists"), false);
 });
 
 test("protected stream tokens round-trip only with a device-bound session", () => {
