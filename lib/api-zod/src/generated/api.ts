@@ -104,6 +104,10 @@ export const AdminLoginResponse = zod.object({
   admin: zod.object({
     id: zod.number(),
     username: zod.string(),
+    email: zod.string().nullish(),
+    displayName: zod.string().nullish(),
+    role: zod.string(),
+    permissions: zod.array(zod.string()),
   }),
 });
 

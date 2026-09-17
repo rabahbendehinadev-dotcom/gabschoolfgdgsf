@@ -23,6 +23,7 @@ const PERMISSION_OPTIONS = [
   { key: "send_notifications",    label: "Envoyer des notifications" },
   { key: "manage_plans",          label: "Gérer les plans tarifaires" },
   { key: "manage_tools",          label: "Gérer les outils" },
+  { key: "manage_device_security", label: "Gérer la sécurité des appareils" },
 ];
 
 /* ── Helpers ────────────────────────────────────────────────────────────── */

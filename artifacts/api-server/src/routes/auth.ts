@@ -4,9 +4,10 @@ import { db, usersTable, adminsTable, subscriptionPlansTable, activityLogsTable,
 import { eq, and, gte, sql, lt, count } from "drizzle-orm";
 
 import { hashPassword, comparePassword, generateToken, generateAdminToken } from "../lib/auth";
+import { parseAdminPermissions } from "../lib/adminSecurity";
 import { getClientIp } from "../lib/ipPolicy";
 import { deviceTypeFromUA } from "../lib/device";
-import { userAuth, userAuthAllowExpired } from "../middlewares/auth";
+import { adminAuth, userAuth, userAuthAllowExpired } from "../middlewares/auth";
 import { normalizePhone, INVALID_PHONE_MESSAGE } from "../lib/phone";
 import {
   authorizeDeviceLogin,
@@ -350,6 +351,7 @@ router.post("/auth/admin-login", async (req, res) => {
         email: (admin as any).email ?? null,
         displayName: (admin as any).displayName ?? null,
         role: (admin as any).role ?? "super_admin",
+        permissions: parseAdminPermissions((admin as any).permissions),
       },
     });
   } catch (error: unknown) {
@@ -396,29 +398,8 @@ router.post("/auth/admin-logout", async (req, res) => {
 
 // Lightweight admin token validation — used by the frontend to detect expired sessions.
 // Only verifies the JWT and does a single DB lookup; no heavy queries.
-router.get("/auth/admin-me", async (req, res) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader?.startsWith("Bearer ")) {
-    res.status(401).json({ message: "Admin authentication required" });
-    return;
-  }
-  const token = authHeader.substring(7);
-  const { verifyAdminToken } = await import("../lib/auth");
-  const payload = verifyAdminToken(token);
-  if (!payload) {
-    res.status(401).json({ message: "Invalid or expired admin token" });
-    return;
-  }
-  const [admin] = await db.select({
-    id: adminsTable.id,
-    username: adminsTable.username,
-  }).from(adminsTable).where(eq(adminsTable.id, payload.adminId)).limit(1);
-
-  if (!admin) {
-    res.status(401).json({ message: "Admin not found" });
-    return;
-  }
-  res.json({ ok: true, adminId: admin.id, username: admin.username });
+router.get("/auth/admin-me", adminAuth, async (req, res) => {
+  res.json({ ok: true, admin: req.admin });
 });
 
 router.get("/auth/me", userAuthAllowExpired, async (req, res) => {

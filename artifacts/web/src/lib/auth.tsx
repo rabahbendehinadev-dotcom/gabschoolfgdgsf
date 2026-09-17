@@ -35,6 +35,10 @@ export function hasActiveCommunityAccess(user: UserProfile | null | undefined): 
   return activeVip || user.subscriptionType !== "demo";
 }
 
+export function canManageDeviceSecurity(admin: AdminAuthResponseAdmin | null | undefined): boolean {
+  return admin?.role === "super_admin" || admin?.permissions?.includes("manage_device_security") === true;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [, navigate] = useLocation();
   const queryClient = useQueryClient();
@@ -214,6 +218,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setAdminTokenState(null);
         setAdmin(null);
         navigate("/bendehinaonline97/login");
+      } else if (res.ok) {
+        const body = await res.json() as { admin?: AdminAuthResponseAdmin };
+        if (body.admin) {
+          localStorage.setItem("admin", JSON.stringify(body.admin));
+          setAdmin(body.admin);
+        }
       }
     } catch {
       // Network error — keep state, will retry next interval

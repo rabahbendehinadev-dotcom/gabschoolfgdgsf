@@ -1,6 +1,6 @@
 import { ReactNode, useState, useEffect, useCallback, useRef } from "react";
 import { Link, useLocation } from "wouter";
-import { useAuth } from "@/lib/auth";
+import { canManageDeviceSecurity, useAuth } from "@/lib/auth";
 import {
   LayoutDashboard, Users, Video, FolderTree, CreditCard, LogOut,
   ShieldAlert, Activity, BadgeCheck, Banknote, KeyRound, Wrench,
@@ -122,7 +122,7 @@ const NAV_SECTIONS = [
   {
     section: "Administration",
     items: [
-      { name: "Sécurité appareils",   path: "/gab-ctrl-9x/security",                  icon: ShieldAlert },
+      { name: "Sécurité appareils",   path: "/gab-ctrl-9x/security",                  icon: ShieldAlert, permission: "manage_device_security" },
       { name: "Comptes admins",       path: "/bendehinaonline97/admins",              icon: UserCog },
       { name: "Journal d'audit admin",path: "/bendehinaonline97/admin-audit",         icon: ClipboardList },
     ],
@@ -166,13 +166,13 @@ function BellButton({
 }
 
 /* ── Sidebar nav with grouped sections ──────────────────────────────────── */
-function NavLinks({ location, onNavigate }: { location: string; onNavigate?: () => void }) {
+function NavLinks({ location, canManageSecurity, onNavigate }: { location: string; canManageSecurity: boolean; onNavigate?: () => void }) {
   return (
     <>
       {NAV_SECTIONS.map((group) => (
         <div key={group.section}>
           <div className="ad-nav-section">{group.section}</div>
-          {group.items.map((item) => {
+          {group.items.filter((item) => !("permission" in item) || item.permission !== "manage_device_security" || canManageSecurity).map((item) => {
             const isActive = item.path === "/bendehinaonline97"
               ? location === item.path
               : location.startsWith(item.path);
@@ -257,6 +257,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
   const standalone = typeof window !== "undefined" && isStandalone();
   const pushReady = pushSupported && (!iosDevice || standalone);
   const { subscribed, loading, subscribe, unsubscribe } = useAdminPush(admin ? adminToken : null);
+  const hasDeviceSecurityAccess = canManageDeviceSecurity(admin);
 
   useEffect(() => {
     if (!drawerOpen) return;
@@ -294,6 +295,23 @@ export function AdminLayout({ children }: { children: ReactNode }) {
           <p style={{ fontSize: 12.5, color: "#64748B", marginBottom: 18 }}>Veuillez vous connecter pour accéder au panneau.</p>
           <Link href="/bendehinaonline97/login">
             <button className="ad-btn-primary">Connexion administrateur</button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (location.startsWith("/gab-ctrl-9x/security") && !hasDeviceSecurityAccess) {
+    return (
+      <div className="ad-shell" dir="ltr" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh" }}>
+        <div style={{ textAlign: "center", maxWidth: 420, padding: 24 }}>
+          <div style={{ width: 56, height: 56, borderRadius: 14, background: "#FFF1F2", border: "1px solid #FECDD3", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+            <ShieldAlert size={26} color="#9F1239" />
+          </div>
+          <h2 style={{ fontSize: 17, fontWeight: 700, color: "#0F172A", marginBottom: 6 }}>Permission requise</h2>
+          <p style={{ fontSize: 12.5, color: "#64748B", marginBottom: 18 }}>Vous n’avez pas la permission de gérer la sécurité des appareils.</p>
+          <Link href="/bendehinaonline97">
+            <button className="ad-btn-primary">Retour au tableau de bord</button>
           </Link>
         </div>
       </div>
@@ -386,7 +404,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
         )}
 
         <nav style={{ flex: 1, padding: "4px 8px 8px", overflowY: "auto", display: "flex", flexDirection: "column" }}>
-          <NavLinks location={location} onNavigate={() => setDrawerOpen(false)} />
+          <NavLinks location={location} canManageSecurity={hasDeviceSecurityAccess} onNavigate={() => setDrawerOpen(false)} />
         </nav>
 
         <div style={{ padding: "8px 8px 16px", borderTop: "1px solid #E2E8F0" }}>
@@ -415,7 +433,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
         )}
 
         <nav style={{ flex: 1, padding: "4px 8px 8px", overflowY: "auto", display: "flex", flexDirection: "column" }}>
-          <NavLinks location={location} />
+          <NavLinks location={location} canManageSecurity={hasDeviceSecurityAccess} />
         </nav>
 
         <div style={{ padding: "8px 8px 16px", borderTop: "1px solid #E2E8F0" }}>

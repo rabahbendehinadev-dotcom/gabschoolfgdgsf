@@ -24,6 +24,7 @@ import {
   type IpAssessment,
 } from "./deviceSecurity";
 import { canManageSecurity, parseAdminPermissions } from "./adminSecurity";
+import { securityManageAuth } from "../middlewares/auth";
 import { generateToken, generateVideoStreamToken, verifyToken, verifyVideoStreamToken } from "./auth";
 
 const unknown: IpAssessment = {
@@ -198,8 +199,51 @@ test("dashboard DTOs never expose credential or password hashes", () => {
 test("security administration requires super-admin or explicit permission", () => {
   assert.equal(canManageSecurity({ role: "support", permissions: [] }), false);
   assert.equal(canManageSecurity({ role: "subscription_manager", permissions: [] }), false);
-  assert.equal(canManageSecurity({ role: "support", permissions: parseAdminPermissions('["security_manage"]') }), true);
+  assert.equal(canManageSecurity({ role: "support", permissions: parseAdminPermissions('["manage_users"]') }), false);
+  assert.equal(canManageSecurity({ role: "support", permissions: parseAdminPermissions('["security_manage"]') }), false);
+  assert.equal(canManageSecurity({ role: "support", permissions: parseAdminPermissions('["manage_device_security"]') }), true);
   assert.equal(canManageSecurity({ role: "super_admin", permissions: [] }), true);
+});
+
+test("device-security middleware returns 403 without the dedicated permission", () => {
+  let status = 200;
+  let payload: unknown;
+  let nextCalled = false;
+  const response = {
+    status(code: number) {
+      status = code;
+      return this;
+    },
+    json(body: unknown) {
+      payload = body;
+      return this;
+    },
+  };
+
+  securityManageAuth(
+    { admin: { id: 1, username: "support", role: "support", permissions: ["manage_users"] } } as never,
+    response as never,
+    (() => { nextCalled = true; }) as never,
+  );
+
+  assert.equal(status, 403);
+  assert.deepEqual(payload, { message: "Security management permission required" });
+  assert.equal(nextCalled, false);
+});
+
+test("device-security middleware allows the dedicated permission and super admin", () => {
+  for (const admin of [
+    { id: 1, username: "security", role: "support", permissions: ["manage_device_security"] },
+    { id: 2, username: "owner", role: "super_admin", permissions: [] },
+  ]) {
+    let nextCalled = false;
+    securityManageAuth(
+      { admin } as never,
+      {} as never,
+      (() => { nextCalled = true; }) as never,
+    );
+    assert.equal(nextCalled, true);
+  }
 });
 
 test("protected stream tokens round-trip only with a device-bound session", () => {

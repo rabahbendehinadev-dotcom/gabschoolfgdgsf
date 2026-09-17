@@ -95,6 +95,12 @@ export interface AuthResponse {
 export type AdminAuthResponseAdmin = {
   id: number;
   username: string;
+  /** @nullable */
+  email?: string | null;
+  /** @nullable */
+  displayName?: string | null;
+  role: string;
+  permissions: string[];
 };
 
 export interface AdminAuthResponse {

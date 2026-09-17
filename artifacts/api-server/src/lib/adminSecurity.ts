@@ -9,5 +9,5 @@ export function parseAdminPermissions(value?: string | null): string[] {
 }
 
 export function canManageSecurity(admin: { role: string; permissions?: string[] | null }): boolean {
-  return admin.role === "super_admin" || (admin.permissions ?? []).includes("security_manage");
+  return admin.role === "super_admin" || (admin.permissions ?? []).includes("manage_device_security");
 }

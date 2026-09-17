@@ -1852,9 +1852,21 @@ components:
               type: integer
             username:
               type: string
+            email:
+              type: ["string", "null"]
+            displayName:
+              type: ["string", "null"]
+            role:
+              type: string
+            permissions:
+              type: array
+              items:
+                type: string
           required:
             - id
             - username
+            - role
+            - permissions
       required:
         - token
         - admin
