@@ -42,6 +42,7 @@
 - [Adaptive HLS with Drive fallback](drive-prefetch-cache.md) — HLS is primary; signed Drive MP4 windows are fallback only because tail-moov and Autoscale make fixed chunks unreliable.
 - [Course content filtering architecture](course-filtering-architecture.md) — filtering MUST be DB-level (linkedPlaylistId); client-side fallback to "show all" is the leak; admin links categories via course-specific URL.
 - [VIP expiry enforcement pattern](vip-expiry-enforcement.md) — gate VIP via isActiveVip(), never accountType==="vip"; optionalUserAuth doesn't block expired users; NULL expiry = active.
+- [VIP-only device security](vip-only-device-security.md) — trusted PHONE/COMPUTER limits apply only to active VIP; inactive-VIP login retires protected slots so renewal starts clean.
 - [Video watermark protection](video-watermark-protection.md) — watermark = viewer identity (never post author); visibility-pause must exempt PiP; getDisplayMedia patch needs cleanup-restore.
 - [Course access strict control](course-access-strict.md) — removed VIP auto-grant migration; user_courses now has granted_by/grant_source/reason/expires_at/status; course_access_logs audit table; admins table has role/display_name; Support role → 403 on grant/revoke; admin panel at /gab-ctrl-9x.
 - [Trusted-device reset semantics](trusted-device-reset-semantics.md) — logout preserves trust; reset rotates identity; revoke/ignored alerts stay denied; slot actions are serialized and state-aware.

@@ -9,6 +9,7 @@ import {
   userSecuritySessionsTable,
   usersTable,
 } from "@workspace/db";
+import { isActiveVip } from "./vipUtils";
 import { deviceTypeFromUA } from "./device";
 
 export const UNAUTHORIZED_DEVICE_MESSAGE =
@@ -285,6 +286,19 @@ export type LoginSecurityResult =
       status: 403;
     };
 
+const UNPROTECTED_DEVICE_SOURCE = "UNPROTECTED";
+
+export function isSecuritySessionAllowedForUser(
+  user: { accountType: string; isActive: boolean; subscriptionExpiresAt: Date | string | null | undefined },
+  device: { status: string; createdBy?: string | null },
+  session: { revokedAt?: Date | string | null; expiresAt: Date | string },
+  now = new Date(),
+): boolean {
+  if (session.revokedAt || new Date(session.expiresAt) <= now) return false;
+  if (!isActiveVip(user, now)) return true;
+  return device.status === "TRUSTED" && device.createdBy !== UNPROTECTED_DEVICE_SOURCE;
+}
+
 export function deviceAuthErrorPayload(
   result: Extract<LoginSecurityResult, { allowed: false }>,
   acceptLanguage?: string,
@@ -325,19 +339,71 @@ export async function authorizeDeviceLogin(args: {
   userId: number; ip: string; userAgent?: string | null; suppliedCredential?: string | null;
 }): Promise<LoginSecurityResult> {
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, args.userId)).limit(1);
-  if (!user || user.securityBlockedAt) {
+  if (!user) {
     await recordSecurityEvent({ userId: args.userId, eventType: "LOGIN_FAILED", outcome: "BLOCKED", ipAddress: args.ip, riskReasons: ["USER_SECURITY_BLOCKED"], riskScore: 100 });
     return { allowed: false, code: SECURITY_CHECK_BLOCKED_CODE, message: SECURITY_BLOCKED_MESSAGE, status: 403 };
   }
 
+  if (!isActiveVip(user)) {
+    const validSupplied = validateDeviceCredential(args.suppliedCredential);
+    const suppliedHash = validSupplied ? credentialHash(args.suppliedCredential!) : null;
+    let credential = validSupplied ? args.suppliedCredential! : issueDeviceCredential();
+    const info = clientInfo(args.userAgent);
+    const category = categoryFromUserAgent(args.userAgent);
+    const device = await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT id FROM users WHERE id = ${args.userId} FOR UPDATE`);
+      const [lockedUser] = await tx.select().from(usersTable).where(eq(usersTable.id, args.userId)).limit(1);
+      if (isActiveVip(lockedUser)) return { retryWithCurrentPolicy: true as const };
+      const protectedDevices = await tx.select({ id: trustedDevicesTable.id }).from(trustedDevicesTable)
+        .where(and(
+          eq(trustedDevicesTable.userId, args.userId),
+          sql`${trustedDevicesTable.createdBy} IS DISTINCT FROM ${UNPROTECTED_DEVICE_SOURCE}`,
+          sql`${trustedDevicesTable.status} <> 'REVOKED'`,
+        ));
+      for (const protectedDevice of protectedDevices) {
+        await tx.update(trustedDevicesTable).set({
+          status: "REVOKED",
+          revokedAt: new Date(),
+          credentialHash: retiredDeviceCredentialHash(),
+        }).where(eq(trustedDevicesTable.id, protectedDevice.id));
+      }
+      if (suppliedHash) {
+        const [known] = await tx.select().from(trustedDevicesTable)
+          .where(and(
+            eq(trustedDevicesTable.credentialHash, suppliedHash),
+            eq(trustedDevicesTable.userId, args.userId),
+            eq(trustedDevicesTable.createdBy, UNPROTECTED_DEVICE_SOURCE),
+          )).limit(1);
+        if (known) return { device: known };
+        credential = issueDeviceCredential();
+      }
+      const [created] = await tx.insert(trustedDevicesTable).values({
+        userId: args.userId,
+        credentialHash: credentialHash(credential),
+        category,
+        physicalFamilyId: crypto.randomUUID(),
+        os: info.os,
+        browser: info.browser,
+        userAgent: args.userAgent,
+        lastIp: args.ip,
+        status: "TRUSTED",
+        createdBy: UNPROTECTED_DEVICE_SOURCE,
+      }).returning();
+      return { device: created };
+    });
+    if ("retryWithCurrentPolicy" in device) return authorizeDeviceLogin(args);
+    return {
+      allowed: true,
+      device: device.device,
+      deviceCredential: credential,
+      riskScore: 0,
+      riskReasons: [],
+      assessment: { status: "UNKNOWN", confidence: 0, vpn: false, proxy: false, tor: false, datacenter: false, anonymous: false, abusive: false },
+    };
+  }
+
   const reputation = await assessIp(args.ip);
   const whitelisted = await isWhitelisted(args.userId, args.ip);
-  if (shouldBlockIpForReputation(reputation, whitelisted, Number(process.env.IP_REPUTATION_BLOCK_CONFIDENCE || 0.8))) {
-    const eventType = reputation.tor ? "TOR_DETECTED" : reputation.vpn ? "VPN_DETECTED"
-      : reputation.proxy ? "PROXY_DETECTED" : reputation.datacenter ? "DATACENTER_IP_DETECTED" : "ANONYMOUS_IP_DETECTED";
-    await recordSecurityEvent({ userId: args.userId, eventType, outcome: "BLOCKED", ipAddress: args.ip, reputation, riskScore: 100, riskReasons: ["VPN_PROXY"] });
-    return { allowed: false, code: SECURITY_CHECK_BLOCKED_CODE, message: SECURITY_BLOCKED_MESSAGE, status: 403 };
-  }
 
   const category = categoryFromUserAgent(args.userAgent);
   const validSupplied = validateDeviceCredential(args.suppliedCredential);
@@ -347,16 +413,30 @@ export async function authorizeDeviceLogin(args: {
 
   const deviceResult = await db.transaction(async (tx) => {
     await tx.execute(sql`SELECT id FROM users WHERE id = ${args.userId} FOR UPDATE`);
+    const [lockedUser] = await tx.select().from(usersTable).where(eq(usersTable.id, args.userId)).limit(1);
+    if (!isActiveVip(lockedUser)) return { retryWithCurrentPolicy: true as const };
+    if (lockedUser.securityBlockedAt) return { blockedUser: true as const };
+    if (shouldBlockIpForReputation(reputation, whitelisted, Number(process.env.IP_REPUTATION_BLOCK_CONFIDENCE || 0.8))) {
+      return { blockedReputation: true as const };
+    }
     if (suppliedHash) {
       const [known] = await tx.select().from(trustedDevicesTable)
-        .where(eq(trustedDevicesTable.credentialHash, suppliedHash)).limit(1);
+        .where(and(
+          eq(trustedDevicesTable.credentialHash, suppliedHash),
+          sql`${trustedDevicesTable.createdBy} IS DISTINCT FROM ${UNPROTECTED_DEVICE_SOURCE}`,
+        )).limit(1);
       if (known?.userId === args.userId) return { device: known, fresh: false };
       // A valid signed credential that is unknown, retired by an admin reset,
       // or belongs to another account must never be adopted by a new device row.
       credential = issueDeviceCredential();
     }
     const [occupied] = await tx.select().from(trustedDevicesTable)
-      .where(and(eq(trustedDevicesTable.userId, args.userId), eq(trustedDevicesTable.category, category), eq(trustedDevicesTable.status, "TRUSTED"))).limit(1);
+      .where(and(
+        eq(trustedDevicesTable.userId, args.userId),
+        eq(trustedDevicesTable.category, category),
+        eq(trustedDevicesTable.status, "TRUSTED"),
+        sql`${trustedDevicesTable.createdBy} IS DISTINCT FROM ${UNPROTECTED_DEVICE_SOURCE}`,
+      )).limit(1);
     const decision = deviceSlotDecision(null, args.userId, category, !!occupied);
     const [created] = await tx.insert(trustedDevicesTable).values({
       userId: args.userId, credentialHash: credentialHash(credential), category,
@@ -368,6 +448,18 @@ export async function authorizeDeviceLogin(args: {
     }).returning();
     return { device: created, fresh: true };
   });
+
+  if ("retryWithCurrentPolicy" in deviceResult) return authorizeDeviceLogin(args);
+  if ("blockedUser" in deviceResult) {
+    await recordSecurityEvent({ userId: args.userId, eventType: "LOGIN_FAILED", outcome: "BLOCKED", ipAddress: args.ip, riskReasons: ["USER_SECURITY_BLOCKED"], riskScore: 100 });
+    return { allowed: false, code: SECURITY_CHECK_BLOCKED_CODE, message: SECURITY_BLOCKED_MESSAGE, status: 403 };
+  }
+  if ("blockedReputation" in deviceResult) {
+    const eventType = reputation.tor ? "TOR_DETECTED" : reputation.vpn ? "VPN_DETECTED"
+      : reputation.proxy ? "PROXY_DETECTED" : reputation.datacenter ? "DATACENTER_IP_DETECTED" : "ANONYMOUS_IP_DETECTED";
+    await recordSecurityEvent({ userId: args.userId, eventType, outcome: "BLOCKED", ipAddress: args.ip, reputation, riskScore: 100, riskReasons: ["VPN_PROXY"] });
+    return { allowed: false, code: SECURITY_CHECK_BLOCKED_CODE, message: SECURITY_BLOCKED_MESSAGE, status: 403 };
+  }
 
   if (deviceResult.device.status !== "TRUSTED") {
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -416,27 +508,24 @@ export async function createSecuritySession(userId: number, deviceId: number, ip
 }
 
 export async function validateSecuritySession(userId: number, deviceId: number, sessionId: string) {
-  const [row] = await db.select({ session: userSecuritySessionsTable, device: trustedDevicesTable })
+  const [row] = await db.select({ session: userSecuritySessionsTable, device: trustedDevicesTable, user: usersTable })
     .from(userSecuritySessionsTable)
     .innerJoin(trustedDevicesTable, eq(userSecuritySessionsTable.deviceId, trustedDevicesTable.id))
+    .innerJoin(usersTable, eq(userSecuritySessionsTable.userId, usersTable.id))
     .where(and(
       eq(userSecuritySessionsTable.id, sessionId),
       eq(userSecuritySessionsTable.userId, userId),
       eq(userSecuritySessionsTable.deviceId, deviceId),
       isNull(userSecuritySessionsTable.revokedAt),
       gt(userSecuritySessionsTable.expiresAt, new Date()),
-      eq(trustedDevicesTable.status, "TRUSTED"),
     )).limit(1);
-  if (row && isSecuritySessionUsable({
-    revokedAt: row.session.revokedAt,
-    expiresAt: row.session.expiresAt,
-    deviceStatus: row.device.status as DeviceStatus,
-  })) {
+  const sessionAllowed = !!row && isSecuritySessionAllowedForUser(row.user, row.device, row.session);
+  if (sessionAllowed) {
     const now = new Date();
     await Promise.all([
       db.update(userSecuritySessionsTable).set({ lastSeenAt: now }).where(eq(userSecuritySessionsTable.id, sessionId)),
       db.update(trustedDevicesTable).set({ lastSeenAt: now }).where(eq(trustedDevicesTable.id, deviceId)),
     ]).catch(() => undefined);
   }
-  return row ?? null;
+  return sessionAllowed ? { session: row.session, device: row.device } : null;
 }

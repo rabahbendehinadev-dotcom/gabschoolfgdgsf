@@ -3283,20 +3283,27 @@ router.get("/admin/security/users", adminAuth, securityManageAuth, async (req, r
     WHERE ${trustedDevicesTable.userId} = ${usersTable.id}
       AND ${trustedDevicesTable.category} = 'PHONE'
       AND ${trustedDevicesTable.status} = 'TRUSTED'
+      AND ${trustedDevicesTable.createdBy} IS DISTINCT FROM 'UNPROTECTED'
   )`;
   const trustedComputer = sql<boolean>`EXISTS (
     SELECT 1 FROM ${trustedDevicesTable}
     WHERE ${trustedDevicesTable.userId} = ${usersTable.id}
       AND ${trustedDevicesTable.category} = 'COMPUTER'
       AND ${trustedDevicesTable.status} = 'TRUSTED'
+      AND ${trustedDevicesTable.createdBy} IS DISTINCT FROM 'UNPROTECTED'
   )`;
   const blockedDevice = sql<boolean>`EXISTS (
     SELECT 1 FROM ${trustedDevicesTable}
     WHERE ${trustedDevicesTable.userId} = ${usersTable.id}
       AND ${trustedDevicesTable.status} = 'BLOCKED'
+      AND ${trustedDevicesTable.createdBy} IS DISTINCT FROM 'UNPROTECTED'
   )`;
 
-  const conditions = [];
+  const conditions: any[] = [
+    sql<boolean>`${usersTable.isActive} = TRUE
+      AND ${usersTable.accountType} = 'vip'
+      AND (${usersTable.subscriptionExpiresAt} IS NULL OR ${usersTable.subscriptionExpiresAt} > NOW())`,
+  ];
   if (search) {
     const pattern = `%${search}%`;
     conditions.push(or(
@@ -3328,7 +3335,10 @@ router.get("/admin/security/users", adminAuth, securityManageAuth, async (req, r
   ]);
   const ids = users.map((u) => u.id);
   const devices = ids.length ? await db.select().from(trustedDevicesTable)
-    .where(inArray(trustedDevicesTable.userId, ids)).orderBy(desc(trustedDevicesTable.lastSeenAt)) : [];
+    .where(and(
+      inArray(trustedDevicesTable.userId, ids),
+      sql`${trustedDevicesTable.createdBy} IS DISTINCT FROM 'UNPROTECTED'`,
+    )).orderBy(desc(trustedDevicesTable.lastSeenAt)) : [];
   const total = Number(totalRows[0]?.total || 0);
   res.json({
     users: users.map((user) => ({
@@ -3350,7 +3360,10 @@ router.get("/admin/security/users/:id", adminAuth, securityManageAuth, async (re
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
   if (!user) { res.status(404).json({ message: "User not found" }); return; }
   const [devices, events, blockedEvents, whitelists, sessions] = await Promise.all([
-    db.select().from(trustedDevicesTable).where(eq(trustedDevicesTable.userId, userId)).orderBy(desc(trustedDevicesTable.lastSeenAt)),
+    db.select().from(trustedDevicesTable).where(and(
+      eq(trustedDevicesTable.userId, userId),
+      sql`${trustedDevicesTable.createdBy} IS DISTINCT FROM 'UNPROTECTED'`,
+    )).orderBy(desc(trustedDevicesTable.lastSeenAt)),
     db.select().from(securityEventsTable).where(eq(securityEventsTable.userId, userId)).orderBy(desc(securityEventsTable.createdAt)).limit(200),
     db.select({
       deviceId: securityEventsTable.deviceId,

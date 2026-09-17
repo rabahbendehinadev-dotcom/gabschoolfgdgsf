@@ -8,6 +8,9 @@ export interface SecurityUser {
   fullName: string | null;
   phone: string | null;
   isActive: boolean;
+  accountType: string;
+  subscriptionType: string;
+  subscriptionExpiresAt: string | null;
   securityBlockedAt: string | null;
   devices: SecurityDevice[];
 }

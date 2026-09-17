@@ -22,11 +22,11 @@ export interface CommunitySubscriberCheckable extends VipCheckable {
  * Returns true only when the user is currently an active, non-expired VIP.
  * Accepts both req.user objects (Date) and raw DB rows (Date | string | null).
  */
-export function isActiveVip(user: VipCheckable | null | undefined): boolean {
+export function isActiveVip(user: VipCheckable | null | undefined, now = new Date()): boolean {
   if (!user || !user.isActive) return false;
   if (user.accountType !== "vip") return false;
   const exp = user.subscriptionExpiresAt;
-  if (exp && new Date(exp) < new Date()) return false;
+  if (exp && new Date(exp) < now) return false;
   return true;
 }
 

@@ -65,7 +65,7 @@ export function AdminSecurity() {
         <div>
           <h1 style={{ fontSize: 24, fontWeight: 700, color: "#0F172A", lineHeight: 1.2, letterSpacing: "-0.02em" }}>Sécurité des appareils</h1>
            <p style={{ fontSize: 14, color: "#667085", marginTop: 4 }}>
-             Contrôle d'accès strict, sessions et appareils de confiance · Total utilisateurs : {data?.total ?? "—"}
+             Protection VIP : 1 téléphone + 1 ordinateur de confiance · Comptes VIP actifs : {data?.total ?? "—"}
           </p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>

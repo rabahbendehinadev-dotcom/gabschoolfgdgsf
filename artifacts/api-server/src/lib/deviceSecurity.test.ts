@@ -10,6 +10,7 @@ import {
   deviceSlotDecision,
   evaluateTravelRisk,
   isHighConfidenceAnonymous,
+  isSecuritySessionAllowedForUser,
   isSecuritySessionUsable,
   issueDeviceCredential,
   localizeDeviceAuthMessage,
@@ -26,6 +27,7 @@ import {
 import { canAccessAdminApi, canManageSecurity, parseAdminPermissions, requiredAdminAccessForApi } from "./adminSecurity";
 import { securityManageAuth } from "../middlewares/auth";
 import { generateToken, generateVideoStreamToken, verifyToken, verifyVideoStreamToken } from "./auth";
+import { isActiveVip } from "./vipUtils";
 
 const unknown: IpAssessment = {
   status: "UNKNOWN", confidence: 0, vpn: false, proxy: false, tor: false,
@@ -203,6 +205,55 @@ test("security administration requires super-admin or explicit permission", () =
   assert.equal(canManageSecurity({ role: "support", permissions: parseAdminPermissions('["security_manage"]') }), false);
   assert.equal(canManageSecurity({ role: "support", permissions: parseAdminPermissions('["manage_device_security"]') }), true);
   assert.equal(canManageSecurity({ role: "super_admin", permissions: [] }), true);
+});
+
+test("device security applies only to active non-expired VIP users", () => {
+  const future = new Date(Date.now() + 60_000);
+  const past = new Date(Date.now() - 60_000);
+  assert.equal(isActiveVip({ accountType: "vip", isActive: true, subscriptionExpiresAt: future }), true);
+  assert.equal(isActiveVip({ accountType: "vip", isActive: true, subscriptionExpiresAt: null }), true);
+  assert.equal(isActiveVip({ accountType: "vip", isActive: true, subscriptionExpiresAt: past }), false);
+  assert.equal(isActiveVip({ accountType: "normal", isActive: true, subscriptionExpiresAt: future }), false);
+  assert.equal(isActiveVip({ accountType: "vip", isActive: false, subscriptionExpiresAt: future }), false);
+});
+
+test("session policy ignores device restrictions outside active VIP and rejects unprotected VIP sessions", () => {
+  const now = new Date("2026-01-01T00:00:00Z");
+  const activeSession = { revokedAt: null, expiresAt: new Date("2026-02-01T00:00:00Z") };
+  const revokedDevice = { status: "REVOKED", createdBy: "ADMIN" };
+  const unprotectedDevice = { status: "TRUSTED", createdBy: "UNPROTECTED" };
+  const protectedDevice = { status: "TRUSTED", createdBy: null };
+
+  assert.equal(isSecuritySessionAllowedForUser(
+    { accountType: "normal", isActive: true, subscriptionExpiresAt: null },
+    revokedDevice,
+    activeSession,
+    now,
+  ), true);
+  assert.equal(isSecuritySessionAllowedForUser(
+    { accountType: "vip", isActive: true, subscriptionExpiresAt: new Date("2025-12-01T00:00:00Z") },
+    revokedDevice,
+    activeSession,
+    now,
+  ), true);
+  assert.equal(isSecuritySessionAllowedForUser(
+    { accountType: "vip", isActive: true, subscriptionExpiresAt: new Date("2026-02-01T00:00:00Z") },
+    unprotectedDevice,
+    activeSession,
+    now,
+  ), false);
+  assert.equal(isSecuritySessionAllowedForUser(
+    { accountType: "vip", isActive: true, subscriptionExpiresAt: new Date("2026-02-01T00:00:00Z") },
+    protectedDevice,
+    activeSession,
+    now,
+  ), true);
+  assert.equal(isSecuritySessionAllowedForUser(
+    { accountType: "normal", isActive: true, subscriptionExpiresAt: null },
+    revokedDevice,
+    { revokedAt: now, expiresAt: new Date("2026-02-01T00:00:00Z") },
+    now,
+  ), false);
 });
 
 test("device-security middleware returns 403 without the dedicated permission", () => {
