@@ -116,6 +116,7 @@ const NAV_SECTIONS: Array<{ section: string; items: AdminNavItem[] }> = [
     items: [
       { name: "Cours",                path: "/bendehinaonline97/courses",             icon: GraduationCap, access: "manage_content" },
       { name: "Vidéos",               path: "/bendehinaonline97/videos",              icon: Video, access: "manage_content" },
+      { name: "Solutions",            path: "/bendehinaonline97/solutions",           icon: Wrench, access: "manage_solutions" },
       { name: "Catégories",           path: "/bendehinaonline97/categories",          icon: FolderTree, access: "manage_content" },
       { name: "Outils",               path: "/bendehinaonline97/tools",               icon: Wrench, access: "manage_tools" },
       { name: "Cat. d'outils",        path: "/bendehinaonline97/tool-categories",     icon: FolderTree, access: "manage_tools" },

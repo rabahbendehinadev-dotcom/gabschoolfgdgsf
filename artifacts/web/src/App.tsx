@@ -43,6 +43,10 @@ const AdminSubscriptionAlerts = lazy(() => import("@/pages/admin/SubscriptionAle
 const AdminAdmins = lazy(() => import("@/pages/admin/AdminAdmins").then((module) => ({ default: module.AdminAdmins })));
 const AdminAuditLog = lazy(() => import("@/pages/admin/AdminAuditLog").then((module) => ({ default: module.AdminAuditLog })));
 const AdminSecurity = lazy(() => import("@/pages/admin/Security").then((module) => ({ default: module.AdminSecurity })));
+const SolutionsList = lazy(() => import("@/pages/public/SolutionsList").then((module) => ({ default: module.SolutionsList })));
+const SolutionDetail = lazy(() => import("@/pages/public/SolutionDetail").then((module) => ({ default: module.SolutionDetail })));
+const AdminSolutions = lazy(() => import("@/pages/admin/Solutions").then((module) => ({ default: module.AdminSolutions })));
+const AdminSolutionForm = lazy(() => import("@/pages/admin/SolutionForm").then((module) => ({ default: module.AdminSolutionForm })));
 const NotFound = lazy(() => import("@/pages/not-found"));
 
 const queryClient = new QueryClient();
@@ -120,6 +124,8 @@ function PublicRoutes() {
         <Route path="/community"><Community /></Route>
         <Route path="/notifications"><Notifications /></Route>
         <Route path="/tools"><Tools /></Route>
+        <Route path="/solutions/:slug">{(params) => <SolutionDetail slug={params.slug} />}</Route>
+        <Route path="/solutions"><SolutionsList /></Route>
         <Route component={NotFound} />
       </Switch>
     </PublicLayout>
@@ -176,6 +182,15 @@ function Router() {
       </Route>
       <Route path="/bendehinaonline97/subscription-alerts">
         <AdminLayout><AdminSubscriptionAlerts /></AdminLayout>
+      </Route>
+      <Route path="/bendehinaonline97/solutions/new">
+        <AdminLayout><AdminSolutionForm key="new" /></AdminLayout>
+      </Route>
+      <Route path="/bendehinaonline97/solutions/:id/edit">
+        {(params) => <AdminLayout><AdminSolutionForm key={params.id} id={params.id} /></AdminLayout>}
+      </Route>
+      <Route path="/bendehinaonline97/solutions">
+        <AdminLayout><AdminSolutions /></AdminLayout>
       </Route>
       <Route path="/bendehinaonline97/tools">
         <AdminLayout><AdminTools /></AdminLayout>

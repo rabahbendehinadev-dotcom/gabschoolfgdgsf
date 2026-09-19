@@ -43,6 +43,7 @@ export const ADMIN_PERMISSIONS = [
   "manage_users",
   "manage_subscriptions",
   "manage_content",
+  "manage_solutions",
   "manage_community",
   "view_analytics",
   "send_notifications",
@@ -74,6 +75,7 @@ export function requiredAdminAccessForPath(path: string): AdminAccessRequirement
     path.startsWith("/bendehinaonline97/videos") ||
     path.startsWith("/bendehinaonline97/categories")
   ) return "manage_content";
+  if (path.startsWith("/bendehinaonline97/solutions")) return "manage_solutions";
   if (
     path.startsWith("/bendehinaonline97/tools") ||
     path.startsWith("/bendehinaonline97/tool-categories")
@@ -105,6 +107,7 @@ const ADMIN_HOME_ROUTES: Array<{ permission: AdminPermission; path: string }> = 
   { permission: "manage_users", path: "/bendehinaonline97/users" },
   { permission: "manage_subscriptions", path: "/bendehinaonline97/subscriptions" },
   { permission: "manage_content", path: "/bendehinaonline97/courses" },
+  { permission: "manage_solutions", path: "/bendehinaonline97/solutions" },
   { permission: "manage_tools", path: "/bendehinaonline97/tools" },
   { permission: "manage_community", path: "/bendehinaonline97/community" },
   { permission: "manage_plans", path: "/bendehinaonline97/plans" },

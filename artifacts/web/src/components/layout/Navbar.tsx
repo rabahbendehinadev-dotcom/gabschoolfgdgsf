@@ -19,6 +19,7 @@ export function Navbar() {
     { href: "/",          label: "الرئيسية",     icon: <Home className="w-4 h-4" /> },
     { href: "/courses",   label: "الدورات",      icon: <GraduationCap className="w-4 h-4" /> },
     { href: "/tools",     label: "مكتبة أدوات GAB",      icon: <Wrench className="w-4 h-4" /> },
+    { href: "/solutions", label: "الحلول التقنية", icon: <Wrench className="w-4 h-4" /> },
     { href: "/community", label: "Community GAB",    icon: <Users className="w-4 h-4" /> },
     { href: "/subscribe", label: "الاشتراكات",   icon: <CreditCard className="w-4 h-4" /> },
   ];

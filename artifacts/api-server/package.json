@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "test:solutions": "tsx --test src/lib/solutions.test.ts",
     "dev": "NODE_ENV=development tsx ./src/index.ts",
     "build": "tsx ./build.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -26,6 +27,7 @@
     "jsonwebtoken": "^9.0.3",
     "libphonenumber-js": "^1.13.8",
     "multer": "^2.1.1",
+    "openai": "^6.0.0",
     "sharp": "^0.35.3",
     "web-push": "^3.6.7",
     "zod": "catalog:"
@@ -40,6 +42,7 @@
     "@types/node": "catalog:",
     "@types/web-push": "^3.6.4",
     "esbuild": "^0.27.3",
+    "playwright": "1.63.0",
     "tsx": "catalog:"
   }
 }

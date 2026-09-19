@@ -5,6 +5,7 @@ import { desc, eq } from "drizzle-orm";
 import { adminAuth } from "../middlewares/auth";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
 import { Readable } from "stream";
+import { isProtectedSolutionStoragePath } from "../lib/protectedStoragePaths";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
@@ -14,7 +15,7 @@ const SubmitPaymentBody = z.object({
   planType: z.string().min(1),
   planPrice: z.string().min(1),
   paymentMethod: z.string().min(1),
-  proofObjectPath: z.string().optional().nullable(),
+  proofObjectPath: z.string().refine(path => !isProtectedSolutionStoragePath(path), "Invalid payment proof path").optional().nullable(),
   userId: z.number().optional().nullable(),
 });
 

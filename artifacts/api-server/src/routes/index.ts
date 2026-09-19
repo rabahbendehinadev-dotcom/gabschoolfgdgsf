@@ -12,10 +12,12 @@ import communityRouter from "./community";
 import usersRouter from "./users";
 import notificationsRouter from "./notifications";
 import toolsRouter from "./tools";
+import solutionsRouter from "./solutions";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
+router.use(solutionsRouter);
 router.use(authRouter);
 router.use(videosRouter);
 router.use(categoriesRouter);

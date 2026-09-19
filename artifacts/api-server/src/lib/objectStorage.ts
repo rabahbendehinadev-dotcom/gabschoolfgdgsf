@@ -10,6 +10,7 @@ import {
 } from "./objectAcl";
 import { s3Storage, S3File, signS3ObjectURL } from "./storageS3";
 import { localStorage, LocalFile, signLocalObjectURL } from "./storageLocal";
+import { isProtectedSolutionStoragePath } from "./protectedStoragePaths";
 
 /* ────────────────────────────────────────────────────────────────────────────
    Storage provider selection.
@@ -103,6 +104,7 @@ export class ObjectStorageService {
   }
 
   async searchPublicObject(filePath: string): Promise<File | S3File | null> {
+    if (isProtectedSolutionStoragePath(filePath)) throw new ObjectNotFoundError();
     for (const searchPath of this.getPublicObjectSearchPaths()) {
       const fullPath = `${searchPath}/${filePath}`;
 
@@ -124,6 +126,7 @@ export class ObjectStorageService {
     cacheTtlSec: number = 3600,
     immutable: boolean = false,
   ): Promise<Response> {
+    if (isProtectedSolutionStoragePath(file.name)) throw new ObjectNotFoundError();
     const [metadata] = await file.getMetadata();
     // Parse ACL policy from the metadata we already fetched (avoids a second
     // metadata roundtrip per request).
@@ -182,6 +185,10 @@ export class ObjectStorageService {
   }
 
   async getObjectEntityFile(objectPath: string): Promise<File | S3File> {
+    // Payment proofs, avatars, Community, optimizers, thumbnails, and cleanup
+    // all share this resolver. None may resolve Solutions objects, even if a
+    // malicious reference was persisted before this check was introduced.
+    if (isProtectedSolutionStoragePath(objectPath)) throw new ObjectNotFoundError();
     if (!objectPath.startsWith("/objects/")) {
       throw new ObjectNotFoundError();
     }
@@ -208,6 +215,7 @@ export class ObjectStorageService {
   }
 
   normalizeObjectEntityPath(rawPath: string): string {
+    if (isProtectedSolutionStoragePath(rawPath)) throw new ObjectNotFoundError();
     if (!rawPath.startsWith("https://storage.googleapis.com/")) {
       return rawPath;
     }
@@ -266,10 +274,13 @@ export class ObjectStorageService {
   }
 }
 
-export function parseObjectPath(path: string): {
+export function parseObjectPath(path: string, capability?: { allowSolutions: true }): {
   bucketName: string;
   objectName: string;
 } {
+  // Also cover generic direct-client consumers (video/HLS/thumbnail helpers).
+  // Only the dedicated Solutions storage adapter opts into its namespace.
+  if (!capability?.allowSolutions && isProtectedSolutionStoragePath(path)) throw new ObjectNotFoundError();
   if (path.startsWith("gs://")) {
     path = "/" + path.slice("gs://".length);
   }
@@ -302,6 +313,7 @@ export async function signObjectURL({
   method: "GET" | "PUT" | "DELETE" | "HEAD";
   ttlSec: number;
 }): Promise<string> {
+  if (isProtectedSolutionStoragePath(objectName)) throw new ObjectNotFoundError();
   if (STORAGE_PROVIDER === "s3") {
     return signS3ObjectURL({ bucketName, objectName, method, ttlSec });
   }

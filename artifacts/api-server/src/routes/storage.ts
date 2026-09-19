@@ -6,8 +6,17 @@ import { eq, or } from "drizzle-orm";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
 import { communitySubscriberAuth, userAuth } from "../middlewares/auth";
 import { signCommunityUploadReceipt } from "../lib/communityUploadReceipt";
+import { isProtectedSolutionStoragePath } from "../lib/solutionStorage";
 
 const router: IRouter = Router();
+// Solutions media never uses a generic public storage delivery route.
+router.use("/storage", (req, res, next) => {
+  if (isProtectedSolutionStoragePath(req.originalUrl)) {
+    res.status(404).json({ error: "Object not found" });
+    return;
+  }
+  next();
+});
 const objectStorageService = new ObjectStorageService();
 
 async function isNotCommunityMediaPath(objectPath: string): Promise<boolean> {
