@@ -218,10 +218,8 @@ export function AdminSolutionForm({ id: routeId }: { id?: string }) {
           <div><p className="text-xs font-semibold uppercase tracking-wide text-indigo-600">Résultat généré par l’IA</p><h2 className="text-xl font-bold">Aperçu de l’article</h2><p className="text-sm text-slate-500">Relisez l’article comme il apparaîtra aux membres, puis publiez ou ouvrez l’édition avancée pour une correction.</p></div>
           <Button type="button" variant="outline" onClick={() => { setAdvancedOpen(true); requestAnimationFrame(() => document.getElementById("advanced-solution-editing")?.scrollIntoView({ behavior: "smooth" })); }}>Corriger dans l’édition avancée</Button>
         </div>
-        <div className="rounded-2xl bg-slate-50 border p-4 md:p-6 space-y-5">
-          <div className="space-y-2"><h1 className="text-2xl md:text-3xl font-bold">{draft.title || "Titre à vérifier"}</h1><p className="text-slate-600 whitespace-pre-wrap">{draft.excerpt || "Aucun extrait public généré."}</p><p className="font-medium">{[draft.brand, draft.model, draft.category, draft.subcategory, draft.tool].filter(Boolean).join(" · ")}</p></div>
-          {pendingCover ? <SolutionImage file={pendingCover} alt="Couverture" className="max-h-80 w-full" /> : draft.coverImageId && <SolutionImage id={draft.coverImageId} admin alt="Couverture publique" className="max-h-80 w-full" />}
-          <SolutionArticle content={content} images={images} admin />
+        <div className="rounded-2xl bg-slate-50 p-4 md:p-6">
+          <SolutionArticle content={content} images={images} admin meta={draft} coverFile={pendingCover} />
         </div>
         {!!(draft.reviewFlags || []).filter(Boolean).length && <div className="space-y-2"><h3 className="font-bold text-amber-900">Points signalés par l’IA</h3>{(draft.reviewFlags || []).filter(Boolean).map((flag, i) => <p key={i} className="bg-amber-50 border border-amber-100 p-3 text-amber-900 rounded">À vérifier : {flag}</p>)}</div>}
       </Card>}

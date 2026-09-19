@@ -15,7 +15,7 @@ export function SolutionDetail({ slug }: { slug: string }) {
   const { solution, entitled, related } = data;
   const full = entitled && "content" in solution ? solution : null;
   return <div className="bg-slate-50 min-h-screen pb-24" dir="rtl">
-    <header className="bg-white border-b border-slate-200">
+    {!full && <header className="bg-white border-b border-slate-200">
       <div className="max-w-5xl mx-auto px-4 py-10 space-y-6">
         <Link href="/solutions" className="text-primary text-sm">← الحلول التقنية</Link>
         <div className="grid md:grid-cols-3 gap-8 items-start">
@@ -30,10 +30,10 @@ export function SolutionDetail({ slug }: { slug: string }) {
           <div className="aspect-[4/3] rounded-2xl border overflow-hidden bg-slate-100">{solution.coverUrl ? <img src={solution.coverUrl} alt={solution.title} className="w-full h-full object-contain" /> : <Smartphone className="w-16 h-16 mx-auto mt-12 text-slate-300" />}</div>
         </div>
       </div>
-    </header>
+    </header>}
     <div className="max-w-5xl mx-auto px-4 py-10 grid lg:grid-cols-3 gap-8">
-      <main className="lg:col-span-2 min-w-0">
-        {full ? <SolutionArticle content={full.content} images={full.images} /> : <section className="bg-white border rounded-3xl p-8 md:p-12 text-center shadow-sm">
+      <main className={`${related.length ? "lg:col-span-2" : "lg:col-span-3"} min-w-0`}>
+        {full ? <SolutionArticle content={full.content} images={full.images} meta={full} /> : <section className="bg-white border rounded-3xl p-8 md:p-12 text-center shadow-sm">
           <Lock className="h-12 w-12 text-slate-400 mx-auto mb-6" /><h2 className="text-2xl font-bold mb-4">اشترك للوصول إلى الحل الكامل</h2>
           <p className="text-slate-600 mb-8">الخطوات التفصيلية والصور التقنية وروابط التحميل متاحة للمشتركين فقط.</p>
           <div className="flex flex-wrap justify-center gap-3"><Link href="/subscribe" className="bg-primary text-white rounded-full px-6 py-3 font-semibold">اشترك الآن</Link>{!user && <Link href="/login" className="border rounded-full px-6 py-3">تسجيل الدخول</Link>}</div>
