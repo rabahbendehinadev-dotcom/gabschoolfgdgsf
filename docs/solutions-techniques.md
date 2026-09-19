@@ -4,7 +4,7 @@
 
 The module is additive: `solutions`, `solution_images`, and `solution_taxonomies`.
 It does not modify users, subscriptions, courses, Community, videos, or their data.
-No sample solutions are seeded. The API deliberately does **not** run DDL at startup.
+No sample solutions are seeded.
 
 Schema source: `lib/db/src/schema/solutions.ts`. The isolated, transactional,
 idempotent SQL is `lib/db/solutions-migration.sql`; it creates only module tables
@@ -15,12 +15,11 @@ Before deployment, identify the actual database provider and target:
 - **Replit-managed database:** use the normal Publish schema-diff flow after
   reviewing the additive development schema changes. Do not enable “overwrite
   production data,” use force-push, or add a startup migration hook.
-- **Externally managed / VPS database:** an authorized operator should back up
-  the database, verify the intended connection, review the migration SQL, and
-  explicitly apply it through the project's existing deployment/migration
-  procedure **before** serving the new API. The file is safe to reapply; it is
-  not automatically executed by the app or its build command. Do not point a
-  development migration command at production without explicit authorization.
+- **This project's external VPS database:** the API's existing additive,
+  idempotent startup migration path creates these tables and indexes before the
+  server starts listening. This is required because Replit Publish does not
+  manage the Dokploy PostgreSQL database. The standalone SQL remains available
+  for an authorized operator to review or apply manually.
 
 For a deliberately selected development connection:
 
@@ -34,7 +33,8 @@ Verify the three tables and `solutions_discovery_idx`,
 development, then smoke-test empty listing, draft creation, and publication.
 If rolling back application code, leave these isolated tables intact; do not
 drop stored drafts or private media. This implementation made no production
-database changes.
+database changes before this production fix. The startup migration does not
+reset, replace, or delete existing production rows.
 
 ## AI configuration
 

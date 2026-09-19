@@ -289,6 +289,14 @@ router.use((error: unknown, req: Request, res: Response, next: NextFunction) => 
   if (code === "23505") { res.status(409).json({ message: "This slug or taxonomy already exists. Choose another." }); return; }
   const known = ["Unknown or removed image reference", "Unpublish before editing this solution", "Draft unavailable or maximum 30 images exceeded", "A subcategory requires a parent category", "Invalid parent category", "Only subcategories may have a parent"];
   if (error instanceof Error && known.includes(error.message)) { res.status(400).json({ message: error.message }); return; }
+  // Keep provider credentials and SQL details out of the response, but retain
+  // enough server-side context to diagnose production failures.
+  console.error("[solutions] request failed", {
+    method: req.method,
+    path: req.path,
+    code,
+    message: error instanceof Error ? error.message : String(error),
+  });
   res.status(500).json({ message: "Unable to complete the solutions request. Your saved draft remains available." });
 });
 

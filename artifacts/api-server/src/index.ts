@@ -353,6 +353,67 @@ async function runMigrations() {
     await db.execute(sql`CREATE INDEX IF NOT EXISTS security_whitelists_user_idx ON security_whitelists(user_id)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS security_whitelists_ip_idx ON security_whitelists(ip_address)`);
 
+    // Solutions techniques — additive tables required by both the public and
+    // Admin APIs. Production runs on the external Dokploy PostgreSQL database,
+    // so these must follow this project's existing idempotent startup migration
+    // path rather than relying on Replit Publish schema synchronization.
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS solution_taxonomies (
+        id SERIAL PRIMARY KEY,
+        kind TEXT NOT NULL,
+        name TEXT NOT NULL,
+        parent_id INTEGER
+      )
+    `);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS solutions (
+        id SERIAL PRIMARY KEY,
+        slug TEXT NOT NULL UNIQUE,
+        title TEXT NOT NULL DEFAULT '',
+        excerpt TEXT NOT NULL DEFAULT '',
+        brand TEXT NOT NULL DEFAULT '',
+        model TEXT NOT NULL DEFAULT '',
+        category TEXT NOT NULL DEFAULT '',
+        subcategory TEXT NOT NULL DEFAULT '',
+        tool TEXT NOT NULL DEFAULT '',
+        tags JSONB NOT NULL DEFAULT '[]',
+        keywords JSONB NOT NULL DEFAULT '[]',
+        raw_input TEXT NOT NULL DEFAULT '',
+        content JSONB NOT NULL DEFAULT '{}',
+        image_ids JSONB NOT NULL DEFAULT '[]',
+        cover_image_id UUID,
+        review_flags JSONB NOT NULL DEFAULT '[]',
+        generation_error TEXT,
+        status TEXT NOT NULL DEFAULT 'draft',
+        created_by INTEGER NOT NULL,
+        published_at TIMESTAMP,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS solution_images (
+        id UUID PRIMARY KEY,
+        solution_id INTEGER NOT NULL REFERENCES solutions(id) ON DELETE CASCADE,
+        object_path TEXT NOT NULL,
+        name TEXT NOT NULL,
+        width INTEGER NOT NULL,
+        height INTEGER NOT NULL
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS solutions_discovery_idx ON solutions(status, published_at)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS solutions_filters_idx ON solutions(brand, category, tool)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS solution_images_solution_idx ON solution_images(solution_id)`);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS solutions_search_idx ON solutions USING gin (
+        to_tsvector(
+          'simple',
+          title || ' ' || brand || ' ' || model || ' ' || category || ' ' ||
+          tool || ' ' || tags::text || ' ' || keywords::text
+        )
+      )
+    `);
+
     console.log("[migrations] Schema up to date.");
   } catch (err) {
     console.error("[migrations] Migration error:", err);
