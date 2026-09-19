@@ -335,11 +335,11 @@ try {
     keywords: [runId, "router", "solutions-it-1789854289472-157b859d"],
     rawInput: rawNotes,
     imageIds: [imageId],
-    coverImageId: imageId,
+    coverImageId: null,
     reviewFlags: ["Fixture requires explicit technical review"],
     content: content(imageId),
   }, solutionAdmin);
-  assert.equal(deterministicDraft.coverImageId, imageId);
+  assert.equal(deterministicDraft.coverImageId, null);
 
   const reviewRequired = await json(
     `/admin/solutions/${draft.id}/publish`, "POST", {}, solutionAdmin, 409,
@@ -403,6 +403,11 @@ try {
 
   const visitorList = (await request(`/solutions?search=${encodeURIComponent(runId)}&brand=${encodeURIComponent(runId)}`)).body;
   assert.ok(visitorList.solutions.some((row: Json) => row.id === draft.id));
+  assert.equal(
+    visitorList.solutions.find((row: Json) => row.id === draft.id)?.coverUrl,
+    `/api/solutions/${slug}/cover`,
+    "A published solution without a manual cover must expose its first screenshot only through the cover route",
+  );
   const modelTokenRegression = (await request("/solutions?search=solutions-it-1789854289472-157b859d")).body;
   assert.ok(modelTokenRegression.solutions.some((row: Json) => row.id === draft.id), "Hyphenated numeric model IDs must use consistent PostgreSQL tokenization");
   const visitorSerialized = JSON.stringify(visitorList);

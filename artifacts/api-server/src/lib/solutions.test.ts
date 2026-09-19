@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { isSolutionsEntitled, solutionCard, solutionInputSchema, solutionContentSchema, emptySolutionContent, assertSolutionImageRefs, aiSolutionSchema, normalizeAiSolutionResources } from "./solutions";
+import { isSolutionsEntitled, solutionCard, solutionCoverImageId, solutionInputSchema, solutionContentSchema, emptySolutionContent, assertSolutionImageRefs, aiSolutionSchema, normalizeAiSolutionResources } from "./solutions";
 import { canAccessAdminApi, hasAdminPermission } from "./adminSecurity";
 import { isProtectedSolutionStoragePath } from "./solutionStorage";
 import { ObjectStorageService, ObjectNotFoundError, parseObjectPath, signObjectURL } from "./objectStorage";
@@ -23,7 +23,15 @@ test("public projection has no protected content, downloads, storage refs, or ra
   assert.equal(json.includes("secret"), false);
   assert.equal(json.includes("private-uuid"), false);
   assert.deepEqual(Object.keys(publicData).sort(), ["id", "slug", "title", "excerpt", "brand", "model", "category", "subcategory", "tool", "tags", "coverUrl", "publishedAt"].sort());
-  assert.equal(solutionCard({ ...row, coverImageId: null }).coverUrl, null);
+  assert.equal(solutionCard({ ...row, coverImageId: null }).coverUrl, "/api/solutions/test/cover");
+  assert.equal(solutionCard({ ...row, coverImageId: null, imageIds: [] }).coverUrl, null);
+});
+test("manual cover wins, otherwise the first uploaded screenshot is the only public cover", () => {
+  const first = "a8a43081-1f88-40bf-a4eb-334b18fb8043";
+  const second = "35a43081-1f88-40bf-a4eb-334b18fb8043";
+  assert.equal(solutionCoverImageId({ coverImageId: second, imageIds: [first, second] }), second);
+  assert.equal(solutionCoverImageId({ coverImageId: null, imageIds: [first, second] }), first);
+  assert.equal(solutionCoverImageId({ coverImageId: null, imageIds: [] }), null);
 });
 test("all admin solutions mutations require dedicated permission, not support/content/community access", () => {
   for (const path of ["/admin/solutions", "/admin/solutions/1", "/admin/solutions/1/generate", "/admin/solutions/1/publish", "/admin/solutions/1/images", "/admin/solutions/images/a", "/admin/solutions/taxonomies"]) {

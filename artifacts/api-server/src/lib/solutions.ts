@@ -49,15 +49,19 @@ export function isSolutionsEntitled(user?: CommunitySubscriberCheckable | null):
   return !!user && isActiveCommunitySubscriber({ ...user, communityRole: null });
 }
 
+export function solutionCoverImageId(row: { coverImageId: string | null; imageIds: string[] }): string | null {
+  return row.coverImageId ?? row.imageIds[0] ?? null;
+}
+
 /** Explicit allowlist: never spread DB rows into a visitor response. */
 export function solutionCard(row: {
   id: number; slug: string; title: string; excerpt: string; brand: string; model: string; category: string;
-  subcategory: string; tool: string; tags: string[]; coverImageId: string | null; publishedAt: Date | null;
+  subcategory: string; tool: string; tags: string[]; coverImageId: string | null; imageIds: string[]; publishedAt: Date | null;
 }) {
   return {
     id: row.id, slug: row.slug, title: row.title, excerpt: row.excerpt, brand: row.brand,
     model: row.model, category: row.category, subcategory: row.subcategory, tool: row.tool,
-    tags: row.tags, coverUrl: row.coverImageId ? `/api/solutions/${encodeURIComponent(row.slug)}/cover` : null,
+    tags: row.tags, coverUrl: solutionCoverImageId(row) ? `/api/solutions/${encodeURIComponent(row.slug)}/cover` : null,
     publishedAt: row.publishedAt?.toISOString() ?? null,
   };
 }

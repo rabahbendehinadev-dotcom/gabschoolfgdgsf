@@ -27,7 +27,7 @@ export function SolutionDetail({ slug }: { slug: string }) {
             {solution.publishedAt && <time className="text-sm text-slate-500" dateTime={solution.publishedAt}>{new Date(solution.publishedAt).toLocaleDateString("fr-FR")}</time>}
             <div className="flex flex-wrap gap-2">{solution.tags.map((tag, i) => <Badge key={i} variant="outline">{tag}</Badge>)}</div>
           </div>
-          <div className="aspect-[4/3] rounded-2xl border overflow-hidden bg-slate-100">{solution.coverUrl ? <img src={solution.coverUrl} alt={solution.title} className="w-full h-full object-contain" /> : <Smartphone className="w-16 h-16 mx-auto mt-12 text-slate-300" />}</div>
+          <div className="aspect-[4/3] rounded-2xl border overflow-hidden bg-slate-100">{solution.coverUrl ? <img src={solution.coverUrl} alt={solution.title} className="w-full h-full object-cover object-center" /> : <Smartphone className="w-16 h-16 mx-auto mt-12 text-slate-300" />}</div>
         </div>
       </div>
     </header>}

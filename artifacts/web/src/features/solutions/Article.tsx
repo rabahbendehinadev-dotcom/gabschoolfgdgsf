@@ -77,7 +77,7 @@ export function SolutionImage({ id, admin = false, file, alt = "", className = "
   </>;
 }
 
-export function SolutionArticleHero({ meta, coverFile, admin }: Pick<SolutionArticleProps, "meta" | "coverFile" | "admin">) {
+export function SolutionArticleHero({ meta, coverFile, admin, fallbackImageId }: Pick<SolutionArticleProps, "meta" | "coverFile" | "admin"> & { fallbackImageId?: string }) {
   if (!meta) return null;
   return (
     <header className="space-y-8 mb-12">
@@ -98,14 +98,16 @@ export function SolutionArticleHero({ meta, coverFile, admin }: Pick<SolutionArt
         </div>
       </div>
 
-      {(coverFile || meta.coverUrl || meta.coverImageId) && (
+      {(coverFile || meta.coverUrl || meta.coverImageId || (admin && fallbackImageId)) && (
         <div className="aspect-video md:aspect-[21/9] rounded-3xl overflow-hidden bg-slate-50 border border-slate-200 shadow-sm relative group p-1">
           {coverFile ? (
             <SolutionImage file={coverFile} alt={meta.title} className="w-full h-full rounded-2xl" />
           ) : meta.coverImageId ? (
             <SolutionImage id={meta.coverImageId} admin={admin} alt={meta.title} className="w-full h-full rounded-2xl" />
+          ) : admin && fallbackImageId ? (
+            <SolutionImage id={fallbackImageId} admin alt={meta.title} className="w-full h-full rounded-2xl" />
           ) : meta.coverUrl ? (
-            <img src={meta.coverUrl} alt={meta.title} className="w-full h-full object-contain rounded-2xl" />
+            <img src={meta.coverUrl} alt={meta.title} className="w-full h-full object-cover object-center rounded-2xl" />
           ) : null}
         </div>
       )}
@@ -160,7 +162,7 @@ export function SolutionArticle({ content, images, admin = false, meta, coverFil
 
   return (
     <article dir="auto" className="text-slate-800 break-words w-full max-w-full">
-      <SolutionArticleHero meta={meta} coverFile={coverFile} admin={admin} />
+      <SolutionArticleHero meta={meta} coverFile={coverFile} admin={admin} fallbackImageId={images[0]?.id} />
 
       {(content.device?.trim() || content.problem?.trim() || meta?.tool || meta?.category) && (
         <div data-testid="grid-solution-quick-info" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-14">

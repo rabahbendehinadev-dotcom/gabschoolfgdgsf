@@ -98,7 +98,7 @@ export function SolutionsList() {
                   {/* Cover */}
                   <div className="aspect-video bg-slate-100 relative overflow-hidden">
                     {sol.coverUrl ? (
-                      <img src={sol.coverUrl} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt={sol.title} />
+                      <img src={sol.coverUrl} className="w-full h-full object-cover object-center rounded-t-2xl group-hover:scale-105 transition-transform duration-500" alt={sol.title} />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-slate-300">
                         <Smartphone className="h-12 w-12" />

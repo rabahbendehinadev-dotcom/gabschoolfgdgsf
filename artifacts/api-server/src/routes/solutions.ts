@@ -8,7 +8,7 @@ import OpenAI from "openai";
 import { z } from "zod";
 import { adminAuth, optionalUserAuth } from "../middlewares/auth";
 import { hasAdminPermission } from "../lib/adminSecurity";
-import { aiSolutionSchema, solutionInputSchema, solutionContentSchema, emptySolutionContent, solutionCard, isSolutionsEntitled, assertSolutionImageRefs, normalizeAiSolutionResources } from "../lib/solutions";
+import { aiSolutionSchema, solutionInputSchema, solutionContentSchema, emptySolutionContent, solutionCard, solutionCoverImageId, isSolutionsEntitled, assertSolutionImageRefs, normalizeAiSolutionResources } from "../lib/solutions";
 import { saveSolutionImage, readSolutionImage } from "../lib/solutionStorage";
 
 const router: IRouter = Router();
@@ -148,8 +148,10 @@ router.get(`${adminBase}/images/:id`, (req, res) => sendImage(req, res, true));
 router.get("/solutions/images/:id", optionalUserAuth, (req, res) => sendImage(req, res, false));
 router.get("/solutions/:slug/cover", async (req, res) => {
   const [row] = await db.select().from(solutions).where(and(eq(solutions.slug, String(req.params.slug)), eq(solutions.status, "published"))).limit(1);
-  if (!row?.coverImageId) { res.sendStatus(404); return; }
-  const [image] = await db.select().from(images).where(and(eq(images.id, row.coverImageId), eq(images.solutionId, row.id)));
+  if (!row) { res.sendStatus(404); return; }
+  const coverImageId = solutionCoverImageId(row);
+  if (!coverImageId) { res.sendStatus(404); return; }
+  const [image] = await db.select().from(images).where(and(eq(images.id, coverImageId), eq(images.solutionId, row.id)));
   if (!image) { res.sendStatus(404); return; }
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.type("webp").send(await readSolutionImage(image.objectPath));
