@@ -25,6 +25,26 @@ export const solutionInputSchema = z.object({
 }).partial().strict();
 export const aiSolutionSchema = solutionInputSchema.required().omit({ rawInput: true });
 
+export function normalizeAiSolutionResources(value: unknown, suppliedUrls: ReadonlySet<string>): unknown {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+  const root = value as Record<string, unknown>;
+  if (!root.content || typeof root.content !== "object" || Array.isArray(root.content)) return value;
+  const content = root.content as Record<string, unknown>;
+  if (!Array.isArray(content.resources)) return value;
+  const resources = content.resources.filter(resource => {
+    if (!resource || typeof resource !== "object" || Array.isArray(resource)) return false;
+    const url = (resource as Record<string, unknown>).url;
+    if (typeof url !== "string" || !suppliedUrls.has(url)) return false;
+    try {
+      const parsed = new URL(url);
+      return parsed.protocol === "http:" || parsed.protocol === "https:";
+    } catch {
+      return false;
+    }
+  });
+  return { ...root, content: { ...content, resources } };
+}
+
 export function isSolutionsEntitled(user?: CommunitySubscriberCheckable | null): boolean {
   return !!user && isActiveCommunitySubscriber({ ...user, communityRole: null });
 }

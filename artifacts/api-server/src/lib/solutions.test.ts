@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { isSolutionsEntitled, solutionCard, solutionInputSchema, solutionContentSchema, emptySolutionContent, assertSolutionImageRefs, aiSolutionSchema } from "./solutions";
+import { isSolutionsEntitled, solutionCard, solutionInputSchema, solutionContentSchema, emptySolutionContent, assertSolutionImageRefs, aiSolutionSchema, normalizeAiSolutionResources } from "./solutions";
 import { canAccessAdminApi, hasAdminPermission } from "./adminSecurity";
 import { isProtectedSolutionStoragePath } from "./solutionStorage";
 import { ObjectStorageService, ObjectNotFoundError, parseObjectPath, signObjectURL } from "./objectStorage";
@@ -90,4 +90,39 @@ test("resource links cannot execute scripts or reference local files", () => {
 test("AI schema rejects missing sections, unexpected properties and malformed image IDs", () => {
   assert.equal(aiSolutionSchema.safeParse({ title: "Invented partial answer" }).success, false);
   assert.equal(solutionContentSchema.safeParse({ ...emptySolutionContent, steps: [{ title: "Step", text: "Notes", imageIds: ["unbound"] }] }).success, false);
+});
+
+const aiFixture = (resources: unknown[], imageIds = [
+  "a8a43081-1f88-40bf-a4eb-334b18fb8043",
+  "35a43081-1f88-40bf-a4eb-334b18fb8043",
+  "45a43081-1f88-40bf-a4eb-334b18fb8043",
+]) => ({
+  title: "Fixture", slug: "fixture", excerpt: "Fixture excerpt", brand: "", model: "", category: "", subcategory: "", tool: "",
+  tags: [], keywords: [], imageIds, coverImageId: null, reviewFlags: [],
+  content: { ...emptySolutionContent, resources },
+});
+
+test("AI generation without a supplied URL succeeds with no resources and keeps three screenshots", () => {
+  const normalized = normalizeAiSolutionResources(aiFixture([
+    { name: "Invented download", type: "file", url: "N/A" },
+    { name: "Placeholder", type: "external", url: "#" },
+  ]), new Set());
+  const parsed = aiSolutionSchema.parse(normalized);
+  assert.deepEqual(parsed.content.resources, []);
+  assert.equal(parsed.imageIds.length, 3);
+});
+
+test("AI generation preserves a strict resource matching a supplied HTTPS URL", () => {
+  const url = "https://vendor.example/download/file.zip";
+  const resource = { name: "Vendor download", type: "file", url, version: "1.0" };
+  const parsed = aiSolutionSchema.parse(normalizeAiSolutionResources(aiFixture([resource]), new Set([url])));
+  assert.deepEqual(parsed.content.resources, [resource]);
+});
+
+test("AI generation discards only an invalid optional resource and keeps the article", () => {
+  const parsed = aiSolutionSchema.parse(normalizeAiSolutionResources(aiFixture([
+    { name: "Invalid", type: "tool", url: "" },
+  ]), new Set()));
+  assert.equal(parsed.title, "Fixture");
+  assert.deepEqual(parsed.content.resources, []);
 });
