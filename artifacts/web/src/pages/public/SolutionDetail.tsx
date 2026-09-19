@@ -18,7 +18,7 @@ export function SolutionDetail({ slug }: { slug: string }) {
   const full = entitled && "content" in solution ? solution : null;
 
   return (
-    <div className="bg-slate-50 min-h-screen pb-24" dir="rtl">
+    <div className="bg-[#f5f7ff] min-h-screen pb-24" dir="rtl">
       {!full && (
         <header className="bg-white border-b border-slate-200">
           <div className="max-w-[1200px] mx-auto px-4 py-10 space-y-6">
