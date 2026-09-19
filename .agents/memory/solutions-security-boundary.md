@@ -14,3 +14,9 @@ Use opaque PostgreSQL row versions rather than JavaScript Date equality for Solu
 **Why:** PostgreSQL timestamps retain microseconds that JavaScript truncates, producing false conflicts; same-millisecond edits can also evade timestamp comparisons.
 
 **How to apply:** Preserve row-version checks on asynchronous AI completion and publication. Test unchanged microsecond timestamps and concurrent updates with identical timestamps.
+
+Treat strict-schema AI output as nondeterministic even when JSON mode is enabled; retry one schema-invalid response automatically, but never relax validation.
+
+**Why:** The same complete notes and screenshots produced one invalid nested shape and then a valid complete article. A one-click composer should absorb this provider variance without accepting unsafe data or requiring a manual retry.
+
+**How to apply:** Retry only JSON parsing/schema failures once with the same evidence and a stricter reminder. Keep URL provenance, image ownership, row-version, and publish-review checks unchanged.

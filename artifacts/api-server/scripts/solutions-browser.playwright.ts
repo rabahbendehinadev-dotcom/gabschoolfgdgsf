@@ -27,8 +27,6 @@ const baseUrl = process.env.SOLUTIONS_BROWSER_BASE_URL || "http://localhost:80";
 const runId = `solutions-browser-${Date.now()}-${randomUUID().slice(0, 8)}`;
 const adminEmail = `${runId}@example.invalid`;
 const password = `Browser!${randomUUID()}9a`;
-const slug = `${runId}-guide`;
-const title = `${runId} Router Recovery`;
 let adminId: number | undefined;
 const solutionIds: number[] = [];
 const screenshotsDir = fileURLToPath(new URL("../../../screenshots/", import.meta.url));
@@ -114,9 +112,14 @@ test("publishes a Solution through the real admin and visitor UIs", async ({ bro
     await notes.fill(
       [
         `${runId} harmless technical verification notes.`,
-        "Device: synthetic lab router BR-100.",
+         "Brand: SyntheticLab. Model: BR-100. Category: Network repair. Subcategory: Router recovery. Tool: Synthetic Console.",
         "Problem: an amber status tile appears after a configuration change.",
+         "Prerequisite: authorized access to the synthetic lab router.",
+         "Before starting: record the current setting.",
+         "Warning: do not disconnect power while saving.",
         "Verified procedure: record the current setting, restore the prior setting, save, and confirm the tile turns green.",
+         "Result: the synthetic status tile is green.",
+         `Download: https://example.com/${runId}`,
         "The screenshots are generated synthetic raster panels and contain no credentials.",
         `Keep the fixture identifier ${runId} in the generated draft. Do not invent credentials or unsafe steps.`,
       ].join("\n"),
@@ -225,32 +228,31 @@ test("publishes a Solution through the real admin and visitor UIs", async ({ bro
     await expect(page.getByText("Génération terminée — vérifiez le contenu", { exact: true })).toBeVisible();
     console.log(`[browser] ${runId}: real AI generation completed`);
 
-    const metadata = page.getByRole("heading", { name: "Métadonnées" }).locator("..");
+     const preview = page.getByRole("heading", { name: "Aperçu de l’article" }).locator("..").locator("..");
+     await expect(preview).toBeVisible();
+     await expect(page.locator("#advanced-solution-editing")).not.toHaveAttribute("open", "");
+     await expect(page.getByRole("heading", { level: 1 }).nth(1)).not.toHaveText("Titre à vérifier");
+     await expect(page.getByRole("heading", { name: /Procédure/ })).toBeVisible();
+     await expect(page.getByRole("heading", { name: /Ressources/ })).toBeVisible();
+     await screenshot(page, "ai-generated-preview");
+
+     await page.getByRole("button", { name: "Corriger dans l’édition avancée" }).click();
+     await expect(page.locator("#advanced-solution-editing")).toHaveAttribute("open", "");
+     const metadata = page.getByRole("heading", { name: "Métadonnées générées" }).locator("..");
     const metadataInputs = metadata.locator("input");
-    await metadataInputs.nth(0).fill(title);
-    await metadataInputs.nth(1).fill(slug);
-    await metadataInputs.nth(2).fill(runId);
-    await metadataInputs.nth(3).fill("BR-100");
-    await metadataInputs.nth(4).fill("Browser verification");
-    await metadataInputs.nth(6).fill("Synthetic console");
-    await metadata.locator("textarea").fill(`${runId} harmless public teaser`);
-    await metadataInputs.nth(7).fill(`${runId},browser`);
-    await metadataInputs.nth(8).fill(`${runId},router`);
-
-    await page.getByRole("button", { name: "+ Ajouter une étape" }).click();
-    await page.getByLabel(/Titre étape/).last().fill(`${runId} verified final check`);
-    await page.getByLabel(/Texte étape/).last().fill("Confirm the synthetic status tile is green.");
-    await page.getByRole("button", { name: "+ Ajouter une ressource" }).click();
-    const resources = page.locator("div.border.rounded-xl").filter({ has: page.locator("select") });
-    const lastResource = resources.last();
-    const resourceInputs = lastResource.locator("input");
-    await resourceInputs.nth(0).fill(`${runId} reference`);
-    await resourceInputs.nth(1).fill(`https://example.com/${runId}`);
-    await resourceInputs.nth(3).fill("Harmless browser fixture link; do not fetch.");
-
-    await page.getByRole("button", { name: "Aperçu avant publication" }).click();
-    await expect(page.getByRole("heading", { name: title })).toBeVisible();
-    await screenshot(page, "admin-preview");
+     const generatedTitle = await metadataInputs.nth(0).inputValue();
+     const generatedSlug = await metadataInputs.nth(1).inputValue();
+     expect(generatedTitle.trim()).not.toBe("");
+     expect(generatedSlug).toMatch(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
+     for (const index of [2, 3, 4, 5, 6, 7, 8]) {
+       expect((await metadataInputs.nth(index).inputValue()).trim()).not.toBe("");
+     }
+     expect((await metadata.locator("textarea").inputValue()).trim()).not.toBe("");
+     await expect(page.getByLabel(/Titre étape/).first()).not.toHaveValue("");
+     await expect(page.getByLabel(/Texte étape/).first()).not.toHaveValue("");
+     expect(await page.locator('#advanced-solution-editing input[type="checkbox"]:checked').count()).toBeGreaterThan(0);
+     await expect(page.locator('#advanced-solution-editing input[type="url"]').first()).toHaveValue(`https://example.com/${runId}`);
+     console.log(`[browser] ${runId}: AI populated metadata, article, resource and screenshot placement`);
     await page
       .locator("label")
       .filter({ hasText: "J'ai vérifié les instructions techniques" })
@@ -266,26 +268,26 @@ test("publishes a Solution through the real admin and visitor UIs", async ({ bro
     const visitorPage = await visitor.newPage();
     await visitorPage.goto(`${baseUrl}/solutions`);
     await visitorPage.getByPlaceholder(/ابحث عن موديل/).fill(runId);
-    await expect(visitorPage.getByRole("heading", { name: title })).toBeVisible({ timeout: 15_000 });
-    await visitorPage.getByRole("heading", { name: title }).click();
-    await expect(visitorPage).toHaveURL(new RegExp(`/solutions/${slug}$`));
-    await expect(visitorPage.getByRole("heading", { name: title })).toBeVisible();
+     await expect(visitorPage.getByRole("heading", { name: generatedTitle })).toBeVisible({ timeout: 15_000 });
+     await visitorPage.getByRole("heading", { name: generatedTitle }).click();
+     await expect(visitorPage).toHaveURL(new RegExp(`/solutions/${generatedSlug}$`));
+     await expect(visitorPage.getByRole("heading", { name: generatedTitle })).toBeVisible();
     await expect(visitorPage.getByRole("heading", { name: "اشترك للوصول إلى الحل الكامل" })).toBeVisible();
     const lockedCta = visitorPage.locator("section").filter({
       has: visitorPage.getByRole("heading", { name: "اشترك للوصول إلى الحل الكامل" }),
     });
     await expect(lockedCta.getByRole("link", { name: "اشترك الآن" })).toBeVisible();
     await expect(lockedCta.getByRole("link", { name: "تسجيل الدخول" })).toBeVisible();
-    await expect(visitorPage.getByText(`${runId} verified final check`)).toHaveCount(0);
+     await expect(visitorPage.getByText("restore the prior setting", { exact: false })).toHaveCount(0);
     await screenshot(visitorPage, "visitor-locked-detail");
 
     await visitorPage.setViewportSize({ width: 390, height: 844 });
     await visitorPage.goto(`${baseUrl}/solutions`);
     await visitorPage.getByPlaceholder(/ابحث عن موديل/).fill(runId);
-    await expect(visitorPage.getByRole("heading", { name: title })).toBeVisible({ timeout: 15_000 });
+     await expect(visitorPage.getByRole("heading", { name: generatedTitle })).toBeVisible({ timeout: 15_000 });
     expect(await visitorPage.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
     await screenshot(visitorPage, "mobile-search");
-    await visitorPage.getByRole("heading", { name: title }).click();
+     await visitorPage.getByRole("heading", { name: generatedTitle }).click();
     await expect(visitorPage.getByRole("heading", { name: "اشترك للوصول إلى الحل الكامل" })).toBeVisible();
     expect(await visitorPage.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
     await screenshot(visitorPage, "mobile-locked-detail");

@@ -11,6 +11,16 @@ import { SolutionArticle, SolutionImage } from "@/features/solutions/Article";
 import type { SolutionDraftInput, SolutionDraft, SolutionMedia, SolutionContent, SolutionCard, SolutionResource } from "@/features/solutions/contract";
 
 const emptyContent: SolutionContent = { introduction: "", device: "", problem: "", requirements: [], beforeStarting: [], steps: [], result: "", warnings: [], resources: [] };
+function hasGeneratedArticle(draft: SolutionDraftInput): boolean {
+  const content = { ...emptyContent, ...draft.content };
+  return Boolean(
+    draft.title?.trim() ||
+    draft.excerpt?.trim() ||
+    content.introduction.trim() ||
+    content.problem.trim() ||
+    content.steps.length,
+  );
+}
 function editable(d: SolutionDraftInput): SolutionDraftInput {
   return Object.fromEntries(["title", "slug", "excerpt", "brand", "model", "category", "subcategory", "tool", "tags", "keywords", "rawInput", "content", "imageIds", "coverImageId", "reviewFlags"].filter(k => k in d).map(k => [k, d[k as keyof SolutionDraftInput]]));
 }
@@ -38,16 +48,24 @@ export function AdminSolutionForm({ id: routeId }: { id?: string }) {
   const busyRef = useRef(false);
   const [error, setError] = useState("");
   const [preview, setPreview] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [reviewed, setReviewed] = useState(false);
   const [duplicates, setDuplicates] = useState<SolutionCard[]>([]);
   const [ready, setReady] = useState(false);
   const [backupWarning, setBackupWarning] = useState("");
   const [generationError, setGenerationError] = useState("");
   const initialized = useRef(false);
+  const previewRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (initialized.current || (routeNumber && !solution)) return;
     initialized.current = true;
-    if (solution) { setDraft(editable(solution)); setImages(solution.images); setStatus(solution.status); setGenerationError(solution.generationError || ""); }
+    if (solution) {
+      setDraft(editable(solution));
+      setImages(solution.images);
+      setStatus(solution.status);
+      setGenerationError(solution.generationError || "");
+      setPreview(hasGeneratedArticle(solution));
+    }
     try {
       const backup = JSON.parse(localStorage.getItem(backupKey) || "null");
       if (backup && (!solution || backup.savedAt > Date.parse(solution.updatedAt))) {
@@ -130,7 +148,14 @@ export function AdminSolutionForm({ id: routeId }: { id?: string }) {
       }
       if (status === "published") throw new Error("Dépubliez la solution avant de la modifier.");
       const id = await save();
-      if (action === "generate") { const generated = await mutations.generate.mutateAsync({ id }); applyServer(generated); setReviewed(false); }
+      if (action === "generate") {
+        const generated = await mutations.generate.mutateAsync({ id });
+        applyServer(generated);
+        setReviewed(false);
+        setAdvancedOpen(false);
+        setPreview(true);
+        requestAnimationFrame(() => previewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+      }
       if (action === "publish") { applyServer(await mutations.publish.mutateAsync({ id, reviewed: true, overrideDuplicate })); setDuplicates([]); }
       toast({ title: action === "generate" ? "Génération terminée — vérifiez le contenu" : action === "publish" ? "Solution publiée" : "Brouillon sauvegardé" });
       if (!routeNumber) {
@@ -159,7 +184,10 @@ export function AdminSolutionForm({ id: routeId }: { id?: string }) {
     {(error || generationError) && <p role="alert" className="p-4 bg-red-50 text-red-800 rounded">{error || generationError}</p>}
     <fieldset disabled={busy || status === "published"} className="space-y-6 min-w-0">
       <Card className="p-6 space-y-4" onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); addFiles(Array.from(e.dataTransfer.files)); }}>
-        <h2 className="font-bold text-lg">AI Composer</h2>
+        <div className="rounded-2xl bg-indigo-50 border border-indigo-100 p-4">
+          <h2 className="font-bold text-xl text-indigo-950">AI Composer — créez la solution ici</h2>
+          <p className="text-sm text-indigo-800 mt-1">Écrivez simplement vos notes, collez vos captures et ajoutez vos liens. L’IA remplira automatiquement le titre, les métadonnées, l’article, les étapes, les ressources et le placement des captures.</p>
+        </div>
         <label className="block">Notes brutes — Ctrl+V pour coller une capture
           <Textarea className="min-h-48 mt-2" value={draft.rawInput || ""} onChange={e => change({ rawInput: e.target.value })} onPaste={e => paste(e)} placeholder="Appareil, problème, outil, instructions vérifiées, liens…" />
         </label>
@@ -182,15 +210,32 @@ export function AdminSolutionForm({ id: routeId }: { id?: string }) {
           <Button variant="outline" size="sm" onClick={() => { change({ coverImageId: null }); setPendingCover(null); }}>Sans couverture</Button>
         </div>
         {!!files.length && <p className="text-amber-800 text-sm">Sauvegardez avant de quitter : les fichiers en attente ne sont pas conservés après fermeture de la page.</p>}
-        <div className="flex flex-wrap gap-3"><Button onClick={() => void run("generate")} className="bg-indigo-600">Générer avec AI / Réessayer</Button><Button variant="outline" onClick={() => void run("save")}>Sauvegarder le brouillon et les images</Button></div>
+        <div className="flex flex-wrap gap-3"><Button size="lg" onClick={() => void run("generate")} className="bg-indigo-600 hover:bg-indigo-700">Générer avec AI / Réessayer</Button><Button variant="outline" onClick={() => void run("save")}>Sauvegarder le brouillon et les images</Button></div>
       </Card>
-      <Card className="p-6 space-y-6">
-        <h2 className="font-bold text-lg">Métadonnées</h2>
+
+      {preview && <Card ref={previewRef} className="p-6 space-y-6 scroll-mt-6 border-indigo-200 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div><p className="text-xs font-semibold uppercase tracking-wide text-indigo-600">Résultat généré par l’IA</p><h2 className="text-xl font-bold">Aperçu de l’article</h2><p className="text-sm text-slate-500">Relisez l’article comme il apparaîtra aux membres, puis publiez ou ouvrez l’édition avancée pour une correction.</p></div>
+          <Button type="button" variant="outline" onClick={() => { setAdvancedOpen(true); requestAnimationFrame(() => document.getElementById("advanced-solution-editing")?.scrollIntoView({ behavior: "smooth" })); }}>Corriger dans l’édition avancée</Button>
+        </div>
+        <div className="rounded-2xl bg-slate-50 border p-4 md:p-6 space-y-5">
+          <div className="space-y-2"><h1 className="text-2xl md:text-3xl font-bold">{draft.title || "Titre à vérifier"}</h1><p className="text-slate-600 whitespace-pre-wrap">{draft.excerpt || "Aucun extrait public généré."}</p><p className="font-medium">{[draft.brand, draft.model, draft.category, draft.subcategory, draft.tool].filter(Boolean).join(" · ")}</p></div>
+          {pendingCover ? <SolutionImage file={pendingCover} alt="Couverture" className="max-h-80 w-full" /> : draft.coverImageId && <SolutionImage id={draft.coverImageId} admin alt="Couverture publique" className="max-h-80 w-full" />}
+          <SolutionArticle content={content} images={images} admin />
+        </div>
+        {!!(draft.reviewFlags || []).filter(Boolean).length && <div className="space-y-2"><h3 className="font-bold text-amber-900">Points signalés par l’IA</h3>{(draft.reviewFlags || []).filter(Boolean).map((flag, i) => <p key={i} className="bg-amber-50 border border-amber-100 p-3 text-amber-900 rounded">À vérifier : {flag}</p>)}</div>}
+      </Card>}
+
+      <details id="advanced-solution-editing" open={advancedOpen} onToggle={event => setAdvancedOpen(event.currentTarget.open)} className="rounded-xl border bg-white overflow-hidden">
+        <summary className="cursor-pointer select-none p-6 font-bold text-lg hover:bg-slate-50">Édition manuelle avancée <span className="font-normal text-sm text-slate-500">— corrections facultatives après génération</span></summary>
+        <div className="p-6 pt-0 space-y-6">
+      <Card className="p-6 space-y-6 shadow-none">
+        <h2 className="font-bold text-lg">Métadonnées générées</h2>
         <div className="grid sm:grid-cols-2 gap-4">{([["title", "Titre"], ["slug", "Slug SEO"], ["brand", "Marque"], ["model", "Modèle"], ["category", "Catégorie"], ["subcategory", "Sous-catégorie"], ["tool", "Outil"]] as const).map(([key, label]) => <label key={key}>{label}<Input value={draft[key] || ""} list={`solution-${key}`} onChange={e => change({ [key]: e.target.value })} /><datalist id={`solution-${key}`}>{key === "tool" ? taxonomy?.tools.map(tool => <option key={tool} value={tool} />) : taxonomy?.taxonomies.filter(t => t.kind === key && (key !== "subcategory" || taxonomy.taxonomies.find(parent => parent.id === t.parentId)?.name === draft.category)).map(t => <option key={t.id} value={t.name} />)}</datalist></label>)}</div>
         <label className="block">Extrait public<Textarea value={draft.excerpt || ""} onChange={e => change({ excerpt: e.target.value })} /></label>
         {(["tags", "keywords"] as const).map(key => <label className="block" key={key}>{key === "tags" ? "Tags" : "Mots-clés de recherche"} (séparés par virgules)<Input value={(draft[key] || []).join(",")} onChange={e => change({ [key]: e.target.value.split(",") })} /></label>)}
       </Card>
-      <Card className="p-6 space-y-5">
+      <Card className="p-6 space-y-5 shadow-none">
         <h2 className="font-bold text-lg">Article — tout est modifiable</h2>
         {([["introduction", "Introduction"], ["device", "Informations appareil / plateforme / version"], ["problem", "Problème / opération"], ["result", "Résultat"]] as const).map(([key, label]) => <label className="block" key={key}>{label}<Textarea value={content[key]} onChange={e => changeContent({ [key]: e.target.value })} /></label>)}
         {([["requirements", "Prérequis"], ["beforeStarting", "Avant de commencer"], ["warnings", "Avertissements"]] as const).map(([key, label]) => <label className="block" key={key}>{label} (une entrée par ligne)<Textarea value={content[key].join("\n")} onChange={e => changeContent({ [key]: e.target.value.split("\n") })} /></label>)}
@@ -199,7 +244,13 @@ export function AdminSolutionForm({ id: routeId }: { id?: string }) {
           <div className="flex flex-wrap gap-2 items-center"><strong>Étape {index + 1}</strong><Button variant="outline" size="sm" disabled={!index} onClick={() => changeContent({ steps: move(content.steps, index, index - 1) })}>↑</Button><Button variant="outline" size="sm" disabled={index === content.steps.length - 1} onClick={() => changeContent({ steps: move(content.steps, index, index + 1) })}>↓</Button><Button variant="outline" size="sm" onClick={() => changeContent({ steps: content.steps.filter((_, i) => i !== index) })}>Supprimer</Button></div>
           <Input aria-label={`Titre étape ${index + 1}`} value={step.title} onChange={e => changeContent({ steps: content.steps.map((s, i) => i === index ? { ...s, title: e.target.value } : s) })} />
           <Textarea aria-label={`Texte étape ${index + 1}`} value={step.text} onChange={e => changeContent({ steps: content.steps.map((s, i) => i === index ? { ...s, text: e.target.value } : s) })} />
-          <div className="flex flex-wrap gap-3">{images.map((image, i) => <label key={image.id} className="text-sm"><input type="checkbox" checked={step.imageIds.includes(image.id)} onChange={e => changeContent({ steps: content.steps.map((s, j) => j === index ? { ...s, imageIds: e.target.checked ? [...s.imageIds, image.id] : s.imageIds.filter(id => id !== image.id) } : s) })} /> Capture {i + 1}</label>)}</div>
+          <div className="grid sm:grid-cols-2 gap-2">{images.map((image, i) => {
+            const assignedIndex = step.imageIds.indexOf(image.id);
+            return <div key={image.id} className="flex items-center gap-2 text-sm border rounded-lg p-2">
+              <label className="flex items-center gap-2 flex-1"><input type="checkbox" checked={assignedIndex >= 0} onChange={e => changeContent({ steps: content.steps.map((s, j) => j === index ? { ...s, imageIds: e.target.checked ? [...s.imageIds, image.id] : s.imageIds.filter(id => id !== image.id) } : s) })} /> Capture {i + 1}</label>
+              {assignedIndex >= 0 && <><Button type="button" size="sm" variant="outline" disabled={!assignedIndex} onClick={() => changeContent({ steps: content.steps.map((s, j) => j === index ? { ...s, imageIds: move(s.imageIds, assignedIndex, assignedIndex - 1) } : s) })}>↑</Button><Button type="button" size="sm" variant="outline" disabled={assignedIndex === step.imageIds.length - 1} onClick={() => changeContent({ steps: content.steps.map((s, j) => j === index ? { ...s, imageIds: move(s.imageIds, assignedIndex, assignedIndex + 1) } : s) })}>↓</Button></>}
+            </div>;
+          })}</div>
         </div>)}
         <Button variant="outline" onClick={() => changeContent({ steps: [...content.steps, { title: "", text: "", imageIds: [] }] })}>+ Ajouter une étape</Button>
         <h3 className="font-bold">Ressources protégées</h3>
@@ -210,15 +261,14 @@ export function AdminSolutionForm({ id: routeId }: { id?: string }) {
         </div>)}
         <Button variant="outline" onClick={() => changeContent({ resources: [...content.resources, { name: "", type: "external", url: "" }] })}>+ Ajouter une ressource</Button>
       </Card>
+        </div>
+      </details>
       <Card className="p-6 space-y-4">
         <h2 className="font-bold text-lg">Vérification et publication</h2>
-        <label className="block">Points à vérifier (un par ligne)<Textarea value={(draft.reviewFlags || []).join("\n")} onChange={e => change({ reviewFlags: e.target.value.split("\n") })} /></label>
-        {(draft.reviewFlags || []).filter(Boolean).map((flag, i) => <p key={i} className="bg-amber-50 p-3 text-amber-900 rounded">⚠ {flag}</p>)}
-        <Button variant="outline" onClick={() => setPreview(!preview)}>{preview ? "Fermer l'aperçu" : "Aperçu avant publication"}</Button>
-        {preview && <div className="bg-slate-50 p-4 rounded-xl space-y-4"><h1 className="text-2xl font-bold">{draft.title}</h1><p>{draft.excerpt}</p><p>{draft.brand} {draft.model} · {draft.category} · {draft.tool}</p>{pendingCover ? <SolutionImage file={pendingCover} alt="Couverture" /> : draft.coverImageId && <SolutionImage id={draft.coverImageId} admin alt="Couverture publique" />}<SolutionArticle content={content} images={images} admin /></div>}
+        {!preview && <p className="text-sm text-slate-600">Générez d’abord l’article avec l’AI Composer. L’aperçu complet apparaîtra avant la publication.</p>}
         <label className="flex gap-3 items-start"><input type="checkbox" checked={reviewed} onChange={e => setReviewed(e.target.checked)} /><span>J'ai vérifié les instructions techniques, les liens, les avertissements et la couverture publique. Je confirme la publication.</span></label>
         {!!duplicates.length && <div className="bg-amber-50 p-4 space-y-3"><h3 className="font-bold">Doublons possibles</h3>{duplicates.map(duplicate => <p key={duplicate.id}><a className="underline" target="_blank" rel="noopener noreferrer" href={`/bendehinaonline97/solutions/${duplicate.id}/edit`}>{duplicate.title} — {duplicate.brand} {duplicate.model}</a></p>)}<Button disabled={!reviewed} onClick={() => void run("publish", true)}>Publier malgré ces doublons</Button></div>}
-        <div className="flex flex-wrap gap-3"><Button variant="outline" onClick={() => void run("save")}>Sauvegarder</Button><Button disabled={!reviewed} onClick={() => void run("publish")}>Confirmer et publier</Button>{status === "published" && <Button variant="outline" onClick={() => { if (confirm("Retirer cette solution du public ?")) void run("unpublish"); }}>Dépublier</Button>}</div>
+        <div className="flex flex-wrap gap-3"><Button variant="outline" onClick={() => void run("save")}>Sauvegarder</Button><Button disabled={!preview || !reviewed} onClick={() => void run("publish")}>Confirmer et publier</Button>{status === "published" && <Button variant="outline" onClick={() => { if (confirm("Retirer cette solution du public ?")) void run("unpublish"); }}>Dépublier</Button>}</div>
       </Card>
     </fieldset>
     {busy && <p role="status" className="fixed bottom-5 left-1/2 -translate-x-1/2 bg-indigo-700 text-white p-4 rounded-xl shadow-xl">Enregistrement / traitement en cours… Ne fermez pas la page.</p>}
