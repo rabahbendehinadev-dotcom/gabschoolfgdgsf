@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { isActiveCommunitySubscriber, type CommunitySubscriberCheckable } from "./vipUtils";
+import { isActiveVip, type VipCheckable } from "./vipUtils";
 
 const text = z.string().max(20000);
 const short = z.string().max(300);
@@ -45,18 +45,23 @@ export function normalizeAiSolutionResources(value: unknown, suppliedUrls: Reado
   return { ...root, content: { ...content, resources } };
 }
 
-export function isSolutionsEntitled(user?: CommunitySubscriberCheckable | null): boolean {
-  return !!user && isActiveCommunitySubscriber({ ...user, communityRole: null });
+export function isSolutionsEntitled(user?: VipCheckable | null): boolean {
+  return isActiveVip(user);
 }
 
-export function solutionCoverImageId(row: { coverImageId: string | null; imageIds: string[] }): string | null {
-  return row.coverImageId ?? row.imageIds[0] ?? null;
+export function solutionCoverImageId(row: {
+  customCoverImageId: string | null;
+  aiCoverImageId: string | null;
+  coverImageId: string | null;
+}): string | null {
+  return row.customCoverImageId ?? row.aiCoverImageId ?? row.coverImageId ?? null;
 }
 
 /** Explicit allowlist: never spread DB rows into a visitor response. */
 export function solutionCard(row: {
   id: number; slug: string; title: string; excerpt: string; brand: string; model: string; category: string;
-  subcategory: string; tool: string; tags: string[]; coverImageId: string | null; imageIds: string[]; publishedAt: Date | null;
+  subcategory: string; tool: string; tags: string[]; coverImageId: string | null; aiCoverImageId: string | null;
+  customCoverImageId: string | null; imageIds: string[]; publishedAt: Date | null;
 }) {
   return {
     id: row.id, slug: row.slug, title: row.title, excerpt: row.excerpt, brand: row.brand,

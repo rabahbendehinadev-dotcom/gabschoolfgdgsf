@@ -21,8 +21,13 @@ function hasGeneratedArticle(draft: SolutionDraftInput): boolean {
     content.steps.length,
   );
 }
+const writableKeys = ["title", "slug", "excerpt", "brand", "model", "category", "subcategory", "tool", "tags", "keywords", "rawInput", "content", "imageIds", "coverImageId", "reviewFlags"] as const;
+function writable(d: SolutionDraftInput): SolutionDraftInput {
+  return Object.fromEntries(writableKeys.filter(k => k in d).map(k => [k, d[k]]));
+}
 function editable(d: SolutionDraftInput): SolutionDraftInput {
-  return Object.fromEntries(["title", "slug", "excerpt", "brand", "model", "category", "subcategory", "tool", "tags", "keywords", "rawInput", "content", "imageIds", "coverImageId", "reviewFlags"].filter(k => k in d).map(k => [k, d[k as keyof SolutionDraftInput]]));
+  const keys = [...writableKeys, "aiCoverImageId", "customCoverImageId", "coverSource", "coverGenerationError"] as const;
+  return Object.fromEntries(keys.filter(k => k in d).map(k => [k, d[k]]));
 }
 function move<T>(items: T[], from: number, to: number): T[] {
   if (to < 0 || to >= items.length) return items;
@@ -54,6 +59,7 @@ export function AdminSolutionForm({ id: routeId }: { id?: string }) {
   const [ready, setReady] = useState(false);
   const [backupWarning, setBackupWarning] = useState("");
   const [generationError, setGenerationError] = useState("");
+  const [customCoverFile, setCustomCoverFile] = useState<File | null>(null);
   const initialized = useRef(false);
   const previewRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -117,25 +123,34 @@ export function AdminSolutionForm({ id: routeId }: { id?: string }) {
     persist();
     let saved: SolutionDraft;
     if (!idRef.current) {
-      saved = await mutations.create.mutateAsync(editable(draft));
+      saved = await mutations.create.mutateAsync(writable(draft));
       idRef.current = saved.id; setCurrentId(saved.id);
       persist(draft, images, saved.id);
-    } else saved = await mutations.update.mutateAsync({ id: idRef.current, data: editable(draft) });
+    } else saved = await mutations.update.mutateAsync({ id: idRef.current, data: writable(draft) });
     let nextImages = [...images];
     let nextDraft = editable(draft);
+    let selectedUploadedCoverId: string | null = null;
     if (files.length) {
       const uploaded = await mutations.uploadImages.mutateAsync({ id: saved.id, files });
       const newImages = uploaded.images.filter(image => !images.some(existing => existing.id === image.id));
       nextImages = [...images, ...newImages];
-      nextDraft = { ...draft, imageIds: nextImages.map(image => image.id), coverImageId: pendingCover ? newImages[files.indexOf(pendingCover)]?.id || draft.coverImageId : draft.coverImageId };
+      selectedUploadedCoverId = pendingCover ? newImages[files.indexOf(pendingCover)]?.id || null : null;
+      nextDraft = { ...draft, imageIds: nextImages.map(image => image.id), coverImageId: selectedUploadedCoverId || draft.coverImageId };
       setImages(nextImages); setFiles([]); setPendingCover(null); setDraft(nextDraft);
       persist(nextDraft, nextImages, saved.id);
-      saved = await mutations.update.mutateAsync({ id: saved.id, data: editable(nextDraft) });
+      saved = await mutations.update.mutateAsync({ id: saved.id, data: writable(nextDraft) });
+    }
+    if (selectedUploadedCoverId) {
+      saved = await mutations.useScreenshotCover.mutateAsync({ id: saved.id, imageId: selectedUploadedCoverId });
+    }
+    if (customCoverFile) {
+      saved = await mutations.uploadCover.mutateAsync({ id: saved.id, file: customCoverFile });
+      setCustomCoverFile(null);
     }
     applyServer(saved);
     return saved.id;
   };
-  const run = async (action: "save" | "generate" | "publish" | "unpublish", overrideDuplicate = false) => {
+  const run = async (action: "save" | "generate" | "generate-cover" | "publish" | "unpublish", overrideDuplicate = false) => {
     if (busyRef.current) return;
     busyRef.current = true; setBusy(true); setError("");
     try {
@@ -156,8 +171,12 @@ export function AdminSolutionForm({ id: routeId }: { id?: string }) {
         setPreview(true);
         requestAnimationFrame(() => previewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
       }
+      if (action === "generate-cover") {
+        applyServer(await mutations.generateCover.mutateAsync(id));
+        setPreview(true);
+      }
       if (action === "publish") { applyServer(await mutations.publish.mutateAsync({ id, reviewed: true, overrideDuplicate })); setDuplicates([]); }
-      toast({ title: action === "generate" ? "Génération terminée — vérifiez le contenu" : action === "publish" ? "Solution publiée" : "Brouillon sauvegardé" });
+      toast({ title: action === "generate" ? "Article et couverture générés — vérifiez le résultat" : action === "generate-cover" ? "Couverture AI régénérée" : action === "publish" ? "Solution publiée" : "Brouillon sauvegardé" });
       if (!routeNumber) {
         localStorage.removeItem(backupKey);
         navigate(`/bendehinaonline97/solutions/${id}/edit`, { replace: true });
@@ -174,6 +193,20 @@ export function AdminSolutionForm({ id: routeId }: { id?: string }) {
       content: { ...content, steps: content.steps.map(step => ({ ...step, imageIds: step.imageIds.filter(imageId => imageId !== id) })) } });
   };
   const reorderImage = (index: number, direction: number) => { const next = move(images, index, index + direction); setImages(next); change({ imageIds: next.map(image => image.id) }); };
+  const selectScreenshotCover = async (imageId: string | null) => {
+    if (busyRef.current) return;
+    busyRef.current = true; setBusy(true); setError("");
+    try {
+      const id = await save();
+      applyServer(await mutations.useScreenshotCover.mutateAsync({ id, imageId }));
+      setPendingCover(null);
+      setCustomCoverFile(null);
+      toast({ title: imageId ? "Capture utilisée comme couverture" : "Couverture supprimée" });
+    } catch (e: unknown) {
+      const failure = e as { message?: string; data?: { message?: string } };
+      setError(failure.data?.message || failure.message || "Impossible de modifier la couverture.");
+    } finally { busyRef.current = false; setBusy(false); }
+  };
   if (loadError) return <p role="alert">Chargement impossible : {loadError.message}</p>;
   if (!ready || isLoading) return <p>Chargement du brouillon…</p>;
   return <div className="max-w-5xl mx-auto space-y-6 pb-24">
@@ -197,17 +230,35 @@ export function AdminSolutionForm({ id: routeId }: { id?: string }) {
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">{images.map((image, i) => <div key={image.id} className="border rounded-xl p-2 space-y-2">
           <SolutionImage id={image.id} admin alt={image.name} className="h-32 w-full" /><p className="text-xs break-all">{i + 1}. {image.name}</p>
           <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" disabled={!i} onClick={() => reorderImage(i, -1)}>↑</Button><Button size="sm" variant="outline" disabled={i === images.length - 1} onClick={() => reorderImage(i, 1)}>↓</Button><Button size="sm" variant="outline" onClick={() => removeImage(image.id)}>Retirer</Button></div>
-          <label className="text-xs"><input type="radio" name="cover" checked={draft.coverImageId === image.id && !pendingCover} onChange={() => { change({ coverImageId: image.id }); setPendingCover(null); }} /> Couverture publique</label>
+          <Button type="button" size="sm" variant="outline" onClick={() => void selectScreenshotCover(image.id)}>Utiliser cette capture</Button>
         </div>)}{files.map((file, i) => <div key={i} className="border border-amber-300 rounded-xl p-2 space-y-2">
           <SolutionImage file={file} alt={file.name} className="h-32 w-full" /><p className="text-xs">En attente{pendingCover === file ? " — couverture" : ""}</p>
           <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" disabled={!i} onClick={() => setFiles(move(files, i, i - 1))}>↑</Button><Button size="sm" variant="outline" disabled={i === files.length - 1} onClick={() => setFiles(move(files, i, i + 1))}>↓</Button><Button size="sm" variant="outline" onClick={() => { setFiles(files.filter((_, index) => i !== index)); if (pendingCover === file) setPendingCover(null); }}>Retirer</Button></div>
           <label className="text-xs"><input type="radio" name="cover" checked={pendingCover === file} onChange={() => setPendingCover(file)} /> Couverture publique</label>
         </div>)}</div>
-        <div tabIndex={0} onPaste={e => { e.stopPropagation(); paste(e, true); }} className="bg-amber-50 rounded-xl p-4 space-y-2">
+        <div tabIndex={0} onPaste={e => { e.stopPropagation(); paste(e, true); }} className="bg-amber-50 rounded-xl p-4 space-y-3">
           <p className="font-semibold text-amber-900">Attention : la couverture sera publique, même sans abonnement. N'y placez pas d'instructions confidentielles.</p>
-          <p className="text-sm">Sélectionnez une capture ci-dessus, ou cliquez ici puis Ctrl+V pour coller une couverture.</p>
-          <input aria-label="Importer une couverture" type="file" accept="image/png,image/jpeg,image/webp" className="max-w-full" onChange={e => { addFiles(Array.from(e.target.files || []), true); e.target.value = ""; }} />
-          <Button variant="outline" size="sm" onClick={() => { change({ coverImageId: null }); setPendingCover(null); }}>Sans couverture</Button>
+          <p className="text-sm">AI Generated Cover</p>
+          {(customCoverFile || draft.customCoverImageId || draft.aiCoverImageId || draft.coverImageId) && (
+            <SolutionImage
+              file={customCoverFile || undefined}
+              id={customCoverFile ? undefined : draft.customCoverImageId || draft.aiCoverImageId || draft.coverImageId || undefined}
+              admin
+              alt="Couverture de la solution"
+              className="w-full max-w-xl aspect-[3/2] rounded-xl"
+            />
+          )}
+          <p className="text-xs text-slate-600">Source actuelle : {customCoverFile || draft.coverSource === "custom" ? "couverture personnalisée" : draft.coverSource === "ai" ? "couverture générée par AI" : draft.coverSource === "screenshot" ? "capture sélectionnée" : "aucune couverture"}</p>
+          {draft.coverGenerationError && <p className="text-sm text-red-700">{draft.coverGenerationError}</p>}
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => void run("generate-cover")}>Regenerate cover</Button>
+            <label className="inline-flex items-center rounded-md border px-3 text-sm font-medium cursor-pointer hover:bg-slate-50">
+              Upload custom cover
+              <input aria-label="Upload custom cover" type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={e => { const file = e.target.files?.[0]; if (file) setCustomCoverFile(file); e.target.value = ""; }} />
+            </label>
+            <Button type="button" variant="outline" size="sm" onClick={() => void selectScreenshotCover(null)}>Sans couverture</Button>
+          </div>
+          <p className="text-sm">Pour utiliser une capture à la place, cliquez sur « Utiliser cette capture » sous l’image correspondante.</p>
         </div>
         {!!files.length && <p className="text-amber-800 text-sm">Sauvegardez avant de quitter : les fichiers en attente ne sont pas conservés après fermeture de la page.</p>}
         <div className="flex flex-wrap gap-3"><Button size="lg" onClick={() => void run("generate")} className="bg-indigo-600 hover:bg-indigo-700">Générer avec AI / Réessayer</Button><Button variant="outline" onClick={() => void run("save")}>Sauvegarder le brouillon et les images</Button></div>
@@ -219,7 +270,7 @@ export function AdminSolutionForm({ id: routeId }: { id?: string }) {
           <Button type="button" variant="outline" onClick={() => { setAdvancedOpen(true); requestAnimationFrame(() => document.getElementById("advanced-solution-editing")?.scrollIntoView({ behavior: "smooth" })); }}>Corriger dans l’édition avancée</Button>
         </div>
         <div className="rounded-2xl bg-slate-50 p-4 md:p-6">
-          <SolutionArticle content={content} images={images} admin meta={draft} coverFile={pendingCover} />
+          <SolutionArticle content={content} images={images} admin meta={draft} coverFile={customCoverFile || pendingCover} />
         </div>
         {!!(draft.reviewFlags || []).filter(Boolean).length && <div className="space-y-2"><h3 className="font-bold text-amber-900">Points signalés par l’IA</h3>{(draft.reviewFlags || []).filter(Boolean).map((flag, i) => <p key={i} className="bg-amber-50 border border-amber-100 p-3 text-amber-900 rounded">À vérifier : {flag}</p>)}</div>}
       </Card>}

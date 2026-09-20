@@ -35,10 +35,10 @@ async function responseError(response: Response): Promise<never> {
 }
 
 export function useSolutionsPublic(params: { search?: string; brand?: string; category?: string; tool?: string; page?: number; pageSize?: number }) {
-  const { getAuthHeaders } = useAuth();
+  const { getAuthHeaders, token } = useAuth();
 
   return useQuery({
-    queryKey: ["solutions", params],
+    queryKey: ["solutions", params, token],
     queryFn: async () => {
       const q = new URLSearchParams();
       if (params.search) q.set("search", params.search);
@@ -167,6 +167,55 @@ export function useAdminSolutionMutations() {
     }
   });
 
+  const generateCover = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(`/api/admin/solutions/${id}/generate-cover`, {
+        method: "POST",
+        headers: { ...getAdminAuthHeaders()?.headers }
+      });
+      if (!res.ok) await responseError(res);
+      return (await res.json()) as SolutionDraft;
+    },
+    onSuccess: (data, id) => {
+      queryClient.setQueryData(["admin-solution", id, adminToken], data);
+      queryClient.invalidateQueries({ queryKey: ["admin-solutions"] });
+    }
+  });
+
+  const uploadCover = useMutation({
+    mutationFn: async ({ id, file }: { id: number; file: File }) => {
+      const formData = new FormData();
+      formData.append("cover", file);
+      const res = await fetch(`/api/admin/solutions/${id}/cover`, {
+        method: "POST",
+        headers: { ...getAdminAuthHeaders()?.headers },
+        body: formData
+      });
+      if (!res.ok) await responseError(res);
+      return (await res.json()) as SolutionDraft;
+    },
+    onSuccess: (data, variables) => {
+      queryClient.setQueryData(["admin-solution", variables.id, adminToken], data);
+      queryClient.invalidateQueries({ queryKey: ["admin-solutions"] });
+    }
+  });
+
+  const useScreenshotCover = useMutation({
+    mutationFn: async ({ id, imageId }: { id: number; imageId: string | null }) => {
+      const res = await fetch(`/api/admin/solutions/${id}/cover/screenshot`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAdminAuthHeaders()?.headers },
+        body: JSON.stringify({ imageId })
+      });
+      if (!res.ok) await responseError(res);
+      return (await res.json()) as SolutionDraft;
+    },
+    onSuccess: (data, variables) => {
+      queryClient.setQueryData(["admin-solution", variables.id, adminToken], data);
+      queryClient.invalidateQueries({ queryKey: ["admin-solutions"] });
+    }
+  });
+
   const uploadImages = useMutation({
     mutationFn: async ({ id, files }: { id: number; files: File[] }) => {
       const formData = new FormData();
@@ -231,7 +280,7 @@ export function useAdminSolutionMutations() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-solutions"] })
   });
 
-  return { create, update, generate, uploadImages, publish, unpublish, remove };
+  return { create, update, generate, generateCover, uploadCover, useScreenshotCover, uploadImages, publish, unpublish, remove };
 }
 
 export function useAdminTaxonomies() {

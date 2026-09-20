@@ -107,10 +107,11 @@ export function SolutionsList() {
                     <div className="absolute top-3 right-3 flex gap-2">
                       <Badge className="bg-white/90 text-slate-900 backdrop-blur shadow-sm">{sol.brand}</Badge>
                     </div>
-                    {/* Locked hint for non-entitled (UI only, actual logic depends on user state) */}
-                    <div className="absolute bottom-3 left-3 bg-slate-900/70 backdrop-blur-md rounded-full p-2 text-white">
-                      <Lock className="h-4 w-4" />
-                    </div>
+                    {!data.entitled && (
+                      <div className="absolute bottom-3 left-3 bg-slate-900/70 backdrop-blur-md rounded-full p-2 text-white">
+                        <Lock className="h-4 w-4" />
+                      </div>
+                    )}
                   </div>
 
                   {/* Content */}

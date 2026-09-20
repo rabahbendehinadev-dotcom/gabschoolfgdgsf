@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import { randomUUID } from "node:crypto";
-import { and, eq, desc, or, sql, count, getTableColumns, type SQL } from "drizzle-orm";
+import { and, eq, desc, or, sql, count, getTableColumns, isNull, type SQL } from "drizzle-orm";
 import { db, solutionsTable as solutions, solutionImagesTable as images, solutionTaxonomiesTable as taxonomies } from "@workspace/db";
 import multer from "multer";
 import sharp from "sharp";
@@ -10,6 +10,8 @@ import { adminAuth, optionalUserAuth } from "../middlewares/auth";
 import { hasAdminPermission } from "../lib/adminSecurity";
 import { aiSolutionSchema, solutionInputSchema, solutionContentSchema, emptySolutionContent, solutionCard, solutionCoverImageId, isSolutionsEntitled, assertSolutionImageRefs, normalizeAiSolutionResources } from "../lib/solutions";
 import { saveSolutionImage, readSolutionImage } from "../lib/solutionStorage";
+import { createNotification } from "../lib/notifications";
+import { buildSolutionPublishedNotification, isFirstSolutionPublication } from "../lib/solutionNotifications";
 
 const router: IRouter = Router();
 type Row = typeof solutions.$inferSelect;
@@ -21,6 +23,13 @@ const idOf = (req: Request) => z.coerce.number().int().positive().parse(req.para
 const uuidOf = (req: Request) => z.string().uuid().parse(req.params.id);
 const adminBase = "/admin/solutions";
 const noCache = (_req: Request, res: Response, next: NextFunction) => { res.setHeader("Cache-Control", "private, no-store"); next(); };
+type RequestLogger = { info: (details: unknown, message?: string) => void; error: (details: unknown, message?: string) => void };
+function requestLog(req: Request): RequestLogger {
+  return (req as Request & { log?: RequestLogger }).log ?? {
+    info: (details, message) => console.info(message, details),
+    error: (details, message) => console.error(message, details),
+  };
+}
 router.use("/solutions", noCache);
 router.use(adminBase, adminAuth, (req, res, next) => {
   if (!req.admin || !hasAdminPermission(req.admin, "manage_solutions")) { res.status(403).json({ message: "Solutions management permission required" }); return; }
@@ -50,7 +59,21 @@ async function full(row: Row, admin = false) {
   const attached = await db.select().from(images).where(eq(images.solutionId, row.id));
   const ordered = row.imageIds.flatMap(id => { const image = attached.find(i => i.id === id); return image ? [mediaProjection(image, admin)] : []; });
   const base = { ...solutionCard(row), content: row.content, images: ordered };
-  return admin ? { ...base, status: row.status, rawInput: row.rawInput, keywords: row.keywords, imageIds: row.imageIds, coverImageId: row.coverImageId, reviewFlags: row.reviewFlags, generationError: row.generationError, updatedAt: row.updatedAt.toISOString() } : base;
+  return admin ? {
+    ...base,
+    status: row.status,
+    rawInput: row.rawInput,
+    keywords: row.keywords,
+    imageIds: row.imageIds,
+    coverImageId: row.coverImageId,
+    aiCoverImageId: row.aiCoverImageId,
+    customCoverImageId: row.customCoverImageId,
+    coverSource: row.customCoverImageId ? "custom" : row.aiCoverImageId ? "ai" : row.coverImageId ? "screenshot" : null,
+    reviewFlags: row.reviewFlags,
+    generationError: row.generationError,
+    coverGenerationError: row.coverGenerationError,
+    updatedAt: row.updatedAt.toISOString(),
+  } : base;
 }
 async function updateDraft(id: number, body: unknown) {
   const input = solutionInputSchema.parse(body);
@@ -92,9 +115,16 @@ async function list(req: Request, res: Response, admin = false) {
   const where = listWhere(req, admin);
   const [totalRow] = await db.select({ total: count() }).from(solutions).where(where);
   const rows = await db.select().from(solutions).where(where).orderBy(desc(admin ? solutions.updatedAt : solutions.publishedAt), desc(solutions.id)).limit(pageSize).offset((page - 1) * pageSize);
-  res.json({ solutions: admin ? await Promise.all(rows.map(r => full(r, true))) : rows.map(solutionCard), total: totalRow.total, page, pageSize, pages: Math.ceil(totalRow.total / pageSize) });
+  res.json({
+    solutions: admin ? await Promise.all(rows.map(r => full(r, true))) : rows.map(solutionCard),
+    total: totalRow.total,
+    page,
+    pageSize,
+    pages: Math.ceil(totalRow.total / pageSize),
+    ...(admin ? {} : { entitled: isSolutionsEntitled(req.user) }),
+  });
 }
-router.get("/solutions", (req, res) => list(req, res));
+router.get("/solutions", optionalUserAuth, (req, res) => list(req, res));
 router.get(adminBase, (req, res) => list(req, res, true));
 router.get("/solutions/taxonomies", async (_req, res) => {
   const [rows, brands, categories, tools] = await Promise.all([
@@ -139,7 +169,13 @@ router.delete(`${adminBase}/taxonomies/:id`, async (req, res) => {
 async function sendImage(req: Request, res: Response, admin: boolean) {
   const [image] = await db.select().from(images).where(eq(images.id, uuidOf(req)));
   const row = image && await rowById(image.solutionId);
-  if (!row || !row.imageIds.includes(image.id) || (!admin && row.status !== "published")) { res.sendStatus(404); return; }
+  const belongsToSolution = !!row && (
+    row.imageIds.includes(image.id) ||
+    row.coverImageId === image.id ||
+    row.aiCoverImageId === image.id ||
+    row.customCoverImageId === image.id
+  );
+  if (!row || !belongsToSolution || (!admin && row.status !== "published")) { res.sendStatus(404); return; }
   if (!admin && !isSolutionsEntitled(req.user)) { res.status(403).json({ message: "Active subscription required" }); return; }
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.type("webp").send(await readSolutionImage(image.objectPath));
@@ -181,6 +217,7 @@ router.delete(`${adminBase}/:id`, async (req, res) => {
   await db.delete(solutions).where(eq(solutions.id, idOf(req))); res.json({ success: true });
 });
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024, files: 10, fields: 0 } }).array("images", 10);
+const uploadCover = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024, files: 1, fields: 0 } }).single("cover");
 router.post(`${adminBase}/:id/images`, rateLimit("upload", 20), (req, res, next) => {
   upload(req, res, err => { if (err) { res.status(400).json({ message: "Upload limit exceeded (10 images, 8 MB each)" }); return; } next(); });
 }, async (req, res) => {
@@ -215,6 +252,65 @@ router.post(`${adminBase}/:id/images`, rateLimit("upload", 20), (req, res, next)
   });
   res.status(201).json({ images: created.map(i => mediaProjection(i, true)) });
 });
+router.post(`${adminBase}/:id/cover`, rateLimit("cover-upload", 20), (req, res, next) => {
+  uploadCover(req, res, err => {
+    if (err) { res.status(400).json({ message: "Upload limit exceeded (one image, 8 MB)" }); return; }
+    next();
+  });
+}, async (req, res) => {
+  const id = idOf(req);
+  const row = await rowById(id);
+  if (!row) { res.sendStatus(404); return; }
+  if (row.status !== "draft") { res.status(409).json({ message: "Unpublish before changing the cover" }); return; }
+  const file = req.file;
+  if (!file) { res.status(400).json({ message: "Select a cover image" }); return; }
+  let data: Buffer;
+  let width: number;
+  let height: number;
+  try {
+    const processor = sharp(file.buffer, { limitInputPixels: 25_000_000, failOn: "error" });
+    const meta = await processor.metadata();
+    if (!["jpeg", "png", "webp", "gif", "avif"].includes(meta.format ?? "")) throw new Error("Invalid raster image");
+    const output = await processor.rotate().resize({ width: 1536, height: 1024, fit: "cover", position: "centre" }).webp({ quality: 88 }).toBuffer({ resolveWithObject: true });
+    data = output.data; width = output.info.width; height = output.info.height;
+  } catch {
+    res.status(400).json({ message: "Invalid or oversized raster image. SVG is not supported." });
+    return;
+  }
+  const imageId = randomUUID();
+  const objectPath = await saveSolutionImage(imageId, data);
+  const [image] = await db.insert(images).values({
+    id: imageId,
+    solutionId: id,
+    objectPath,
+    name: file.originalname.slice(0, 255) || "custom-cover.webp",
+    width,
+    height,
+  }).returning();
+  const [updated] = await db.update(solutions).set({
+    customCoverImageId: image.id,
+    coverGenerationError: null,
+    updatedAt: new Date(),
+  }).where(and(eq(solutions.id, id), eq(solutions.status, "draft"))).returning();
+  if (!updated) { res.status(409).json({ message: "Draft changed while uploading the cover" }); return; }
+  res.status(201).json(await full(updated, true));
+});
+router.post(`${adminBase}/:id/cover/screenshot`, async (req, res) => {
+  const id = idOf(req);
+  const body = z.object({ imageId: z.string().uuid().nullable() }).strict().parse(req.body);
+  const row = await rowById(id);
+  if (!row) { res.sendStatus(404); return; }
+  if (row.status !== "draft") { res.status(409).json({ message: "Unpublish before changing the cover" }); return; }
+  if (body.imageId && !row.imageIds.includes(body.imageId)) { res.status(400).json({ message: "Select an attached screenshot" }); return; }
+  const [updated] = await db.update(solutions).set({
+    coverImageId: body.imageId,
+    aiCoverImageId: null,
+    customCoverImageId: null,
+    coverGenerationError: null,
+    updatedAt: new Date(),
+  }).where(and(eq(solutions.id, id), eq(solutions.status, "draft"))).returning();
+  res.json(await full(updated, true));
+});
 router.post(`${adminBase}/:id/unpublish`, async (req, res) => {
   const [row] = await db.update(solutions).set({ status: "draft", updatedAt: new Date() }).where(eq(solutions.id, idOf(req))).returning();
   if (!row) { res.sendStatus(404); return; } res.json(await full(row, true));
@@ -233,9 +329,106 @@ router.post(`${adminBase}/:id/publish`, async (req, res) => {
     row.model ? and(sql`lower(${solutions.model}) = lower(${row.model})`, sql`lower(${solutions.brand}) = lower(${row.brand})`, or(eq(solutions.category, row.category), eq(solutions.tool, row.tool))) : sql`false`,
   ))).limit(10);
   if (duplicates.length && !body.overrideDuplicate) { res.status(409).json({ code: "POSSIBLE_DUPLICATES", duplicates: duplicates.map(solutionCard) }); return; }
-  const [published] = await db.update(solutions).set({ status: "published", publishedAt: row.publishedAt ?? new Date(), updatedAt: new Date() }).where(and(eq(solutions.id, row.id), sql`xmin::text = ${row.rowVersion}`)).returning();
+  const firstPublication = isFirstSolutionPublication(row.publishedAt);
+  const [published] = await db.update(solutions).set({
+    status: "published",
+    publishedAt: row.publishedAt ?? new Date(),
+    updatedAt: new Date(),
+  }).where(and(eq(solutions.id, row.id), eq(solutions.status, "draft"), sql`xmin::text = ${row.rowVersion}`)).returning();
   if (!published) { res.status(409).json({ message: "Draft changed. Refresh and review again." }); return; }
+  if (firstPublication) {
+    try {
+      const dispatch = await createNotification(buildSolutionPublishedNotification(published, req.admin!.id));
+      await db.update(solutions).set({
+        publicationNotificationSentAt: new Date(),
+      }).where(and(
+        eq(solutions.id, published.id),
+        isNull(solutions.publicationNotificationSentAt),
+      ));
+      requestLog(req).info({
+        solutionId: published.id,
+        slug: published.slug,
+        notificationId: dispatch.notificationId,
+        recipients: dispatch.recipientCount,
+        deduped: dispatch.deduped,
+      }, "Solution first published and notification dispatch attempted");
+    } catch (notificationError) {
+      requestLog(req).error({
+        solutionId: published.id,
+        slug: published.slug,
+        message: notificationError instanceof Error ? notificationError.message : "Unknown error",
+      }, "Solution first published but notification creation failed");
+    }
+  }
   res.json(await full(published, true));
+});
+
+function coverPrompt(row: Row): string {
+  const device = [row.brand, row.model].filter(Boolean).join(" ").trim() || "smartphone";
+  const operation = row.category || row.title || "technical repair";
+  const method = row.subcategory || "";
+  const tool = row.tool || "";
+  return `Create one professional landscape thumbnail for the GAB ONLINE Solutions Techniques training platform.
+Visual identity: premium smartphone repair aesthetic, dark graphite technical background, GAB orange accents, subtle orange glow and restrained circuit/diagnostic lines, clean high-contrast composition, realistic device visual relevant to ${device}, and repair/software cues relevant to ${operation}.
+The image must immediately communicate DEVICE + OPERATION + TECHNICAL REPAIR.
+Include only these short labels, spelled exactly: "${device}", "${operation}"${method ? `, "${method}"` : ""}${tool ? `, and a small "${tool}" badge` : ""}.
+Do not include the full article title. Do not use screenshots, stock-photo styling, excessive text, unrelated logos, instructions, passwords, or UI captures. Keep important content away from the outer edges.`;
+}
+
+async function generateCover(row: Row): Promise<Row> {
+  if (!process.env.AI_INTEGRATIONS_OPENAI_API_KEY || !process.env.AI_INTEGRATIONS_OPENAI_BASE_URL) throw new Error("AI integration is not configured");
+  const client = new OpenAI({
+    apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+    baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+    timeout: 180000,
+    maxRetries: 1,
+  });
+  const result = await client.images.generate({
+    model: process.env.SOLUTIONS_COVER_MODEL || "gpt-image-1",
+    prompt: coverPrompt(row),
+    size: "1536x1024",
+    quality: "medium",
+  });
+  const encoded = result.data?.[0]?.b64_json;
+  if (!encoded) throw new Error("Image provider returned no cover");
+  const output = await sharp(Buffer.from(encoded, "base64"), { limitInputPixels: 25_000_000, failOn: "error" })
+    .resize({ width: 1536, height: 1024, fit: "cover", position: "centre" })
+    .webp({ quality: 88 })
+    .toBuffer({ resolveWithObject: true });
+  const imageId = randomUUID();
+  const objectPath = await saveSolutionImage(imageId, output.data);
+  await db.insert(images).values({
+    id: imageId,
+    solutionId: row.id,
+    objectPath,
+    name: `ai-cover-${row.slug || row.id}.webp`.slice(0, 255),
+    width: output.info.width,
+    height: output.info.height,
+  });
+  const [updated] = await db.update(solutions).set({
+    aiCoverImageId: imageId,
+    coverGenerationError: null,
+    updatedAt: new Date(),
+  }).where(and(eq(solutions.id, row.id), eq(solutions.status, "draft"))).returning();
+  if (!updated) throw new Error("Draft changed during cover generation");
+  return updated;
+}
+
+router.post(`${adminBase}/:id/generate-cover`, rateLimit("ai-cover", 8), async (req, res) => {
+  const row = await rowById(idOf(req));
+  if (!row) { res.sendStatus(404); return; }
+  if (row.status !== "draft") { res.status(409).json({ message: "Unpublish before regenerating the cover" }); return; }
+  try {
+    const updated = await generateCover(row);
+    res.json(await full(updated, true));
+  } catch (error) {
+    const message = error instanceof Error && error.message === "AI integration is not configured"
+      ? error.message
+      : "AI cover generation failed. The article and existing cover were not changed.";
+    await db.update(solutions).set({ coverGenerationError: message }).where(and(eq(solutions.id, row.id), eq(solutions.status, "draft")));
+    requestLog(req).error({ solutionId: row.id, message: error instanceof Error ? error.message : String(error) }, "Solution AI cover generation failed");
+    res.status(502).json({ message });
+  }
 });
 
 router.post(`${adminBase}/:id/generate`, rateLimit("ai", 8), async (req, res) => {
@@ -287,7 +480,16 @@ router.post(`${adminBase}/:id/generate`, rateLimit("ai", 8), async (req, res) =>
     generated.reviewFlags = Array.from(new Set(["Verify all technical steps and public teaser before publishing.", ...generated.reviewFlags]));
     const [updated] = await db.update(solutions).set({ ...generated, generationError: null, updatedAt: new Date() }).where(and(eq(solutions.id, row.id), eq(solutions.status, "draft"), sql`xmin::text = ${row.rowVersion}`)).returning();
     if (!updated) { res.status(409).json({ message: "Draft changed during generation; saved edits were preserved. Retry generation." }); return; }
-    res.json(await full(updated, true));
+    let completed = updated;
+    try {
+      completed = await generateCover(updated);
+    } catch (coverError) {
+      const coverMessage = "AI cover generation failed. The generated article was saved successfully.";
+      const [withCoverError] = await db.update(solutions).set({ coverGenerationError: coverMessage }).where(and(eq(solutions.id, updated.id), eq(solutions.status, "draft"))).returning();
+      if (withCoverError) completed = withCoverError;
+      requestLog(req).error({ solutionId: updated.id, message: coverError instanceof Error ? coverError.message : String(coverError) }, "Article generated but AI cover generation failed");
+    }
+    res.json(await full(completed, true));
   } catch (error) {
     // Do not return provider payloads or secrets.
     console.error("[solutions-ai] generation failed", {

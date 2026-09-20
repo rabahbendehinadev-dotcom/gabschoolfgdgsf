@@ -14,7 +14,7 @@ export interface SolutionArticleProps {
   content: SolutionContent;
   images: SolutionMedia[];
   admin?: boolean;
-  meta?: Partial<Pick<SolutionDraft, "title" | "excerpt" | "brand" | "model" | "category" | "subcategory" | "tool" | "tags" | "coverImageId" | "coverUrl" | "publishedAt">>;
+  meta?: Partial<Pick<SolutionDraft, "title" | "excerpt" | "brand" | "model" | "category" | "subcategory" | "tool" | "tags" | "coverImageId" | "aiCoverImageId" | "customCoverImageId" | "coverUrl" | "publishedAt">>;
   coverFile?: File | null;
   related?: SolutionCard[];
 }
@@ -90,17 +90,18 @@ export function SolutionImage({ id, admin = false, file, alt = "", className = "
 
 export function SolutionArticleHero({ meta, coverFile, admin, fallbackImageId }: Pick<SolutionArticleProps, "meta" | "coverFile" | "admin"> & { fallbackImageId?: string }) {
   if (!meta) return null;
+  const managedCoverImageId = meta.customCoverImageId || meta.aiCoverImageId || meta.coverImageId;
   return (
     <header className="bg-gradient-to-br from-[#FFFCF9] via-[#FFFCF9] to-[#FFF4E8] rounded-2xl border border-[#F3DFCF] p-4 md:p-5 mb-6 md:mb-8 shadow-[0_12px_32px_rgba(120,72,32,0.08)] flex flex-col md:flex-row gap-5 md:gap-6 items-start relative overflow-hidden">
       <div className="absolute top-0 right-0 -mr-20 -mt-20 w-64 h-64 bg-orange-500/5 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-0 left-0 -ml-20 -mb-20 w-64 h-64 bg-orange-600/5 rounded-full blur-3xl pointer-events-none" />
 
-      {(coverFile || meta.coverUrl || meta.coverImageId || (admin && fallbackImageId)) && (
+      {(coverFile || meta.coverUrl || managedCoverImageId || (admin && fallbackImageId)) && (
         <div className="w-full md:w-[35%] xl:w-[40%] shrink-0 aspect-video md:aspect-[4/3] rounded-xl overflow-hidden bg-[#FFFCF9] border-2 border-[#F3DFCF] relative group p-1 shadow-[0_4px_16px_rgba(120,72,32,0.07)] z-10">
           {coverFile ? (
             <SolutionImage file={coverFile} alt={meta.title} className="w-full h-full rounded-xl" />
-          ) : meta.coverImageId ? (
-            <SolutionImage id={meta.coverImageId} admin={admin} alt={meta.title} className="w-full h-full rounded-xl" />
+          ) : managedCoverImageId ? (
+            <SolutionImage id={managedCoverImageId} admin={admin} alt={meta.title} className="w-full h-full rounded-xl" />
           ) : admin && fallbackImageId ? (
             <SolutionImage id={fallbackImageId} admin alt={meta.title} className="w-full h-full rounded-xl" />
           ) : meta.coverUrl ? (

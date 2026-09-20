@@ -7,6 +7,7 @@ import { resolveVideoParts, extractDriveFileId } from "./lib/googleDrive";
 import { startImageOptimizeWorker } from "./lib/imageOptimize";
 import { assertDeviceCredentialSecretConfigured } from "./lib/deviceSecurity";
 import type { ObjectPart } from "./lib/videoStorage";
+import { retryPendingSolutionNotifications } from "./lib/solutionNotifications";
 
 const rawPort = process.env["PORT"];
 
@@ -382,14 +383,35 @@ async function runMigrations() {
         content JSONB NOT NULL DEFAULT '{}',
         image_ids JSONB NOT NULL DEFAULT '[]',
         cover_image_id UUID,
+        ai_cover_image_id UUID,
+        custom_cover_image_id UUID,
         review_flags JSONB NOT NULL DEFAULT '[]',
         generation_error TEXT,
+        cover_generation_error TEXT,
         status TEXT NOT NULL DEFAULT 'draft',
         created_by INTEGER NOT NULL,
         published_at TIMESTAMP,
+        publication_notification_sent_at TIMESTAMP,
         created_at TIMESTAMP NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMP NOT NULL DEFAULT NOW()
       )
+    `);
+    await db.execute(sql`ALTER TABLE solutions ADD COLUMN IF NOT EXISTS ai_cover_image_id UUID`);
+    await db.execute(sql`ALTER TABLE solutions ADD COLUMN IF NOT EXISTS custom_cover_image_id UUID`);
+    await db.execute(sql`ALTER TABLE solutions ADD COLUMN IF NOT EXISTS cover_generation_error TEXT`);
+    await db.execute(sql`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'solutions' AND column_name = 'publication_notification_sent_at'
+        ) THEN
+          ALTER TABLE solutions ADD COLUMN publication_notification_sent_at TIMESTAMP;
+          UPDATE solutions
+          SET publication_notification_sent_at = COALESCE(published_at, NOW())
+          WHERE status = 'published';
+        END IF;
+      END $$;
     `);
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS solution_images (
@@ -576,7 +598,7 @@ async function runAutoStorageMigration(): Promise<void> {
   }
 }
 
-runMigrations().then(() => ensureSeed()).then(() => {
+runMigrations().then(() => ensureSeed()).then(() => retryPendingSolutionNotifications()).then(() => {
   app.listen(port, () => {
     console.log(`Server listening on port ${port}`);
     // Videos stay in Drive; migration and the 720p/FFmpeg worker remain disabled.

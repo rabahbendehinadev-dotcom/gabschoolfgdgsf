@@ -9,10 +9,23 @@ export interface SolutionContent { introduction: string; device: string; problem
 export interface SolutionMedia { id: string; url: string; name: string; width: number; height: number }
 export interface SolutionCard { id: number; slug: string; title: string; excerpt: string; brand: string; model: string; category: string; subcategory: string; tool: string; tags: string[]; coverUrl: string | null; publishedAt: string | null }
 export interface SolutionFull extends SolutionCard { content: SolutionContent; images: SolutionMedia[] }
-export interface SolutionDraft extends SolutionFull { status: "draft" | "published"; rawInput: string; keywords: string[]; imageIds: string[]; coverImageId: string | null; reviewFlags: string[]; generationError: string | null; updatedAt: string }
-export interface SolutionList { solutions: SolutionCard[]; total: number; page: number; pageSize: number; pages: number }
+export interface SolutionDraft extends SolutionFull {
+  status: "draft" | "published";
+  rawInput: string;
+  keywords: string[];
+  imageIds: string[];
+  coverImageId: string | null;
+  aiCoverImageId: string | null;
+  customCoverImageId: string | null;
+  coverSource: "custom" | "ai" | "screenshot" | null;
+  reviewFlags: string[];
+  generationError: string | null;
+  coverGenerationError: string | null;
+  updatedAt: string;
+}
+export interface SolutionList { solutions: SolutionCard[]; total: number; page: number; pageSize: number; pages: number; entitled: boolean }
 export interface SolutionDetail { solution: SolutionCard | SolutionFull; entitled: boolean; related: SolutionCard[] }
-export type SolutionDraftInput = Partial<Pick<SolutionDraft, "title" | "slug" | "excerpt" | "brand" | "model" | "category" | "subcategory" | "tool" | "tags" | "keywords" | "rawInput" | "content" | "imageIds" | "coverImageId" | "reviewFlags">>;
+export type SolutionDraftInput = Partial<Pick<SolutionDraft, "title" | "slug" | "excerpt" | "brand" | "model" | "category" | "subcategory" | "tool" | "tags" | "keywords" | "rawInput" | "content" | "imageIds" | "coverImageId" | "aiCoverImageId" | "customCoverImageId" | "coverSource" | "coverGenerationError" | "reviewFlags">>;
 /** GET /api/solutions?search=&brand=&category=&tool=&page=1&pageSize=12
  * GET /api/solutions/taxonomies -> SolutionTaxonomyResponse (use brands/categories for public filters)
  * GET /api/solutions/:slug -> SolutionDetail
@@ -21,7 +34,10 @@ export type SolutionDraftInput = Partial<Pick<SolutionDraft, "title" | "slug" | 
  * POST /api/admin/solutions (SolutionDraftInput) -> SolutionDraft
  * GET/PATCH/DELETE /api/admin/solutions/:id -> SolutionDraft / {success:true}
  * POST /:id/images multipart "images" (max 10, 8MB each) -> {images:SolutionMedia[]}; persisted immediately
- * POST /:id/generate (SolutionDraftInput, optional) -> SolutionDraft; raw input saved before AI
+ * POST /:id/generate (SolutionDraftInput, optional) -> SolutionDraft; raw input saved before AI, cover attempted independently
+ * POST /:id/generate-cover -> SolutionDraft
+ * POST /:id/cover multipart "cover" -> SolutionDraft
+ * POST /:id/cover/screenshot {imageId:string|null} -> SolutionDraft
  * POST /:id/publish {overrideDuplicate?:boolean, reviewed?:boolean} -> SolutionDraft
  *   409 {code:"POSSIBLE_DUPLICATES",duplicates:SolutionCard[]} or {code:"REVIEW_REQUIRED"}
  * POST /:id/unpublish -> SolutionDraft

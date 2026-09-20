@@ -5,33 +5,34 @@ import { canAccessAdminApi, hasAdminPermission } from "./adminSecurity";
 import { isProtectedSolutionStoragePath } from "./solutionStorage";
 import { ObjectStorageService, ObjectNotFoundError, parseObjectPath, signObjectURL } from "./objectStorage";
 
-test("solutions entitlement reuses subscription rules WITHOUT community administrator bypass", () => {
+test("solutions entitlement requires an active non-expired VIP account", () => {
   const demo = { accountType: "normal", subscriptionType: "demo", isActive: true, subscriptionExpiresAt: null, communityRole: "admin" };
   assert.equal(isSolutionsEntitled(demo), false);
   assert.equal(isSolutionsEntitled({ ...demo, accountType: "vip" }), true);
-  assert.equal(isSolutionsEntitled({ ...demo, subscriptionType: "monthly" }), true);
-  assert.equal(isSolutionsEntitled({ ...demo, subscriptionType: "monthly", subscriptionExpiresAt: "2000-01-01" }), false);
+  assert.equal(isSolutionsEntitled({ ...demo, accountType: "normal" }), false);
+  assert.equal(isSolutionsEntitled({ ...demo, accountType: "normal", subscriptionExpiresAt: "2000-01-01" }), false);
   assert.equal(isSolutionsEntitled({ ...demo, accountType: "vip", subscriptionExpiresAt: "2000-01-01" }), false);
   assert.equal(isSolutionsEntitled({ ...demo, accountType: "vip", isActive: false }), false);
   assert.equal(isSolutionsEntitled(undefined), false);
 });
 test("public projection has no protected content, downloads, storage refs, or raw notes", () => {
-  const row = { id: 1, slug: "test", title: "Phone", excerpt: "Repair available", brand: "Brand", model: "Model", category: "Repair", subcategory: "", tool: "Tool", tags: [], coverImageId: "private-uuid", publishedAt: new Date("2026-01-01"), rawInput: "PRIVATE", content: { resources: [{ url: "https://secret.example/file" }], steps: ["PRIVATE"] }, objectPath: "/objects/solutions/secret", generationError: "PRIVATE", imageIds: ["PRIVATE"] };
+  const row = { id: 1, slug: "test", title: "Phone", excerpt: "Repair available", brand: "Brand", model: "Model", category: "Repair", subcategory: "", tool: "Tool", tags: [], coverImageId: "private-uuid", aiCoverImageId: null, customCoverImageId: null, publishedAt: new Date("2026-01-01"), rawInput: "PRIVATE", content: { resources: [{ url: "https://secret.example/file" }], steps: ["PRIVATE"] }, objectPath: "/objects/solutions/secret", generationError: "PRIVATE", imageIds: ["PRIVATE"] };
   const publicData = solutionCard(row);
   const json = JSON.stringify(publicData);
   assert.equal(json.includes("PRIVATE"), false);
   assert.equal(json.includes("secret"), false);
   assert.equal(json.includes("private-uuid"), false);
   assert.deepEqual(Object.keys(publicData).sort(), ["id", "slug", "title", "excerpt", "brand", "model", "category", "subcategory", "tool", "tags", "coverUrl", "publishedAt"].sort());
-  assert.equal(solutionCard({ ...row, coverImageId: null }).coverUrl, "/api/solutions/test/cover");
-  assert.equal(solutionCard({ ...row, coverImageId: null, imageIds: [] }).coverUrl, null);
+  assert.equal(solutionCard({ ...row, coverImageId: null }).coverUrl, null);
 });
-test("manual cover wins, otherwise the first uploaded screenshot is the only public cover", () => {
+test("cover priority is custom, AI, selected screenshot, then neutral placeholder", () => {
   const first = "a8a43081-1f88-40bf-a4eb-334b18fb8043";
   const second = "35a43081-1f88-40bf-a4eb-334b18fb8043";
-  assert.equal(solutionCoverImageId({ coverImageId: second, imageIds: [first, second] }), second);
-  assert.equal(solutionCoverImageId({ coverImageId: null, imageIds: [first, second] }), first);
-  assert.equal(solutionCoverImageId({ coverImageId: null, imageIds: [] }), null);
+  const third = "45a43081-1f88-40bf-a4eb-334b18fb8043";
+  assert.equal(solutionCoverImageId({ customCoverImageId: third, aiCoverImageId: second, coverImageId: first }), third);
+  assert.equal(solutionCoverImageId({ customCoverImageId: null, aiCoverImageId: second, coverImageId: first }), second);
+  assert.equal(solutionCoverImageId({ customCoverImageId: null, aiCoverImageId: null, coverImageId: first }), first);
+  assert.equal(solutionCoverImageId({ customCoverImageId: null, aiCoverImageId: null, coverImageId: null }), null);
 });
 test("all admin solutions mutations require dedicated permission, not support/content/community access", () => {
   for (const path of ["/admin/solutions", "/admin/solutions/1", "/admin/solutions/1/generate", "/admin/solutions/1/publish", "/admin/solutions/1/images", "/admin/solutions/images/a", "/admin/solutions/taxonomies"]) {
