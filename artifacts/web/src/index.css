@@ -1,6 +1,125 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Tajawal:wght@300;400;500;700;800&display=swap');
 @import "tailwindcss";
 
+/*
+ * Fine-pointer devices only. Native CSS cursors avoid mouse listeners,
+ * animation work, and any effect on touch input.
+ */
+@media (hover: hover) and (pointer: fine) {
+  html,
+  body {
+    cursor:
+      url("/cursors/gab-default.svg") 2 2,
+      url("/cursors/gab-default.png") 2 2,
+      default;
+  }
+
+  :where(
+    a[href],
+    button,
+    select,
+    summary,
+    label[for],
+    [role="button"],
+    [role="link"],
+    [style*="cursor: pointer"],
+    [style*="cursor:pointer"],
+    [class~="cursor-pointer"],
+    .ad-nav-item,
+    .ad-sidebar-logout,
+    .ad-stat,
+    .ad-th.sortable,
+    .ad-ibtn,
+    .ad-chip,
+    .ad-btn-sm,
+    .ad-btn-primary,
+    .ad-btn-cta,
+    .ad-course-tab,
+    .ad-pag-btn
+  ):where(:not(:disabled):not([aria-disabled="true"])) {
+    cursor:
+      url("/cursors/gab-pointer.svg") 2 2,
+      url("/cursors/gab-pointer.png") 2 2,
+      pointer !important;
+  }
+
+  :where(
+    input:not([type]),
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    input[type="search"],
+    input[type="tel"],
+    input[type="url"],
+    input[type="number"],
+    textarea,
+    [contenteditable="true"],
+    .cursor-text
+  ) {
+    cursor: text !important;
+  }
+
+  textarea::-webkit-resizer {
+    cursor: nwse-resize;
+  }
+
+  :where(input[type="button"], input[type="submit"], input[type="reset"], input[type="checkbox"], input[type="radio"], input[type="range"], input[type="color"], input[type="file"]) {
+    cursor:
+      url("/cursors/gab-pointer.svg") 2 2,
+      url("/cursors/gab-pointer.png") 2 2,
+      pointer !important;
+  }
+
+  :where(
+    :disabled,
+    [aria-disabled="true"],
+    [class~="cursor-not-allowed"],
+    [style*="cursor: not-allowed"],
+    [style*="cursor:not-allowed"]
+  ) {
+    cursor: not-allowed !important;
+  }
+
+  :where(.peer:disabled ~ [class~="peer-disabled:cursor-not-allowed"]) {
+    cursor: not-allowed !important;
+  }
+
+  :where([class~="cursor-default"]) { cursor: default !important; }
+  :where([class~="cursor-help"]) { cursor: help !important; }
+  :where([class~="cursor-wait"]) { cursor: wait !important; }
+  :where([class~="cursor-progress"]) { cursor: progress !important; }
+  :where([class~="cursor-move"]) { cursor: move !important; }
+  :where([class~="cursor-grab"]) { cursor: grab !important; }
+  :where([class~="cursor-grabbing"], [class~="active:cursor-grabbing"]:active) { cursor: grabbing !important; }
+  :where([class~="cursor-crosshair"]) { cursor: crosshair !important; }
+  :where([class~="cursor-zoom-in"]) { cursor: zoom-in !important; }
+  :where([class~="cursor-zoom-out"]) { cursor: zoom-out !important; }
+  :where([class~="cursor-col-resize"]) { cursor: col-resize !important; }
+  :where([class~="cursor-row-resize"]) { cursor: row-resize !important; }
+  :where([class~="cursor-n-resize"]) { cursor: n-resize !important; }
+  :where([class~="cursor-e-resize"]) { cursor: e-resize !important; }
+  :where([class~="cursor-s-resize"]) { cursor: s-resize !important; }
+  :where([class~="cursor-w-resize"]) { cursor: w-resize !important; }
+  :where([class~="cursor-ne-resize"]) { cursor: ne-resize !important; }
+  :where([class~="cursor-nw-resize"]) { cursor: nw-resize !important; }
+  :where([class~="cursor-se-resize"]) { cursor: se-resize !important; }
+  :where([class~="cursor-sw-resize"]) { cursor: sw-resize !important; }
+  :where([class~="cursor-ew-resize"]) { cursor: ew-resize !important; }
+  :where([class~="cursor-ns-resize"]) { cursor: ns-resize !important; }
+  :where([class~="cursor-nesw-resize"]) { cursor: nesw-resize !important; }
+  :where([class~="cursor-nwse-resize"]) { cursor: nwse-resize !important; }
+
+  :where([data-side="left"][data-state="expanded"] [data-sidebar="rail"],
+         [data-side="right"][data-state="collapsed"] [data-sidebar="rail"]) {
+    cursor: w-resize !important;
+  }
+
+  :where([data-side="right"][data-state="expanded"] [data-sidebar="rail"],
+         [data-side="left"][data-state="collapsed"] [data-sidebar="rail"]) {
+    cursor: e-resize !important;
+  }
+}
+
 @theme inline {
   --font-sans: 'Tajawal', sans-serif;
   --font-display: 'Outfit', sans-serif;
