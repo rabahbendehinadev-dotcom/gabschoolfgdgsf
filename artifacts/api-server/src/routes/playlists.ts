@@ -2,7 +2,7 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { eq, asc, inArray, and, gt, isNull, or } from "drizzle-orm";
 import { db, playlistsTable, videosTable, categoriesTable, userCoursesTable } from "@workspace/db";
 import { optionalUserAuth, userAuth } from "../middlewares/auth";
-import { getAccessibleCourseIds, hasCourseEntitlement, hasPaidEntitlement } from "../lib/courseEntitlement";
+import { getAccessibleCourseIds, hasCourseEntitlement } from "../lib/courseEntitlement";
 
 const router: IRouter = Router();
 
@@ -203,10 +203,6 @@ router.get("/playlists/:id", optionalUserAuth, async (req: Request, res: Respons
 router.get("/user/courses", userAuth, async (req: Request, res: Response) => {
   try {
     const userId = (req as typeof req & { user?: { id: number } }).user!.id;
-    if (!hasPaidEntitlement(req.user)) {
-      res.json([]);
-      return;
-    }
     const now = new Date();
     const assignments = await db.select({ playlistId: userCoursesTable.playlistId })
       .from(userCoursesTable)
@@ -221,7 +217,8 @@ router.get("/user/courses", userAuth, async (req: Request, res: Response) => {
       return;
     }
 
-    const playlistIds = [...new Set(assignments.map(assignment => assignment.playlistId))];
+    const assignedIds = [...new Set(assignments.map(assignment => assignment.playlistId))];
+    const playlistIds = [...(await getAccessibleCourseIds(userId, assignedIds))];
     if (playlistIds.length === 0) {
       res.json([]);
       return;

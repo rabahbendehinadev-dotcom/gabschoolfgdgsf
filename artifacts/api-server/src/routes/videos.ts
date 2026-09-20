@@ -4,7 +4,7 @@ import { eq, and, or, asc, sql, isNull, inArray } from "drizzle-orm";
 import { optionalUserAuth } from "../middlewares/auth";
 import { getClientIp } from "../lib/ipPolicy";
 import { deviceTypeFromUA } from "../lib/device";
-import { effectiveEntitlementExpiry, getAccessibleCourseIds, getCourseEntitlement, hasCourseEntitlement, hasPaidEntitlement } from "../lib/courseEntitlement";
+import { getAccessibleCourseIds, getCanonicalUserEntitlement, getCourseEntitlement, hasCourseEntitlement } from "../lib/courseEntitlement";
 import { generateVideoStreamToken, verifyVideoStreamToken } from "../lib/auth";
 import { extractDriveFileId, getDriveFileMetadata, resolveVideoParts, streamDriveFile } from "../lib/googleDrive";
 import { streamGcsObjectToResponse, parseObjectParts } from "../lib/videoStorage";
@@ -230,8 +230,9 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
     }
 
     const accessType = video.accessType || "normal";
-    const isVipUser = hasPaidEntitlement(user);
-    const isSubscribed = hasPaidEntitlement(user);
+    const canonical = user ? await getCanonicalUserEntitlement(user.id) : null;
+    const isVipUser = !!canonical?.paid;
+    const isSubscribed = !!canonical?.paid;
 
     // Log + deny when a user tries to open a video they are not entitled to.
     // Include safe preview metadata so the client can render a locked preview page
@@ -331,7 +332,7 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
       partsList.length,
     );
     const directR2ObjectKey = R2_PILOT_OBJECTS[id] ?? (isR2Video ? video.r2ObjectKey : null);
-    const subscriptionExpiry = effectiveEntitlementExpiry(user);
+    const subscriptionExpiry = canonical?.period.end ?? null;
     const entitlementExpiry = subscriptionExpiry && courseEntitlementExpiry
       ? new Date(Math.min(subscriptionExpiry.getTime(), courseEntitlementExpiry.getTime()))
       : subscriptionExpiry ?? courseEntitlementExpiry;
@@ -586,20 +587,10 @@ async function authorizeStreamRequest(
   if (video.accessType === "visitor") {
     return { id, part, video, payload };
   }
-  const [streamUser] = payload.userId
-    ? await db
-        .select({
-          accountType: usersTable.accountType,
-          subscriptionType: usersTable.subscriptionType,
-          subscriptionStartedAt: usersTable.subscriptionStartedAt,
-          subscriptionExpiresAt: usersTable.subscriptionExpiresAt,
-          isActive: usersTable.isActive,
-          securityBlockedAt: usersTable.securityBlockedAt,
-        })
-        .from(usersTable)
-        .where(eq(usersTable.id, payload.userId))
-        .limit(1)
-    : [undefined];
+  const streamEntitlement = payload.userId
+    ? await getCanonicalUserEntitlement(payload.userId)
+    : null;
+  const streamUser = streamEntitlement?.user;
   if (!streamUser?.isActive || streamUser.securityBlockedAt) {
     console.warn(`[${logTag}] DENY 403: user missing or inactive`, {
       videoId: id,
@@ -632,8 +623,8 @@ async function authorizeStreamRequest(
   // ── Non-course video: check VIP / subscription ──
   const accessType = video.accessType || "normal";
   if (accessType === "vip" || accessType === "normal") {
-    const isVipUser = hasPaidEntitlement(streamUser);
-    const isSubscribed = hasPaidEntitlement(streamUser);
+    const isVipUser = !!streamEntitlement?.paid;
+    const isSubscribed = !!streamEntitlement?.paid;
     if (accessType === "vip" && !isVipUser) {
       console.warn(`[${logTag}] DENY 403: VIP video, user not VIP`, {
         videoId: id,

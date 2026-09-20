@@ -28,6 +28,8 @@ type ExtendedAdminUser = AdminUser & {
   phone?: string | null;
   subscriptionStatus?: "active" | "expired" | "blocked" | "invalid" | "missing_data";
   subscriptionIsExpiringSoon?: boolean;
+  daysRemaining?: number | null;
+  effectiveCourseAccess?: boolean;
 };
 interface UserStats {
   total: number; vip: number; expired: number; expiringSoon: number;
@@ -542,13 +544,26 @@ export function AdminUsers() {
                       </td>
                       <td className="ad-td"><AccountBadge user={user} /></td>
                       <td className="ad-td">
-                        <div style={{ fontSize: 12 }}>
-                          <span style={{ color: "#667085" }}>{user.subscriptionType}</span>
-                          {user.subscriptionExpiresAt && (
-                            <div style={{ marginTop: 2, fontWeight: 600, fontSize: 11, color: expired ? "#B42318" : expiring ? "#B45309" : "#157347" }}>
-                              {formatDate(user.subscriptionExpiresAt)}
+                        <div style={{ fontSize: 11, lineHeight: 1.55, minWidth: 142 }}>
+                          <div style={{ fontWeight: 700, color: "#344054", textTransform: "uppercase" }}>
+                            {user.subscriptionType}
+                          </div>
+                          <div style={{ color: "#667085" }}>
+                            Début: <strong>{user.subscriptionStartedAt ? formatDate(user.subscriptionStartedAt) : "Non défini"}</strong>
+                          </div>
+                          <div style={{ color: expired ? "#B42318" : "#667085" }}>
+                            Fin: <strong>{user.subscriptionExpiresAt ? formatDate(user.subscriptionExpiresAt) : "Non défini"}</strong>
+                          </div>
+                          {user.daysRemaining !== null && user.daysRemaining !== undefined && (
+                            <div style={{ fontWeight: 600, color: expired ? "#B42318" : expiring ? "#B45309" : "#157347" }}>
+                              {user.daysRemaining < 0
+                                ? `Expiré il y a ${Math.abs(user.daysRemaining)} j`
+                                : `${user.daysRemaining} j restant${user.daysRemaining > 1 ? "s" : ""}`}
                             </div>
                           )}
+                          <div style={{ fontWeight: 600, color: user.effectiveCourseAccess ? "#157347" : "#B42318" }}>
+                            Accès cours: {user.effectiveCourseAccess ? "Actif" : "Révoqué"}
+                          </div>
                         </div>
                       </td>
                       <td className="ad-td">

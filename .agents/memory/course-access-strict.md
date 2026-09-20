@@ -45,14 +45,17 @@ capped by the earliest subscription/course expiry.
 Production can contain legacy subscription rows with missing dates and can lack
 a deterministic plan-to-course mapping.
 
-**Why:** Guessing dates or course scope can grant access beyond what an admin
-intended. Runtime checks must deny ambiguous monthly/annual records, while
-reconciliation must not destroy historical course rows when the plan scope is
-unknown.
+**Why:** Legacy monthly/annual periods must be reconstructed from the original
+paid activation, never from the current date. The reliable precedence is the
+stored subscription start, then the earliest historical course grant. Generic
+account creation is not activation evidence. Guessing a date or course scope can
+grant access beyond what an admin intended.
 
-**How to apply:** Monthly/annual require valid start and end dates with
-`start <= now < end`; lifetime has no date requirement. Missing/ambiguous plan
-scope is reported for manual correction and reconciliation stays read-only.
+**How to apply:** If a legacy monthly/annual expiry is missing, calculate it as
+one clamped calendar month/year after the original activation. Use the same
+account-level activation for every course so later grants cannot reopen an
+expired period. At `now >= end`, deny access. Truly ambiguous dates remain
+denied; ambiguous plan scope remains read-only during reconciliation.
 
 ## Admin panel path
 `/gab-ctrl-9x` (obfuscated) — not `/admin`

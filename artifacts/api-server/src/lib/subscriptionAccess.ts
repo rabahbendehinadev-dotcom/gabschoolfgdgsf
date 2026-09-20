@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { hasPaidEntitlement } from "./courseEntitlement";
+import { hasPaidEntitlement, resolveSubscriptionPeriod } from "./courseEntitlement";
 import {
   db, usersTable, userCoursesTable, planCoursesTable, subscriptionPlansTable,
   courseAccessLogsTable,
@@ -14,21 +14,22 @@ export type EntitlementUser = {
   securityBlockedAt?: Date | null;
 };
 
-export function entitlementState(user: EntitlementUser, now = new Date()) {
+export function entitlementState(user: EntitlementUser, now = new Date(), activationDate?: Date | null) {
+  const period = resolveSubscriptionPeriod(user, activationDate);
   const missing: string[] = [];
   if (user.subscriptionType !== "lifetime") {
-    if (!user.subscriptionStartedAt) missing.push("MISSING_START_DATE");
-    if (!user.subscriptionExpiresAt) missing.push("MISSING_END_DATE");
+    if (!period.start) missing.push("MISSING_START_DATE");
+    if (!period.end) missing.push("MISSING_END_DATE");
   }
-  const expired = !!user.subscriptionExpiresAt && user.subscriptionExpiresAt <= now;
+  const expired = !!period.end && period.end <= now;
   const blocked = !user.isActive || !!user.securityBlockedAt;
   const invalid = user.subscriptionType === "demo" || user.accountType !== "vip";
-  const active = hasPaidEntitlement(user, now);
+  const active = hasPaidEntitlement(user, now, activationDate);
   return {
     active, expired, blocked, invalid, missing,
     status: blocked ? "blocked" : invalid ? "invalid" : expired ? "expired" : active ? "active" : "missing_data",
-    daysRemaining: user.subscriptionExpiresAt
-      ? Math.ceil((user.subscriptionExpiresAt.getTime() - now.getTime()) / DAY) : null,
+    start: period.start, end: period.end,
+    daysRemaining: period.end ? Math.ceil((period.end.getTime() - now.getTime()) / DAY) : null,
   };
 }
 
@@ -40,14 +41,15 @@ export async function reconcileCourseAccess(
 ) {
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
   if (!user) throw new Error("User not found");
-  const state = entitlementState(user, now);
+  const rows = await db.select().from(userCoursesTable).where(eq(userCoursesTable.userId, userId));
+  const activation = rows.map(r => r.grantedAt).sort((a, b) => a.getTime() - b.getTime())[0] ?? null;
+  const state = entitlementState(user, now, activation);
   const [plan] = await db.select({ id: subscriptionPlansTable.id })
     .from(subscriptionPlansTable).where(eq(subscriptionPlansTable.type, user.subscriptionType)).limit(1);
   const scope = plan ? await db.select({ playlistId: planCoursesTable.playlistId })
     .from(planCoursesTable).where(eq(planCoursesTable.planId, plan.id)) : [];
   const expected = new Set(scope.map(r => r.playlistId));
   const ambiguous = !plan || scope.length === 0 || scope.length !== new Set(scope.map(r => r.playlistId)).size;
-  const rows = await db.select().from(userCoursesTable).where(eq(userCoursesTable.userId, userId));
   const changes: Array<{ playlistId: number; action: "grant" | "revoke"; reason: string }> = [];
   const seen = new Set<number>();
 

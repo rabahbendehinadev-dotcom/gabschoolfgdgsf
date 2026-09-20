@@ -3,7 +3,7 @@ import fs from "fs";
 import { Router, type IRouter } from "express";
 import multer from "multer";
 import { db, usersTable, videosTable, categoriesTable, playlistsTable, subscriptionPlansTable, visitLogsTable, activityLogsTable, notificationsTable, notificationRecipientsTable, pushSubscriptionsTable, adminPushSubscriptionsTable, communityPostsTable, communityCommentsTable, communityReportsTable, userCoursesTable, paymentSubmissionsTable, planCoursesTable, courseAccessLogsTable, adminsTable, adminCoursePermissionsTable, r2VideoUploadsTable, trustedDevicesTable, userSecuritySessionsTable, securityEventsTable, securityWhitelistsTable } from "@workspace/db";
-import { eq, sql, count, desc, asc, lt, gt, and, gte, isNull, isNotNull, inArray, max, ilike, or } from "drizzle-orm";
+import { eq, sql, count, desc, asc, lt, gt, and, gte, isNull, isNotNull, inArray, max, min, ilike, or } from "drizzle-orm";
 
 import { adminAuth, securityManageAuth } from "../middlewares/auth";
 import { hashPassword, comparePassword } from "../lib/auth";
@@ -23,6 +23,7 @@ import {
 import { normalizeHlsPartsInput, deleteHlsObjects, invalidateRenderedPlaylists } from "../lib/hlsStorage";
 import { deleteLowCopiesBestEffort } from "../lib/driveTranscode";
 import { entitlementState, reconcileCourseAccess, soonThreshold } from "../lib/subscriptionAccess";
+import { resolveSubscriptionPeriod, renewSubscriptionPeriod } from "../lib/courseEntitlement";
 import {
   abortR2MultipartVideoUpload,
   completeR2MultipartVideoUpload,
@@ -228,7 +229,7 @@ router.get("/admin/users", adminAuth, async (req, res) => {
 
     // All supporting queries run in parallel, scoped to only the returned user IDs.
     // Removed visit_logs GROUP BY query — was a full-table sequential scan with no index.
-    const [pushRows, lastDelivered, deviceCounts, allUserCourses] = await Promise.all([
+    const [pushRows, lastDelivered, deviceCounts, allUserCourses, historicalCourseActivations] = await Promise.all([
       // Single query replaces two separate push-subscription selects.
       db.select({
         userId:   pushSubscriptionsTable.userId,
@@ -254,6 +255,9 @@ router.get("/admin/users", adminAuth, async (req, res) => {
         userId:     userCoursesTable.userId,
         playlistId: userCoursesTable.playlistId,
         title:      playlistsTable.title,
+        grantedAt: userCoursesTable.grantedAt,
+        expiresAt: userCoursesTable.expiresAt,
+        status: userCoursesTable.status,
       })
       .from(userCoursesTable)
       .leftJoin(playlistsTable, eq(userCoursesTable.playlistId, playlistsTable.id))
@@ -262,6 +266,14 @@ router.get("/admin/users", adminAuth, async (req, res) => {
         eq(userCoursesTable.status, "active"),
         or(isNull(userCoursesTable.expiresAt), gt(userCoursesTable.expiresAt, new Date())),
       )),
+
+      db.select({
+        userId: userCoursesTable.userId,
+        grantedAt: min(userCoursesTable.grantedAt),
+      })
+        .from(userCoursesTable)
+        .where(inArray(userCoursesTable.userId, userIds))
+        .groupBy(userCoursesTable.userId),
     ]);
 
     // Build lookup maps
@@ -269,15 +281,17 @@ router.get("/admin/users", adminAuth, async (req, res) => {
     const hasAnySubIds  = new Set(pushRows.map(r => r.userId));
     const lastMap       = new Map(lastDelivered.map(r => [r.userId, r.last]));
     const deviceCountMap= new Map(deviceCounts.map(r => [r.userId, Number(r.cnt)]));
-    const coursesByUser = new Map<number, { playlistId: number; title: string }[]>();
+    const coursesByUser = new Map<number, { playlistId: number; title: string; grantedAt: Date; expiresAt: Date | null; status: string }[]>();
     for (const c of allUserCourses) {
       const arr = coursesByUser.get(c.userId) ?? [];
-      arr.push({ playlistId: c.playlistId, title: c.title ?? `دورة #${c.playlistId}` });
+      arr.push({ playlistId: c.playlistId, title: c.title ?? `دورة #${c.playlistId}`, grantedAt: c.grantedAt, expiresAt: c.expiresAt, status: c.status });
       coursesByUser.set(c.userId, arr);
     }
 
     const mapped = users.map(u => {
-      const subscriptionState = entitlementState(u);
+      const allCourses = coursesByUser.get(u.id) ?? [];
+      const historical = historicalCourseActivations.find(row => row.userId === u.id);
+      const subscriptionState = entitlementState(u, new Date(), historical?.grantedAt ?? null);
       return {
         id: u.id,
         username: u.username,
@@ -289,9 +303,11 @@ router.get("/admin/users", adminAuth, async (req, res) => {
             ? u.communityRole
             : "student",
         subscriptionType: u.subscriptionType,
-        subscriptionExpiresAt:  u.subscriptionExpiresAt?.toISOString()  || null,
-        subscriptionStartedAt:  u.subscriptionStartedAt?.toISOString()  || null,
+        subscriptionExpiresAt: subscriptionState.end?.toISOString() || null,
+        subscriptionStartedAt: subscriptionState.start?.toISOString() || null,
+        daysRemaining: subscriptionState.daysRemaining,
         subscriptionStatus: subscriptionState.status,
+        effectiveCourseAccess: subscriptionState.active && allCourses.some(c => c.status === "active" && (!c.expiresAt || c.expiresAt > new Date())),
         subscriptionIsExpiringSoon:
           subscriptionState.active &&
           subscriptionState.daysRemaining !== null &&
@@ -320,7 +336,7 @@ router.get("/admin/users", adminAuth, async (req, res) => {
         lastPushTestAt: u.lastPushTestAt ? u.lastPushTestAt.toISOString() : null,
         lastVisitAt:    null, // removed from list (use /admin/users/:id/detail for visit history)
         deviceCount:    deviceCountMap.get(u.id) ?? 0,
-        courses:        coursesByUser.get(u.id) ?? [],
+        courses:        allCourses.filter(c => c.status === "active" && (!c.expiresAt || c.expiresAt > new Date())).map(c => ({ playlistId: c.playlistId, title: c.title })),
         createdAt:      u.createdAt.toISOString(),
       };
     });
@@ -363,7 +379,7 @@ router.get("/admin/users/stats", adminAuth, async (_req, res) => {
     const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
     // All aggregation done in SQL — no more loading all users into Node.js memory.
-    const [aggRow, courseCounts, playlists] = await Promise.all([
+    const [aggRow, courseCounts, playlists, statsUsers, statsActivations] = await Promise.all([
       db.select({
         total:       count(),
         vip: sql<number>`COUNT(*) FILTER (WHERE ${usersTable.accountType} = 'vip' AND ${usersTable.isActive} AND ${usersTable.securityBlockedAt} IS NULL AND (${usersTable.subscriptionType} = 'lifetime' OR (${usersTable.subscriptionType} IN ('monthly','annual') AND ${usersTable.subscriptionStartedAt} IS NOT NULL AND ${usersTable.subscriptionStartedAt} <= NOW() AND ${usersTable.subscriptionExpiresAt} IS NOT NULL AND ${usersTable.subscriptionExpiresAt} > NOW())))`,
@@ -382,9 +398,21 @@ router.get("/admin/users/stats", adminAuth, async (_req, res) => {
       db.select({ id: playlistsTable.id, title: playlistsTable.title })
         .from(playlistsTable)
         .orderBy(asc(playlistsTable.sortOrder)),
+
+      db.select().from(usersTable),
+
+      db.select({
+        userId: userCoursesTable.userId,
+        grantedAt: min(userCoursesTable.grantedAt),
+      }).from(userCoursesTable).groupBy(userCoursesTable.userId),
     ]);
 
     const a = aggRow[0];
+    const activationByUser = new Map(statsActivations.map(row => [row.userId, row.grantedAt]));
+    const entitlementStates = statsUsers.map(user => ({
+      user,
+      state: entitlementState(user, now, activationByUser.get(user.id) ?? null),
+    }));
     const perCourse = playlists.map(p => ({
       playlistId: p.id,
       title:      p.title,
@@ -393,9 +421,14 @@ router.get("/admin/users/stats", adminAuth, async (_req, res) => {
 
     res.json({
       total:        Number(a.total),
-      vip:          Number(a.vip),
-      expired:      Number(a.expired),
-      expiringSoon: Number(a.expiringSoon),
+      vip:          entitlementStates.filter(({ state }) => state.active).length,
+      expired:      entitlementStates.filter(({ state }) => state.status === "expired").length,
+      expiringSoon: entitlementStates.filter(({ user, state }) =>
+        state.active &&
+        state.daysRemaining !== null &&
+        state.daysRemaining >= 0 &&
+        state.daysRemaining <= soonThreshold(user.subscriptionType)
+      ).length,
       nonVip:       Number(a.nonVip),
       newUsers:     Number(a.newUsers),
       blocked:      Number(a.blocked),
@@ -478,30 +511,36 @@ router.post("/admin/users/bulk-action", adminAuth, async (req, res) => {
       })));
       await logActivity(null, adminName, "bulk_revoke_course", `إلغاء الدورة ${pid} من ${userIds.length} مستخدم`);
     } else if (action === "grant_vip") {
-      const days = body.days ?? 365;
-      const expires = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
-      await db.update(usersTable)
-        .set({ accountType: "vip", subscriptionType: "annual", subscriptionExpiresAt: expires, subscriptionStartedAt: new Date() })
-        .where(inArray(usersTable.id, userIds));
-      await logActivity(null, adminName, "bulk_grant_vip", `منح VIP (${days} يوم) لـ ${userIds.length} مستخدم`);
+      for (const userId of userIds) {
+        const [u] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+        if (!u) continue;
+        const [h] = await db.select({ grantedAt: userCoursesTable.grantedAt }).from(userCoursesTable)
+          .where(eq(userCoursesTable.userId, userId)).orderBy(asc(userCoursesTable.grantedAt)).limit(1);
+        const state = entitlementState(u, new Date(), h?.grantedAt ?? null);
+        const renewed = renewSubscriptionPeriod("annual", state.active ? state.end : null);
+        await db.update(usersTable).set({ accountType: "vip", subscriptionType: "annual",
+          subscriptionExpiresAt: renewed.end,
+          subscriptionStartedAt: state.active ? state.start : renewed.start }).where(eq(usersTable.id, userId));
+      }
+      await logActivity(null, adminName, "bulk_grant_vip", `منح VIP لـ ${userIds.length} مستخدم`);
     } else if (action === "revoke_vip") {
       await db.update(usersTable)
         .set({ accountType: "normal", subscriptionType: "demo", subscriptionExpiresAt: null })
         .where(inArray(usersTable.id, userIds));
       await logActivity(null, adminName, "bulk_revoke_vip", `إلغاء VIP من ${userIds.length} مستخدم`);
     } else if (action === "extend_subscription") {
-      const days = body.days ?? 30;
-      await db.execute(sql`
-        UPDATE users
-        SET subscription_expires_at = 
-          CASE
-            WHEN subscription_expires_at > NOW()
-              THEN subscription_expires_at + (${days} || ' days')::INTERVAL
-            ELSE NOW() + (${days} || ' days')::INTERVAL
-          END
-        WHERE id = ANY(${sql.raw(`ARRAY[${userIds.join(",")}]::integer[]`)})
-      `);
-      await logActivity(null, adminName, "bulk_extend_subscription", `تمديد الاشتراك ${days} يوم لـ ${userIds.length} مستخدم`);
+      for (const userId of userIds) {
+        const [u] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+        if (!u) continue;
+        const [h] = await db.select({ grantedAt: userCoursesTable.grantedAt }).from(userCoursesTable)
+          .where(eq(userCoursesTable.userId, userId)).orderBy(asc(userCoursesTable.grantedAt)).limit(1);
+        const state = entitlementState(u, new Date(), h?.grantedAt ?? null);
+        const type = u.subscriptionType === "annual" ? "annual" : "monthly";
+        const renewed = renewSubscriptionPeriod(type, state.active ? state.end : null);
+        await db.update(usersTable).set({ subscriptionExpiresAt: renewed.end,
+          subscriptionStartedAt: state.active ? state.start : renewed.start }).where(eq(usersTable.id, userId));
+      }
+      await logActivity(null, adminName, "bulk_extend_subscription", `تمديد الاشتراك لـ ${userIds.length} مستخدم`);
     }
 
     // Subscription mutations and bulk mutations share the same deterministic
@@ -574,24 +613,36 @@ router.patch("/admin/users/:id", adminAuth, async (req, res) => {
       isActive: usersTable.isActive, securityBlockedAt: usersTable.securityBlockedAt,
       subscriptionStartedAt: usersTable.subscriptionStartedAt })
       .from(usersTable).where(eq(usersTable.id, id)).limit(1);
+    const subscriptionTypeChanged = body.subscriptionType !== undefined &&
+      body.subscriptionType !== beforeUser?.subscriptionType;
     if (body.accountType !== undefined) {
       updateData.accountType = body.accountType;
     }
     if (body.subscriptionType !== undefined) {
       updateData.subscriptionType = body.subscriptionType;
-      if (!(body as any).subscriptionExpiresAt) {
+      if (subscriptionTypeChanged && !(body as any).subscriptionExpiresAt) {
         const [plan] = await db.select().from(subscriptionPlansTable)
           .where(eq(subscriptionPlansTable.type, body.subscriptionType)).limit(1);
         if (plan?.durationDays) {
-          const base = beforeUser?.subscriptionExpiresAt && beforeUser.subscriptionExpiresAt > new Date()
-            ? beforeUser.subscriptionExpiresAt : new Date();
-          const expiresAt = new Date(base.getTime() + plan.durationDays * 24 * 60 * 60 * 1000);
-          updateData.subscriptionExpiresAt = expiresAt;
+          const [history] = await db.select({ grantedAt: userCoursesTable.grantedAt })
+            .from(userCoursesTable).where(eq(userCoursesTable.userId, id))
+            .orderBy(asc(userCoursesTable.grantedAt)).limit(1);
+          const state = beforeUser ? entitlementState(beforeUser as any, new Date(), history?.grantedAt ?? null) : null;
+          if (!(body as any).subscriptionStartedAt && !beforeUser?.subscriptionStartedAt && state?.active && state.start) {
+            updateData.subscriptionStartedAt = state.start;
+          }
+          const renewed = renewSubscriptionPeriod(body.subscriptionType, state?.active ? state.end : null);
+          updateData.subscriptionExpiresAt = renewed.end;
+          if (!(body as any).subscriptionStartedAt && !beforeUser?.subscriptionStartedAt && !state?.active) {
+            updateData.subscriptionStartedAt = renewed.start;
+          }
         } else {
           updateData.subscriptionExpiresAt = null;
         }
       }
-      if (!(body as any).subscriptionStartedAt) {
+      if (subscriptionTypeChanged && !(body as any).subscriptionStartedAt &&
+          !beforeUser?.subscriptionStartedAt &&
+          updateData.subscriptionStartedAt === undefined) {
         updateData.subscriptionStartedAt = new Date();
       }
     }
@@ -722,15 +773,23 @@ router.get("/admin/subscriptions", adminAuth, async (_req, res) => {
     const users = await db.select().from(usersTable)
       .where(inArray(usersTable.subscriptionType, ["monthly", "annual", "lifetime"]))
       .orderBy(desc(usersTable.subscriptionExpiresAt));
+    const legacyActivations = await db.select({ userId: userCoursesTable.userId, grantedAt: userCoursesTable.grantedAt })
+      .from(userCoursesTable).where(inArray(userCoursesTable.userId, users.map(u => u.id)));
+    const activationByUser = new Map<number, Date>();
+    for (const row of legacyActivations) {
+      const prior = activationByUser.get(row.userId);
+      if (!prior || row.grantedAt < prior) activationByUser.set(row.userId, row.grantedAt);
+    }
     const result = users.map(u => {
-      const state = entitlementState(u, now);
+      const state = entitlementState(u, now, activationByUser.get(u.id) ?? null);
       return ({
       id: u.id,
       username: u.username,
       email: u.email,
       accountType: u.accountType,
       subscriptionType: u.subscriptionType,
-      subscriptionExpiresAt: u.subscriptionExpiresAt?.toISOString() || null,
+      subscriptionExpiresAt: state.end?.toISOString() || null,
+      subscriptionStartedAt: state.start?.toISOString() || null,
       isActive: u.isActive,
       isExpired: state.status === "expired",
       isActiveEntitlement: state.active,
@@ -754,7 +813,7 @@ router.get("/admin/users/expired", adminAuth, async (_req, res) => {
       db.select({ id: subscriptionPlansTable.id, type: subscriptionPlansTable.type }).from(subscriptionPlansTable),
       db.select({ planId: planCoursesTable.planId, id: planCoursesTable.playlistId, title: playlistsTable.title })
         .from(planCoursesTable).leftJoin(playlistsTable, eq(playlistsTable.id, planCoursesTable.playlistId)),
-      userIds.length ? db.select({ userId: userCoursesTable.userId, playlistId: userCoursesTable.playlistId, status: userCoursesTable.status, expiresAt: userCoursesTable.expiresAt })
+      userIds.length ? db.select({ userId: userCoursesTable.userId, playlistId: userCoursesTable.playlistId, status: userCoursesTable.status, expiresAt: userCoursesTable.expiresAt, grantedAt: userCoursesTable.grantedAt })
         .from(userCoursesTable).where(inArray(userCoursesTable.userId, userIds)) : Promise.resolve([]),
     ]);
     const planByType = new Map(plans.map(p => [p.type, p]));
@@ -766,10 +825,11 @@ router.get("/admin/users/expired", adminAuth, async (_req, res) => {
     }
     const rows = [];
     for (const u of users) {
-      const state = entitlementState(u, now);
       const plan = planByType.get(u.subscriptionType);
       const scope = plan ? allScopes.filter(s => s.planId === plan.id) : [];
       const enrollments = enrollByUser.get(u.id) ?? [];
+      const historicalStart = enrollments.map(e => e.grantedAt).sort((a, b) => a.getTime() - b.getTime())[0] ?? null;
+      const state = entitlementState(u, now, historicalStart);
       const seen = new Set<number>(), codes = [...state.missing];
       if (!plan || scope.length === 0) codes.push("MISSING_PLAN_SCOPE");
       for (const e of enrollments) {
@@ -782,8 +842,8 @@ router.get("/admin/users/expired", adminAuth, async (_req, res) => {
       rows.push({
         user: { id: u.id, username: u.username, name: u.fullName ?? null, email: u.email, phone: u.phone ?? null },
         plan: { type: u.subscriptionType, id: plan?.id ?? null },
-        subscriptionStartedAt: u.subscriptionStartedAt?.toISOString() ?? null,
-        subscriptionExpiresAt: u.subscriptionExpiresAt?.toISOString() ?? null,
+        subscriptionStartedAt: state.start?.toISOString() ?? null,
+        subscriptionExpiresAt: state.end?.toISOString() ?? null,
         daysRemaining: state.daysRemaining, subscriptionStatus: state.status,
         effectiveCourseAccess: state.active && enrollments.some(e => e.status === "active" && (!e.expiresAt || e.expiresAt > now)),
         assignedCourses: enrollments.filter(e => e.status === "active" && (!e.expiresAt || e.expiresAt > now)).map(e => ({
@@ -1426,6 +1486,8 @@ router.get("/admin/users/:id/detail", adminAuth, async (req, res) => {
     const payments      = paymentsResult.status  === "fulfilled" ? paymentsResult.value : [];
     const devices       = devicesResult.status   === "fulfilled" ? devicesResult.value  : [];
     const recentVisits  = visitsResult.status    === "fulfilled" ? visitsResult.value   : [];
+    const detailActivation = courses.slice().sort((a, b) => a.grantedAt.getTime() - b.grantedAt.getTime())[0]?.grantedAt ?? null;
+    const detailState = entitlementState(user, new Date(), detailActivation);
 
     res.json({
       id: user.id,
@@ -1436,8 +1498,11 @@ router.get("/admin/users/:id/detail", adminAuth, async (req, res) => {
       profileImage: user.profileImage ?? null,
       accountType: user.accountType,
       subscriptionType: user.subscriptionType,
-      subscriptionExpiresAt: user.subscriptionExpiresAt?.toISOString() ?? null,
-      subscriptionStartedAt: user.subscriptionStartedAt?.toISOString() ?? null,
+      subscriptionExpiresAt: detailState.end?.toISOString() ?? null,
+      subscriptionStartedAt: detailState.start?.toISOString() ?? null,
+      daysRemaining: detailState.daysRemaining,
+      subscriptionStatus: detailState.status,
+      effectiveCourseAccess: detailState.active && courses.some(c => c.status === "active" && (!c.expiresAt || c.expiresAt > new Date())),
       isActive: user.isActive,
       // Legacy values are historical/informational only, never a limit.
       ipAddress: user.ipAddress,
