@@ -26,7 +26,7 @@ export function isActiveVip(user: VipCheckable | null | undefined, now = new Dat
   if (!user || !user.isActive) return false;
   if (user.accountType !== "vip") return false;
   const exp = user.subscriptionExpiresAt;
-  if (exp && new Date(exp) < now) return false;
+  if (exp && new Date(exp) <= now) return false;
   return true;
 }
 
@@ -37,7 +37,7 @@ export function isActiveCommunitySubscriber(
   if (user.communityRole === "admin") return true;
   if (isActiveVip(user)) return true;
   const exp = user.subscriptionExpiresAt;
-  if (exp && new Date(exp) < new Date()) return false;
+  if (exp && new Date(exp) <= new Date()) return false;
   return user.subscriptionType !== "demo";
 }
 
@@ -53,5 +53,5 @@ export function isSubscriptionExpired(user: {
   if (user.accountType !== "vip") return false;
   const exp = user.subscriptionExpiresAt;
   if (!exp) return false;
-  return new Date(exp) < new Date();
+  return new Date(exp) <= new Date();
 }

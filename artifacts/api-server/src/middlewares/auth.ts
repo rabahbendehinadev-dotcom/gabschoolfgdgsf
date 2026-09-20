@@ -21,9 +21,11 @@ declare global {
         email: string;
         accountType: string;
         subscriptionType: string;
+        subscriptionStartedAt: Date | null;
         subscriptionExpiresAt: Date | null;
         ipAddress: string | null;
         isActive: boolean;
+        securityBlockedAt: Date | null;
         phone: string | null;
         profileImage: string | null;
         communityRole: string;
@@ -113,9 +115,11 @@ async function authenticateUser(
     email: user.email,
     accountType: user.accountType,
     subscriptionType: user.subscriptionType,
+    subscriptionStartedAt: user.subscriptionStartedAt,
     subscriptionExpiresAt: user.subscriptionExpiresAt,
     ipAddress: user.ipAddress || clientIp,
     isActive: user.isActive,
+    securityBlockedAt: user.securityBlockedAt,
     phone: user.phone ?? null,
     profileImage: user.profileImage ?? null,
     communityRole: user.communityRole,
@@ -192,9 +196,11 @@ export async function userAuthAllowExpired(req: Request, res: Response, next: Ne
     email: user.email,
     accountType: user.accountType,
     subscriptionType: user.subscriptionType,
+    subscriptionStartedAt: user.subscriptionStartedAt,
     subscriptionExpiresAt: user.subscriptionExpiresAt,
     ipAddress: user.ipAddress || clientIp,
     isActive: user.isActive,
+    securityBlockedAt: user.securityBlockedAt,
     phone: user.phone ?? null,
     profileImage: user.profileImage ?? null,
     communityRole: user.communityRole,
@@ -235,9 +241,11 @@ export async function optionalUserAuth(req: Request, _res: Response, next: NextF
       email: user.email,
       accountType: user.accountType,
       subscriptionType: user.subscriptionType,
+      subscriptionStartedAt: user.subscriptionStartedAt,
       subscriptionExpiresAt: user.subscriptionExpiresAt,
       ipAddress: user.ipAddress,
       isActive: user.isActive,
+      securityBlockedAt: user.securityBlockedAt,
       phone: user.phone ?? null,
       profileImage: user.profileImage ?? null,
       communityRole: user.communityRole,

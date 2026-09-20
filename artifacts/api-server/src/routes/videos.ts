@@ -1,10 +1,10 @@
 import { Router, type IRouter } from "express";
-import { db, videosTable, categoriesTable, visitLogsTable, playlistsTable, activityLogsTable, usersTable, userCoursesTable } from "@workspace/db";
-import { eq, and, or, asc, sql, isNull, inArray, gt } from "drizzle-orm";
+import { db, videosTable, categoriesTable, visitLogsTable, playlistsTable, activityLogsTable, usersTable } from "@workspace/db";
+import { eq, and, or, asc, sql, isNull, inArray } from "drizzle-orm";
 import { optionalUserAuth } from "../middlewares/auth";
 import { getClientIp } from "../lib/ipPolicy";
 import { deviceTypeFromUA } from "../lib/device";
-import { isActiveVip } from "../lib/vipUtils";
+import { effectiveEntitlementExpiry, getAccessibleCourseIds, getCourseEntitlement, hasCourseEntitlement, hasPaidEntitlement } from "../lib/courseEntitlement";
 import { generateVideoStreamToken, verifyVideoStreamToken } from "../lib/auth";
 import { extractDriveFileId, getDriveFileMetadata, resolveVideoParts, streamDriveFile } from "../lib/googleDrive";
 import { streamGcsObjectToResponse, parseObjectParts } from "../lib/videoStorage";
@@ -144,6 +144,7 @@ router.get("/videos", optionalUserAuth, async (req, res) => {
       thumbnailUrl: videosTable.thumbnailUrl,
       categoryId: videosTable.categoryId,
       categoryName: categoriesTable.name,
+      categoryLinkedPlaylistId: categoriesTable.linkedPlaylistId,
       playlistId: videosTable.playlistId,
       partNumber: videosTable.partNumber,
       isVipOnly: videosTable.isVipOnly,
@@ -156,10 +157,21 @@ router.get("/videos", optionalUserAuth, async (req, res) => {
     .where(and(...conditions))
     .orderBy(asc(videosTable.sortOrder), asc(videosTable.createdAt));
 
-    let filtered = results;
+    const courseIds = [...new Set(results
+      .filter(video => video.accessType !== "visitor")
+      .map(video => video.playlistId ?? video.categoryLinkedPlaylistId)
+      .filter((id): id is number => id != null))];
+    const accessibleCourseIds = req.user
+      ? await getAccessibleCourseIds(req.user.id, courseIds)
+      : new Set<number>();
+    let filtered = results.filter(video => {
+      if (video.accessType === "visitor") return true;
+      const courseId = video.playlistId ?? video.categoryLinkedPlaylistId;
+      return courseId == null || accessibleCourseIds.has(courseId);
+    });
     if (search) {
       const s = search.toLowerCase();
-      filtered = results.filter(v =>
+      filtered = filtered.filter(v =>
         v.title.toLowerCase().includes(s) || v.description.toLowerCase().includes(s)
       );
     }
@@ -218,12 +230,8 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
     }
 
     const accessType = video.accessType || "normal";
-    const isVipUser = isActiveVip(user);
-    const isSubscribed = Boolean(
-      user &&
-      user.subscriptionType !== "demo" &&
-      (!user.subscriptionExpiresAt || new Date(user.subscriptionExpiresAt) > new Date()),
-    );
+    const isVipUser = hasPaidEntitlement(user);
+    const isSubscribed = hasPaidEntitlement(user);
 
     // Log + deny when a user tries to open a video they are not entitled to.
     // Include safe preview metadata so the client can render a locked preview page
@@ -255,29 +263,19 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
     // OR if its category has linkedPlaylistId (category-based course link).
     const coursePlaylistId = video.playlistId ?? video.categoryLinkedPlaylistId ?? null;
     let hasCourseAccess = false;
+    let courseEntitlementExpiry: Date | null = null;
 
     if (coursePlaylistId && accessType !== "visitor") {
       if (!user) {
         await denyVideoAccess("يجب تسجيل الدخول لمشاهدة هذا الفيديو");
         return;
       }
-      const [courseAccess] = await db.select({ playlistId: userCoursesTable.playlistId })
-        .from(userCoursesTable)
-        .where(and(
-          eq(userCoursesTable.userId, user.id),
-          eq(userCoursesTable.playlistId, coursePlaylistId),
-          eq(userCoursesTable.status, "active"),
-          or(
-            isNull(userCoursesTable.expiresAt),
-            gt(userCoursesTable.expiresAt, new Date()),
-          ),
-        ))
-        .limit(1);
-      if (!courseAccess) {
+      const courseEntitlement = await getCourseEntitlement(user.id, coursePlaylistId);
+      if (!courseEntitlement.allowed) {
         await denyVideoAccess("ليس لديك صلاحية الوصول لهذه الدورة");
         return;
       }
-      // User has explicit course access — grant full access without subscription check
+      courseEntitlementExpiry = courseEntitlement.expiresAt;
       hasCourseAccess = true;
     }
 
@@ -333,8 +331,15 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
       partsList.length,
     );
     const directR2ObjectKey = R2_PILOT_OBJECTS[id] ?? (isR2Video ? video.r2ObjectKey : null);
-    const directR2Url = directR2ObjectKey
-      ? await getPresignedR2VideoUrl(directR2ObjectKey)
+    const subscriptionExpiry = effectiveEntitlementExpiry(user);
+    const entitlementExpiry = subscriptionExpiry && courseEntitlementExpiry
+      ? new Date(Math.min(subscriptionExpiry.getTime(), courseEntitlementExpiry.getTime()))
+      : subscriptionExpiry ?? courseEntitlementExpiry;
+    const r2Ttl = entitlementExpiry
+      ? Math.min(4 * 60 * 60, Math.floor((entitlementExpiry.getTime() - Date.now()) / 1000))
+      : undefined;
+    const directR2Url = directR2ObjectKey && (r2Ttl === undefined || r2Ttl >= 1)
+      ? await getPresignedR2VideoUrl(directR2ObjectKey, r2Ttl)
       : null;
     let streamParts: {
       label: string;
@@ -586,6 +591,7 @@ async function authorizeStreamRequest(
         .select({
           accountType: usersTable.accountType,
           subscriptionType: usersTable.subscriptionType,
+          subscriptionStartedAt: usersTable.subscriptionStartedAt,
           subscriptionExpiresAt: usersTable.subscriptionExpiresAt,
           isActive: usersTable.isActive,
           securityBlockedAt: usersTable.securityBlockedAt,
@@ -610,20 +616,7 @@ async function authorizeStreamRequest(
     return null;
   }
   if (coursePlaylistId) {
-    const [courseAccess] = await db
-      .select({ playlistId: userCoursesTable.playlistId })
-      .from(userCoursesTable)
-      .where(and(
-        eq(userCoursesTable.userId, payload.userId),
-        eq(userCoursesTable.playlistId, coursePlaylistId),
-        eq(userCoursesTable.status, "active"),
-        or(
-          isNull(userCoursesTable.expiresAt),
-          gt(userCoursesTable.expiresAt, new Date()),
-        ),
-      ))
-      .limit(1);
-    if (!courseAccess) {
+    if (!await hasCourseEntitlement(payload.userId, coursePlaylistId)) {
       console.warn(`[${logTag}] DENY 403: course access revoked or missing`, {
         videoId: id,
         coursePlaylistId,
@@ -639,11 +632,8 @@ async function authorizeStreamRequest(
   // ── Non-course video: check VIP / subscription ──
   const accessType = video.accessType || "normal";
   if (accessType === "vip" || accessType === "normal") {
-    const isVipUser = isActiveVip(streamUser);
-    const isSubscribed = Boolean(
-      streamUser.subscriptionType !== "demo" &&
-      (!streamUser.subscriptionExpiresAt || new Date(streamUser.subscriptionExpiresAt) > new Date()),
-    );
+    const isVipUser = hasPaidEntitlement(streamUser);
+    const isSubscribed = hasPaidEntitlement(streamUser);
     if (accessType === "vip" && !isVipUser) {
       console.warn(`[${logTag}] DENY 403: VIP video, user not VIP`, {
         videoId: id,

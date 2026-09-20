@@ -1,34 +1,51 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import {
-  RefreshCw, Loader2, MessageCircle, ShieldX, ShieldCheck,
-  CalendarDays, CheckCircle2, AlertTriangle, Clock, Trash2, AlertCircle,
+  RefreshCw, Loader2, MessageCircle,
+  CalendarDays, CheckCircle2, AlertTriangle, Clock, AlertCircle,
+  Search, ShieldAlert, Wrench, Check
 } from "lucide-react";
 
 const API_BASE = "";
 
-interface SubUser {
-  id: number;
-  username: string;
-  email: string;
-  phone: string | null;
-  subscriptionType: "monthly" | "annual";
-  accountType: string;
+type SubscriptionStatus = "active" | "expired" | "unknown" | string;
+
+interface InconsistencyRow {
+  user: {
+    id: number;
+    username: string;
+    name: string | null;
+    email: string;
+    phone: string | null;
+  };
+  plan: {
+    type: string;
+    id: number | null;
+  };
   subscriptionStartedAt: string | null;
   subscriptionExpiresAt: string | null;
-  startDerived: boolean;
-  endDerived: boolean;
-  driveRevokedAt: string | null;
-  isMissingData: boolean;
-  isExpired: boolean;
+  daysRemaining: number | null;
+  subscriptionStatus: SubscriptionStatus;
+  effectiveCourseAccess: boolean;
+  assignedCourses: { id: number; name: string }[];
+  inconsistencyCodes: string[];
+  deterministicFixAvailable: boolean;
   isExpiringSoon: boolean;
-  daysLeft: number | null;
-  daysSinceExpiry: number | null;
 }
 
-type SectionFilter = "active" | "soon" | "expired" | "missing";
+interface ExpiredResponse {
+  summary: {
+    total: number;
+    active: number;
+    expiringSoon: number;
+    expired: number;
+    missingData: number;
+    inconsistencies: number;
+  };
+  rows: InconsistencyRow[];
+}
 
 function formatDate(iso: string | null | undefined): string {
   if (!iso) return "Non défini";
@@ -36,7 +53,7 @@ function formatDate(iso: string | null | undefined): string {
   if (isNaN(d.getTime()) || d.getFullYear() < 2020) return "Non défini";
   return new Intl.DateTimeFormat("fr-FR", {
     day: "numeric",
-    month: "long",
+    month: "short",
     year: "numeric",
   }).format(d);
 }
@@ -48,318 +65,19 @@ function normalizeWhatsApp(phone: string): string {
   return digits;
 }
 
-type StatusColor = "green" | "yellow" | "red" | "gray";
-
-function getStatus(u: SubUser): StatusColor {
-  if (u.isMissingData) return "gray";
-  if (u.isExpired) return "red";
-  if (u.isExpiringSoon) return "yellow";
-  return "green";
-}
-
-const STATUS_CONFIG: Record<StatusColor, { label: string; dotCls: string; badgeCls: string }> = {
-  green:  { label: "Actif",            dotCls: "bg-emerald-500", badgeCls: "bg-emerald-50  text-emerald-700  border-emerald-200" },
-  yellow: { label: "Expire bientôt",   dotCls: "bg-yellow-500",  badgeCls: "bg-yellow-50   text-yellow-700   border-yellow-200"  },
-  red:    { label: "Expiré",           dotCls: "bg-red-500",     badgeCls: "bg-red-50      text-red-700      border-red-200"     },
-  gray:   { label: "Données manq.",    dotCls: "bg-gray-400",    badgeCls: "bg-gray-100    text-gray-600     border-gray-200"    },
+const INCONSISTENCY_LABELS: Record<string, string> = {
+  "MISSING_PLAN_SCOPE": "Accès au plan non défini",
+  "DUPLICATE_USER_PLAYLIST": "Accès en double détecté",
+  "ACTIVE_ENROLLMENT_OUTSIDE_SCOPE": "Accès à des cours non inclus",
+  "MISSING_PLAN_ACCESS": "Accès manquant aux cours",
+  "MISSING_START_DATE": "Date de début manquante",
+  "MISSING_END_DATE": "Date de fin manquante",
+  "MISSING_LIFETIME_END": "Date de fin (à vie) manquante",
+  "MISSING_DEMO_END": "Date de fin (démo) manquante"
 };
 
-function StatusBadge({ color }: { color: StatusColor }) {
-  const { label, dotCls, badgeCls } = STATUS_CONFIG[color];
-  return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${badgeCls}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${dotCls}`} />
-      {label}
-    </span>
-  );
-}
-
-function DaysChip({ user }: { user: SubUser }) {
-  if (user.isMissingData) return <span className="text-sm text-gray-400">—</span>;
-  if (user.isExpired && user.daysSinceExpiry !== null) {
-    return (
-      <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-1 text-[11px] font-bold text-red-700">
-        il y a {user.daysSinceExpiry} jour(s)
-      </span>
-    );
-  }
-  if (user.daysLeft !== null) {
-    if (user.daysLeft <= 0) {
-      return (
-        <span className="inline-flex items-center rounded-full bg-yellow-100 px-2.5 py-1 text-[11px] font-bold text-yellow-700">
-          Aujourd'hui
-        </span>
-      );
-    }
-    if (user.isExpiringSoon) {
-      return (
-        <span className="inline-flex items-center rounded-full bg-yellow-100 px-2.5 py-1 text-[11px] font-bold text-yellow-700">
-          {user.daysLeft} jour(s)
-        </span>
-      );
-    }
-    return (
-      <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700">
-        {user.daysLeft} jour(s)
-      </span>
-    );
-  }
-  return <span className="text-sm text-gray-400">—</span>;
-}
-
-function DateCell({ iso, derived, expired }: { iso: string | null; derived?: boolean; expired?: boolean }) {
-  const label = formatDate(iso);
-  if (label === "Non défini") {
-    return <span className="text-sm text-gray-400">Non défini</span>;
-  }
-  return (
-    <div>
-      <span className={`text-sm font-medium ${expired ? "text-red-600" : "text-gray-800"}`}>{label}</span>
-      {derived && <p className="text-[10px] text-gray-400 mt-0.5">(estimé)</p>}
-    </div>
-  );
-}
-
-function UserRow({
-  user,
-  onRevoke,
-  revoking,
-}: {
-  user: SubUser;
-  onRevoke: (id: number) => void;
-  revoking: boolean;
-}) {
-  const color = getStatus(user);
-  return (
-    <tr className={`border-b border-gray-100 last:border-0 transition-colors hover:bg-gray-50/70 ${user.driveRevokedAt ? "opacity-50" : ""}`}>
-      <td className="px-4 py-3.5 align-middle">
-        <p className="font-semibold text-sm text-gray-900 leading-tight">{user.username}</p>
-        <p className="text-xs text-gray-500 mt-0.5 truncate max-w-[200px]">{user.email}</p>
-      </td>
-
-      <td className="px-4 py-3.5 align-middle">
-        {user.phone ? (
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-mono text-gray-600" dir="ltr">{user.phone}</span>
-            <a
-              href={`https://wa.me/${normalizeWhatsApp(user.phone)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              title="WhatsApp"
-              className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-green-100 hover:bg-green-200 text-green-700 transition-colors shrink-0"
-            >
-              <MessageCircle className="w-3 h-3" />
-            </a>
-          </div>
-        ) : (
-          <span className="text-sm text-gray-400">—</span>
-        )}
-      </td>
-
-      <td className="px-4 py-3.5 align-middle">
-        <DateCell iso={user.subscriptionStartedAt} derived={user.startDerived} />
-      </td>
-
-      <td className="px-4 py-3.5 align-middle">
-        <DateCell iso={user.subscriptionExpiresAt} derived={user.endDerived} expired={user.isExpired} />
-      </td>
-
-      <td className="px-4 py-3.5 align-middle">
-        <DaysChip user={user} />
-      </td>
-
-      <td className="px-4 py-3.5 align-middle">
-        <StatusBadge color={color} />
-      </td>
-
-      <td className="px-4 py-3.5 align-middle">
-        {user.driveRevokedAt ? (
-          <div>
-            <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700">
-              <ShieldCheck className="w-3.5 h-3.5" /> Révoqué
-            </span>
-            <p className="text-[10px] text-gray-400 mt-0.5">{formatDate(user.driveRevokedAt)}</p>
-          </div>
-        ) : (
-          <button
-            onClick={() => onRevoke(user.id)}
-            disabled={revoking}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 text-xs font-semibold px-3 py-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {revoking ? <Loader2 className="w-3 h-3 animate-spin" /> : <ShieldX className="w-3 h-3" />}
-            Révoquer Drive
-          </button>
-        )}
-      </td>
-    </tr>
-  );
-}
-
-interface TabConfig {
-  v: SectionFilter;
-  label: string;
-  data: SubUser[];
-  activeCls: string;
-  countCls: string;
-}
-
-function SubSection({
-  title,
-  accentCls,
-  headerBg,
-  users,
-  onRevoke,
-  onRevokeAll,
-  revokingId,
-  revokeAllPending,
-}: {
-  title: string;
-  accentCls: string;
-  headerBg: string;
-  users: SubUser[];
-  onRevoke: (id: number) => void;
-  onRevokeAll: () => void;
-  revokingId: number | null;
-  revokeAllPending: boolean;
-}) {
-  const [filter, setFilter] = useState<SectionFilter>("active");
-
-  const active  = users.filter(u => !u.isMissingData && !u.isExpired && !u.isExpiringSoon);
-  const soon    = users.filter(u => !u.isMissingData && u.isExpiringSoon);
-  const expired = users.filter(u => !u.isMissingData && u.isExpired);
-  const missing = users.filter(u => u.isMissingData);
-
-  const displayed =
-    filter === "active" ? active : filter === "soon" ? soon :
-    filter === "expired" ? expired : missing;
-
-  const pendingExpired = expired.filter(u => !u.driveRevokedAt).length;
-
-  const TABS: TabConfig[] = [
-    {
-      v: "active", label: "Actifs", data: active,
-      activeCls: "bg-emerald-600 text-white border-emerald-600",
-      countCls: "bg-emerald-100 text-emerald-700",
-    },
-    {
-      v: "soon", label: "Expire bientôt", data: soon,
-      activeCls: "bg-yellow-500 text-white border-yellow-500",
-      countCls: "bg-yellow-100 text-yellow-700",
-    },
-    {
-      v: "expired", label: "Expirés", data: expired,
-      activeCls: "bg-red-600 text-white border-red-600",
-      countCls: "bg-red-100 text-red-700",
-    },
-    {
-      v: "missing", label: "Données manquantes", data: missing,
-      activeCls: "bg-gray-600 text-white border-gray-600",
-      countCls: "bg-gray-100 text-gray-600",
-    },
-  ];
-
-  return (
-    <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-      <div className={`${headerBg} px-5 py-4 border-b border-gray-200`}>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <CalendarDays className={`w-4.5 h-4.5 ${accentCls}`} />
-            <h2 className="font-bold text-base text-gray-900">{title}</h2>
-            <span className="text-xs text-gray-500 font-normal">({users.length} abonné(s))</span>
-          </div>
-
-          <div className="flex flex-wrap gap-1.5">
-            {TABS.map(tab => (
-              <button
-                key={tab.v}
-                onClick={() => setFilter(tab.v)}
-                className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all ${
-                  filter === tab.v
-                    ? tab.activeCls
-                    : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:text-gray-800"
-                }`}
-              >
-                {tab.label}
-                {tab.data.length > 0 && (
-                  <span className={`rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 text-[10px] font-bold ${
-                    filter === tab.v ? "bg-white/25 text-white" : tab.countCls
-                  }`}>
-                    {tab.data.length}
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {filter === "missing" && missing.length > 0 && (
-        <div className="flex items-start gap-2.5 px-5 py-3 bg-slate-50 border-b border-slate-100">
-          <AlertCircle className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
-          <p className="text-sm text-slate-700">
-            Ces abonnés n'ont pas de date de début ni de fin dans la base de données.
-            Veuillez mettre à jour leurs données depuis la page utilisateurs.
-          </p>
-        </div>
-      )}
-
-      {filter === "expired" && pendingExpired > 0 && (
-        <div className="flex items-center justify-between gap-3 px-5 py-3 bg-red-50 border-b border-red-100">
-          <p className="text-sm font-semibold text-red-700">
-            {pendingExpired} utilisateur(s) dont les accès Google Drive n'ont pas encore été révoqués
-          </p>
-          <button
-            onClick={onRevokeAll}
-            disabled={revokeAllPending}
-            className="inline-flex items-center gap-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-4 py-2 transition-colors shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            {revokeAllPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-            Révoquer tous ({pendingExpired})
-          </button>
-        </div>
-      )}
-
-      {displayed.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 gap-3">
-          <CheckCircle2 className="w-10 h-10 text-gray-200" />
-          <p className="text-sm text-gray-500">
-            {filter === "active"  && "Aucun abonné actif dans cette section"}
-            {filter === "soon"    && "Aucun abonné n'expire bientôt"}
-            {filter === "expired" && "Aucun abonné expiré — Excellent !"}
-            {filter === "missing" && "Tous les abonnés ont des données complètes ✓"}
-          </p>
-        </div>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-100">
-                <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500">Utilisateur</th>
-                <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500">Téléphone</th>
-                <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500">Début</th>
-                <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500">Fin</th>
-                <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500">
-                  {filter === "expired" ? "Depuis expiration" : "Jours restants"}
-                </th>
-                <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500">Statut</th>
-                <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500">Drive</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {displayed.map(user => (
-                <UserRow
-                  key={user.id}
-                  user={user}
-                  onRevoke={onRevoke}
-                  revoking={revokingId === user.id}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
+function translateInconsistency(code: string): string {
+  return INCONSISTENCY_LABELS[code] || code;
 }
 
 function StatCard({
@@ -369,13 +87,15 @@ function StatCard({
   bg: string; iconCls: string; textCls: string;
 }) {
   return (
-    <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${bg}`}>
-      <div className={`flex items-center justify-center w-8 h-8 rounded-lg ${iconCls} shrink-0`}>
-        <Icon className="w-4 h-4" />
-      </div>
-      <div>
-        <p className={`text-xl font-bold leading-tight ${textCls}`}>{count}</p>
-        <p className="text-xs text-gray-500 mt-0.5">{label}</p>
+    <div className={`ad-stat ${bg}`}>
+      <div className="flex items-center justify-between">
+        <div>
+          <p className={`ad-stat-value ${textCls}`}>{count}</p>
+          <p className="ad-stat-label">{label}</p>
+        </div>
+        <div className={`flex items-center justify-center w-10 h-10 rounded-xl ${iconCls} shrink-0`}>
+          <Icon className="w-5 h-5" />
+        </div>
       </div>
     </div>
   );
@@ -385,11 +105,15 @@ export function AdminSubscriptionAlerts() {
   const { getAdminAuthHeaders } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [revokingId, setRevokingId] = useState<number | null>(null);
 
   const authHeaders = getAdminAuthHeaders()?.headers as Record<string, string> | undefined;
 
-  const { data: allUsers = [], isLoading, refetch, isRefetching } = useQuery<SubUser[]>({
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [filterCourse, setFilterCourse] = useState<string>("all");
+  const [filterType, setFilterType] = useState<string>("all");
+  const [search, setSearch] = useState<string>("");
+
+  const { data, isLoading, refetch, isRefetching } = useQuery<ExpiredResponse>({
     queryKey: ["admin-expired-users"],
     queryFn: async () => {
       const res = await fetch(`${API_BASE}/api/admin/users/expired`, {
@@ -400,133 +124,351 @@ export function AdminSubscriptionAlerts() {
     },
   });
 
-  const revokeOneMut = useMutation({
+  const [mutatingId, setMutatingId] = useState<number | null>(null);
+
+  const reconcileMut = useMutation({
     mutationFn: async (id: number) => {
-      const res = await fetch(`${API_BASE}/api/admin/users/${id}/revoke-drive`, {
+      const res = await fetch(`${API_BASE}/api/admin/users/${id}/reconcile-course-access`, {
         method: "POST",
         headers: authHeaders ?? {},
       });
-      if (!res.ok) throw new Error("Échec");
+      if (!res.ok) throw new Error("Échec de la correction");
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-expired-users"] });
-      toast({ title: "✓ Accès Google Drive révoqué" });
+      toast({ title: "Accès corrigé avec succès", variant: "default" });
     },
-    onError: () => toast({ title: "Une erreur est survenue", variant: "destructive" }),
-    onSettled: () => setRevokingId(null),
+    onError: () => toast({ title: "Une erreur est survenue lors de la correction", variant: "destructive" }),
+    onSettled: () => setMutatingId(null),
   });
 
-  const revokeAllMut = useMutation({
-    mutationFn: async () => {
-      const res = await fetch(`${API_BASE}/api/admin/users/revoke-drive-all`, {
-        method: "POST",
-        headers: authHeaders ?? {},
-      });
-      if (!res.ok) throw new Error("Échec");
-      return res.json() as Promise<{ revoked: number }>;
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["admin-expired-users"] });
-      toast({ title: `✓ ${data.revoked} utilisateur(s) révoqué(s) de Google Drive` });
-    },
-    onError: () => toast({ title: "Une erreur est survenue", variant: "destructive" }),
-  });
-
-  const handleRevoke = (id: number) => {
-    setRevokingId(id);
-    revokeOneMut.mutate(id);
+  const handleReconcile = (id: number) => {
+    setMutatingId(id);
+    reconcileMut.mutate(id);
   };
 
-  const monthly = allUsers.filter(u => u.subscriptionType === "monthly");
-  const annual  = allUsers.filter(u => u.subscriptionType === "annual");
+  const rows = data?.rows || [];
 
-  const withData     = allUsers.filter(u => !u.isMissingData);
-  const totalActive  = withData.filter(u => !u.isExpired && !u.isExpiringSoon).length;
-  const totalSoon    = withData.filter(u => u.isExpiringSoon).length;
-  const totalExpired = withData.filter(u => u.isExpired).length;
-  const totalMissing = allUsers.filter(u => u.isMissingData).length;
+  const uniqueCourses = useMemo(() => {
+    const courseMap = new Map<number, string>();
+    rows.forEach(r => {
+      r.assignedCourses.forEach(c => courseMap.set(c.id, c.name));
+    });
+    return Array.from(courseMap.entries()).map(([id, name]) => ({ id, name }));
+  }, [rows]);
+
+  const uniqueTypes = useMemo(() => {
+    const typeSet = new Set<string>();
+    rows.forEach(r => {
+      if (r.plan.type) typeSet.add(r.plan.type);
+    });
+    return Array.from(typeSet);
+  }, [rows]);
+
+  const filteredRows = useMemo(() => {
+    let result = rows;
+
+    if (filterStatus === "active") result = result.filter(r => r.subscriptionStatus === "active" && !r.isExpiringSoon);
+    if (filterStatus === "soon") result = result.filter(r => r.isExpiringSoon);
+    if (filterStatus === "expired") result = result.filter(r => r.subscriptionStatus === "expired");
+    if (filterStatus === "missing") result = result.filter(r => r.inconsistencyCodes.some(c => c.startsWith("MISSING_")));
+    if (filterStatus === "inconsistencies") result = result.filter(r => r.inconsistencyCodes.length > 0);
+
+    if (filterCourse !== "all") {
+      const cid = parseInt(filterCourse, 10);
+      result = result.filter(r => r.assignedCourses.some(c => c.id === cid));
+    }
+
+    if (filterType !== "all") {
+      result = result.filter(r => r.plan.type === filterType);
+    }
+
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      result = result.filter(r =>
+        r.user.username.toLowerCase().includes(q) ||
+        (r.user.name && r.user.name.toLowerCase().includes(q)) ||
+        r.user.email.toLowerCase().includes(q) ||
+        (r.user.phone && r.user.phone.includes(q))
+      );
+    }
+
+    return result;
+  }, [rows, filterStatus, filterCourse, filterType, search]);
+
+  const summary = data?.summary;
 
   return (
     <div className="space-y-6 pb-10">
-
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Alertes d'abonnements</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Suivi des abonnements mensuels et annuels — jours calculés automatiquement
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Contrôle des Accès</h1>
+          <p className="text-sm text-slate-500 mt-1">
+            Vue opérationnelle des abonnements et des droits d'accès aux cours
           </p>
         </div>
         <button
           onClick={() => refetch()}
           disabled={isRefetching}
-          className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-sm font-semibold px-4 py-2.5 shadow-sm transition-colors disabled:opacity-60"
+          className="ad-btn-sm"
         >
           <RefreshCw className={`w-4 h-4 ${isRefetching ? "animate-spin text-primary" : ""}`} />
-          Actualiser les données
+          Actualiser
         </button>
       </div>
 
-      {!isLoading && allUsers.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-          <StatCard count={allUsers.length} label="Total abonnés"
+      {!isLoading && summary && (
+        <div className="grid grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6 gap-4">
+          <StatCard count={summary.total} label="Total abonnements"
             icon={CalendarDays}
-            bg="bg-white border-gray-200"
-            iconCls="bg-gray-100 text-gray-600"
-            textCls="text-gray-900" />
-          <StatCard count={totalActive} label="Actif"
+            bg="bg-white"
+            iconCls="bg-slate-100 text-slate-600"
+            textCls="text-slate-900" />
+          <StatCard count={summary.active} label="Actifs"
             icon={CheckCircle2}
-            bg="bg-emerald-50 border-emerald-200"
+            bg="bg-white"
             iconCls="bg-emerald-100 text-emerald-700"
             textCls="text-emerald-800" />
-          <StatCard count={totalSoon} label="Expire bientôt"
+          <StatCard count={summary.expiringSoon} label="Expire bientôt"
             icon={Clock}
-            bg="bg-yellow-50 border-yellow-200"
-            iconCls="bg-yellow-100 text-yellow-700"
-            textCls="text-yellow-800" />
-          <StatCard count={totalExpired} label="Expiré"
+            bg="bg-white"
+            iconCls="bg-amber-100 text-amber-700"
+            textCls="text-amber-800" />
+          <StatCard count={summary.expired} label="Expirés"
             icon={AlertTriangle}
-            bg="bg-red-50 border-red-200"
-            iconCls="bg-red-100 text-red-700"
-            textCls="text-red-800" />
-          <StatCard count={totalMissing} label="Données manquantes"
+            bg="bg-white"
+            iconCls="bg-rose-100 text-rose-700"
+            textCls="text-rose-800" />
+          <StatCard count={summary.missingData} label="Données à corriger"
             icon={AlertCircle}
-            bg="bg-gray-50 border-gray-200"
-            iconCls="bg-gray-100 text-gray-500"
-            textCls="text-gray-700" />
+            bg="bg-white"
+            iconCls="bg-slate-100 text-slate-700"
+            textCls="text-slate-800" />
+          <StatCard count={summary.inconsistencies} label="Incohérences"
+            icon={ShieldAlert}
+            bg="bg-white"
+            iconCls="bg-indigo-100 text-indigo-700"
+            textCls="text-indigo-800" />
         </div>
       )}
 
-      {isLoading ? (
-        <div className="flex items-center justify-center py-24 gap-3 text-gray-500">
-          <Loader2 className="w-5 h-5 animate-spin" />
-          <span className="text-sm">Chargement des données...</span>
+      <div className="ad-card flex flex-col">
+        <div className="p-4 border-b border-slate-200 bg-white space-y-4 rounded-t-xl">
+          <div className="flex flex-wrap gap-2">
+            {[
+              { id: "all", label: "Tous" },
+              { id: "active", label: "Actifs" },
+              { id: "soon", label: "Expire bientôt" },
+              { id: "expired", label: "Expirés" },
+              { id: "missing", label: "Données manquantes" },
+              { id: "inconsistencies", label: "Incohérences" },
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setFilterStatus(tab.id)}
+                className={`ad-chip ${filterStatus === tab.id ? "ad-chip-on" : ""}`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <div className="relative max-w-xs w-full">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Rechercher nom, email, tél..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="ad-input pl-9"
+              />
+            </div>
+            <select
+              className="ad-select max-w-[200px] w-full"
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+            >
+              <option value="all">Tous les types</option>
+              {uniqueTypes.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+            <select
+              className="ad-select max-w-[200px] w-full"
+              value={filterCourse}
+              onChange={(e) => setFilterCourse(e.target.value)}
+            >
+              <option value="all">Tous les cours</option>
+              {uniqueCourses.map(c => <option key={c.id} value={c.id.toString()}>{c.name}</option>)}
+            </select>
+          </div>
         </div>
-      ) : (
-        <div className="space-y-5">
-          <SubSection
-            title="Abonnements mensuels"
-            accentCls="text-blue-600"
-            headerBg="bg-blue-50/60"
-            users={monthly}
-            onRevoke={handleRevoke}
-            onRevokeAll={() => revokeAllMut.mutate()}
-            revokingId={revokingId}
-            revokeAllPending={revokeAllMut.isPending}
-          />
 
-          <SubSection
-            title="Abonnements annuels"
-            accentCls="text-violet-600"
-            headerBg="bg-violet-50/60"
-            users={annual}
-            onRevoke={handleRevoke}
-            onRevokeAll={() => revokeAllMut.mutate()}
-            revokingId={revokingId}
-            revokeAllPending={revokeAllMut.isPending}
-          />
-        </div>
-      )}
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center py-20 text-slate-500">
+            <Loader2 className="w-6 h-6 animate-spin mb-3 text-slate-400" />
+            <p className="text-sm font-medium">Chargement des données...</p>
+          </div>
+        ) : filteredRows.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-slate-500">
+            <CheckCircle2 className="w-10 h-10 mb-3 text-slate-300" />
+            <p className="text-sm font-medium">Aucun résultat trouvé</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-b-xl">
+            <table className="w-full text-left border-collapse min-w-[800px]">
+              <thead>
+                <tr>
+                  <th className="ad-th">Utilisateur</th>
+                  <th className="ad-th">Plan & Cours</th>
+                  <th className="ad-th">Période</th>
+                  <th className="ad-th">Statut</th>
+                  <th className="ad-th">Incohérences</th>
+                  <th className="ad-th">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredRows.map(row => (
+                  <tr key={row.user.id} className="ad-tr border-b border-slate-100">
+                    <td className="ad-td align-top">
+                      <div className="font-semibold text-slate-900">{row.user.username}</div>
+                      {row.user.name && <div className="text-xs text-slate-500">{row.user.name}</div>}
+                      <div className="text-xs text-slate-500 truncate max-w-[200px]" title={row.user.email}>{row.user.email}</div>
+                      {row.user.phone && (
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <span className="text-xs font-mono text-slate-600" dir="ltr">{row.user.phone}</span>
+                          <a
+                            href={`https://wa.me/${normalizeWhatsApp(row.user.phone)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="WhatsApp"
+                            className="text-emerald-600 hover:text-emerald-700 transition-colors shrink-0"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" />
+                          </a>
+                        </div>
+                      )}
+                    </td>
+
+                    <td className="ad-td align-top">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 text-slate-700 uppercase tracking-wider mb-1.5 border border-slate-200 shadow-sm">
+                        {row.plan.type}
+                      </span>
+                      {row.assignedCourses.length > 0 ? (
+                        <div className="flex flex-wrap gap-1 max-w-[220px]">
+                          {row.assignedCourses.map(c => (
+                            <span key={c.id} className="text-[10px] bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-100 truncate max-w-[200px]" title={c.name}>
+                              {c.name}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-[11px] text-slate-400 italic">Aucun cours assigné</div>
+                      )}
+                    </td>
+
+                    <td className="ad-td align-top">
+                      <div className="text-[12px] space-y-1">
+                        <div className="flex justify-between w-32 gap-3">
+                          <span className="text-slate-500 shrink-0">Début:</span>
+                          <span className="font-medium text-slate-800 text-right">{formatDate(row.subscriptionStartedAt)}</span>
+                        </div>
+                        <div className="flex justify-between w-32 gap-3">
+                          <span className="text-slate-500 shrink-0">Fin:</span>
+                          <span className={`font-medium text-right ${row.subscriptionStatus === "expired" ? "text-rose-600" : "text-slate-800"}`}>
+                            {formatDate(row.subscriptionExpiresAt)}
+                          </span>
+                        </div>
+                      </div>
+                    </td>
+
+                    <td className="ad-td align-top">
+                      <div className="space-y-2">
+                        <div>
+                          {row.subscriptionStatus === "active" ? (
+                            <span className={`ad-badge ${row.isExpiringSoon ? "ad-badge-expiring" : "ad-badge-active"}`}>
+                              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${row.isExpiringSoon ? "bg-amber-500" : "bg-emerald-500"}`} />
+                              {row.isExpiringSoon ? "Expire bientôt" : "Actif"}
+                            </span>
+                          ) : row.subscriptionStatus === "expired" ? (
+                            <span className="ad-badge ad-badge-expired">
+                              <span className="w-1.5 h-1.5 rounded-full shrink-0 bg-rose-500" />
+                              Expiré
+                            </span>
+                          ) : (
+                            <span className="ad-badge ad-badge-normal">Inconnu</span>
+                          )}
+                        </div>
+
+                        {row.daysRemaining !== null && (
+                          <div className="text-[11px] font-medium text-slate-500">
+                            {row.daysRemaining < 0
+                              ? `Expiré il y a ${Math.abs(row.daysRemaining)} j`
+                              : row.daysRemaining === 0
+                                ? "Expire aujourd'hui"
+                                : `${row.daysRemaining} jour(s) restants`}
+                          </div>
+                        )}
+
+                        <div className="flex items-center gap-1 mt-1">
+                          {row.effectiveCourseAccess ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-100/50 px-1.5 py-0.5 rounded">
+                              <Check className="w-3 h-3" /> Accès ouvert
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-rose-700 bg-rose-100/50 px-1.5 py-0.5 rounded">
+                              <AlertCircle className="w-3 h-3" /> Accès fermé
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+
+                    <td className="ad-td align-top">
+                      {row.inconsistencyCodes.length > 0 ? (
+                        <div className="flex flex-col gap-1.5 max-w-[220px]">
+                          {row.inconsistencyCodes.map(code => (
+                            <span key={code} className="inline-flex items-start gap-1.5 text-[11px] text-rose-700 bg-rose-50 px-2 py-1 rounded border border-rose-200 leading-tight">
+                              <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />
+                              {translateInconsistency(code)}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 font-medium">
+                          <CheckCircle2 className="w-3 h-3" /> Cohérent
+                        </span>
+                      )}
+                    </td>
+
+                    <td className="ad-td align-top">
+                      {row.deterministicFixAvailable && row.inconsistencyCodes.length > 0 ? (
+                        <button
+                          onClick={() => handleReconcile(row.user.id)}
+                          disabled={reconcileMut.isPending && mutatingId === row.user.id}
+                          className="ad-btn-primary h-8 text-[11px] px-3 w-full justify-center shadow-sm"
+                        >
+                          {reconcileMut.isPending && mutatingId === row.user.id ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Wrench className="w-3.5 h-3.5" />
+                          )}
+                          Corriger l'accès
+                        </button>
+                      ) : (
+                        row.inconsistencyCodes.length > 0 ? (
+                          <span className="text-[11px] text-slate-400 italic text-center block bg-slate-50 px-2 py-1.5 rounded border border-slate-100">
+                            Correction manuelle requise
+                          </span>
+                        ) : null
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

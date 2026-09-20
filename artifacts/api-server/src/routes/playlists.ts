@@ -1,7 +1,8 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { eq, asc, inArray, and } from "drizzle-orm";
+import { eq, asc, inArray, and, gt, isNull, or } from "drizzle-orm";
 import { db, playlistsTable, videosTable, categoriesTable, userCoursesTable } from "@workspace/db";
 import { optionalUserAuth, userAuth } from "../middlewares/auth";
+import { getAccessibleCourseIds, hasCourseEntitlement, hasPaidEntitlement } from "../lib/courseEntitlement";
 
 const router: IRouter = Router();
 
@@ -78,13 +79,19 @@ router.get("/playlists", optionalUserAuth, async (req: Request, res: Response) =
           .orderBy(asc(videosTable.partNumber))
       : [];
 
+    const accessibleCourseIds = req.user
+      ? await getAccessibleCourseIds(req.user.id, playlistIds)
+      : new Set<number>();
     const result = filtered.map(({ playlist, categoryName }) => {
       // Find all categories linked to this playlist
       const catIds = linkedCategories
         .filter(c => (c as typeof c & { linkedPlaylistId?: number | null }).linkedPlaylistId === playlist.id)
         .map(c => c.id);
       const videos = allVideos.filter(v => catIds.includes(v.categoryId!));
-      return buildPlaylistResponse({ ...playlist, categoryName: categoryName ?? "" }, videos);
+      const entitledVideos = videos.filter(video =>
+        video.accessType === "visitor" || accessibleCourseIds.has(playlist.id),
+      );
+      return buildPlaylistResponse({ ...playlist, categoryName: categoryName ?? "" }, entitledVideos);
     });
 
     res.json(result);
@@ -111,12 +118,7 @@ router.get("/playlists/:id", optionalUserAuth, async (req: Request, res: Respons
 
     // ── Course access check — user must have this playlist in user_courses ──
     const user = req.user;
-    const hasAccess = user
-      ? (await db.select({ playlistId: userCoursesTable.playlistId })
-          .from(userCoursesTable)
-          .where(and(eq(userCoursesTable.userId, user.id), eq(userCoursesTable.playlistId, id)))
-          .limit(1)).length > 0
-      : false;
+    const hasAccess = user ? await hasCourseEntitlement(user.id, id) : false;
 
     if (!hasAccess) {
       const imageUrl = (row.playlist as typeof row.playlist & { imageUrl?: string | null }).imageUrl ?? null;
@@ -201,16 +203,29 @@ router.get("/playlists/:id", optionalUserAuth, async (req: Request, res: Respons
 router.get("/user/courses", userAuth, async (req: Request, res: Response) => {
   try {
     const userId = (req as typeof req & { user?: { id: number } }).user!.id;
+    if (!hasPaidEntitlement(req.user)) {
+      res.json([]);
+      return;
+    }
+    const now = new Date();
     const assignments = await db.select({ playlistId: userCoursesTable.playlistId })
       .from(userCoursesTable)
-      .where(eq(userCoursesTable.userId, userId));
+      .where(and(
+        eq(userCoursesTable.userId, userId),
+        eq(userCoursesTable.status, "active"),
+        or(isNull(userCoursesTable.expiresAt), gt(userCoursesTable.expiresAt, now)),
+      ));
 
     if (assignments.length === 0) {
       res.json([]);
       return;
     }
 
-    const playlistIds = assignments.map(a => a.playlistId);
+    const playlistIds = [...new Set(assignments.map(assignment => assignment.playlistId))];
+    if (playlistIds.length === 0) {
+      res.json([]);
+      return;
+    }
 
     const rows = await db.select({
       playlist: playlistsTable,

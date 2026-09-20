@@ -51,8 +51,7 @@ export function requiredAdminAccessForApi(method: string, requestPath: string): 
   if (path === "/admin/subscriptions" || path.startsWith("/admin/payments")) return "manage_subscriptions";
   if (
     path === "/admin/users/expired" ||
-    path === "/admin/users/revoke-drive-all" ||
-    /^\/admin\/users\/[^/]+\/(?:subscription|revoke-drive)$/.test(path)
+    /^\/admin\/users\/[^/]+\/(?:subscription|reconcile-course-access)$/.test(path)
   ) return "manage_subscriptions";
   if (/^\/admin\/users\/[^/]+\/revoke-course\/[^/]+$/.test(path)) return "manage_content";
   if (

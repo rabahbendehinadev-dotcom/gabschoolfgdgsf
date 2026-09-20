@@ -3,7 +3,7 @@ import fs from "fs";
 import { Router, type IRouter } from "express";
 import multer from "multer";
 import { db, usersTable, videosTable, categoriesTable, playlistsTable, subscriptionPlansTable, visitLogsTable, activityLogsTable, notificationsTable, notificationRecipientsTable, pushSubscriptionsTable, adminPushSubscriptionsTable, communityPostsTable, communityCommentsTable, communityReportsTable, userCoursesTable, paymentSubmissionsTable, planCoursesTable, courseAccessLogsTable, adminsTable, adminCoursePermissionsTable, r2VideoUploadsTable, trustedDevicesTable, userSecuritySessionsTable, securityEventsTable, securityWhitelistsTable } from "@workspace/db";
-import { eq, sql, count, desc, asc, lt, and, gte, isNull, isNotNull, inArray, max, ilike, or } from "drizzle-orm";
+import { eq, sql, count, desc, asc, lt, gt, and, gte, isNull, isNotNull, inArray, max, ilike, or } from "drizzle-orm";
 
 import { adminAuth, securityManageAuth } from "../middlewares/auth";
 import { hashPassword, comparePassword } from "../lib/auth";
@@ -22,6 +22,7 @@ import {
 } from "../lib/videoStorage";
 import { normalizeHlsPartsInput, deleteHlsObjects, invalidateRenderedPlaylists } from "../lib/hlsStorage";
 import { deleteLowCopiesBestEffort } from "../lib/driveTranscode";
+import { entitlementState, reconcileCourseAccess, soonThreshold } from "../lib/subscriptionAccess";
 import {
   abortR2MultipartVideoUpload,
   completeR2MultipartVideoUpload,
@@ -256,7 +257,11 @@ router.get("/admin/users", adminAuth, async (req, res) => {
       })
       .from(userCoursesTable)
       .leftJoin(playlistsTable, eq(userCoursesTable.playlistId, playlistsTable.id))
-      .where(inArray(userCoursesTable.userId, userIds)),
+      .where(and(
+        inArray(userCoursesTable.userId, userIds),
+        eq(userCoursesTable.status, "active"),
+        or(isNull(userCoursesTable.expiresAt), gt(userCoursesTable.expiresAt, new Date())),
+      )),
     ]);
 
     // Build lookup maps
@@ -272,6 +277,7 @@ router.get("/admin/users", adminAuth, async (req, res) => {
     }
 
     const mapped = users.map(u => {
+      const subscriptionState = entitlementState(u);
       return {
         id: u.id,
         username: u.username,
@@ -285,6 +291,12 @@ router.get("/admin/users", adminAuth, async (req, res) => {
         subscriptionType: u.subscriptionType,
         subscriptionExpiresAt:  u.subscriptionExpiresAt?.toISOString()  || null,
         subscriptionStartedAt:  u.subscriptionStartedAt?.toISOString()  || null,
+        subscriptionStatus: subscriptionState.status,
+        subscriptionIsExpiringSoon:
+          subscriptionState.active &&
+          subscriptionState.daysRemaining !== null &&
+          subscriptionState.daysRemaining >= 0 &&
+          subscriptionState.daysRemaining <= soonThreshold(u.subscriptionType),
         // Historical IP fields remain available for investigation only; they
         // are not device slots and never affect authorization.
         ipAddress: u.ipAddress,
@@ -354,16 +366,17 @@ router.get("/admin/users/stats", adminAuth, async (_req, res) => {
     const [aggRow, courseCounts, playlists] = await Promise.all([
       db.select({
         total:       count(),
-        vip:         sql<number>`COUNT(*) FILTER (WHERE ${usersTable.accountType} = 'vip' AND (${usersTable.subscriptionExpiresAt} IS NULL OR ${usersTable.subscriptionExpiresAt} > NOW()))`,
-        expired:     sql<number>`COUNT(*) FILTER (WHERE ${usersTable.accountType} = 'vip' AND ${usersTable.subscriptionExpiresAt} IS NOT NULL AND ${usersTable.subscriptionExpiresAt} < NOW())`,
-        expiringSoon:sql<number>`COUNT(*) FILTER (WHERE ${usersTable.accountType} = 'vip' AND ${usersTable.subscriptionExpiresAt} IS NOT NULL AND ${usersTable.subscriptionExpiresAt} >= NOW() AND ${usersTable.subscriptionExpiresAt} <= ${soon.toISOString()})`,
-        nonVip:      sql<number>`COUNT(*) FILTER (WHERE ${usersTable.accountType} != 'vip')`,
+        vip: sql<number>`COUNT(*) FILTER (WHERE ${usersTable.accountType} = 'vip' AND ${usersTable.isActive} AND ${usersTable.securityBlockedAt} IS NULL AND (${usersTable.subscriptionType} = 'lifetime' OR (${usersTable.subscriptionType} IN ('monthly','annual') AND ${usersTable.subscriptionStartedAt} IS NOT NULL AND ${usersTable.subscriptionStartedAt} <= NOW() AND ${usersTable.subscriptionExpiresAt} IS NOT NULL AND ${usersTable.subscriptionExpiresAt} > NOW())))`,
+        expired: sql<number>`COUNT(*) FILTER (WHERE ${usersTable.accountType} = 'vip' AND ${usersTable.isActive} AND ${usersTable.securityBlockedAt} IS NULL AND ${usersTable.subscriptionType} IN ('monthly','annual') AND ${usersTable.subscriptionStartedAt} IS NOT NULL AND ${usersTable.subscriptionStartedAt} <= NOW() AND ${usersTable.subscriptionExpiresAt} IS NOT NULL AND ${usersTable.subscriptionExpiresAt} <= NOW())`,
+        expiringSoon:sql<number>`COUNT(*) FILTER (WHERE ${usersTable.accountType} = 'vip' AND ${usersTable.isActive} AND ${usersTable.securityBlockedAt} IS NULL AND ${usersTable.subscriptionType} IN ('monthly','annual') AND ${usersTable.subscriptionStartedAt} IS NOT NULL AND ${usersTable.subscriptionStartedAt} <= NOW() AND ${usersTable.subscriptionExpiresAt} IS NOT NULL AND ${usersTable.subscriptionExpiresAt} > NOW() AND ${usersTable.subscriptionExpiresAt} <= ${soon.toISOString()})`,
+        nonVip:      sql<number>`COUNT(*) FILTER (WHERE ${usersTable.accountType} != 'vip' OR ${usersTable.isActive} = false OR ${usersTable.securityBlockedAt} IS NOT NULL)`,
         newUsers:    sql<number>`COUNT(*) FILTER (WHERE ${usersTable.createdAt} >= ${monthAgo.toISOString()})`,
         blocked:     sql<number>`COUNT(*) FILTER (WHERE ${usersTable.isActive} = false)`,
       }).from(usersTable),
 
       db.select({ playlistId: userCoursesTable.playlistId, cnt: count() })
         .from(userCoursesTable)
+        .where(and(eq(userCoursesTable.status, "active"), or(isNull(userCoursesTable.expiresAt), gt(userCoursesTable.expiresAt, now))))
         .groupBy(userCoursesTable.playlistId),
 
       db.select({ id: playlistsTable.id, title: playlistsTable.title })
@@ -416,10 +429,29 @@ router.post("/admin/users/bulk-action", adminAuth, async (req, res) => {
     } else if (action === "grant_course") {
       const pid = body.playlistId;
       if (!pid) { res.status(400).json({ message: "playlistId مطلوب" }); return; }
-      const existing = await db.select({ userId: userCoursesTable.userId })
+      const existing = await db.select({ userId: userCoursesTable.userId, id: userCoursesTable.id, status: userCoursesTable.status, expiresAt: userCoursesTable.expiresAt })
         .from(userCoursesTable)
         .where(and(inArray(userCoursesTable.userId, userIds), eq(userCoursesTable.playlistId, pid)));
-      const existingIds = new Set(existing.map(r => r.userId));
+      const existingIds = new Set<number>();
+      const reactivate: typeof existing = [];
+      for (const uid of userIds) {
+        const rows = existing.filter(r => r.userId === uid).sort((a, b) => a.id - b.id);
+        const chosen = rows.find(r => r.status === "active" && (!r.expiresAt || r.expiresAt > new Date())) ?? rows[0];
+        if (chosen) { existingIds.add(uid); if (chosen.status !== "active" || !!chosen.expiresAt) reactivate.push(chosen); }
+        const duplicates = rows.filter(r => r.id !== chosen?.id && r.status === "active");
+        if (duplicates.length) await db.update(userCoursesTable).set({ status: "revoked" })
+          .where(inArray(userCoursesTable.id, duplicates.map(r => r.id)));
+      }
+      if (reactivate.length) {
+        await db.update(userCoursesTable).set({ status: "active", expiresAt: null })
+          .where(inArray(userCoursesTable.id, reactivate.map(r => r.id)));
+        await db.insert(courseAccessLogsTable).values(reactivate.map(r => ({
+          userId: r.userId, playlistId: pid, action: "grant", adminId: req.admin!.id,
+          adminName, adminRole: req.admin!.role, grantSource: "manual", reason: "reactivate",
+          extraData: { expiresAt: null },
+          ip: req.ip ?? null, userAgent: req.headers["user-agent"] ?? null,
+        })));
+      }
       const toInsert = userIds.filter(uid => !existingIds.has(uid));
       if (toInsert.length > 0) {
         await db.insert(userCoursesTable).values(toInsert.map(uid => ({
@@ -436,7 +468,7 @@ router.post("/admin/users/bulk-action", adminAuth, async (req, res) => {
     } else if (action === "revoke_course") {
       const pid = body.playlistId;
       if (!pid) { res.status(400).json({ message: "playlistId مطلوب" }); return; }
-      await db.delete(userCoursesTable)
+      await db.update(userCoursesTable).set({ status: "revoked" })
         .where(and(inArray(userCoursesTable.userId, userIds), eq(userCoursesTable.playlistId, pid)));
       await db.insert(courseAccessLogsTable).values(userIds.map(uid => ({
         userId: uid, playlistId: pid, action: "revoke",
@@ -470,6 +502,19 @@ router.post("/admin/users/bulk-action", adminAuth, async (req, res) => {
         WHERE id = ANY(${sql.raw(`ARRAY[${userIds.join(",")}]::integer[]`)})
       `);
       await logActivity(null, adminName, "bulk_extend_subscription", `تمديد الاشتراك ${days} يوم لـ ${userIds.length} مستخدم`);
+    }
+
+    // Subscription mutations and bulk mutations share the same deterministic
+    // access policy; manual course operations above intentionally do not.
+    if (action === "grant_vip" || action === "revoke_vip" || action === "extend_subscription") {
+      for (const userId of userIds) {
+        const result = await reconcileCourseAccess(userId, {
+          adminId: req.admin!.id, adminName, adminRole: req.admin!.role, ip: req.ip,
+        });
+        if (result.changes.length) await logActivity(userId, result.user.username,
+          "ADMIN_ACCESS_CORRECTION", `Bulk subscription reconciliation (${action})`,
+          req.ip, adminCtxFrom(req));
+      }
     }
 
     res.json({ ok: true, affected: userIds.length });
@@ -523,30 +568,37 @@ router.patch("/admin/users/:id", adminAuth, async (req, res) => {
     const body = UpdateAdminUserBody.parse(req.body);
 
     const updateData: Partial<Record<string, unknown>> = {};
+    const [beforeUser] = await db.select({ username: usersTable.username, email: usersTable.email,
+      subscriptionExpiresAt: usersTable.subscriptionExpiresAt,
+      subscriptionType: usersTable.subscriptionType, accountType: usersTable.accountType,
+      isActive: usersTable.isActive, securityBlockedAt: usersTable.securityBlockedAt,
+      subscriptionStartedAt: usersTable.subscriptionStartedAt })
+      .from(usersTable).where(eq(usersTable.id, id)).limit(1);
     if (body.accountType !== undefined) {
       updateData.accountType = body.accountType;
     }
     if (body.subscriptionType !== undefined) {
       updateData.subscriptionType = body.subscriptionType;
-      if (!body.subscriptionExpiresAt) {
+      if (!(body as any).subscriptionExpiresAt) {
         const [plan] = await db.select().from(subscriptionPlansTable)
           .where(eq(subscriptionPlansTable.type, body.subscriptionType)).limit(1);
         if (plan?.durationDays) {
-          const expiresAt = new Date();
-          expiresAt.setDate(expiresAt.getDate() + plan.durationDays);
+          const base = beforeUser?.subscriptionExpiresAt && beforeUser.subscriptionExpiresAt > new Date()
+            ? beforeUser.subscriptionExpiresAt : new Date();
+          const expiresAt = new Date(base.getTime() + plan.durationDays * 24 * 60 * 60 * 1000);
           updateData.subscriptionExpiresAt = expiresAt;
         } else {
           updateData.subscriptionExpiresAt = null;
         }
       }
-      if (!body.subscriptionStartedAt) {
+      if (!(body as any).subscriptionStartedAt) {
         updateData.subscriptionStartedAt = new Date();
       }
     }
     if (body.isActive !== undefined) updateData.isActive = body.isActive;
     if (body.communityRole !== undefined) updateData.communityRole = body.communityRole;
-    if (body.subscriptionStartedAt !== undefined) {
-      updateData.subscriptionStartedAt = body.subscriptionStartedAt ? new Date(body.subscriptionStartedAt) : null;
+    if ((body as any).subscriptionStartedAt !== undefined) {
+      updateData.subscriptionStartedAt = (body as any).subscriptionStartedAt ? new Date((body as any).subscriptionStartedAt) : null;
     }
     if (body.subscriptionExpiresAt !== undefined) {
       updateData.subscriptionExpiresAt = body.subscriptionExpiresAt ? new Date(body.subscriptionExpiresAt) : null;
@@ -570,6 +622,24 @@ router.patch("/admin/users/:id", adminAuth, async (req, res) => {
     if (!user) {
       res.status(404).json({ message: "User not found" });
       return;
+    }
+    if (body.subscriptionType !== undefined || (body as any).subscriptionStartedAt !== undefined ||
+        body.subscriptionExpiresAt !== undefined || body.accountType !== undefined || body.isActive !== undefined) {
+      await reconcileCourseAccess(id, { adminId: req.admin!.id, adminName: adminDisplayName(req),
+        adminRole: req.admin!.role, ip: req.ip, userAgent: req.headers["user-agent"] });
+    }
+    if (beforeUser) {
+      const beforeActive = entitlementState(beforeUser as any).active;
+      const afterActive = entitlementState(user).active;
+      const event = !beforeActive && afterActive ? "subscription_activated"
+        : beforeActive && !afterActive ? (user.subscriptionType === "demo" ? "subscription_cancelled" : "subscription_expired")
+        : beforeActive && afterActive &&
+          (!!user.subscriptionExpiresAt && !!beforeUser.subscriptionExpiresAt &&
+            user.subscriptionExpiresAt.getTime() > beforeUser.subscriptionExpiresAt.getTime())
+          ? "subscription_renewed" : null;
+      if (event) await logActivity(id, user.username, event,
+        `Subscription transition: ${beforeUser.subscriptionType} -> ${user.subscriptionType}`,
+        req.ip, adminCtxFrom(req));
     }
 
     res.json({
@@ -634,6 +704,8 @@ router.delete("/admin/users/:id/subscription", adminAuth, async (req, res) => {
       .set({ subscriptionType: "demo", subscriptionExpiresAt: null, accountType: "normal" })
       .where(eq(usersTable.id, id)).returning();
     if (!user) { res.status(404).json({ message: "User not found" }); return; }
+    await reconcileCourseAccess(id, { adminId: req.admin!.id, adminName: adminDisplayName(req),
+      adminRole: req.admin!.role, ip: req.ip });
     await logActivity(id, user.username, "subscription_deleted",
       `إلغاء اشتراك: ${user.username} — بواسطة ${req.admin!.displayName ?? req.admin!.username}`,
       req.ip, adminCtxFrom(req));
@@ -647,8 +719,12 @@ router.get("/admin/subscriptions", adminAuth, async (_req, res) => {
   try {
     const now = new Date();
     const soon = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-    const users = await db.select().from(usersTable).orderBy(desc(usersTable.subscriptionExpiresAt));
-    const result = users.map(u => ({
+    const users = await db.select().from(usersTable)
+      .where(inArray(usersTable.subscriptionType, ["monthly", "annual", "lifetime"]))
+      .orderBy(desc(usersTable.subscriptionExpiresAt));
+    const result = users.map(u => {
+      const state = entitlementState(u, now);
+      return ({
       id: u.id,
       username: u.username,
       email: u.email,
@@ -656,9 +732,11 @@ router.get("/admin/subscriptions", adminAuth, async (_req, res) => {
       subscriptionType: u.subscriptionType,
       subscriptionExpiresAt: u.subscriptionExpiresAt?.toISOString() || null,
       isActive: u.isActive,
-      isExpired: u.subscriptionExpiresAt ? u.subscriptionExpiresAt < now : false,
-      isExpiringSoon: u.subscriptionExpiresAt ? (u.subscriptionExpiresAt >= now && u.subscriptionExpiresAt <= soon) : false,
-    }));
+      isExpired: state.status === "expired",
+      isActiveEntitlement: state.active,
+      isExpiringSoon: state.active && state.daysRemaining !== null && state.daysRemaining >= 0 &&
+        state.daysRemaining <= soonThreshold(u.subscriptionType),
+    }); });
     res.json(result);
   } catch (error: unknown) {
     res.status(500).json({ message: error instanceof Error ? error.message : "Failed to fetch subscriptions" });
@@ -668,105 +746,88 @@ router.get("/admin/subscriptions", adminAuth, async (_req, res) => {
 router.get("/admin/users/expired", adminAuth, async (_req, res) => {
   try {
     const now = new Date();
-    const MS_PER_DAY = 24 * 60 * 60 * 1000;
     const users = await db.select().from(usersTable)
-      .where(inArray(usersTable.subscriptionType, ["monthly", "annual"]))
+      .where(inArray(usersTable.subscriptionType, ["monthly", "annual", "lifetime"]))
       .orderBy(desc(usersTable.subscriptionExpiresAt));
-    res.json(users.map(u => {
-      const durationDays = u.subscriptionType === "annual" ? 365 : 30;
-
-      // Derive effective dates: fill the missing one from the other
-      let effectiveExpires: Date | null = null;
-      let effectiveStarted: Date | null = null;
-      let startDerived = false;
-      let endDerived = false;
-
-      if (u.subscriptionExpiresAt && u.subscriptionStartedAt) {
-        effectiveExpires = u.subscriptionExpiresAt;
-        effectiveStarted = u.subscriptionStartedAt;
-      } else if (u.subscriptionExpiresAt) {
-        effectiveExpires = u.subscriptionExpiresAt;
-        effectiveStarted = new Date(effectiveExpires.getTime() - durationDays * MS_PER_DAY);
-        startDerived = true;
-      } else if (u.subscriptionStartedAt) {
-        effectiveStarted = u.subscriptionStartedAt;
-        effectiveExpires = new Date(effectiveStarted.getTime() + durationDays * MS_PER_DAY);
-        endDerived = true;
+    const userIds = users.map(u => u.id);
+    const [plans, allScopes, allEnrollments] = await Promise.all([
+      db.select({ id: subscriptionPlansTable.id, type: subscriptionPlansTable.type }).from(subscriptionPlansTable),
+      db.select({ planId: planCoursesTable.planId, id: planCoursesTable.playlistId, title: playlistsTable.title })
+        .from(planCoursesTable).leftJoin(playlistsTable, eq(playlistsTable.id, planCoursesTable.playlistId)),
+      userIds.length ? db.select({ userId: userCoursesTable.userId, playlistId: userCoursesTable.playlistId, status: userCoursesTable.status, expiresAt: userCoursesTable.expiresAt })
+        .from(userCoursesTable).where(inArray(userCoursesTable.userId, userIds)) : Promise.resolve([]),
+    ]);
+    const planByType = new Map(plans.map(p => [p.type, p]));
+    const enrollByUser = new Map<number, typeof allEnrollments>();
+    for (const e of allEnrollments) {
+      const list = enrollByUser.get(e.userId) ?? [];
+      list.push(e);
+      enrollByUser.set(e.userId, list);
+    }
+    const rows = [];
+    for (const u of users) {
+      const state = entitlementState(u, now);
+      const plan = planByType.get(u.subscriptionType);
+      const scope = plan ? allScopes.filter(s => s.planId === plan.id) : [];
+      const enrollments = enrollByUser.get(u.id) ?? [];
+      const seen = new Set<number>(), codes = [...state.missing];
+      if (!plan || scope.length === 0) codes.push("MISSING_PLAN_SCOPE");
+      for (const e of enrollments) {
+        if (seen.has(e.playlistId)) codes.push("DUPLICATE_USER_PLAYLIST");
+        seen.add(e.playlistId);
+        if (e.status === "active" && (!e.expiresAt || e.expiresAt > now) && (!state.active || !scope.some(s => s.id === e.playlistId))) codes.push("ACTIVE_ENROLLMENT_OUTSIDE_SCOPE");
       }
-      // else both null → isMissingData = true
-
-      const isMissingData = effectiveExpires === null;
-      const isExpired = !isMissingData && effectiveExpires! < now;
-      const daysLeft = effectiveExpires !== null
-        ? Math.ceil((effectiveExpires.getTime() - now.getTime()) / MS_PER_DAY)
-        : null;
-      const daysSinceExpiry = isExpired && effectiveExpires !== null
-        ? Math.floor((now.getTime() - effectiveExpires.getTime()) / MS_PER_DAY)
-        : null;
-      const soonThreshold = u.subscriptionType === "annual" ? 30 : 7;
-      const isExpiringSoon = !isMissingData && !isExpired && daysLeft !== null && daysLeft <= soonThreshold;
-
-      return {
-        id: u.id,
-        username: u.username,
-        email: u.email,
-        phone: u.phone ?? null,
-        subscriptionType: u.subscriptionType,
-        accountType: u.accountType,
-        subscriptionStartedAt: effectiveStarted?.toISOString() ?? null,
-        subscriptionExpiresAt: effectiveExpires?.toISOString() ?? null,
-        startDerived,
-        endDerived,
-        driveRevokedAt: u.driveRevokedAt?.toISOString() ?? null,
-        isMissingData,
-        isExpired,
-        isExpiringSoon,
-        daysLeft,
-        daysSinceExpiry,
-      };
-    }));
+      if (state.active && plan && scope.some(s => !enrollments.some(e => e.playlistId === s.id && e.status === "active" && (!e.expiresAt || e.expiresAt > now)))) codes.push("MISSING_PLAN_ACCESS");
+      const inconsistencyCodes = [...new Set(codes)];
+      rows.push({
+        user: { id: u.id, username: u.username, name: u.fullName ?? null, email: u.email, phone: u.phone ?? null },
+        plan: { type: u.subscriptionType, id: plan?.id ?? null },
+        subscriptionStartedAt: u.subscriptionStartedAt?.toISOString() ?? null,
+        subscriptionExpiresAt: u.subscriptionExpiresAt?.toISOString() ?? null,
+        daysRemaining: state.daysRemaining, subscriptionStatus: state.status,
+        effectiveCourseAccess: state.active && enrollments.some(e => e.status === "active" && (!e.expiresAt || e.expiresAt > now)),
+        assignedCourses: enrollments.filter(e => e.status === "active" && (!e.expiresAt || e.expiresAt > now)).map(e => ({
+          id: e.playlistId, name: allScopes.find(s => s.id === e.playlistId)?.title ?? `Course #${e.playlistId}`,
+        })),
+        expectedPlanCourses: scope.map(s => ({ id: s.id, name: s.title })),
+        inconsistencyCodes, deterministicFixAvailable: !!plan && scope.length > 0 &&
+          new Set(scope.map(s => s.id)).size === scope.length && state.missing.length === 0,
+        isExpiringSoon: state.active && state.daysRemaining !== null && state.daysRemaining >= 0 && state.daysRemaining <= soonThreshold(u.subscriptionType),
+      });
+    }
+    res.json({ summary: {
+      total: rows.length, active: rows.filter(r => r.subscriptionStatus === "active").length,
+      expiringSoon: rows.filter(r => r.isExpiringSoon).length,
+      expired: rows.filter(r => r.subscriptionStatus === "expired").length,
+      missingData: rows.filter(r => r.inconsistencyCodes.some(c => c.startsWith("MISSING_"))).length,
+      inconsistencies: rows.filter(r => r.inconsistencyCodes.length > 0).length,
+    }, rows });
   } catch (error: unknown) {
     res.status(500).json({ message: error instanceof Error ? error.message : "Failed to fetch expired users" });
   }
 });
 
-router.post("/admin/users/revoke-drive-all", adminAuth, async (req, res) => {
-  try {
-    const now = new Date();
-    const expired = await db.select({ id: usersTable.id, username: usersTable.username })
-      .from(usersTable)
-      .where(and(
-        inArray(usersTable.subscriptionType, ["monthly", "annual"]),
-        isNotNull(usersTable.subscriptionExpiresAt),
-        lt(usersTable.subscriptionExpiresAt, now),
-        isNull(usersTable.driveRevokedAt),
-      ));
-    if (expired.length === 0) {
-      res.json({ revoked: 0 });
-      return;
-    }
-    const ids = expired.map(u => u.id);
-    await db.update(usersTable).set({ driveRevokedAt: now }).where(inArray(usersTable.id, ids));
-    const adminName = req.admin!.username;
-    const names = expired.map(u => u.username).join(", ");
-    await logActivity(null, adminName, "drive_revoke_all", `إزالة صلاحيات Google Drive لـ ${expired.length} مستخدم منتهي الاشتراك: ${names}`);
-    res.json({ revoked: expired.length });
-  } catch (error: unknown) {
-    res.status(500).json({ message: error instanceof Error ? error.message : "Failed to revoke drive access" });
-  }
-});
-
-router.post("/admin/users/:id/revoke-drive", adminAuth, async (req, res) => {
+router.post("/admin/users/:id/reconcile-course-access", adminAuth, async (req, res) => {
   try {
     const id = Number(req.params.id);
-    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, id)).limit(1);
-    if (!user) { res.status(404).json({ message: "User not found" }); return; }
-    const now = new Date();
-    await db.update(usersTable).set({ driveRevokedAt: now }).where(eq(usersTable.id, id));
-    await logActivity(id, user.username, "drive_revoke", `إزالة صلاحيات Google Drive للمستخدم: ${user.username} (${user.email}) — بواسطة ${req.admin!.username}`);
-    res.json({ driveRevokedAt: now.toISOString() });
+    if (!Number.isInteger(id)) { res.status(400).json({ message: "Invalid user id" }); return; }
+    const result = await reconcileCourseAccess(id, {
+      adminId: req.admin!.id, adminName: adminDisplayName(req), adminRole: req.admin!.role,
+      ip: req.ip, userAgent: req.headers["user-agent"],
+    });
+    if (result.changes.length) {
+      await logActivity(id, result.user.username, "ADMIN_ACCESS_CORRECTION",
+        `Reconciled course access: ${result.changes.map(c => `${c.action}:${c.playlistId}`).join(", ")}`,
+        req.ip, adminCtxFrom(req));
+      for (const change of result.changes) {
+        await logActivity(id, result.user.username,
+          change.action === "grant" ? "COURSE_ACCESS_GRANTED" : "COURSE_ACCESS_REVOKED",
+          `Course ${change.playlistId}: ${change.reason}`, req.ip, adminCtxFrom(req));
+      }
+    }
+    res.json({ ok: true, changes: result.changes });
   } catch (error: unknown) {
-    res.status(500).json({ message: error instanceof Error ? error.message : "Failed to revoke drive access" });
+    res.status(400).json({ message: error instanceof Error ? error.message : "Failed to reconcile access" });
   }
 });
 
@@ -834,7 +895,8 @@ router.get("/admin/users/:id/courses", adminAuth, async (req, res) => {
     const id = Number(req.params.id);
     const rows = await db.select({ playlistId: userCoursesTable.playlistId })
       .from(userCoursesTable)
-      .where(eq(userCoursesTable.userId, id));
+      .where(and(eq(userCoursesTable.userId, id), eq(userCoursesTable.status, "active"),
+        or(isNull(userCoursesTable.expiresAt), gt(userCoursesTable.expiresAt, new Date()))));
     res.json(rows.map(r => r.playlistId));
   } catch (error: unknown) {
     res.status(500).json({ message: error instanceof Error ? error.message : "Unknown error" });
@@ -847,21 +909,43 @@ router.put("/admin/users/:id/courses", adminAuth, async (req, res) => {
     const id = Number(req.params.id);
     const adminName = adminDisplayName(req);
     const playlistIds: number[] = zod.array(zod.number()).parse(req.body);
-    const existing = await db.select({ playlistId: userCoursesTable.playlistId })
+    const existing = await db.select({
+      id: userCoursesTable.id,
+      playlistId: userCoursesTable.playlistId,
+      status: userCoursesTable.status,
+    })
       .from(userCoursesTable).where(eq(userCoursesTable.userId, id));
-    const existingSet = new Set(existing.map(r => r.playlistId));
+    const activeSet = new Set(existing.filter(r => r.status === "active").map(r => r.playlistId));
+    const existingByPlaylist = new Map(existing.map(r => [r.playlistId, r]));
     const newSet = new Set(playlistIds);
-    const toAdd = playlistIds.filter(p => !existingSet.has(p));
-    const toRemove = [...existingSet].filter(p => !newSet.has(p));
-    // Diff-based: only delete removed, only insert added — preserves grantedAt/grantedBy/grantSource for unchanged
+    const toAdd = playlistIds.filter(p => !activeSet.has(p));
+    const toRemove = [...activeSet].filter(p => !newSet.has(p));
+    // Preserve history: revoke removed rows and reactivate existing historical rows.
     if (toRemove.length > 0) {
-      await db.delete(userCoursesTable)
+      await db.update(userCoursesTable)
+        .set({ status: "revoked", reason: "put_replace" })
         .where(and(eq(userCoursesTable.userId, id), inArray(userCoursesTable.playlistId, toRemove)));
     }
     if (toAdd.length > 0) {
-      await db.insert(userCoursesTable).values(
-        toAdd.map(pid => ({ userId: id, playlistId: pid, grantedBy: adminName, adminId: req.admin!.id, adminRole: req.admin!.role, grantSource: "manual" }))
-      );
+      const toReactivate = toAdd.filter(pid => existingByPlaylist.has(pid));
+      const toInsert = toAdd.filter(pid => !existingByPlaylist.has(pid));
+      if (toReactivate.length > 0) {
+        await db.update(userCoursesTable)
+          .set({
+            status: "active",
+            reason: "put_replace",
+            grantedBy: adminName,
+            adminId: req.admin!.id,
+            adminRole: req.admin!.role,
+            grantSource: "manual",
+          })
+          .where(and(eq(userCoursesTable.userId, id), inArray(userCoursesTable.playlistId, toReactivate)));
+      }
+      if (toInsert.length > 0) {
+        await db.insert(userCoursesTable).values(
+          toInsert.map(pid => ({ userId: id, playlistId: pid, grantedBy: adminName, adminId: req.admin!.id, adminRole: req.admin!.role, grantSource: "manual" }))
+        );
+      }
     }
     if (toAdd.length > 0) {
       await db.insert(courseAccessLogsTable).values(toAdd.map(pid => ({
@@ -917,13 +1001,27 @@ router.post("/admin/users/:id/grant-course", adminAuth, async (req, res) => {
       .from(playlistsTable).where(eq(playlistsTable.id, playlistId)).limit(1);
     if (!playlist) { res.status(404).json({ message: "الدورة غير موجودة" }); return; }
 
-    const [existing] = await db.select({ id: userCoursesTable.id })
+    const expiresAtDate = expiresAt ? new Date(expiresAt) : null;
+    const [existing] = await db.select({ id: userCoursesTable.id, status: userCoursesTable.status, expiresAt: userCoursesTable.expiresAt })
       .from(userCoursesTable)
       .where(and(eq(userCoursesTable.userId, userId), eq(userCoursesTable.playlistId, playlistId)))
+      .orderBy(asc(userCoursesTable.id))
       .limit(1);
-    if (existing) { res.status(409).json({ message: "المستخدم يملك هذه الدورة بالفعل" }); return; }
+    if (existing?.status === "active" && (!existing.expiresAt || existing.expiresAt > new Date())) {
+      res.status(409).json({ message: "المستخدم يملك هذه الدورة بالفعل" }); return;
+    }
+    if (existing) {
+      await db.update(userCoursesTable).set({ status: "active", expiresAt: expiresAtDate }).where(eq(userCoursesTable.id, existing.id));
+      await db.insert(courseAccessLogsTable).values({
+        userId, playlistId, action: "grant", adminId, adminName, adminRole,
+        grantSource: "manual", reason: "reactivate", ip: req.ip ?? null,
+        userAgent: req.headers["user-agent"] ?? null,
+        extraData: { expiresAt: expiresAtDate?.toISOString() ?? null },
+      });
+      res.json({ ok: true, message: `تم إعادة تفعيل دورة "${playlist.title}"` });
+      return;
+    }
 
-    const expiresAtDate = expiresAt ? new Date(expiresAt) : null;
     await db.insert(userCoursesTable).values({
       userId, playlistId,
       grantedBy: adminName, adminId, adminRole,
@@ -975,7 +1073,7 @@ router.delete("/admin/users/:id/revoke-course/:playlistId", adminAuth, async (re
     const [playlist] = await db.select({ id: playlistsTable.id, title: playlistsTable.title })
       .from(playlistsTable).where(eq(playlistsTable.id, playlistId)).limit(1);
 
-    const deleted = await db.delete(userCoursesTable)
+    const deleted = await db.update(userCoursesTable).set({ status: "revoked" })
       .where(and(eq(userCoursesTable.userId, userId), eq(userCoursesTable.playlistId, playlistId)))
       .returning({ id: userCoursesTable.id });
 
@@ -2642,7 +2740,7 @@ router.put("/admin/subscription-plans/:id/courses", adminAuth, async (req, res) 
       }
 
       if (subIds.length > 0 && removed.length > 0) {
-        await db.delete(userCoursesTable).where(
+        await db.update(userCoursesTable).set({ status: "revoked" }).where(
           and(
             inArray(userCoursesTable.userId, subIds),
             inArray(userCoursesTable.playlistId, removed),

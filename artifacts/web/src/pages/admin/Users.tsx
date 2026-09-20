@@ -26,6 +26,8 @@ type ExtendedAdminUser = AdminUser & {
   fullName: string | null; lastVisitAt: string | null; deviceCount: number;
   courses: { playlistId: number; title: string }[]; subscriptionStartedAt: string | null;
   phone?: string | null;
+  subscriptionStatus?: "active" | "expired" | "blocked" | "invalid" | "missing_data";
+  subscriptionIsExpiringSoon?: boolean;
 };
 interface UserStats {
   total: number; vip: number; expired: number; expiringSoon: number;
@@ -54,15 +56,13 @@ function timeAgo(iso: string | null) {
   return `${Math.floor(dy / 30)} mois`;
 }
 function isActiveVip(u: ExtendedAdminUser) {
-  return u.accountType === "vip" && (!u.subscriptionExpiresAt || new Date(u.subscriptionExpiresAt) > new Date());
+  return u.subscriptionStatus === "active";
 }
 function isExpiredVip(u: ExtendedAdminUser) {
-  return u.accountType === "vip" && !!u.subscriptionExpiresAt && new Date(u.subscriptionExpiresAt) < new Date();
+  return u.subscriptionStatus === "expired";
 }
 function isExpiringSoon(u: ExtendedAdminUser) {
-  if (!u.subscriptionExpiresAt) return false;
-  const exp = new Date(u.subscriptionExpiresAt), now = new Date();
-  return exp >= now && exp <= new Date(now.getTime() + 7 * 86400000);
+  return u.subscriptionIsExpiringSoon === true;
 }
 
 /* ── Badges ───────────────────────────────────────────────────────────── */
