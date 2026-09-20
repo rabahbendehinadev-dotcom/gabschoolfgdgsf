@@ -185,11 +185,11 @@ export function Home() {
           transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 2 }}
         />
 
-        {/* ── Matrix-style falling code (subtle) ── */}
-        <MatrixRain />
+        {/* ── Professional decoding background ── */}
+        <DecodingBackground />
 
-        {/* ── Slowly falling padlocks ── */}
-        <FallingLocks />
+        {/* ── Slowly drifting locks ── */}
+        <DriftingLocks />
 
         {/* ── Circuit overlay ── */}
         <div className="absolute inset-0 z-0 opacity-[0.06] text-white">
@@ -340,22 +340,27 @@ function FloatDevice({
   );
 }
 
-/* ─── Matrix-style falling code columns (subtle, behind devices) ─── */
-function MatrixRain() {
+/* ─── Professional Decoding Background (subtle, behind devices) ─── */
+function DecodingBackground() {
   const reduce = useReducedMotion();
   const columns = useMemo(() => {
-    const chars = "01ABCDEF#$<>{}/\\*+=01x10";
-    const cols = 30;
-    return Array.from({ length: cols }, (_, i) => ({
-      left: (i / cols) * 100 + Math.random() * 1.5,
-      text: Array.from({ length: 30 }, () => chars[Math.floor(Math.random() * chars.length)]),
-      duration: 7 + Math.random() * 9,
-      delay: -Math.random() * 12,
-      opacity: 0.24 + Math.random() * 0.20,
-    }));
+    const tokens = ["0", "1", "0", "1", "A", "B", "C", "D", "E", "F", "0x", "FF", "A1", "7E", "3C", "00", "01", "{", "}", "[", "]", "<", ">", "/", "\\", "#", "$", "*", "+", "-"];
+    const cols = 20;
+    return Array.from({ length: cols }, (_, i) => {
+      const text = Array.from({ length: 24 }, () => ({
+        char: tokens[Math.floor(Math.random() * tokens.length)],
+        isOrange: Math.random() < 0.05,
+      }));
+      return {
+        left: (i / cols) * 100 + (Math.random() * 2),
+        text,
+        duration: 50 + Math.random() * 70, // Very slow: 50s to 120s
+        delay: -Math.random() * 100,
+        opacity: 0.06 + Math.random() * 0.12, // Subtle teal/green
+        isMobile: i % 4 === 0, // Five lightweight columns on mobile
+      };
+    });
   }, []);
-
-  if (reduce) return null;
 
   return (
     <div
@@ -363,57 +368,118 @@ function MatrixRain() {
       style={{ maskImage: "radial-gradient(140% 105% at 50% 42%, transparent 6%, black 58%)", WebkitMaskImage: "radial-gradient(140% 105% at 50% 42%, transparent 6%, black 58%)" }}
       aria-hidden
     >
+      <style>{`
+        @keyframes tech-drift-down {
+          0% { transform: translateY(-50%); opacity: 0.62; }
+          50% { opacity: 1; }
+          100% { transform: translateY(0%); opacity: 0.62; }
+        }
+        @keyframes tech-drift-up {
+          0% { transform: translateY(0%); opacity: 0.62; }
+          50% { opacity: 1; }
+          100% { transform: translateY(-50%); opacity: 0.62; }
+        }
+      `}</style>
       {columns.map((c, i) => (
-        <div key={i} className="absolute top-0 h-full" style={{ left: `${c.left}%` }}>
-          <motion.div
-            className="flex flex-col font-mono text-[13px] leading-[1.2] text-emerald-400"
-            style={{ opacity: c.opacity }}
-            animate={{ y: ["-50%", "0%"] }}
-            transition={{ duration: c.duration, delay: c.delay, repeat: Infinity, ease: "linear" }}
+        <div
+          key={i}
+          className={`absolute top-0 w-8 flex justify-center ${c.isMobile ? "flex" : "hidden md:flex"}`}
+          style={{
+            left: `${c.left}%`,
+            opacity: c.opacity,
+          }}
+        >
+          <div
+            className="flex flex-col items-center justify-start font-mono text-[10px] md:text-[11px] leading-[2] text-teal-500/70"
+            style={!reduce ? {
+              animation: `${i % 2 === 0 ? 'tech-drift-down' : 'tech-drift-up'} ${c.duration}s linear infinite`,
+              animationDelay: `${c.delay}s`
+            } : {
+              transform: 'translateY(-25%)'
+            }}
           >
-            {[...c.text, ...c.text].map((ch, j) => (
-              <span key={j} className={j % c.text.length === 0 ? "text-orange-400" : undefined}>{ch}</span>
-            ))}
-          </motion.div>
+            {/* Block 1 */}
+            <div className="flex flex-col items-center">
+              {c.text.map((t, j) => (
+                <span
+                  key={`b1-${j}`}
+                  className={t.isOrange ? "text-orange-500/80 font-bold" : undefined}
+                >
+                  {t.char}
+                </span>
+              ))}
+            </div>
+            {/* Block 2 (Clone for seamless loop) */}
+            <div className="flex flex-col items-center" aria-hidden>
+              {c.text.map((t, j) => (
+                <span
+                  key={`b2-${j}`}
+                  className={t.isOrange ? "text-orange-500/80 font-bold" : undefined}
+                >
+                  {t.char}
+                </span>
+              ))}
+            </div>
+          </div>
         </div>
       ))}
     </div>
   );
 }
 
-/* ─── Slowly falling padlocks (very subtle) ─── */
-function FallingLocks() {
+/* ─── Slowly drifting outline locks (subtle) ─── */
+function DriftingLocks() {
   const reduce = useReducedMotion();
   const locks = useMemo(
     () =>
-      Array.from({ length: 18 }, (_, i) => ({
-        left: 3 + Math.random() * 94,
-        size: 18 + Math.random() * 24,
-        duration: 18 + Math.random() * 16,
-        delay: -Math.random() * 30,
-        rotate: -18 + Math.random() * 36,
-        light: i % 2 === 0,
+      Array.from({ length: 10 }, (_, i) => ({
+        left: 2 + Math.random() * 96,
+        size: 14 + Math.random() * 10,
+        duration: 60 + Math.random() * 60, // 60-120s
+        delay: -Math.random() * 120,
+        rotateStart: -8 + Math.random() * 16,
+        rotateEnd: -8 + Math.random() * 16,
+        opacity: 0.04 + Math.random() * 0.08, // very subtle
+        isMobile: i % 4 === 0,
+        staticTop: 10 + Math.random() * 80, // for reduced motion
       })),
     []
   );
 
-  if (reduce) return null;
-
   return (
     <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none" aria-hidden>
+      <style>{`
+        @keyframes lock-drift-anim {
+          0% { transform: translateY(110vh) rotate(var(--rot-start)); }
+          100% { transform: translateY(-20vh) rotate(var(--rot-end)); }
+        }
+      `}</style>
       {locks.map((l, i) => (
-        <div key={i} className="absolute top-0" style={{ left: `${l.left}%` }}>
-          <motion.div
-            initial={{ y: "-14vh", opacity: 0 }}
-            animate={{ y: ["-14vh", "112vh"], opacity: [0, 0.5, 0.5, 0], rotate: [0, l.rotate] }}
-            transition={{ duration: l.duration, delay: l.delay, repeat: Infinity, ease: "linear" }}
+        <div
+          key={i}
+          className={`absolute ${l.isMobile ? 'block' : 'hidden md:block'}`}
+          style={{
+            left: `${l.left}%`,
+            top: reduce ? `${l.staticTop}%` : '0',
+            opacity: l.opacity
+          }}
+        >
+          <div
+            style={!reduce ? {
+              '--rot-start': `${l.rotateStart}deg`,
+              '--rot-end': `${l.rotateEnd}deg`,
+              animation: `lock-drift-anim ${l.duration}s linear infinite`,
+              animationDelay: `${l.delay}s`,
+            } as React.CSSProperties : {
+              transform: `rotate(${l.rotateStart}deg)`
+            }}
           >
             <Lock
-              style={{ width: l.size, height: l.size, filter: "drop-shadow(0 0 6px rgba(251,146,60,0.45))" }}
-              strokeWidth={2.2}
-              className={l.light ? "text-orange-300" : "text-orange-400"}
+              style={{ width: l.size, height: l.size }}
+              strokeWidth={1.5}
+              className="text-orange-500"
             />
-          </motion.div>
+          </div>
         </div>
       ))}
     </div>
