@@ -2,7 +2,7 @@ import { useGetPlaylists } from "@workspace/api-client-react/src/generated/api";
 import { Playlist } from "@workspace/api-client-react/src/generated/api.schemas";
 import { Link } from "wouter";
 import { motion } from "framer-motion";
-import { GraduationCap, PlayCircle, Lock, ArrowLeft, BookOpen, Star } from "lucide-react";
+import { GraduationCap, PlayCircle, Lock, ArrowLeft } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useState, useEffect } from "react";
 import { useLocale } from "@/i18n";
@@ -167,7 +167,6 @@ export function Courses() {
   const { ids: userCourseIds, loaded: coursesLoaded } = useUserCourseIds(token);
 
   const visible = (playlists ?? []).filter(p => p.isVisible !== false);
-  const totalLessons = visible.reduce((acc, p) => acc + (p.videos?.length ?? 0), 0);
 
   return (
     <div className="min-h-screen bg-background pb-28" dir={direction}>
@@ -176,7 +175,7 @@ export function Courses() {
       <div className="relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/15 via-transparent to-transparent" />
-        <div className="relative mx-auto max-w-5xl px-4 pt-10 pb-10 sm:px-6">
+        <div className="relative mx-auto max-w-5xl px-4 pt-10 pb-7 sm:px-6">
           <motion.div
             initial={{ opacity: 0, y: -12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -191,25 +190,6 @@ export function Courses() {
               <p className="mt-2 text-base text-muted-foreground">{t("courses.subtitle")}</p>
             </div>
 
-            {/* Stats */}
-            {!isLoading && visible.length > 0 && (
-              <div className="flex items-center gap-6 mt-2">
-                <div className="flex items-center gap-2 rounded-full bg-white/8 border border-white/10 px-4 py-2 text-sm">
-                  <BookOpen className="h-4 w-4 text-primary" />
-                  <span className="font-bold text-foreground">{visible.length}</span>
-                  <span className="text-muted-foreground">{t("courses.course")}</span>
-                </div>
-                <div className="flex items-center gap-2 rounded-full bg-white/8 border border-white/10 px-4 py-2 text-sm">
-                  <PlayCircle className="h-4 w-4 text-primary" />
-                  <span className="font-bold text-foreground">{totalLessons}</span>
-                  <span className="text-muted-foreground">{t("courses.lesson")}</span>
-                </div>
-                <div className="flex items-center gap-2 rounded-full bg-white/8 border border-white/10 px-4 py-2 text-sm">
-                  <Star className="h-4 w-4 text-amber-400" />
-                  <span className="text-muted-foreground">{t("courses.highQuality")}</span>
-                </div>
-              </div>
-            )}
           </motion.div>
         </div>
       </div>
