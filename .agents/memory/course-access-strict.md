@@ -35,21 +35,24 @@ Role is checked in `req.admin.role` (set by adminAuth middleware from DB).
 - `POST /admin/admins` — create; super_admin only
 - `PATCH /admin/admins/:id` — update role/displayName; super_admin only
 
-## Access check in videos.ts (unchanged but correct)
-Course-linked videos check `user_courses` table exclusively (no VIP fallback).
-Non-course videos: VIP for `accessType=vip`, VIP or `subscriptionType!='demo'` for normal.
+## Effective access rule
+Course-linked content requires both a currently valid paid subscription and an
+active, unexpired matching `user_courses` row. This applies to course/video
+lists, details, streams, HLS, and direct R2 URL issuance. R2 URL expiry is
+capped by the earliest subscription/course expiry.
 
 ## Production compatibility
-Production may still have the legacy `user_courses` shape containing only
-`id`, `user_id`, `playlist_id`, and `granted_at`.
+Production can contain legacy subscription rows with missing dates and can lack
+a deterministic plan-to-course mapping.
 
-**Why:** Requiring newer `status` or `expires_at` columns in video entitlement
-queries caused valid, explicitly assigned users to fail opening lessons.
+**Why:** Guessing dates or course scope can grant access beyond what an admin
+intended. Runtime checks must deny ambiguous monthly/annual records, while
+reconciliation must not destroy historical course rows when the plan scope is
+unknown.
 
-**How to apply:** Until those columns are explicitly migrated in Production,
-course video detail and stream/HLS authorization must verify the existing
-`(user_id, playlist_id)` assignment only. Keep VIP/subscription checks unchanged
-for non-course content.
+**How to apply:** Monthly/annual require valid start and end dates with
+`start <= now < end`; lifetime has no date requirement. Missing/ambiguous plan
+scope is reported for manual correction and reconciliation stays read-only.
 
 ## Admin panel path
 `/gab-ctrl-9x` (obfuscated) — not `/admin`
