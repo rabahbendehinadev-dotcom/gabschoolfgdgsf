@@ -52,3 +52,4 @@
 - [Direct private R2 video](direct-private-r2-video.md) — new uploads use browser↔private R2 multipart and short-lived direct playback; this eliminated buffering on iPhone and desktop.
 - [Solutions boundaries](solutions-security-boundary.md) — generic storage consumers can leak private screenshots; use shared namespace isolation and PostgreSQL row versions for concurrency.
 - [Solutions public privacy](solutions-public-privacy.md) — visitor surfaces use a strict safe projection; technical metadata and non-AI covers stay VIP/admin-only.
+- [Locale preference precedence](locale-preference-precedence.md) — browser language applies until a user explicitly selects a language; DB default Arabic must not override first-visit detection.
