@@ -72,22 +72,22 @@ function CommentBubble({
   const m = (key: string) => commerceMessage(locale, key);
   const vip = author.accountType === "vip";
   return (
-    <div className="flex gap-2.5">
+    <div className="flex gap-2 group">
       <Avatar name={author.username} vip={vip} imageUrl={author.profileImageUrl} />
-      <div className="flex-1">
-        <div className="rounded-2xl rounded-tr-sm bg-muted/70 px-3.5 py-2">
+      <div className="flex-1 min-w-0">
+        <div className="rounded-2xl rounded-tr-sm bg-slate-100/80 px-3.5 py-2 border border-slate-200/50">
           <div className="flex items-center gap-1.5">
-            <span className="text-sm font-bold text-foreground">{author.username}</span>
+            <span className="text-[13px] font-black text-slate-900">{author.username}</span>
             {vip && <Crown className="h-3 w-3 text-orange-500" />}
           </div>
-          <p className="mt-0.5 whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground/90">
+          <p className="mt-0.5 whitespace-pre-wrap break-words text-[13px] leading-relaxed text-slate-700 font-medium" dir="auto">
             {body}
           </p>
         </div>
-        <div className="mt-1 flex items-center gap-3 px-1 text-xs text-muted-foreground">
+        <div className="mt-1 flex items-center gap-3 px-1 text-[11px] font-bold text-slate-400">
           <span>{timeAgo(createdAt, locale)}</span>
           {onReply && (
-            <button type="button" onClick={onReply} className="font-semibold hover:text-primary">
+            <button type="button" onClick={onReply} className="hover:text-slate-600 transition-colors">
               {m("reply")}
             </button>
           )}
@@ -96,7 +96,7 @@ function CommentBubble({
               type="button"
               onClick={onDelete}
               disabled={deleting}
-              className="flex items-center gap-1 font-semibold text-destructive/80 hover:text-destructive disabled:opacity-50"
+              className="flex items-center gap-1 text-red-400 hover:text-red-500 transition-colors disabled:opacity-50"
             >
               {deleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
               {m("delete")}
@@ -202,7 +202,7 @@ export function CommentsSection({
               }}
               rows={1}
               placeholder={m("commentPlaceholder")}
-              className="max-h-28 flex-1 resize-none bg-transparent py-1 text-sm outline-none placeholder:text-muted-foreground"
+              className="max-h-28 flex-1 resize-none bg-transparent py-1 text-sm outline-none placeholder:text-muted-foreground font-medium" dir="auto"
             />
             <Button
               size="icon"
@@ -288,7 +288,7 @@ export function CommentsSection({
                         rows={1}
                         autoFocus
                         placeholder={m("replyTo").replace("{name}", c.author.username)}
-                        className="max-h-28 flex-1 resize-none bg-transparent py-1 text-sm outline-none placeholder:text-muted-foreground"
+                        className="max-h-28 flex-1 resize-none bg-transparent py-1 text-sm outline-none placeholder:text-muted-foreground font-medium" dir="auto"
                       />
                       <Button
                         size="icon"

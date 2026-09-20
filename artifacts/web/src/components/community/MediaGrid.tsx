@@ -37,19 +37,21 @@ function Cell({
         href={item.fullUrl || "#"}
         target="_blank"
         rel="noopener noreferrer"
-        className={`group flex items-center gap-4 p-4 bg-white border border-slate-200 rounded-2xl shadow-sm hover:shadow-md hover:border-orange-200 transition-all cursor-pointer w-full text-right ${className?.replace('aspect-square', '') || ""}`}
+        className={`group flex items-center gap-3 p-3 bg-slate-50/50 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors cursor-pointer w-full text-right ${className?.replace('aspect-square', '') || ""}`}
         onClick={(e) => { if (!item.fullUrl) e.preventDefault(); }}
       >
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-orange-50 text-orange-600 transition-colors group-hover:bg-orange-100">
-          <FileText className="h-6 w-6" />
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-400 transition-colors group-hover:border-orange-200 group-hover:text-orange-500 shadow-sm">
+          <FileText className="h-5 w-5" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="truncate text-[15px] font-black text-slate-900 group-hover:text-orange-600 transition-colors">{item.fileName || m("attachedFile")}</p>
-          <p className="text-[13px] font-bold text-slate-500 mt-0.5">
-            {item.sizeBytes ? (item.sizeBytes / 1024 / 1024).toFixed(2) + " MB" : ""}
-          </p>
+          <p className="truncate text-[13px] font-bold text-slate-700 group-hover:text-slate-900 transition-colors">{item.fileName || m("attachedFile")}</p>
+          {item.sizeBytes ? (
+            <p className="text-[11px] font-bold text-slate-400 mt-0.5">
+              {(item.sizeBytes / 1024 / 1024).toFixed(2)} MB
+            </p>
+          ) : null}
         </div>
-        <div className="h-9 w-9 shrink-0 flex items-center justify-center rounded-full bg-slate-50 text-slate-400 group-hover:bg-orange-50 group-hover:text-orange-600 transition-colors">
+        <div className="h-8 w-8 shrink-0 flex items-center justify-center rounded-full text-slate-400 group-hover:bg-white group-hover:text-orange-500 transition-colors shadow-sm opacity-0 group-hover:opacity-100">
           <Download className="h-4 w-4" />
         </div>
       </a>

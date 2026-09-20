@@ -48,11 +48,11 @@ function timeAgo(iso: string, locale: "ar" | "fr" | "en"): string {
   const diff = Date.now() - new Date(iso).getTime();
   const m = Math.floor(diff / 60000);
   if (m < 1) return commerceMessage(locale, "now");
-  if (m < 60) return locale === "ar" ? `منذ ${m} دقيقة` : locale === "fr" ? `Il y a ${m} min` : `${m} min ago`;
+  if (m < 60) return commerceMessage(locale, "minsAgo").replace("{m}", String(m));
   const h = Math.floor(m / 60);
-  if (h < 24) return locale === "ar" ? `منذ ${h} ساعة` : locale === "fr" ? `Il y a ${h} h` : `${h} hr ago`;
+  if (h < 24) return commerceMessage(locale, "hoursAgo").replace("{h}", String(h));
   const d = Math.floor(h / 24);
-  if (d < 30) return locale === "ar" ? `منذ ${d} يوم` : locale === "fr" ? `Il y a ${d} j` : `${d} days ago`;
+  if (d < 30) return commerceMessage(locale, "daysAgo").replace("{d}", String(d));
   return new Date(iso).toLocaleDateString(locale);
 }
 
@@ -215,88 +215,88 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: Math.min(index, 6) * 0.05, duration: 0.35 }}
     >
-      <Card id={`post-${post.id}`} className="overflow-hidden rounded-[24px] border-slate-200 bg-white shadow-sm hover:shadow-md transition-shadow scroll-mt-24">
+      <Card id={`post-${post.id}`} className="overflow-hidden rounded-3xl border-slate-200 bg-white shadow-sm hover:shadow-md transition-shadow scroll-mt-24">
         {/* Header */}
-        <div className="flex items-start gap-4 p-5 pb-3">
-          {post.author.profileImageUrl && !authorAvatarFailed ? (
-            <img
-              src={post.author.profileImageUrl}
-              alt=""
-              onError={() => setAuthorAvatarFailed(true)}
-              className="h-12 w-12 shrink-0 rounded-full object-cover shadow-sm border-2 border-white ring-1 ring-slate-100"
-            />
-          ) : (
-            <div
-              className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-lg font-black text-white shadow-sm border-2 border-white ring-1 ring-slate-100 ${
-                vip
-                  ? "bg-gradient-to-br from-amber-400 to-orange-500"
-                  : "bg-gradient-to-br from-slate-400 to-slate-600"
-              }`}
-            >
-              {post.author.username.trim().charAt(0).toUpperCase() || "؟"}
-            </div>
-          )}
+        <div className="flex items-start justify-between p-4 pb-3">
+          <div className="flex items-center gap-3">
+            {post.author.profileImageUrl && !authorAvatarFailed ? (
+              <img
+                src={post.author.profileImageUrl}
+                alt=""
+                onError={() => setAuthorAvatarFailed(true)}
+                className="h-10 w-10 shrink-0 rounded-full object-cover shadow-sm border border-slate-100"
+              />
+            ) : (
+              <div
+                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-black text-white shadow-sm ${
+                  vip
+                    ? "bg-gradient-to-br from-amber-400 to-orange-500"
+                    : "bg-gradient-to-br from-slate-400 to-slate-600"
+                }`}
+              >
+                {post.author.username.trim().charAt(0).toUpperCase() || "؟"}
+              </div>
+            )}
 
-          <div className="min-w-0 flex-1 pt-0.5">
-            <div className="flex items-center flex-wrap gap-x-2 gap-y-1">
-              <span className="truncate font-black text-slate-900 text-[16px]">{post.author.username}</span>
-              {/* Role Badges */}
-              {(post.author as any).role === "admin" ? (
-                <span className="flex items-center px-2 py-0.5 bg-red-50 rounded-md text-[11px] font-black text-red-600 tracking-wide border border-red-100/50">
-                  ADMIN
-                </span>
-              ) : (post.author as any).role === "formateur" ? (
-                <span className="flex items-center px-2 py-0.5 bg-emerald-50 rounded-md text-[11px] font-black text-emerald-600 tracking-wide border border-emerald-100/50">
-                  FORMATEUR
-                </span>
-              ) : vip ? (
-                <span className="flex items-center px-2 py-0.5 bg-amber-50 rounded-md text-[11px] font-black text-amber-600 tracking-wide border border-amber-100/50">
-                  VIP
-                  <CheckCircle2 className="w-3.5 h-3.5 ml-1 text-blue-500 fill-blue-500/20" />
-                </span>
-              ) : (
-                <span className="flex items-center px-2 py-0.5 bg-slate-100 rounded-md text-[11px] font-black text-slate-500 tracking-wide border border-slate-200/50">
-                  ÉTUDIANT
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-2 text-[13px] text-slate-500 font-bold mt-0.5">
-              <span>{timeAgo(post.createdAt, locale)}</span>
-              {post.category && (
-                <>
-                  <span className="w-1 h-1 rounded-full bg-slate-300" />
-                  <span className="text-slate-600">{post.category}</span>
-                </>
-              )}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center flex-wrap gap-x-2 gap-y-0.5">
+                <span className="truncate font-black text-slate-900 text-[15px]">{post.author.username}</span>
+                {/* Role Badges */}
+                {(post.author as any).role === "admin" ? (
+                  <span className="flex items-center px-1.5 py-0.5 bg-red-50 rounded text-[10px] font-black text-red-600 tracking-wide">
+                    {m("admin")}
+                  </span>
+                ) : (post.author as any).role === "formateur" ? (
+                  <span className="flex items-center px-1.5 py-0.5 bg-emerald-50 rounded text-[10px] font-black text-emerald-600 tracking-wide">
+                    {m("trainer")}
+                  </span>
+                ) : vip ? (
+                  <span className="flex items-center px-1.5 py-0.5 bg-amber-50 rounded text-[10px] font-black text-amber-600 tracking-wide">
+                    VIP <CheckCircle2 className="w-3 h-3 ml-0.5 text-blue-500 fill-blue-500/20" />
+                  </span>
+                ) : (post.author as any).role === "student" ? (
+                  <span className="flex items-center px-1.5 py-0.5 bg-blue-50 rounded text-[10px] font-black text-blue-600 tracking-wide">
+                    {m("student")}
+                  </span>
+                ) : null}
+              </div>
+              <div className="flex items-center gap-1.5 text-[12px] text-slate-500 font-bold mt-0.5">
+                <span>{timeAgo(post.createdAt, locale)}</span>
+                {post.category && (
+                  <>
+                    <span className="w-1 h-1 rounded-full bg-slate-300" />
+                    <span className="text-slate-600">{post.category}</span>
+                  </>
+                )}
+              </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            {post.isFeatured && (
+              <span className="flex items-center gap-1 px-2 py-1 bg-amber-50 text-amber-600 rounded text-[10px] font-bold" title={m("featured")}>
+                <Star className="h-3 w-3 fill-current" />
+              </span>
+            )}
             {post.isPinned && (
-              <span className="flex items-center gap-1 px-2.5 py-1 bg-red-50 text-red-600 rounded-md text-[11px] font-bold border border-red-100" title={m("pinned")}>
-                <Pin className="h-3.5 w-3.5 fill-current" />
+              <span className="flex items-center gap-1 px-2 py-1 bg-red-50 text-red-600 rounded text-[10px] font-bold" title={m("pinned")}>
+                <Pin className="h-3 w-3 fill-current" />
               </span>
             )}
             {post.isImportant && (
-              <span className="flex items-center gap-1 px-2.5 py-1 bg-purple-50 text-purple-600 rounded-md text-[11px] font-bold border border-purple-100" title={m("important")}>
-                <AlertCircle className="h-3.5 w-3.5" />
+              <span className="flex items-center gap-1 px-2 py-1 bg-purple-50 text-purple-600 rounded text-[10px] font-bold" title={m("important")}>
+                <AlertCircle className="h-3 w-3" />
               </span>
             )}
             {solved && (
-              <span className="flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-600 rounded-md text-[11px] font-bold border border-emerald-100" title={m("solved")}>
-                <CheckCircle2 className="h-3.5 w-3.5" />
+              <span className="flex items-center gap-1 px-2 py-1 bg-emerald-50 text-emerald-600 rounded text-[10px] font-bold" title={m("solved")}>
+                <CheckCircle2 className="h-3 w-3" />
               </span>
             )}
             {post.isQuestion && (
-              <span className="flex items-center gap-1 px-2.5 py-1 bg-blue-50 text-blue-600 rounded-md text-[11px] font-bold border border-blue-100" title="سؤال">
+              <span className="flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-600 rounded text-[10px] font-bold" title={m("question")}>
                 {m("question")}
               </span>
-            )}
-            {post.isFeatured && (
-               <span className="flex items-center gap-1 px-2.5 py-1 bg-amber-50 text-amber-600 rounded-md text-[11px] font-bold border border-amber-100">
-                 <Star className="h-3 w-3 fill-current" />
-                 {m("featured")}
-               </span>
             )}
 
             {user && (
@@ -307,10 +307,10 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
                   className="h-8 w-8 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-50"
                   onClick={() => setMenuOpen((v) => !v)}
                   onBlur={() => setTimeout(() => setMenuOpen(false), 150)}
-                  aria-label={`خيارات منشور ${post.author.username}`}
+                  aria-label={m("postOptions").replace("{name}", post.author.username)}
                   data-testid={`button-menu-${post.id}`}
                 >
-                  <MoreVertical className="h-5 w-5" />
+                  <MoreVertical className="h-4 w-4" />
                 </Button>
                 <AnimatePresence>
                   {menuOpen && (
@@ -393,14 +393,14 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
 
         {/* Content */}
         {(post.title || post.content) && (
-          <div className="px-5 pt-1 pb-4">
+          <div className="px-4 pt-1 pb-4" dir="auto">
             {post.title && (
-              <h3 className="font-black text-[18px] text-slate-900 mb-2 leading-tight">
+              <h3 className="font-black text-[17px] text-slate-900 mb-1.5 leading-tight" dir="auto">
                 {post.title}
               </h3>
             )}
             {post.content && (
-              <p className="whitespace-pre-wrap break-words text-[15px] leading-[1.7] text-slate-800 font-medium">
+              <p className="whitespace-pre-wrap break-words text-[14px] leading-relaxed text-slate-700 font-medium" dir="auto">
                 {post.content}
               </p>
             )}
@@ -409,13 +409,13 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
 
         {/* Poll */}
         {post.postType === "poll" && post.pollOptions && post.pollOptions.length > 0 && (
-          <div className="px-5 pb-5">
+          <div className="px-4 pb-4">
             <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4">
-              <div className="flex items-center gap-2 mb-4 text-slate-700 font-bold text-sm">
-                <BarChart2 className="w-5 h-5 text-orange-500" />
+              <div className="flex items-center gap-2 mb-3 text-slate-700 font-bold text-sm">
+                <BarChart2 className="w-4 h-4 text-orange-500" />
                 {m("pollLabel")}
               </div>
-              <div className="space-y-2.5">
+              <div className="space-y-2">
                 {post.pollOptions.map((opt, idx) => {
                   const voteCount = post.pollVotes?.[idx] || 0;
                   const percentage = totalPollVotes > 0 ? Math.round((voteCount / totalPollVotes) * 100) : 0;
@@ -427,7 +427,7 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
                       type="button"
                       onClick={() => handleVote(idx)}
                       disabled={post.myPollVote != null}
-                      className={`relative w-full text-right overflow-hidden rounded-xl border p-3 transition-all ${
+                      className={`relative w-full text-right overflow-hidden rounded-xl border p-2.5 transition-all ${
                         isMyVote
                           ? "bg-orange-50 border-orange-200"
                           : post.myPollVote != null
@@ -435,7 +435,7 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
                           : "bg-white border-slate-200 hover:border-orange-200 hover:bg-orange-50/50"
                       }`}
                     >
-                      {/* Progress Bar (shows if voted) */}
+                      {/* Progress Bar */}
                       {post.myPollVote != null && (
                         <div
                           className={`absolute top-0 right-0 bottom-0 opacity-10 ${
@@ -446,18 +446,18 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
                       )}
 
                       <div className="relative z-10 flex items-center justify-between gap-4">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className={`w-5 h-5 shrink-0 rounded-full border-2 flex items-center justify-center ${
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className={`w-4 h-4 shrink-0 rounded-full border-2 flex items-center justify-center ${
                             isMyVote ? "border-orange-500" : "border-slate-300"
                           }`}>
-                            {isMyVote && <div className="w-2.5 h-2.5 rounded-full bg-orange-500" />}
+                            {isMyVote && <div className="w-2 h-2 rounded-full bg-orange-500" />}
                           </div>
-                          <span className={`text-[15px] font-bold truncate ${isMyVote ? "text-orange-900" : "text-slate-700"}`}>
+                          <span className={`text-[14px] font-bold truncate ${isMyVote ? "text-orange-900" : "text-slate-700"}`} dir="auto">
                             {opt}
                           </span>
                         </div>
                         {post.myPollVote != null && (
-                          <span className={`text-sm font-black shrink-0 ${isMyVote ? "text-orange-600" : "text-slate-500"}`}>
+                          <span className={`text-xs font-black shrink-0 ${isMyVote ? "text-orange-600" : "text-slate-500"}`}>
                             {percentage}%
                           </span>
                         )}
@@ -466,7 +466,7 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
                   );
                 })}
               </div>
-              <div className="mt-4 text-[13px] font-bold text-slate-500">
+              <div className="mt-3 text-[12px] font-bold text-slate-500">
                 {totalPollVotes} {m("vote")}
               </div>
             </div>
@@ -475,50 +475,43 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
 
         {/* Media */}
         {post.media.length > 0 && (
-          <div className="px-5 pb-5">
+          <div className="px-4 pb-4">
             <MediaGrid media={post.media} username={post.author.username} />
           </div>
         )}
 
         {/* Actions Footer */}
-        <div className="mx-5 mb-3 border-t border-slate-100 flex items-center justify-between flex-wrap gap-2 pt-3">
-
-          <div className="flex items-center gap-2 sm:gap-3">
-            {/* Like */}
+        <div className="mx-4 mb-2 border-t border-slate-100 flex items-center justify-between gap-2 pt-2">
+          <div className="flex items-center gap-1 sm:gap-2">
             <button
               type="button"
               onClick={toggleLike}
               data-testid={`button-like-${post.id}`}
-              className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[14px] font-bold transition-all active:scale-[0.97] ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-bold transition-all active:scale-[0.97] ${
                 liked ? "text-orange-600 bg-orange-50" : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
               }`}
             >
-              <ThumbsUp className={`h-5 w-5 ${liked ? "fill-orange-500 text-orange-500" : "text-slate-400"}`} />
+              <ThumbsUp className={`h-4 w-4 ${liked ? "fill-orange-500 text-orange-500" : "text-slate-400"}`} />
               <span data-testid={`text-likes-${post.id}`}>{likes > 0 ? likes : m("like")}</span>
             </button>
 
-            {/* Comment */}
             <button
               type="button"
               onClick={() => setShowComments((v) => !v)}
               data-testid={`button-comment-${post.id}`}
-              className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[14px] font-bold transition-all active:scale-[0.97] ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-bold transition-all active:scale-[0.97] ${
                 showComments ? "text-orange-600 bg-orange-50" : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
               }`}
             >
-              <MessageCircle className={`h-5 w-5 ${showComments ? "fill-orange-500/20 text-orange-500" : "text-slate-400"}`} />
+              <MessageCircle className={`h-4 w-4 ${showComments ? "fill-orange-500/20 text-orange-500" : "text-slate-400"}`} />
               <span data-testid={`text-comments-${post.id}`}>{commentsCount > 0 ? commentsCount : m("comment")}</span>
             </button>
           </div>
 
-          <div className="flex items-center gap-4 text-slate-500 font-bold px-3" title={m("views")} aria-label={m("views")}>
-            {/* Views */}
-            <div className="flex items-center gap-1.5 text-[14px]">
-              <Eye className="h-5 w-5 text-slate-400" />
-              <span data-testid={`text-views-${post.id}`}>{views}</span>
-            </div>
+          <div className="flex items-center gap-1.5 text-slate-400 font-bold px-2 text-[12px]" title={m("views")} aria-label={m("views")}>
+            <Eye className="h-4 w-4 opacity-70" />
+            <span data-testid={`text-views-${post.id}`}>{views}</span>
           </div>
-
         </div>
 
         {/* Comments */}
@@ -552,7 +545,8 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
             onChange={(e) => setEditText(e.target.value)}
             rows={5}
             className="resize-none rounded-2xl"
-            placeholder="نص المنشور…"
+            placeholder={m("postBodyPlaceholder")}
+            dir="auto"
           />
           <DialogFooter className="gap-2">
             <Button variant="ghost" onClick={() => setEditOpen(false)}>

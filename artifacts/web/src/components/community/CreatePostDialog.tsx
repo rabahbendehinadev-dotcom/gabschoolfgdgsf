@@ -30,17 +30,6 @@ import { ImagePlus, X, Loader2, Crown, Send, Video, FileText, BarChart2, CheckCi
 type PickedFile = { file: File; url: string; type: 'image' | 'video' | 'file' };
 
 const MAX_FILES = 6;
-const CATEGORIES: { id: CreateCommunityPostInputCategory, label: string }[] = [
-  { id: "help", label: "مساعدة عامة" },
-  { id: "iphone", label: "iPhone" },
-  { id: "android", label: "Android" },
-  { id: "frp", label: "FRP & Unlock" },
-  { id: "hw", label: "Hardware" },
-  { id: "sw", label: "Software" },
-  { id: "tools", label: "Tools & برامج" },
-  { id: "news", label: "أخبار وتحديثات" },
-];
-
 export function CreatePostDialog({
   open,
   onOpenChange,
@@ -50,6 +39,17 @@ export function CreatePostDialog({
 }) {
   const { locale, direction } = useLocale();
   const m = (key: string) => commerceMessage(locale, key);
+
+  const CATEGORIES: { id: CreateCommunityPostInputCategory, label: string }[] = [
+    { id: "help", label: m("help") },
+    { id: "iphone", label: "iPhone" },
+    { id: "android", label: "Android" },
+    { id: "frp", label: m("frp") },
+    { id: "hw", label: m("hw") },
+    { id: "sw", label: m("sw") },
+    { id: "tools", label: m("tools") },
+    { id: "news", label: m("news") },
+  ];
   const { user, getAuthHeaders } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -97,19 +97,19 @@ export function CreatePostDialog({
     for (const f of newFiles) {
       if (f.type.startsWith("image/")) {
         if (f.size > MAX_IMAGE_BYTES) {
-          toast({ title: `الصورة ${f.name} كبيرة جداً (الحد 15MB)`, variant: "destructive" });
+          toast({ title: m("fileTooLarge").replace("{name}", f.name).replace("{size}", "15"), variant: "destructive" });
           continue;
         }
         parsedFiles.push({ file: f, url: URL.createObjectURL(f), type: "image" });
       } else if (f.type.startsWith("video/")) {
         if (f.size > MAX_VIDEO_BYTES) {
-          toast({ title: `الفيديو ${f.name} كبير جداً (الحد 120MB)`, variant: "destructive" });
+          toast({ title: m("fileTooLarge").replace("{name}", f.name).replace("{size}", "120"), variant: "destructive" });
           continue;
         }
         parsedFiles.push({ file: f, url: URL.createObjectURL(f), type: "video" });
       } else {
         if (f.size > MAX_FILE_BYTES) {
-          toast({ title: `الملف ${f.name} كبير جداً (الحد 50MB)`, variant: "destructive" });
+          toast({ title: m("fileTooLarge").replace("{name}", f.name).replace("{size}", "50"), variant: "destructive" });
           continue;
         }
         parsedFiles.push({ file: f, url: URL.createObjectURL(f), type: "file" });
@@ -118,7 +118,7 @@ export function CreatePostDialog({
 
     const merged = [...picked, ...parsedFiles];
     if (merged.length > MAX_FILES) {
-      toast({ title: `الحد الأقصى ${MAX_FILES} ملفات` });
+      toast({ title: m("maxFiles").replace("{count}", String(MAX_FILES)) });
     }
     setPicked(merged.slice(0, MAX_FILES));
   };
@@ -197,31 +197,30 @@ export function CreatePostDialog({
   return (
     <Dialog open={open} onOpenChange={close}>
       <DialogContent className="max-w-xl rounded-3xl p-0 overflow-hidden flex flex-col max-h-[90vh]" dir={direction}>
-        <DialogHeader className="px-6 py-4 border-b border-slate-100 flex-shrink-0 bg-white z-10">
-          <DialogTitle className="flex items-center gap-2">
+        <DialogHeader className="px-5 py-3 border-b border-slate-100 flex-shrink-0 bg-white z-10">
+          <DialogTitle className="flex items-center gap-2 text-lg">
             {step === "preview" && (
-              <button onClick={() => setStep("compose")} className="p-1 rounded-full hover:bg-slate-100 ml-1">
-                 <ChevronRight className="w-5 h-5 text-slate-500" />
+              <button onClick={() => setStep("compose")} className="p-1.5 rounded-full hover:bg-slate-100 ml-1 transition-colors">
+                 <ChevronRight className="w-4 h-4 text-slate-500" />
               </button>
             )}
-            <Crown className="h-5 w-5 text-orange-500" />
+            <Crown className="h-4 w-4 text-orange-500" />
             {step === "compose" ? m("newShare") : m("previewPost")}
           </DialogTitle>
         </DialogHeader>
 
-        <div className="overflow-y-auto flex-1 p-6 space-y-6">
+        <div className="overflow-y-auto flex-1 p-5 space-y-5">
           {step === "compose" ? (
             <>
               {/* Category & Title */}
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <div>
-                  <Label className="text-slate-700 font-bold mb-2 inline-block">{m("category")}</Label>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-1.5">
                     {CATEGORIES.map(c => (
                       <button
                         key={c.id}
                         onClick={() => setCategory(c.id)}
-                        className={`px-3 py-1.5 rounded-xl text-[13px] font-bold transition-all border ${
+                        className={`px-3 py-1.5 rounded-xl text-[12px] font-bold transition-all border ${
                           category === c.id
                             ? "bg-orange-50 text-orange-600 border-orange-200"
                             : "bg-white text-slate-600 border-slate-200 hover:border-orange-200"
@@ -234,28 +233,29 @@ export function CreatePostDialog({
                 </div>
 
                 <div>
-                  <Label className="text-slate-700 font-bold mb-2 inline-block">{m("postTitle")}</Label>
                   <Input
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
                     placeholder={m("postTitlePlaceholder")}
-                    className="rounded-xl border-slate-200 bg-slate-50 focus:bg-white text-[15px]"
+                    className="rounded-xl border-slate-200 bg-slate-50 focus:bg-white text-[14px] font-bold"
+                    dir="auto"
                   />
                 </div>
               </div>
 
               {/* Content area */}
               <div className="flex items-start gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-orange-500 text-base font-bold text-white shadow-sm ring-1 ring-slate-100 border-2 border-white">
-                  {user?.username?.trim().charAt(0) || "؟"}
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-orange-500 text-sm font-bold text-white shadow-sm ring-1 ring-slate-100 border-2 border-white">
+                  {user?.username?.trim().charAt(0).toUpperCase() || "؟"}
                 </div>
                 <div className="flex-1 space-y-3">
                   <Textarea
                     value={content}
                     onChange={(e) => setContent(e.target.value)}
-                    rows={5}
+                    rows={4}
                     placeholder={m("postBodyPlaceholder")}
-                    className="resize-none rounded-2xl border-slate-200 bg-slate-50 focus:bg-white text-[15px]"
+                    className="resize-none rounded-xl border-slate-200 bg-slate-50 focus:bg-white text-[14px] leading-relaxed"
+                    dir="auto"
                   />
 
                   {/* Previews */}
@@ -288,28 +288,29 @@ export function CreatePostDialog({
 
                   {/* Poll Builder */}
                   {postMode === "poll" && (
-                    <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
-                      <div className="flex items-center gap-2 text-slate-700 font-bold mb-2">
-                        <BarChart2 className="w-5 h-5 text-orange-500" />
-                        {m("pollOptions")}
+                    <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 space-y-2">
+                      <div className="flex items-center gap-2 text-slate-700 font-bold mb-1">
+                        <BarChart2 className="w-4 h-4 text-orange-500" />
+                        <span className="text-[13px]">{m("pollOptions")}</span>
                       </div>
                       {pollOptions.map((opt, idx) => (
                         <div key={idx} className="flex items-center gap-2">
                           <Input
                             value={opt}
                             onChange={(e) => updatePollOption(idx, e.target.value)}
-                            placeholder={`الخيار ${idx + 1}`}
-                            className="bg-white rounded-xl"
+                            placeholder={`${m("option")} ${idx + 1}`}
+                            className="bg-white rounded-xl h-9 text-[13px]"
+                            dir="auto"
                           />
                           {pollOptions.length > 2 && (
-                             <button onClick={() => removePollOption(idx)} className="p-2 text-slate-400 hover:text-red-500 transition-colors bg-white rounded-xl border border-slate-200">
+                             <button onClick={() => removePollOption(idx)} className="p-1.5 text-slate-400 hover:text-red-500 transition-colors bg-white rounded-lg border border-slate-200">
                                 <X className="w-4 h-4" />
                              </button>
                           )}
                         </div>
                       ))}
                       {pollOptions.length < 6 && (
-                        <Button variant="outline" onClick={addPollOption} className="w-full rounded-xl border-dashed bg-transparent hover:bg-white text-slate-500">
+                        <Button variant="outline" onClick={addPollOption} className="w-full rounded-xl border-dashed bg-transparent hover:bg-white text-slate-500 h-9 text-[13px]">
                           + {m("addOption")}
                         </Button>
                       )}
@@ -324,44 +325,46 @@ export function CreatePostDialog({
             <div className="border border-slate-200 rounded-3xl p-5 bg-white shadow-sm space-y-4">
                <div className="flex items-center gap-3">
                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-orange-500 text-sm font-bold text-white shadow-sm">
-                   {user?.username?.trim().charAt(0) || "؟"}
+                   {user?.username?.trim().charAt(0).toUpperCase() || "؟"}
                  </div>
                  <div>
-                   <div className="font-black text-slate-900 text-[15px]">{user?.username}</div>
-                   <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
-                      الآن
+                   <div className="font-black text-slate-900 text-[14px]">{user?.username}</div>
+                   <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500">
+                      {m("now")}
                       <span className="w-1 h-1 rounded-full bg-slate-300" />
                       {CATEGORIES.find(c => c.id === category)?.label}
                    </div>
                  </div>
                </div>
 
-               {title && (
-                 <h3 className="font-black text-[18px] text-slate-900 leading-tight">
-                   {title}
-                 </h3>
-               )}
+               <div >
+                 {title && (
+                   <h3 className="font-black text-[16px] text-slate-900 leading-tight mb-1.5" dir="auto">
+                     {title}
+                   </h3>
+                 )}
 
-               {content && (
-                 <p className="whitespace-pre-wrap break-words text-[15px] leading-[1.7] text-slate-800 font-medium">
-                   {content}
-                 </p>
-               )}
+                 {content && (
+                   <p className="whitespace-pre-wrap break-words text-[14px] leading-relaxed text-slate-800 font-medium" dir="auto">
+                     {content}
+                   </p>
+                 )}
+               </div>
 
                {picked.length > 0 && postMode !== "poll" && (
                  <div className={`grid gap-2 ${picked.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}>
                    {picked.map((item) => (
-                     <div key={item.url} className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
+                     <div key={item.url} className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
                        {item.type === "image" ? (
                          <img src={item.url} alt="" className="max-h-64 w-full object-contain" />
                        ) : item.type === "video" ? (
                          <video src={item.url} controls preload="metadata" className="max-h-64 w-full bg-black object-contain" />
                        ) : (
-                         <div className="flex items-center gap-3 p-4">
-                           <FileText className="h-6 w-6 shrink-0 text-purple-500" />
+                         <div className="flex items-center gap-3 p-3">
+                           <FileText className="h-5 w-5 shrink-0 text-purple-500" />
                            <div className="min-w-0">
-                             <p className="truncate text-sm font-black text-slate-800">{item.file.name}</p>
-                             <p className="mt-0.5 text-xs font-bold text-slate-400">
+                             <p className="truncate text-[13px] font-black text-slate-800">{item.file.name}</p>
+                             <p className="mt-0.5 text-[11px] font-bold text-slate-400">
                                {(item.file.size / 1024 / 1024).toFixed(2)} MB
                              </p>
                            </div>
@@ -373,9 +376,9 @@ export function CreatePostDialog({
                )}
 
                {postMode === "poll" && validPollOptions.length >= 2 && (
-                 <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2">
+                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-1.5">
                    {validPollOptions.map((opt, idx) => (
-                     <div key={idx} className="w-full text-right rounded-xl border border-slate-200 bg-white p-3 text-[14px] font-bold text-slate-700">
+                     <div key={idx} className="w-full text-right rounded-lg border border-slate-200 bg-white p-2.5 text-[13px] font-bold text-slate-700" dir="auto">
                        {opt}
                      </div>
                    ))}
@@ -389,26 +392,26 @@ export function CreatePostDialog({
         <div className="p-4 border-t border-slate-100 bg-slate-50 flex-shrink-0 z-10">
 
           {step === "compose" && (
-            <div className="flex flex-col gap-4">
-              <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
-                <label className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-600 transition-colors hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200 whitespace-nowrap">
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+                <label className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-[13px] font-bold text-slate-600 transition-colors hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200 whitespace-nowrap">
                   <ImagePlus className="h-4 w-4 text-emerald-500" />
                   {m("image")}
                   <input type="file" accept="image/*" multiple hidden disabled={submitting} onChange={(e) => { handleFiles(e.target.files); e.target.value = ""; }} />
                 </label>
-                <label className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-600 transition-colors hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200 whitespace-nowrap">
+                <label className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-[13px] font-bold text-slate-600 transition-colors hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200 whitespace-nowrap">
                   <Video className="h-4 w-4 text-blue-500" />
                   {m("video")}
                   <input type="file" accept="video/*" multiple hidden disabled={submitting} onChange={(e) => { handleFiles(e.target.files); e.target.value = ""; }} />
                 </label>
-                <label className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-600 transition-colors hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200 whitespace-nowrap">
+                <label className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-[13px] font-bold text-slate-600 transition-colors hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200 whitespace-nowrap">
                   <FileText className="h-4 w-4 text-purple-500" />
                   {m("file")}
                   <input type="file" accept="*/*" multiple hidden disabled={submitting} onChange={(e) => { handleFiles(e.target.files); e.target.value = ""; }} />
                 </label>
                 <button
                   onClick={() => { setPostMode(postMode === "poll" ? "standard" : "poll"); setPicked([]); }}
-                  className={`flex items-center gap-1.5 rounded-xl border px-3 py-2 text-sm font-bold transition-colors whitespace-nowrap ${
+                  className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-[13px] font-bold transition-colors whitespace-nowrap ${
                     postMode === "poll" ? "bg-orange-50 text-orange-600 border-orange-200" : "bg-white text-slate-600 border-slate-200 hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200"
                   }`}
                 >
@@ -420,20 +423,20 @@ export function CreatePostDialog({
               <div className="flex items-center justify-between gap-4">
                 <button
                   onClick={() => setIsQuestion(!isQuestion)}
-                  className={`flex items-center gap-1.5 text-sm font-bold transition-colors ${isQuestion ? "text-blue-600" : "text-slate-500 hover:text-slate-700"}`}
+                  className={`flex items-center gap-1.5 text-[13px] font-bold transition-colors ${isQuestion ? "text-blue-600" : "text-slate-500 hover:text-slate-700"}`}
                 >
-                  <div className={`w-4 h-4 rounded border flex items-center justify-center ${isQuestion ? "bg-blue-600 border-blue-600 text-white" : "border-slate-300"}`}>
-                    {isQuestion && <CheckCircle2 className="w-3 h-3" />}
+                  <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center ${isQuestion ? "bg-blue-600 border-blue-600 text-white" : "border-slate-300"}`}>
+                    {isQuestion && <CheckCircle2 className="w-2.5 h-2.5" />}
                   </div>
-                  نشر كسؤال
+                  {m("publishAsQuestion")}
                 </button>
                 <Button
                   onClick={() => setStep("preview")}
                   disabled={!canPreview}
-                  className="rounded-xl px-8 bg-slate-900 hover:bg-slate-800 text-white font-black shadow-sm"
+                  className="rounded-xl h-9 px-6 bg-slate-900 hover:bg-slate-800 text-white font-black shadow-sm"
                 >
-                  معاينة
-                  <ChevronRight className="ml-2 h-4 w-4 rotate-180" />
+                  {m("preview")}
+                  <ChevronRight className="ml-1.5 h-3.5 w-3.5 rotate-180" />
                 </Button>
               </div>
             </div>
@@ -441,14 +444,14 @@ export function CreatePostDialog({
 
           {step === "preview" && (
             <div className="flex items-center justify-between gap-3">
-              <div className="rounded-xl bg-orange-500/5 px-3 py-2 text-xs font-bold text-slate-500 border border-orange-100/50">
-                <Crown className="ml-1 inline h-3.5 w-3.5 text-orange-500" />
+              <div className="rounded-xl bg-orange-500/5 px-2.5 py-1.5 text-[11px] font-bold text-slate-500 border border-orange-100/50">
+                <Crown className="ml-1 text-orange-500 inline h-3.5 w-3.5" />
                 {m("mediaVip")}
               </div>
               <Button
                 onClick={submit}
                 disabled={submitting}
-                className="rounded-xl px-8 bg-orange-500 hover:bg-orange-600 text-white font-black shadow-sm shadow-orange-500/20 active:scale-[0.98] transition-all"
+                className="rounded-xl h-10 px-6 bg-orange-500 hover:bg-orange-600 text-white font-black shadow-sm shadow-orange-500/20 active:scale-[0.98] transition-all"
               >
                 {submitting ? (
                   <>
