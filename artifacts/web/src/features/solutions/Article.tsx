@@ -65,10 +65,10 @@ export function SolutionImage({ id, admin = false, file, alt = "", className = "
   }, [expanded]);
 
   if (error) return <div className="flex items-center justify-center h-full min-h-32 bg-red-50 text-red-700 text-sm p-4 rounded-2xl border border-red-100 shadow-inner">{error}</div>;
-  if (!url) return <div className="flex items-center justify-center h-full min-h-32 bg-slate-50 text-slate-400 text-sm p-4 rounded-2xl border border-slate-100 animate-pulse">Chargement image…</div>;
+  if (!url) return <div className="flex items-center justify-center h-full min-h-32 bg-[#FFF8F1] text-slate-400 text-sm p-4 rounded-2xl border border-[#F3DFCF] animate-pulse">Chargement image…</div>;
 
   return <>
-    <button type="button" data-testid={`button-expand-solution-image-${id || "local"}`} className={`block w-full cursor-zoom-in group relative overflow-hidden bg-slate-50 ${className}`} onClick={() => setExpanded(true)} aria-label={`Agrandir ${alt}`}>
+    <button type="button" data-testid={`button-expand-solution-image-${id || "local"}`} className={`block w-full cursor-zoom-in group relative overflow-hidden bg-[#FFF8F1] ${className}`} onClick={() => setExpanded(true)} aria-label={`Agrandir ${alt}`}>
       <img src={url} alt={alt} className="w-full h-full object-contain transition-transform duration-500 group-hover:scale-[1.02]" />
       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/[0.03] transition-colors pointer-events-none" />
       <div className="absolute bottom-4 right-4 bg-orange-950/80 backdrop-blur-md text-white text-xs font-medium px-4 py-2 rounded-full flex items-center gap-2 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity shadow-sm pointer-events-none">
@@ -91,12 +91,12 @@ export function SolutionImage({ id, admin = false, file, alt = "", className = "
 export function SolutionArticleHero({ meta, coverFile, admin, fallbackImageId }: Pick<SolutionArticleProps, "meta" | "coverFile" | "admin"> & { fallbackImageId?: string }) {
   if (!meta) return null;
   return (
-    <header className="bg-gradient-to-br from-white via-white to-orange-50/70 rounded-2xl border border-orange-200 p-4 md:p-5 mb-6 md:mb-8 shadow-[0_12px_32px_rgba(234,88,12,0.08)] flex flex-col md:flex-row gap-5 md:gap-6 items-start relative overflow-hidden">
+    <header className="bg-gradient-to-br from-[#FFFCF9] via-[#FFFCF9] to-[#FFF4E8] rounded-2xl border border-[#F3DFCF] p-4 md:p-5 mb-6 md:mb-8 shadow-[0_12px_32px_rgba(120,72,32,0.08)] flex flex-col md:flex-row gap-5 md:gap-6 items-start relative overflow-hidden">
       <div className="absolute top-0 right-0 -mr-20 -mt-20 w-64 h-64 bg-orange-500/5 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-0 left-0 -ml-20 -mb-20 w-64 h-64 bg-orange-600/5 rounded-full blur-3xl pointer-events-none" />
 
       {(coverFile || meta.coverUrl || meta.coverImageId || (admin && fallbackImageId)) && (
-        <div className="w-full md:w-[35%] xl:w-[40%] shrink-0 aspect-video md:aspect-[4/3] rounded-xl overflow-hidden bg-white border-2 border-orange-200 relative group p-1 shadow-sm z-10">
+        <div className="w-full md:w-[35%] xl:w-[40%] shrink-0 aspect-video md:aspect-[4/3] rounded-xl overflow-hidden bg-[#FFFCF9] border-2 border-[#F3DFCF] relative group p-1 shadow-[0_4px_16px_rgba(120,72,32,0.07)] z-10">
           {coverFile ? (
             <SolutionImage file={coverFile} alt={meta.title} className="w-full h-full rounded-xl" />
           ) : meta.coverImageId ? (
@@ -114,7 +114,7 @@ export function SolutionArticleHero({ meta, coverFile, admin, fallbackImageId }:
             <Badge key={`b-${i}`} variant="secondary" className="bg-orange-50 text-orange-700 hover:bg-orange-100 border-transparent px-3 py-1 font-bold rounded-lg">{value}</Badge>
           ))}
           {[meta.subcategory, meta.tool].filter(Boolean).map((value, i) => (
-            <Badge key={`s-${i}`} variant="outline" className="bg-white text-slate-700 px-3 py-1 border-slate-200 rounded-lg shadow-sm">{value}</Badge>
+            <Badge key={`s-${i}`} variant="outline" className="bg-[#FFFCF9] text-slate-700 px-3 py-1 border-[#F3DFCF] rounded-lg shadow-sm">{value}</Badge>
           ))}
         </div>
         <h1 data-testid="text-solution-title" className="text-xl md:text-2xl lg:text-3xl font-extrabold leading-tight text-slate-950 tracking-tight">{meta.title}</h1>
@@ -122,7 +122,7 @@ export function SolutionArticleHero({ meta, coverFile, admin, fallbackImageId }:
 
         <div className="flex flex-wrap items-center gap-4 text-xs md:text-sm text-slate-500 pt-3 mt-1 border-t border-orange-200/70">
           {meta.publishedAt && (
-            <div className="flex items-center gap-2 font-medium bg-slate-50 px-3 py-1 rounded-lg">
+            <div className="flex items-center gap-2 font-medium bg-[#FFF8F1] px-3 py-1 rounded-lg">
               <Calendar className="w-4 h-4 text-orange-500" />
               <time dateTime={meta.publishedAt} className="text-slate-700">{new Date(meta.publishedAt).toLocaleDateString("fr-FR")}</time>
             </div>
@@ -149,7 +149,7 @@ const SectionCard = ({ id, title, icon: Icon, children, className = "" }: { id?:
       )}
       <h2 className="text-xl md:text-2xl font-bold text-slate-950 tracking-tight">{title}</h2>
     </div>
-    <div className="bg-white border border-slate-200/60 rounded-3xl p-5 md:p-8 shadow-sm hover:shadow-md transition-shadow duration-300 w-full break-words">
+    <div className="bg-[#FFFCF9] border border-[#F3DFCF] rounded-3xl p-5 md:p-8 shadow-[0_4px_18px_rgba(120,72,32,0.06)] hover:shadow-[0_8px_24px_rgba(120,72,32,0.09)] transition-shadow duration-300 w-full break-words">
       {children}
     </div>
   </section>
@@ -177,9 +177,9 @@ const ChecklistSection = ({ id, title, items, icon }: { id?: string, title: stri
 const InfoRow = ({ icon: Icon, label, value }: { icon: any, label: string, value: string | undefined | null }) => {
   if (!value) return null;
   return (
-    <div className="flex items-start justify-between gap-4 py-3.5 border-b border-slate-100/60 last:border-0">
+    <div className="flex items-start justify-between gap-4 py-3.5 border-b border-[#F3DFCF]/70 last:border-0">
       <div className="flex items-center gap-3 text-slate-500">
-        <div className="p-1.5 bg-slate-50 rounded-lg text-slate-400">
+        <div className="p-1.5 bg-[#FFF4E8] rounded-lg text-slate-400">
           <Icon className="w-4 h-4 shrink-0" />
         </div>
         <span className="text-sm font-medium">{label}</span>
@@ -208,7 +208,7 @@ export function SolutionArticle({ content, images, admin = false, meta, coverFil
 
   // Shared Sidebar Blocks
   const deviceInfoBlock = (
-    <div className="bg-white rounded-3xl border border-slate-200/60 p-5 md:p-6 shadow-sm relative overflow-hidden">
+    <div className="bg-[#FFF8F1] rounded-3xl border border-[#F3DFCF] p-5 md:p-6 shadow-[0_4px_18px_rgba(120,72,32,0.06)] relative overflow-hidden">
       <div className="absolute top-0 right-0 w-32 h-32 bg-orange-50 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none" />
       <div className="flex items-center gap-3 mb-5 relative z-10">
         <div className="p-2 bg-orange-50 text-orange-600 rounded-xl shadow-sm border border-orange-200/70">
@@ -230,7 +230,7 @@ export function SolutionArticle({ content, images, admin = false, meta, coverFil
   );
 
   const renderOnThisPageBlock = (placement: "mobile" | "desktop") => navItems.length > 0 ? (
-    <div className="bg-white rounded-3xl border border-slate-200/60 p-5 md:p-6 shadow-sm">
+    <div className="bg-[#FFF8F1] rounded-3xl border border-[#F3DFCF] p-5 md:p-6 shadow-[0_4px_18px_rgba(120,72,32,0.06)]">
       <div className="flex items-center gap-3 mb-5">
         <div className="p-2 bg-orange-50 text-orange-600 rounded-xl shadow-sm border border-orange-200/70">
           <ListOrdered className="w-5 h-5" />
@@ -282,7 +282,7 @@ export function SolutionArticle({ content, images, admin = false, meta, coverFil
   ) : null;
 
   const renderRelatedBlock = (placement: "mobile" | "desktop") => (related && related.length > 0) ? (
-    <div id={`related-${placement}`} className="scroll-mt-8 bg-white border border-slate-200/60 rounded-3xl p-5 md:p-6 shadow-sm">
+    <div id={`related-${placement}`} className="scroll-mt-8 bg-[#FFF8F1] border border-[#F3DFCF] rounded-3xl p-5 md:p-6 shadow-[0_4px_18px_rgba(120,72,32,0.06)]">
       <div className="flex items-center gap-3 mb-5">
         <div className="p-2 bg-orange-50 text-orange-600 rounded-xl shadow-sm border border-orange-200/70">
           <LinkIcon className="w-5 h-5" />
@@ -291,11 +291,11 @@ export function SolutionArticle({ content, images, admin = false, meta, coverFil
       </div>
       <div className="space-y-4">
         {related.map(item => (
-          <Link key={item.id} href={`/solutions/${item.slug}`} className="flex gap-4 group items-center p-2 -m-2 rounded-2xl hover:bg-slate-50 transition-colors">
+          <Link key={item.id} href={`/solutions/${item.slug}`} className="flex gap-4 group items-center p-2 -m-2 rounded-2xl hover:bg-[#FFF4E8] transition-colors">
             {item.coverUrl ? (
-              <img src={item.coverUrl} alt="" className="w-20 h-14 object-cover rounded-xl bg-slate-100 shrink-0 border border-slate-200/60 shadow-sm" />
+              <img src={item.coverUrl} alt="" className="w-20 h-14 object-cover rounded-xl bg-[#FFF4E8] shrink-0 border border-[#F3DFCF] shadow-sm" />
             ) : (
-              <div className="w-20 h-14 rounded-xl bg-slate-50 shrink-0 border border-slate-200/60 shadow-sm flex items-center justify-center">
+              <div className="w-20 h-14 rounded-xl bg-[#FFF4E8] shrink-0 border border-[#F3DFCF] shadow-sm flex items-center justify-center">
                 <Smartphone className="w-6 h-6 text-slate-300" />
               </div>
             )}
@@ -347,18 +347,18 @@ export function SolutionArticle({ content, images, admin = false, meta, coverFil
               <div data-testid="timeline-solution-procedure" className="relative border-s-2 border-orange-200 ms-4 md:ms-6 ps-8 md:ps-12 space-y-8 md:space-y-12">
                 {content.steps.map((step, i) => (
                   <div key={i} className="relative group w-full break-words">
-                    <span data-testid={`text-solution-step-number-${i}`} className="absolute -start-[47px] md:-start-[67px] top-0 flex h-8 w-8 md:h-10 md:w-10 items-center justify-center rounded-full bg-orange-500 text-white text-sm md:text-base font-bold ring-4 ring-white z-10 shadow-md">
+                    <span data-testid={`text-solution-step-number-${i}`} className="absolute -start-[47px] md:-start-[67px] top-0 flex h-8 w-8 md:h-10 md:w-10 items-center justify-center rounded-full bg-orange-500 text-white text-sm md:text-base font-bold ring-4 ring-[#FFF9F5] z-10 shadow-md">
                       {String(i + 1).padStart(2, "0")}
                     </span>
 
-                    <div className="bg-white border border-slate-200/60 rounded-3xl p-5 md:p-8 shadow-sm hover:shadow-md transition-shadow duration-300 w-full min-w-0">
+                    <div className="bg-[#FFFCF9] border border-[#F3DFCF] rounded-3xl p-5 md:p-8 shadow-[0_4px_18px_rgba(120,72,32,0.06)] hover:shadow-[0_8px_24px_rgba(120,72,32,0.09)] transition-shadow duration-300 w-full min-w-0">
                       <h3 className="font-bold text-xl md:text-2xl text-slate-950 mb-4 tracking-tight">{step.title}</h3>
                       <p className="text-slate-700 whitespace-pre-wrap leading-relaxed mb-6 text-base md:text-lg break-words">{step.text}</p>
 
                       {step.imageIds.length > 0 && (
                         <div className="space-y-6">
                           {step.imageIds.filter(id => images.some(img => img.id === id)).map(id => (
-                            <div key={id} className="rounded-2xl overflow-hidden border-2 border-orange-100 bg-slate-50 p-2 shadow-sm">
+                            <div key={id} className="rounded-2xl overflow-hidden border-2 border-[#F3DFCF] bg-[#FFF4E8] p-2 shadow-[0_4px_16px_rgba(120,72,32,0.06)]">
                               <SolutionImage id={id} admin={admin} alt={images.find(img => img.id === id)?.name || step.title} className="w-full h-auto rounded-xl" />
                             </div>
                           ))}
@@ -384,7 +384,7 @@ export function SolutionArticle({ content, images, admin = false, meta, coverFil
                   const isUrl = /^https?:\/\//i.test(res.url);
                   return (
                     <a key={i} data-testid={`link-solution-resource-${i}`} href={isUrl ? res.url : undefined} target={isUrl ? "_blank" : undefined} rel={isUrl ? "noopener noreferrer" : undefined}
-                       className={`group flex flex-col justify-between bg-white border border-slate-200/70 rounded-3xl p-5 md:p-6 transition-all shadow-sm ${isUrl ? 'hover:border-orange-300 hover:shadow-md hover:-translate-y-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40' : 'opacity-75 cursor-not-allowed'} min-w-0`}>
+                       className={`group flex flex-col justify-between bg-[#FFFCF9] border border-[#F3DFCF] rounded-3xl p-5 md:p-6 transition-all shadow-[0_4px_18px_rgba(120,72,32,0.06)] ${isUrl ? 'hover:border-orange-300 hover:shadow-[0_8px_24px_rgba(120,72,32,0.09)] hover:-translate-y-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40' : 'opacity-75 cursor-not-allowed'} min-w-0`}>
                       <div className="space-y-4 mb-4">
                         <div className="flex justify-between items-start gap-4">
                           <span className="text-xs font-bold px-3 py-1.5 bg-orange-50 text-orange-700 rounded-lg uppercase tracking-wider whitespace-nowrap">{res.type} {res.version}</span>
@@ -406,7 +406,7 @@ export function SolutionArticle({ content, images, admin = false, meta, coverFil
             <SectionCard id="unused-images" title="Autres captures / صور إضافية" icon={ImageIcon}>
               <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-5">
                 {unusedImages.map(image => (
-                  <div key={image.id} className="rounded-2xl overflow-hidden border-2 border-orange-100 bg-slate-50 p-1.5 group shadow-sm transition-all hover:shadow-md hover:border-orange-200">
+                  <div key={image.id} className="rounded-2xl overflow-hidden border-2 border-[#F3DFCF] bg-[#FFF4E8] p-1.5 group shadow-[0_4px_16px_rgba(120,72,32,0.06)] transition-all hover:shadow-[0_8px_24px_rgba(120,72,32,0.09)] hover:border-orange-200">
                     <SolutionImage id={image.id} admin={admin} alt={image.name} className="w-full h-48 rounded-xl" />
                     <div className="px-3 py-3 text-center">
                       <p className="text-sm font-bold text-slate-600 group-hover:text-orange-600 truncate" title={image.name}>{image.name}</p>

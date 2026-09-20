@@ -18,9 +18,9 @@ export function SolutionDetail({ slug }: { slug: string }) {
   const full = entitled && "content" in solution ? solution : null;
 
   return (
-    <div className="bg-[#f5f7ff] min-h-screen pb-24" dir="rtl">
+    <div className="bg-[#FFF9F5] min-h-screen pb-24" dir="rtl">
       {!full && (
-        <header className="bg-white border-b border-slate-200">
+        <header className="bg-[#FFFCF9] border-b border-[#F3DFCF]">
           <div className="max-w-[1200px] mx-auto px-4 py-10 space-y-6">
             <Link href="/solutions" className="text-primary text-sm font-medium hover:underline">← الحلول التقنية</Link>
             <div className="grid md:grid-cols-3 gap-8 items-start">
@@ -38,7 +38,7 @@ export function SolutionDetail({ slug }: { slug: string }) {
                   {solution.tags.map((tag, i) => <Badge key={i} variant="outline" className="text-slate-500">{tag}</Badge>)}
                 </div>
               </div>
-              <div className="aspect-[4/3] rounded-2xl border border-slate-200 overflow-hidden bg-slate-100 p-1 shadow-sm">
+              <div className="aspect-[4/3] rounded-2xl border border-[#F3DFCF] overflow-hidden bg-[#FFF4E8] p-1 shadow-[0_4px_18px_rgba(120,72,32,0.06)]">
                 {solution.coverUrl ? (
                   <img src={solution.coverUrl} alt={solution.title} className="w-full h-full object-cover object-center rounded-xl" />
                 ) : (
@@ -56,25 +56,25 @@ export function SolutionDetail({ slug }: { slug: string }) {
         ) : (
           <div className="grid lg:grid-cols-3 gap-8">
             <main className={`${related.length ? "lg:col-span-2" : "lg:col-span-3"} min-w-0`}>
-              <section className="bg-white border border-slate-200 rounded-3xl p-8 md:p-12 text-center shadow-sm">
+              <section className="bg-[#FFFCF9] border border-[#F3DFCF] rounded-3xl p-8 md:p-12 text-center shadow-[0_4px_18px_rgba(120,72,32,0.06)]">
                 <Lock className="h-12 w-12 text-slate-400 mx-auto mb-6" />
                 <h2 className="text-2xl font-bold text-slate-900 mb-4">اشترك للوصول إلى الحل الكامل</h2>
                 <p className="text-slate-600 mb-8 text-lg">الخطوات التفصيلية والصور التقنية وروابط التحميل متاحة للمشتركين فقط.</p>
                 <div className="flex flex-wrap justify-center gap-3">
                   <Link href="/subscribe" className="bg-primary hover:bg-primary/90 transition-colors text-white rounded-full px-6 py-3 font-semibold shadow-sm">اشترك الآن</Link>
-                  {!user && <Link href="/login" className="border border-slate-200 hover:bg-slate-50 transition-colors text-slate-700 rounded-full px-6 py-3 font-semibold">تسجيل الدخول</Link>}
+                  {!user && <Link href="/login" className="border border-[#F3DFCF] hover:bg-[#FFF4E8] transition-colors text-slate-700 rounded-full px-6 py-3 font-semibold">تسجيل الدخول</Link>}
                 </div>
               </section>
             </main>
             {!!related.length && (
-              <aside className="bg-white rounded-2xl border border-slate-200 p-6 h-fit space-y-4 shadow-sm">
+              <aside className="bg-[#FFF8F1] rounded-2xl border border-[#F3DFCF] p-6 h-fit space-y-4 shadow-[0_4px_18px_rgba(120,72,32,0.06)]">
                 <h2 className="text-lg font-bold text-slate-900">حلول مشابهة</h2>
                 {related.map(item => (
-                  <Link key={item.id} href={`/solutions/${item.slug}`} className="flex gap-3 border-t border-slate-100 pt-4 group">
+                  <Link key={item.id} href={`/solutions/${item.slug}`} className="flex gap-3 border-t border-[#F3DFCF]/70 pt-4 group">
                     {item.coverUrl ? (
-                      <img src={item.coverUrl} alt="" className="w-20 h-16 object-cover rounded-lg bg-slate-100 border border-slate-200 shrink-0" />
+                      <img src={item.coverUrl} alt="" className="w-20 h-16 object-cover rounded-lg bg-[#FFF4E8] border border-[#F3DFCF] shrink-0" />
                     ) : (
-                      <div className="w-20 h-16 rounded-lg bg-slate-100 border border-slate-200 shrink-0 flex items-center justify-center">
+                      <div className="w-20 h-16 rounded-lg bg-[#FFF4E8] border border-[#F3DFCF] shrink-0 flex items-center justify-center">
                         <Smartphone className="w-6 h-6 text-slate-300" />
                       </div>
                     )}
