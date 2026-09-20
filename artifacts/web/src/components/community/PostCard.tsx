@@ -69,6 +69,7 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
   const [commentsCount, setCommentsCount] = useState(post.commentsCount);
   const [solved, setSolved] = useState(post.isSolved);
   const [showComments, setShowComments] = useState(false);
+  const [focusCommentsComposer, setFocusCommentsComposer] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editText, setEditText] = useState(post.content || "");
@@ -80,10 +81,15 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
   const [reportReason, setReportReason] = useState("");
   const [reportSent, setReportSent] = useState(false);
   const [reporting, setReporting] = useState(false);
+  const commentPreview = post.commentPreview ?? [];
 
   useEffect(() => {
     setAuthorAvatarFailed(false);
   }, [post.author.profileImageUrl]);
+
+  useEffect(() => {
+    setCommentsCount(post.commentsCount);
+  }, [post.commentsCount]);
 
   const likeM = useLikeCommunityPost({ request: getAuthHeaders() });
   const unlikeM = useUnlikeCommunityPost({ request: getAuthHeaders() });
@@ -480,6 +486,100 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
           </div>
         )}
 
+        {/* Compact feed comment preview */}
+        {!showComments && (commentPreview.length > 0 || user) && (
+          <div className="mx-4 border-t border-slate-100 py-3" data-testid={`comments-preview-${post.id}`}>
+            {commentPreview.length > 0 && (
+              <div className="space-y-2.5">
+                {commentPreview.slice(0, 2).map((comment) => {
+                  const isLong = comment.body.length > 180 || comment.body.split("\n").length > 3;
+                  return (
+                    <div key={comment.id} className="flex items-start gap-2">
+                      {comment.author.profileImageUrl ? (
+                        <img
+                          src={comment.author.profileImageUrl}
+                          alt=""
+                          className="h-7 w-7 shrink-0 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-200 text-[11px] font-black text-slate-600">
+                          {comment.author.username.trim().charAt(0).toUpperCase() || "؟"}
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="inline-block max-w-full rounded-2xl rounded-tl-md bg-slate-100 px-3 py-2">
+                          <div className="truncate text-[12px] font-black text-slate-900">
+                            {comment.author.username}
+                          </div>
+                          <p
+                            className="mt-0.5 line-clamp-3 whitespace-pre-wrap break-words text-[13px] font-medium leading-5 text-slate-700"
+                            dir="auto"
+                          >
+                            {comment.body}
+                          </p>
+                        </div>
+                        {isLong && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFocusCommentsComposer(false);
+                              setShowComments(true);
+                            }}
+                            className="mt-1 block px-1 text-[11px] font-bold text-slate-500 hover:text-orange-600"
+                          >
+                            {m("seeMore")}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {commentsCount > commentPreview.length && (
+              <button
+                type="button"
+                onClick={() => {
+                  setFocusCommentsComposer(false);
+                  setShowComments(true);
+                }}
+                className="mt-2 text-[12px] font-black text-slate-500 transition-colors hover:text-orange-600"
+                data-testid={`button-view-all-comments-${post.id}`}
+              >
+                {m("viewAllComments").replace("{count}", String(commentsCount))}
+              </button>
+            )}
+
+            {user && (
+              <button
+                type="button"
+                onClick={() => {
+                  setFocusCommentsComposer(true);
+                  setShowComments(true);
+                }}
+                className="mt-3 flex w-full items-center gap-2 text-start"
+                data-testid={`button-quick-comment-${post.id}`}
+              >
+                {user.profileImageUrl ? (
+                  <img
+                    src={user.profileImageUrl}
+                    alt=""
+                    className="h-8 w-8 shrink-0 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-200 text-[11px] font-black text-slate-600">
+                    {user.username.trim().charAt(0).toUpperCase() || "؟"}
+                  </div>
+                )}
+                <span className="flex-1 rounded-full bg-slate-100 px-3.5 py-2 text-[12px] font-bold text-slate-500 transition-colors hover:bg-slate-200">
+                  {m("commentPlaceholder")}
+                </span>
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Actions Footer */}
         <div className="mx-4 mb-2 border-t border-slate-100 flex items-center justify-between gap-2 pt-2">
           <div className="flex items-center gap-1 sm:gap-2">
@@ -497,7 +597,10 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
 
             <button
               type="button"
-              onClick={() => setShowComments((v) => !v)}
+              onClick={() => {
+                setFocusCommentsComposer(false);
+                setShowComments((v) => !v);
+              }}
               data-testid={`button-comment-${post.id}`}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-bold transition-all active:scale-[0.97] ${
                 showComments ? "text-orange-600 bg-orange-50" : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
@@ -526,6 +629,7 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
               <div className="px-4 pb-4 pt-2 border-t border-slate-100">
                  <CommentsSection
                    postId={post.id}
+                   autoFocusComposer={focusCommentsComposer}
                    onCountChange={(delta) => setCommentsCount((n) => Math.max(0, n + delta))}
                  />
               </div>

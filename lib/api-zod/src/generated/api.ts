@@ -1104,6 +1104,8 @@ export const GetCommunityFeedQueryParams = zod.object({
   limit: zod.coerce.number().optional(),
 });
 
+export const getCommunityFeedResponsePostsItemCommentPreviewMax = 2;
+
 export const GetCommunityFeedResponse = zod.object({
   posts: zod.array(
     zod.object({
@@ -1130,6 +1132,23 @@ export const GetCommunityFeedResponse = zod.object({
       myPollVote: zod.number().nullish(),
       likesCount: zod.number(),
       commentsCount: zod.number(),
+      commentPreview: zod
+        .array(
+          zod.object({
+            id: zod.number(),
+            postId: zod.number(),
+            author: zod.object({
+              id: zod.number(),
+              username: zod.string(),
+              accountType: zod.enum(["vip", "normal"]),
+              role: zod.enum(["admin", "formateur", "student"]),
+              profileImageUrl: zod.string().nullish(),
+            }),
+            body: zod.string(),
+            createdAt: zod.date(),
+          }),
+        )
+        .max(getCommunityFeedResponsePostsItemCommentPreviewMax),
       viewsCount: zod.number(),
       likedByMe: zod.boolean(),
       canEdit: zod.boolean(),
@@ -1218,6 +1237,8 @@ export const GetCommunityPostParams = zod.object({
   id: zod.coerce.number(),
 });
 
+export const getCommunityPostResponseCommentPreviewMax = 2;
+
 export const GetCommunityPostResponse = zod.object({
   id: zod.number(),
   author: zod.object({
@@ -1242,6 +1263,23 @@ export const GetCommunityPostResponse = zod.object({
   myPollVote: zod.number().nullish(),
   likesCount: zod.number(),
   commentsCount: zod.number(),
+  commentPreview: zod
+    .array(
+      zod.object({
+        id: zod.number(),
+        postId: zod.number(),
+        author: zod.object({
+          id: zod.number(),
+          username: zod.string(),
+          accountType: zod.enum(["vip", "normal"]),
+          role: zod.enum(["admin", "formateur", "student"]),
+          profileImageUrl: zod.string().nullish(),
+        }),
+        body: zod.string(),
+        createdAt: zod.date(),
+      }),
+    )
+    .max(getCommunityPostResponseCommentPreviewMax),
   viewsCount: zod.number(),
   likedByMe: zod.boolean(),
   canEdit: zod.boolean(),
@@ -1279,6 +1317,8 @@ export const UpdateCommunityPostBody = zod.object({
   isSolved: zod.boolean().optional(),
 });
 
+export const updateCommunityPostResponseCommentPreviewMax = 2;
+
 export const UpdateCommunityPostResponse = zod.object({
   id: zod.number(),
   author: zod.object({
@@ -1303,6 +1343,23 @@ export const UpdateCommunityPostResponse = zod.object({
   myPollVote: zod.number().nullish(),
   likesCount: zod.number(),
   commentsCount: zod.number(),
+  commentPreview: zod
+    .array(
+      zod.object({
+        id: zod.number(),
+        postId: zod.number(),
+        author: zod.object({
+          id: zod.number(),
+          username: zod.string(),
+          accountType: zod.enum(["vip", "normal"]),
+          role: zod.enum(["admin", "formateur", "student"]),
+          profileImageUrl: zod.string().nullish(),
+        }),
+        body: zod.string(),
+        createdAt: zod.date(),
+      }),
+    )
+    .max(updateCommunityPostResponseCommentPreviewMax),
   viewsCount: zod.number(),
   likedByMe: zod.boolean(),
   canEdit: zod.boolean(),

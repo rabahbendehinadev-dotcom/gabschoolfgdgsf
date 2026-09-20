@@ -3075,6 +3075,11 @@ components:
           type: integer
         commentsCount:
           type: integer
+        commentPreview:
+          type: array
+          maxItems: 2
+          items:
+            $ref: "#/components/schemas/CommunityCommentPreview"
         viewsCount:
           type: integer
         likedByMe:
@@ -3103,6 +3108,7 @@ components:
         - isQuestion
         - likesCount
         - commentsCount
+        - commentPreview
         - viewsCount
         - likedByMe
         - canEdit
@@ -3387,6 +3393,27 @@ components:
         - canDelete
         - createdAt
         - replies
+
+    CommunityCommentPreview:
+      type: object
+      properties:
+        id:
+          type: integer
+        postId:
+          type: integer
+        author:
+          $ref: "#/components/schemas/CommunityAuthor"
+        body:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - postId
+        - author
+        - body
+        - createdAt
 
     CommunityCommentsResponse:
       type: object

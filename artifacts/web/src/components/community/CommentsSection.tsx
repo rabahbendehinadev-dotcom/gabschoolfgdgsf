@@ -7,6 +7,7 @@ import {
   useCreateCommunityComment,
   useDeleteCommunityComment,
   getGetCommunityCommentsQueryKey,
+  getGetCommunityFeedQueryKey,
 } from "@workspace/api-client-react/src/generated/api";
 import {
   CommunityComment,
@@ -111,9 +112,11 @@ function CommentBubble({
 export function CommentsSection({
   postId,
   onCountChange,
+  autoFocusComposer = false,
 }: {
   postId: number;
   onCountChange?: (delta: number) => void;
+  autoFocusComposer?: boolean;
 }) {
   const { locale } = useLocale();
   const m = (key: string) => commerceMessage(locale, key);
@@ -129,7 +132,10 @@ export function CommentsSection({
     request: getAuthHeaders(),
   });
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: commentsKey });
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: commentsKey });
+    queryClient.invalidateQueries({ queryKey: getGetCommunityFeedQueryKey() });
+  };
 
   const createComment = useCreateCommunityComment({
     request: getAuthHeaders(),
@@ -201,6 +207,7 @@ export function CommentsSection({
                 }
               }}
               rows={1}
+              autoFocus={autoFocusComposer}
               placeholder={m("commentPlaceholder")}
               className="max-h-28 flex-1 resize-none bg-transparent py-1 text-sm outline-none placeholder:text-muted-foreground font-medium" dir="auto"
             />

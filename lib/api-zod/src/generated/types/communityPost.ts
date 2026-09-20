@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { CommunityAuthor } from "./communityAuthor";
+import type { CommunityCommentPreview } from "./communityCommentPreview";
 import type { CommunityMediaItem } from "./communityMediaItem";
 import type { CommunityPostPostType } from "./communityPostPostType";
 
@@ -27,6 +28,8 @@ export interface CommunityPost {
   myPollVote?: number | null;
   likesCount: number;
   commentsCount: number;
+  /** @maxItems 2 */
+  commentPreview: CommunityCommentPreview[];
   viewsCount: number;
   likedByMe: boolean;
   canEdit: boolean;

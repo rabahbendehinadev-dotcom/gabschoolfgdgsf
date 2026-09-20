@@ -35,6 +35,7 @@ export * from "./communityAuthor";
 export * from "./communityAuthorAccountType";
 export * from "./communityAuthorRole";
 export * from "./communityComment";
+export * from "./communityCommentPreview";
 export * from "./communityCommentsResponse";
 export * from "./communityFeedResponse";
 export * from "./communityInsightPost";

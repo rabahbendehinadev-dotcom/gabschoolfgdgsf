@@ -67,6 +67,13 @@ function authorPayload(row: {
 }
 
 type MediaRow = typeof communityPostMediaTable.$inferSelect;
+type CommentPreview = {
+  id: number;
+  postId: number;
+  author: ReturnType<typeof authorPayload>;
+  body: string;
+  createdAt: string;
+};
 
 function serializeMedia(media: MediaRow, viewerUserId: number, entitled: boolean) {
   const previewUrl = media.previewObjectPath
@@ -124,6 +131,7 @@ function serializePost(
   viewer: Viewer,
   likedByMe: boolean,
   poll?: { votes: number[]; myVote: number | null },
+  commentPreview: CommentPreview[] = [],
 ) {
   const viewerUserId = viewer?.id ?? 0;
   const entitled = isEntitled(viewer, post);
@@ -145,6 +153,7 @@ function serializePost(
     myPollVote: poll?.myVote ?? null,
     likesCount: post.likesCount,
     commentsCount: post.commentsCount,
+    commentPreview,
     viewsCount: post.viewsCount,
     likedByMe,
     canEdit: !!viewer && viewer.id === post.authorUserId,
@@ -272,6 +281,66 @@ async function loadMediaFor(postIds: number[]): Promise<Map<number, MediaRow[]>>
     arr.push(m);
     map.set(m.postId, arr);
   }
+  return map;
+}
+
+async function loadCommentPreviewsFor(postIds: number[]): Promise<Map<number, CommentPreview[]>> {
+  const map = new Map<number, CommentPreview[]>();
+  if (postIds.length === 0) return map;
+
+  const rankedComments = db
+    .select({
+      id: communityCommentsTable.id,
+      postId: communityCommentsTable.postId,
+      userId: communityCommentsTable.userId,
+      body: communityCommentsTable.body,
+      createdAt: communityCommentsTable.createdAt,
+      authorUsername: usersTable.username,
+      authorAccountType: usersTable.accountType,
+      authorCommunityRole: usersTable.communityRole,
+      authorProfileImage: usersTable.profileImage,
+      rowNumber:
+        sql<number>`row_number() over (partition by ${communityCommentsTable.postId} order by ${communityCommentsTable.createdAt} asc, ${communityCommentsTable.id} asc)`.as(
+          "row_number",
+        ),
+    })
+    .from(communityCommentsTable)
+    .leftJoin(usersTable, eq(communityCommentsTable.userId, usersTable.id))
+    .where(
+      and(
+        inArray(communityCommentsTable.postId, postIds),
+        isNull(communityCommentsTable.parentId),
+        eq(communityCommentsTable.isVisible, true),
+        eq(communityCommentsTable.isHidden, false),
+      ),
+    )
+    .as("ranked_community_comments");
+
+  const rows = await db
+    .select()
+    .from(rankedComments)
+    .where(sql`${rankedComments.rowNumber} <= 2`)
+    .orderBy(asc(rankedComments.postId), asc(rankedComments.createdAt), asc(rankedComments.id));
+
+  for (const row of rows) {
+    const preview: CommentPreview = {
+      id: row.id,
+      postId: row.postId,
+      author: authorPayload({
+        authorUserId: row.userId,
+        authorUsername: row.authorUsername,
+        authorAccountType: row.authorAccountType,
+        authorCommunityRole: row.authorCommunityRole,
+        authorProfileImage: row.authorProfileImage,
+      }),
+      body: row.body,
+      createdAt: row.createdAt.toISOString(),
+    };
+    const items = map.get(row.postId) ?? [];
+    items.push(preview);
+    map.set(row.postId, items);
+  }
+
   return map;
 }
 
@@ -505,15 +574,23 @@ router.get("/community/posts", communitySubscriberAuth, async (req, res) => {
     const pagePosts = rows.slice(0, limit);
     const ids = pagePosts.map((p) => p.id);
 
-    const [mediaMap, likedSet, pollMap] = await Promise.all([
+    const [mediaMap, likedSet, pollMap, commentPreviewMap] = await Promise.all([
       loadMediaFor(ids),
       likedPostIds(req.user, ids),
       loadPollsFor(pagePosts, req.user),
+      loadCommentPreviewsFor(ids),
     ]);
 
     res.json({
       posts: pagePosts.map((p) =>
-        serializePost(p, mediaMap.get(p.id) ?? [], req.user, likedSet.has(p.id), pollMap.get(p.id)),
+        serializePost(
+          p,
+          mediaMap.get(p.id) ?? [],
+          req.user,
+          likedSet.has(p.id),
+          pollMap.get(p.id),
+          commentPreviewMap.get(p.id) ?? [],
+        ),
       ),
       nextCursor: hasMore ? offset + limit : null,
     });

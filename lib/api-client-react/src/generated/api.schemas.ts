@@ -817,6 +817,14 @@ export const CommunityPostPostType = {
   poll: "poll",
 } as const;
 
+export interface CommunityCommentPreview {
+  id: number;
+  postId: number;
+  author: CommunityAuthor;
+  body: string;
+  createdAt: string;
+}
+
 export interface CommunityPost {
   id: number;
   author: CommunityAuthor;
@@ -835,6 +843,8 @@ export interface CommunityPost {
   myPollVote?: number | null;
   likesCount: number;
   commentsCount: number;
+  /** @maxItems 2 */
+  commentPreview: CommunityCommentPreview[];
   viewsCount: number;
   likedByMe: boolean;
   canEdit: boolean;
