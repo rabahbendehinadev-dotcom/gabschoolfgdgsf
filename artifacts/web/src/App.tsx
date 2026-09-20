@@ -10,6 +10,7 @@ import { BottomNav } from "@/components/layout/BottomNav";
 import { Footer } from "@/components/layout/Footer";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { NotificationGate } from "@/components/notifications/NotificationGate";
+import { CursorDecodingTrail } from "@/components/layout/CursorDecodingTrail";
 import { useLocale } from "@/i18n";
 
 const Home = lazy(() => import("@/pages/public/Home").then((module) => ({ default: module.Home })));
@@ -236,6 +237,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
+        <CursorDecodingTrail />
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
           <AuthProvider>
             <Suspense

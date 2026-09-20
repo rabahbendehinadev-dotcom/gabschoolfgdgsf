@@ -5,6 +5,11 @@
  * Fine-pointer devices only. Native CSS cursors avoid mouse listeners,
  * animation work, and any effect on touch input.
  */
+.gab-cursor-trail {
+  display: none;
+  pointer-events: none;
+}
+
 @media (hover: hover) and (pointer: fine) {
   html,
   body {
@@ -117,6 +122,60 @@
   :where([data-side="right"][data-state="expanded"] [data-sidebar="rail"],
          [data-side="left"][data-state="collapsed"] [data-sidebar="rail"]) {
     cursor: e-resize !important;
+  }
+
+  .gab-cursor-trail {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 2147483646;
+    overflow: hidden;
+    pointer-events: none;
+    contain: strict;
+  }
+
+  .gab-cursor-code {
+    --trail-x: -8px;
+    --trail-y: -12px;
+    --trail-rotate: 0deg;
+    position: absolute;
+    color: rgb(20 184 166 / 0.46);
+    font: 600 8px/1 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    letter-spacing: -0.04em;
+    white-space: nowrap;
+    pointer-events: none;
+    user-select: none;
+    will-change: transform, opacity;
+    transform: translate3d(-50%, -50%, 0);
+    opacity: 0;
+    animation: gab-cursor-code-fade 620ms cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+  }
+
+  .gab-cursor-code.is-interactive {
+    color: rgb(249 115 22 / 0.58);
+  }
+}
+
+@keyframes gab-cursor-code-fade {
+  0% {
+    opacity: 0;
+    transform: translate3d(-50%, -50%, 0) scale(0.88);
+  }
+  18% {
+    opacity: 0.62;
+  }
+  100% {
+    opacity: 0;
+    transform:
+      translate3d(calc(-50% + var(--trail-x)), calc(-50% + var(--trail-y)), 0)
+      rotate(var(--trail-rotate))
+      scale(0.96);
+  }
+}
+
+@media (prefers-reduced-motion: reduce), (hover: none), (pointer: coarse) {
+  .gab-cursor-trail {
+    display: none !important;
   }
 }
 
