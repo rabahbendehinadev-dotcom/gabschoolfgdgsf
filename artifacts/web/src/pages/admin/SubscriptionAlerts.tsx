@@ -67,6 +67,7 @@ function normalizeWhatsApp(phone: string): string {
 
 const INCONSISTENCY_LABELS: Record<string, string> = {
   "MISSING_PLAN_SCOPE": "Accès au plan non défini",
+  "AMBIGUOUS_LEGACY_COURSE_SCOPE": "Relation de cours legacy ambiguë",
   "DUPLICATE_USER_PLAYLIST": "Accès en double détecté",
   "ACTIVE_ENROLLMENT_OUTSIDE_SCOPE": "Accès à des cours non inclus",
   "MISSING_PLAN_ACCESS": "Accès manquant aux cours",

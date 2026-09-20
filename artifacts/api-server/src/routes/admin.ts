@@ -809,13 +809,15 @@ router.get("/admin/users/expired", adminAuth, async (_req, res) => {
       .where(inArray(usersTable.subscriptionType, ["monthly", "annual", "lifetime"]))
       .orderBy(desc(usersTable.subscriptionExpiresAt));
     const userIds = users.map(u => u.id);
-    const [plans, allScopes, allEnrollments] = await Promise.all([
+    const [plans, allScopes, allEnrollments, allCourseTitles] = await Promise.all([
       db.select({ id: subscriptionPlansTable.id, type: subscriptionPlansTable.type }).from(subscriptionPlansTable),
       db.select({ planId: planCoursesTable.planId, id: planCoursesTable.playlistId, title: playlistsTable.title })
         .from(planCoursesTable).leftJoin(playlistsTable, eq(playlistsTable.id, planCoursesTable.playlistId)),
       userIds.length ? db.select({ userId: userCoursesTable.userId, playlistId: userCoursesTable.playlistId, status: userCoursesTable.status, expiresAt: userCoursesTable.expiresAt, grantedAt: userCoursesTable.grantedAt })
         .from(userCoursesTable).where(inArray(userCoursesTable.userId, userIds)) : Promise.resolve([]),
+      db.select({ id: playlistsTable.id, title: playlistsTable.title }).from(playlistsTable),
     ]);
+    const courseTitleById = new Map(allCourseTitles.map(course => [course.id, course.title]));
     const planByType = new Map(plans.map(p => [p.type, p]));
     const enrollByUser = new Map<number, typeof allEnrollments>();
     for (const e of allEnrollments) {
@@ -830,28 +832,69 @@ router.get("/admin/users/expired", adminAuth, async (_req, res) => {
       const enrollments = enrollByUser.get(u.id) ?? [];
       const historicalStart = enrollments.map(e => e.grantedAt).sort((a, b) => a.getTime() - b.getTime())[0] ?? null;
       const state = entitlementState(u, now, historicalStart);
+      const activeEnrollments = enrollments.filter(e =>
+        e.status === "active" && (!e.expiresAt || e.expiresAt > now));
+      const distinctActiveCourseIds = [...new Set(activeEnrollments.map(e => e.playlistId))];
+      const isLegacyReconstructedPeriod =
+        (u.subscriptionType === "monthly" || u.subscriptionType === "annual") &&
+        u.subscriptionExpiresAt === null &&
+        state.start !== null &&
+        state.end !== null;
+      const legacyCourseId =
+        isLegacyReconstructedPeriod &&
+        distinctActiveCourseIds.length === 1
+          && courseTitleById.has(distinctActiveCourseIds[0])
+          ? distinctActiveCourseIds[0]
+          : null;
+      const legacyCourseScope = legacyCourseId === null
+        ? []
+        : [{
+            planId: plan?.id ?? 0,
+            id: legacyCourseId,
+            title: courseTitleById.get(legacyCourseId)!,
+          }];
+      const effectiveScope = isLegacyReconstructedPeriod ? legacyCourseScope : scope;
       const seen = new Set<number>(), codes = [...state.missing];
-      if (!plan || scope.length === 0) codes.push("MISSING_PLAN_SCOPE");
+      if (isLegacyReconstructedPeriod && legacyCourseId === null) {
+        codes.push("AMBIGUOUS_LEGACY_COURSE_SCOPE");
+      }
+      if (effectiveScope.length === 0) codes.push("MISSING_PLAN_SCOPE");
       for (const e of enrollments) {
         if (seen.has(e.playlistId)) codes.push("DUPLICATE_USER_PLAYLIST");
         seen.add(e.playlistId);
-        if (e.status === "active" && (!e.expiresAt || e.expiresAt > now) && (!state.active || !scope.some(s => s.id === e.playlistId))) codes.push("ACTIVE_ENROLLMENT_OUTSIDE_SCOPE");
+        if (e.status === "active" && (!e.expiresAt || e.expiresAt > now) &&
+            (!state.active || !effectiveScope.some(s => s.id === e.playlistId))) {
+          codes.push("ACTIVE_ENROLLMENT_OUTSIDE_SCOPE");
+        }
       }
-      if (state.active && plan && scope.some(s => !enrollments.some(e => e.playlistId === s.id && e.status === "active" && (!e.expiresAt || e.expiresAt > now)))) codes.push("MISSING_PLAN_ACCESS");
+      if (state.active && effectiveScope.some(s =>
+        !enrollments.some(e =>
+          e.playlistId === s.id &&
+          e.status === "active" &&
+          (!e.expiresAt || e.expiresAt > now)))) {
+        codes.push("MISSING_PLAN_ACCESS");
+      }
       const inconsistencyCodes = [...new Set(codes)];
       rows.push({
         user: { id: u.id, username: u.username, name: u.fullName ?? null, email: u.email, phone: u.phone ?? null },
-        plan: { type: u.subscriptionType, id: plan?.id ?? null },
+        plan: {
+          type: u.subscriptionType,
+          id: plan?.id ?? null,
+          mappingSource: legacyCourseId !== null ? "legacy_course_assignment" : "plan",
+        },
         subscriptionStartedAt: state.start?.toISOString() ?? null,
         subscriptionExpiresAt: state.end?.toISOString() ?? null,
         daysRemaining: state.daysRemaining, subscriptionStatus: state.status,
         effectiveCourseAccess: state.active && enrollments.some(e => e.status === "active" && (!e.expiresAt || e.expiresAt > now)),
         assignedCourses: enrollments.filter(e => e.status === "active" && (!e.expiresAt || e.expiresAt > now)).map(e => ({
-          id: e.playlistId, name: allScopes.find(s => s.id === e.playlistId)?.title ?? `Course #${e.playlistId}`,
+          id: e.playlistId, name: courseTitleById.get(e.playlistId) ?? `Course #${e.playlistId}`,
         })),
-        expectedPlanCourses: scope.map(s => ({ id: s.id, name: s.title })),
-        inconsistencyCodes, deterministicFixAvailable: !!plan && scope.length > 0 &&
-          new Set(scope.map(s => s.id)).size === scope.length && state.missing.length === 0,
+        expectedPlanCourses: effectiveScope.map(s => ({ id: s.id, name: s.title })),
+        inconsistencyCodes,
+        deterministicFixAvailable: !isLegacyReconstructedPeriod &&
+          effectiveScope.length > 0 &&
+          new Set(effectiveScope.map(s => s.id)).size === effectiveScope.length &&
+          state.missing.length === 0,
         isExpiringSoon: state.active && state.daysRemaining !== null && state.daysRemaining >= 0 && state.daysRemaining <= soonThreshold(u.subscriptionType),
       });
     }

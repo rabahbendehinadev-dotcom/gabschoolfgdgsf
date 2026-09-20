@@ -55,7 +55,10 @@ grant access beyond what an admin intended.
 one clamped calendar month/year after the original activation. Use the same
 account-level activation for every course so later grants cannot reopen an
 expired period. At `now >= end`, deny access. Truly ambiguous dates remain
-denied; ambiguous plan scope remains read-only during reconciliation.
+denied. In the admin inconsistency report, a reconstructed legacy subscription
+with exactly one active, existing course uses that assignment as its legacy
+scope without requiring a modern plan. Zero, multiple, duplicate, or dangling
+course relationships remain flagged and read-only during reconciliation.
 
 ## Admin panel path
 `/gab-ctrl-9x` (obfuscated) — not `/admin`
