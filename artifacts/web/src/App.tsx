@@ -56,7 +56,7 @@ function PublicLayout({ children }: { children: React.ReactNode }) {
   const { direction } = useLocale();
   return (
     <div
-      className="min-h-screen flex flex-col pb-[var(--mobile-bottom-nav-height)] lg:pb-0"
+      className="min-h-screen flex flex-col pb-[var(--mobile-bottom-nav-height)] xl:pb-0"
       dir={direction}
       style={{ "--mobile-bottom-nav-height": "calc(70px + 1px + env(safe-area-inset-bottom))" } as React.CSSProperties}
     >
