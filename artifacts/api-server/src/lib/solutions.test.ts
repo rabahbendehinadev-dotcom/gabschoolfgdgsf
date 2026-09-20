@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { isSolutionsEntitled, solutionCard, solutionCoverImageId, solutionInputSchema, solutionContentSchema, emptySolutionContent, assertSolutionImageRefs, aiSolutionSchema, normalizeAiSolutionResources } from "./solutions";
+import { isSolutionsEntitled, solutionCard, solutionCoverImageId, solutionInputSchema, solutionContentSchema, emptySolutionContent, assertSolutionImageRefs, aiSolutionSchema, normalizeAiSolutionResources, safePublicMetadata } from "./solutions";
 import { canAccessAdminApi, hasAdminPermission } from "./adminSecurity";
 import { isProtectedSolutionStoragePath } from "./solutionStorage";
 import { ObjectStorageService, ObjectNotFoundError, parseObjectPath, signObjectURL } from "./objectStorage";
@@ -16,14 +16,30 @@ test("solutions entitlement requires an active non-expired VIP account", () => {
   assert.equal(isSolutionsEntitled(undefined), false);
 });
 test("public projection has no protected content, downloads, storage refs, or raw notes", () => {
-  const row = { id: 1, slug: "test", title: "Phone", excerpt: "Repair available", brand: "Brand", model: "Model", category: "Repair", subcategory: "", tool: "Tool", tags: [], coverImageId: "private-uuid", aiCoverImageId: null, customCoverImageId: null, publishedAt: new Date("2026-01-01"), rawInput: "PRIVATE", content: { resources: [{ url: "https://secret.example/file" }], steps: ["PRIVATE"] }, objectPath: "/objects/solutions/secret", generationError: "PRIVATE", imageIds: ["PRIVATE"] };
+  const row = { id: 1, slug: "brand-model-repair", publicTitle: "Brand Model — Repair", publicExcerpt: "Solution technique pour le problème Repair sur Brand Model.", publicCategory: "Repair", title: "Phone using PRIVATE Tool", excerpt: "PRIVATE method", brand: "Brand", model: "Model", category: "Repair", subcategory: "PRIVATE Mode", tool: "PRIVATE Tool", tags: ["PRIVATE"], coverImageId: "private-uuid", aiCoverImageId: null, customCoverImageId: null, publishedAt: new Date("2026-01-01"), rawInput: "PRIVATE", content: { resources: [{ url: "https://secret.example/file" }], steps: ["PRIVATE"] }, objectPath: "/objects/solutions/secret", generationError: "PRIVATE", imageIds: ["PRIVATE"] };
   const publicData = solutionCard(row);
   const json = JSON.stringify(publicData);
   assert.equal(json.includes("PRIVATE"), false);
   assert.equal(json.includes("secret"), false);
   assert.equal(json.includes("private-uuid"), false);
-  assert.deepEqual(Object.keys(publicData).sort(), ["id", "slug", "title", "excerpt", "brand", "model", "category", "subcategory", "tool", "tags", "coverUrl", "publishedAt"].sort());
+  assert.deepEqual(Object.keys(publicData).sort(), ["id", "slug", "title", "excerpt", "brand", "model", "category", "coverUrl", "publishedAt"].sort());
   assert.equal(solutionCard({ ...row, coverImageId: null }).coverUrl, null);
+});
+test("safe public metadata contains only brand, model and problem", () => {
+  const safe = safePublicMetadata({ brand: "Tecno", model: "Spark 30C", category: "FRP" });
+  assert.deepEqual(safe, {
+    title: "Tecno Spark 30C — FRP",
+    excerpt: "Solution technique pour le problème FRP sur Tecno Spark 30C.",
+    slug: "tecno-spark-30c-frp",
+    category: "FRP",
+  });
+  assert.equal(JSON.stringify(safe).includes("UnlockTool"), false);
+  assert.equal(JSON.stringify(safe).includes("Meta Mode"), false);
+  const adversarial = safePublicMetadata({ brand: "Tecno", model: "Spark 30C", category: "FRP via Meta Mode using UnlockTool", subcategory: "Meta Mode", tool: "UnlockTool" });
+  assert.equal(adversarial.category, "FRP");
+  assert.equal(adversarial.slug, "tecno-spark-30c-frp");
+  assert.equal(JSON.stringify(adversarial).includes("Meta"), false);
+  assert.equal(JSON.stringify(adversarial).includes("UnlockTool"), false);
 });
 test("cover priority is custom, AI, selected screenshot, then neutral placeholder", () => {
   const first = "a8a43081-1f88-40bf-a4eb-334b18fb8043";

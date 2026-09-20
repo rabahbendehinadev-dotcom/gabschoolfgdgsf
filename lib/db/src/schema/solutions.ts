@@ -11,6 +11,9 @@ export const solutionsTable = pgTable("solutions", {
   slug: text("slug").notNull().unique(),
   title: text("title").notNull().default(""),
   excerpt: text("excerpt").notNull().default(""),
+  publicTitle: text("public_title").notNull().default(""),
+  publicExcerpt: text("public_excerpt").notNull().default(""),
+  publicCategory: text("public_category").notNull().default(""),
   brand: text("brand").notNull().default(""),
   model: text("model").notNull().default(""),
   category: text("category").notNull().default(""),
@@ -42,3 +45,8 @@ export const solutionImagesTable = pgTable("solution_images", {
   width: integer("width").notNull(),
   height: integer("height").notNull(),
 }, t => [index("solution_images_solution_idx").on(t.solutionId)]);
+export const solutionSlugHistoryTable = pgTable("solution_slug_history", {
+  oldSlug: text("old_slug").primaryKey(),
+  solutionId: integer("solution_id").notNull().references(() => solutionsTable.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, t => [index("solution_slug_history_solution_idx").on(t.solutionId)]);

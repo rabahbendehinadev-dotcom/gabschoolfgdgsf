@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
-import { useAdminSolution, useAdminSolutionMutations, useSolutionTaxonomiesPublic } from "@/features/solutions/use-solutions";
+import { useAdminSolution, useAdminSolutionMutations, useSolutionTaxonomiesAdmin } from "@/features/solutions/use-solutions";
 import { SolutionArticle, SolutionImage } from "@/features/solutions/Article";
 import type { SolutionDraftInput, SolutionDraft, SolutionMedia, SolutionContent, SolutionCard, SolutionResource } from "@/features/solutions/contract";
 
@@ -26,7 +26,7 @@ function writable(d: SolutionDraftInput): SolutionDraftInput {
   return Object.fromEntries(writableKeys.filter(k => k in d).map(k => [k, d[k]]));
 }
 function editable(d: SolutionDraftInput): SolutionDraftInput {
-  const keys = [...writableKeys, "aiCoverImageId", "customCoverImageId", "coverSource", "coverGenerationError"] as const;
+  const keys = [...writableKeys, "publicTitle", "publicExcerpt", "aiCoverImageId", "customCoverImageId", "coverSource", "coverGenerationError"] as const;
   return Object.fromEntries(keys.filter(k => k in d).map(k => [k, d[k]]));
 }
 function move<T>(items: T[], from: number, to: number): T[] {
@@ -41,7 +41,7 @@ export function AdminSolutionForm({ id: routeId }: { id?: string }) {
   const backupKey = `solutions-composer:${admin?.id}:${routeNumber || "new"}`;
   const { data: solution, isLoading, error: loadError } = useAdminSolution(routeNumber);
   const mutations = useAdminSolutionMutations();
-  const { data: taxonomy } = useSolutionTaxonomiesPublic();
+  const { data: taxonomy } = useSolutionTaxonomiesAdmin();
   const { toast } = useToast();
   const [draft, setDraft] = useState<SolutionDraftInput>({ content: emptyContent, rawInput: "", imageIds: [] });
   const [images, setImages] = useState<SolutionMedia[]>([]);
@@ -280,7 +280,17 @@ export function AdminSolutionForm({ id: routeId }: { id?: string }) {
         <div className="p-6 pt-0 space-y-6">
       <Card className="p-6 space-y-6 shadow-none">
         <h2 className="font-bold text-lg">Métadonnées générées</h2>
-        <div className="grid sm:grid-cols-2 gap-4">{([["title", "Titre"], ["slug", "Slug SEO"], ["brand", "Marque"], ["model", "Modèle"], ["category", "Catégorie"], ["subcategory", "Sous-catégorie"], ["tool", "Outil"]] as const).map(([key, label]) => <label key={key}>{label}<Input value={draft[key] || ""} list={`solution-${key}`} onChange={e => change({ [key]: e.target.value })} /><datalist id={`solution-${key}`}>{key === "tool" ? taxonomy?.tools.map(tool => <option key={tool} value={tool} />) : taxonomy?.taxonomies.filter(t => t.kind === key && (key !== "subcategory" || taxonomy.taxonomies.find(parent => parent.id === t.parentId)?.name === draft.category)).map(t => <option key={t.id} value={t.name} />)}</datalist></label>)}</div>
+        <div className="grid sm:grid-cols-2 gap-4">{([["title", "Titre VIP/interne"], ["slug", "Slug public sécurisé"], ["brand", "Marque"], ["model", "Modèle"], ["category", "Catégorie publique"], ["subcategory", "Méthode / sous-catégorie VIP"], ["tool", "Outil VIP"]] as const).map(([key, label]) => <label key={key}>{label}<Input value={draft[key] || ""} list={`solution-${key}`} readOnly={key === "slug"} onChange={e => change({ [key]: e.target.value })} /><datalist id={`solution-${key}`}>{taxonomy?.taxonomies.filter(t => t.kind === key && (key !== "subcategory" || taxonomy.taxonomies.find(parent => parent.id === t.parentId)?.name === draft.category)).map(t => <option key={t.id} value={t.name} />)}</datalist></label>)}</div>
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 space-y-2">
+          <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">PUBLIC PREVIEW — appareil + problème uniquement</p>
+          <p className="font-bold text-slate-900">{draft.publicTitle || [draft.brand, draft.model, draft.category].filter(Boolean).join(" — ")}</p>
+          <p className="text-sm text-slate-600">{draft.publicExcerpt || "La description publique sécurisée sera générée automatiquement."}</p>
+          <p className="text-xs text-slate-500">Slug : {draft.slug || "généré automatiquement"}</p>
+        </div>
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <p className="text-xs font-bold uppercase tracking-wide text-amber-800">VIP CONTENT — protégé côté serveur</p>
+          <p className="text-sm text-slate-700">Titre complet, outil, méthode, procédure, captures techniques et ressources.</p>
+        </div>
         <label className="block">Extrait public<Textarea value={draft.excerpt || ""} onChange={e => change({ excerpt: e.target.value })} /></label>
         {(["tags", "keywords"] as const).map(key => <label className="block" key={key}>{key === "tags" ? "Tags" : "Mots-clés de recherche"} (séparés par virgules)<Input value={(draft[key] || []).join(",")} onChange={e => change({ [key]: e.target.value.split(",") })} /></label>)}
       </Card>

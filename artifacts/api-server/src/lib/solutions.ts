@@ -57,16 +57,40 @@ export function solutionCoverImageId(row: {
   return row.customCoverImageId ?? row.aiCoverImageId ?? row.coverImageId ?? null;
 }
 
+export function safeProblemCategory(input: { category: string; subcategory?: string; tool?: string }) {
+  let value = input.category.trim();
+  for (const protectedValue of [input.tool, input.subcategory]) {
+    if (!protectedValue?.trim()) continue;
+    value = value.replace(new RegExp(protectedValue.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "ig"), "");
+  }
+  value = value.split(/\b(?:using|via|avec|par|mode|method|méthode|outil|tool|software|logiciel)\b|[|/]/i)[0] ?? "";
+  return value.replace(/[-–—:,\s]+$/g, "").trim().slice(0, 120) || "Réparation";
+}
+
+export function safePublicMetadata(input: { brand: string; model: string; category: string; subcategory?: string; tool?: string }) {
+  const device = [input.brand, input.model].map(value => value.trim()).filter(Boolean).join(" ");
+  const problem = safeProblemCategory(input);
+  const title = [device, problem].filter(Boolean).join(" — ") || "Solution technique";
+  const excerpt = problem && device
+    ? `Solution technique pour le problème ${problem} sur ${device}.`
+    : "Solution technique réservée aux membres VIP.";
+  const slug = [input.brand, input.model, problem].join(" ")
+    .normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")
+    .slice(0, 180) || "solution-technique";
+  return { title, excerpt, slug, category: problem };
+}
+
 /** Explicit allowlist: never spread DB rows into a visitor response. */
 export function solutionCard(row: {
-  id: number; slug: string; title: string; excerpt: string; brand: string; model: string; category: string;
-  subcategory: string; tool: string; tags: string[]; coverImageId: string | null; aiCoverImageId: string | null;
+  id: number; slug: string; publicTitle: string; publicExcerpt: string; publicCategory: string; brand: string; model: string; category: string;
+  coverImageId: string | null; aiCoverImageId: string | null;
   customCoverImageId: string | null; imageIds: string[]; publishedAt: Date | null;
 }) {
   return {
-    id: row.id, slug: row.slug, title: row.title, excerpt: row.excerpt, brand: row.brand,
-    model: row.model, category: row.category, subcategory: row.subcategory, tool: row.tool,
-    tags: row.tags, coverUrl: solutionCoverImageId(row) ? `/api/solutions/${encodeURIComponent(row.slug)}/cover` : null,
+    id: row.id, slug: row.slug, title: row.publicTitle, excerpt: row.publicExcerpt, brand: row.brand,
+    model: row.model, category: row.publicCategory,
+    coverUrl: row.aiCoverImageId ? `/api/solutions/${encodeURIComponent(row.slug)}/cover` : null,
     publishedAt: row.publishedAt?.toISOString() ?? null,
   };
 }

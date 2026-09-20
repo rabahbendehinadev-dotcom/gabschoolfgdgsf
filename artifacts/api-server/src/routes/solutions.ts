@@ -1,14 +1,14 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import { randomUUID } from "node:crypto";
 import { and, eq, desc, or, sql, count, getTableColumns, isNull, type SQL } from "drizzle-orm";
-import { db, solutionsTable as solutions, solutionImagesTable as images, solutionTaxonomiesTable as taxonomies } from "@workspace/db";
+import { db, solutionsTable as solutions, solutionImagesTable as images, solutionTaxonomiesTable as taxonomies, solutionSlugHistoryTable as slugHistory } from "@workspace/db";
 import multer from "multer";
 import sharp from "sharp";
 import OpenAI from "openai";
 import { z } from "zod";
 import { adminAuth, optionalUserAuth } from "../middlewares/auth";
 import { hasAdminPermission } from "../lib/adminSecurity";
-import { aiSolutionSchema, solutionInputSchema, solutionContentSchema, emptySolutionContent, solutionCard, solutionCoverImageId, isSolutionsEntitled, assertSolutionImageRefs, normalizeAiSolutionResources } from "../lib/solutions";
+import { aiSolutionSchema, solutionInputSchema, solutionContentSchema, emptySolutionContent, solutionCard, solutionCoverImageId, isSolutionsEntitled, assertSolutionImageRefs, normalizeAiSolutionResources, safePublicMetadata } from "../lib/solutions";
 import { saveSolutionImage, readSolutionImage } from "../lib/solutionStorage";
 import { createNotification } from "../lib/notifications";
 import { buildSolutionPublishedNotification, isFirstSolutionPublication } from "../lib/solutionNotifications";
@@ -58,9 +58,20 @@ function mediaProjection(image: typeof images.$inferSelect, admin = false) {
 async function full(row: Row, admin = false) {
   const attached = await db.select().from(images).where(eq(images.solutionId, row.id));
   const ordered = row.imageIds.flatMap(id => { const image = attached.find(i => i.id === id); return image ? [mediaProjection(image, admin)] : []; });
-  const base = { ...solutionCard(row), content: row.content, images: ordered };
+  const base = {
+    ...solutionCard(row),
+    title: row.title,
+    excerpt: row.excerpt,
+    subcategory: row.subcategory,
+    tool: row.tool,
+    tags: row.tags,
+    content: row.content,
+    images: ordered,
+  };
   return admin ? {
     ...base,
+    publicTitle: row.publicTitle,
+    publicExcerpt: row.publicExcerpt,
     status: row.status,
     rawInput: row.rawInput,
     keywords: row.keywords,
@@ -75,6 +86,18 @@ async function full(row: Row, admin = false) {
     updatedAt: row.updatedAt.toISOString(),
   } : base;
 }
+type SlugQueryExecutor = Pick<typeof db, "select">;
+async function allocateSafeSlug(executor: SlugQueryExecutor, metadata: { brand: string; model: string; category: string; subcategory?: string; tool?: string }, id: number) {
+  const base = safePublicMetadata(metadata).slug;
+  for (let attempt = 0; ; attempt++) {
+    const candidate = attempt === 0 ? base : attempt === 1 ? `${base}-${id}` : `${base}-${id}-${attempt}`;
+    const [[current], [legacy]] = await Promise.all([
+      executor.select({ id: solutions.id }).from(solutions).where(and(eq(solutions.slug, candidate), sql`${solutions.id} <> ${id}`)).limit(1),
+      executor.select({ solutionId: slugHistory.solutionId }).from(slugHistory).where(and(eq(slugHistory.oldSlug, candidate), sql`${slugHistory.solutionId} <> ${id}`)).limit(1),
+    ]);
+    if (!current && !legacy) return candidate;
+  }
+}
 async function updateDraft(id: number, body: unknown) {
   const input = solutionInputSchema.parse(body);
   return db.transaction(async tx => {
@@ -84,7 +107,20 @@ async function updateDraft(id: number, body: unknown) {
     const owned = await tx.select({ id: images.id }).from(images).where(eq(images.solutionId, id));
     const merged = { ...row, ...input, content: solutionContentSchema.parse(input.content ?? row.content) };
     assertSolutionImageRefs(merged, owned.map(i => i.id));
-    const [updated] = await tx.update(solutions).set({ ...input, updatedAt: new Date() }).where(eq(solutions.id, id)).returning(versionedColumns);
+    const publicMetadata = safePublicMetadata(merged);
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('solutions-public-metadata'))`);
+    const safeSlug = await allocateSafeSlug(tx, merged, id);
+    if (row.publishedAt && row.slug !== safeSlug) {
+      await tx.insert(slugHistory).values({ oldSlug: row.slug, solutionId: id }).onConflictDoNothing();
+    }
+    const [updated] = await tx.update(solutions).set({
+      ...input,
+      slug: safeSlug,
+      publicTitle: publicMetadata.title,
+      publicExcerpt: publicMetadata.excerpt,
+      publicCategory: publicMetadata.category,
+      updatedAt: new Date(),
+    }).where(eq(solutions.id, id)).returning(versionedColumns);
     return updated;
   });
 }
@@ -92,8 +128,10 @@ function listWhere(req: Request, admin: boolean) {
   const conditions: SQL[] = [];
   if (!admin) conditions.push(eq(solutions.status, "published"));
   else if (req.query.status === "draft" || req.query.status === "published") conditions.push(eq(solutions.status, req.query.status));
-  for (const key of ["brand", "category", "tool"] as const) {
-    if (typeof req.query[key] === "string" && req.query[key]) conditions.push(eq(solutions[key], req.query[key] as string));
+  for (const key of (admin ? ["brand", "category", "tool"] : ["brand", "category"]) as readonly ("brand" | "category" | "tool")[]) {
+    if (typeof req.query[key] === "string" && req.query[key]) {
+      conditions.push(!admin && key === "category" ? eq(solutions.publicCategory, req.query[key] as string) : eq(solutions[key], req.query[key] as string));
+    }
   }
   const search = typeof req.query.search === "string" ? req.query.search.trim().slice(0, 200) : "";
   // Token-prefix full text handles short model/tool searches with an indexed metadata-only vector.
@@ -101,7 +139,9 @@ function listWhere(req: Request, admin: boolean) {
     const terms = search.match(/[\p{L}\p{N}]+/gu) ?? [];
     if (terms.length) {
       const query = terms.map(t => `${t}:*`).join(" & ");
-      const vector = sql`to_tsvector('simple', ${solutions.title} || ' ' || ${solutions.brand} || ' ' || ${solutions.model} || ' ' || ${solutions.category} || ' ' || ${solutions.tool} || ' ' || ${solutions.tags}::text || ' ' || ${solutions.keywords}::text)`;
+      const vector = admin
+        ? sql`to_tsvector('simple', ${solutions.title} || ' ' || ${solutions.brand} || ' ' || ${solutions.model} || ' ' || ${solutions.category} || ' ' || ${solutions.tool} || ' ' || ${solutions.tags}::text || ' ' || ${solutions.keywords}::text)`
+        : sql`to_tsvector('simple', ${solutions.publicTitle} || ' ' || ${solutions.publicExcerpt} || ' ' || ${solutions.brand} || ' ' || ${solutions.model} || ' ' || ${solutions.publicCategory})`;
       // Preserve PostgreSQL's own tokenization for exact hyphenated model IDs:
       // "-157b" can become signed-number + word tokens, unlike our prefix split.
       conditions.push(sql`(${vector} @@ to_tsquery('simple', ${query}) OR ${vector} @@ plainto_tsquery('simple', ${search}))`);
@@ -127,19 +167,25 @@ async function list(req: Request, res: Response, admin = false) {
 router.get("/solutions", optionalUserAuth, (req, res) => list(req, res));
 router.get(adminBase, (req, res) => list(req, res, true));
 router.get("/solutions/taxonomies", async (_req, res) => {
-  const [rows, brands, categories, tools] = await Promise.all([
+  const [rows, brands, categories] = await Promise.all([
     db.select().from(taxonomies).orderBy(taxonomies.name),
     db.selectDistinct({ name: solutions.brand }).from(solutions).where(eq(solutions.status, "published")),
-    db.selectDistinct({ name: solutions.category }).from(solutions).where(eq(solutions.status, "published")),
-    db.selectDistinct({ tool: solutions.tool }).from(solutions).where(eq(solutions.status, "published")).orderBy(solutions.tool),
+    db.selectDistinct({ name: solutions.publicCategory }).from(solutions).where(eq(solutions.status, "published")),
   ]);
-  // Keep actual taxonomy records/IDs untouched for admin CRUD. Discovery options
-  // also include free-text metadata (including AI proposals) once published.
-  // Preserve exact values because list filtering uses exact metadata equality.
-  const options = (kind: string, published: { name: string }[]) =>
-    [...new Set([...rows.filter(t => t.kind === kind).map(t => t.name), ...published.map(t => t.name)])]
-      .filter(name => name.trim().length > 0).sort((a, b) => a.localeCompare(b));
-  res.json({ taxonomies: rows, brands: options("brand", brands), categories: options("category", categories), tools: tools.map(t => t.tool).filter(Boolean) });
+  const brandNames = [...new Set(brands.map(item => item.name).filter(name => name.trim().length > 0))].sort((a, b) => a.localeCompare(b));
+  const categoryNames = [...new Set(categories.map(item => item.name).filter(name => name.trim().length > 0))].sort((a, b) => a.localeCompare(b));
+  res.json({
+    taxonomies: rows.filter(row =>
+      (row.kind === "brand" && brandNames.includes(row.name)) ||
+      (row.kind === "category" && categoryNames.includes(row.name))
+    ),
+    brands: brandNames,
+    categories: categoryNames,
+  });
+});
+router.get(`${adminBase}/taxonomies`, async (_req, res) => {
+  const rows = await db.select().from(taxonomies).orderBy(taxonomies.name);
+  res.json({ taxonomies: rows });
 });
 const taxonomyInput = z.object({ kind: z.enum(["brand", "category", "subcategory"]), name: z.string().trim().min(1).max(120), parentId: z.number().int().positive().nullable().optional() }).strict();
 async function validateTaxonomy(input: z.infer<typeof taxonomyInput>) {
@@ -182,10 +228,20 @@ async function sendImage(req: Request, res: Response, admin: boolean) {
 }
 router.get(`${adminBase}/images/:id`, (req, res) => sendImage(req, res, true));
 router.get("/solutions/images/:id", optionalUserAuth, (req, res) => sendImage(req, res, false));
+async function resolvePublishedSlug(slug: string) {
+  const [current] = await db.select().from(solutions).where(and(eq(solutions.slug, slug), eq(solutions.status, "published"))).limit(1);
+  if (current) return { row: current, redirected: false };
+  const [legacy] = await db.select({ solutionId: slugHistory.solutionId }).from(slugHistory).where(eq(slugHistory.oldSlug, slug)).limit(1);
+  if (!legacy) return null;
+  const [row] = await db.select().from(solutions).where(and(eq(solutions.id, legacy.solutionId), eq(solutions.status, "published"))).limit(1);
+  return row ? { row, redirected: true } : null;
+}
 router.get("/solutions/:slug/cover", async (req, res) => {
-  const [row] = await db.select().from(solutions).where(and(eq(solutions.slug, String(req.params.slug)), eq(solutions.status, "published"))).limit(1);
+  const resolved = await resolvePublishedSlug(String(req.params.slug));
+  if (resolved?.redirected) { res.redirect(308, `/api/solutions/${encodeURIComponent(resolved.row.slug)}/cover`); return; }
+  const row = resolved?.row;
   if (!row) { res.sendStatus(404); return; }
-  const coverImageId = solutionCoverImageId(row);
+  const coverImageId = row.aiCoverImageId;
   if (!coverImageId) { res.sendStatus(404); return; }
   const [image] = await db.select().from(images).where(and(eq(images.id, coverImageId), eq(images.solutionId, row.id)));
   if (!image) { res.sendStatus(404); return; }
@@ -193,9 +249,11 @@ router.get("/solutions/:slug/cover", async (req, res) => {
   res.type("webp").send(await readSolutionImage(image.objectPath));
 });
 router.get("/solutions/:slug", optionalUserAuth, async (req, res) => {
-  const [row] = await db.select().from(solutions).where(and(eq(solutions.slug, String(req.params.slug)), eq(solutions.status, "published"))).limit(1);
+  const resolved = await resolvePublishedSlug(String(req.params.slug));
+  if (resolved?.redirected) { res.redirect(308, `/api/solutions/${encodeURIComponent(resolved.row.slug)}`); return; }
+  const row = resolved?.row;
   if (!row) { res.status(404).json({ message: "Solution not found" }); return; }
-  const matches = [row.model && eq(solutions.model, row.model), row.brand && eq(solutions.brand, row.brand), row.category && eq(solutions.category, row.category), row.tool && eq(solutions.tool, row.tool)].filter(Boolean) as SQL[];
+  const matches = [row.model && eq(solutions.model, row.model), row.brand && eq(solutions.brand, row.brand), row.category && eq(solutions.category, row.category)].filter(Boolean) as SQL[];
   const related = matches.length ? await db.select().from(solutions).where(and(eq(solutions.status, "published"), sql`${solutions.id} <> ${row.id}`, or(...matches))).orderBy(desc(solutions.publishedAt)).limit(6) : [];
   const entitled = isSolutionsEntitled(req.user);
   res.json({ solution: entitled ? await full(row) : solutionCard(row), entitled, related: related.map(solutionCard) });
@@ -203,7 +261,14 @@ router.get("/solutions/:slug", optionalUserAuth, async (req, res) => {
 router.post(adminBase, async (req, res) => {
   const input = solutionInputSchema.parse(req.body ?? {});
   assertSolutionImageRefs(input, []);
-  const [row] = await db.insert(solutions).values({ ...input, slug: input.slug ?? `draft-${randomUUID()}`, content: input.content ?? emptySolutionContent, createdBy: req.admin!.id }).returning();
+  const row = await db.transaction(async tx => {
+    const [created] = await tx.insert(solutions).values({ ...input, slug: `draft-${randomUUID()}`, content: input.content ?? emptySolutionContent, createdBy: req.admin!.id }).returning();
+    const metadata = safePublicMetadata(created);
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('solutions-public-metadata'))`);
+    const safeSlug = await allocateSafeSlug(tx, created, created.id);
+    const [updated] = await tx.update(solutions).set({ slug: safeSlug, publicTitle: metadata.title, publicExcerpt: metadata.excerpt, publicCategory: metadata.category }).where(eq(solutions.id, created.id)).returning();
+    return updated;
+  });
   res.status(201).json(await full(row, true));
 });
 router.get(`${adminBase}/:id`, async (req, res) => {
@@ -365,14 +430,12 @@ router.post(`${adminBase}/:id/publish`, async (req, res) => {
 
 function coverPrompt(row: Row): string {
   const device = [row.brand, row.model].filter(Boolean).join(" ").trim() || "smartphone";
-  const operation = row.category || row.title || "technical repair";
-  const method = row.subcategory || "";
-  const tool = row.tool || "";
+  const operation = row.publicCategory || safePublicMetadata(row).category;
   return `Create one professional landscape thumbnail for the GAB ONLINE Solutions Techniques training platform.
 Visual identity: premium smartphone repair aesthetic, dark graphite technical background, GAB orange accents, subtle orange glow and restrained circuit/diagnostic lines, clean high-contrast composition, realistic device visual relevant to ${device}, and repair/software cues relevant to ${operation}.
 The image must immediately communicate DEVICE + OPERATION + TECHNICAL REPAIR.
-Include only these short labels, spelled exactly: "${device}", "${operation}"${method ? `, "${method}"` : ""}${tool ? `, and a small "${tool}" badge` : ""}.
-Do not include the full article title. Do not use screenshots, stock-photo styling, excessive text, unrelated logos, instructions, passwords, or UI captures. Keep important content away from the outer edges.`;
+Include only GAB ONLINE branding and these short labels, spelled exactly: "${device}" and "${operation}".
+Never include a tool name, software name, method, mode, procedure, technical step, full article title, screenshot, password, or UI capture. Do not infer extra labels from the repair context. Keep important content away from the outer edges.`;
 }
 
 async function generateCover(row: Row): Promise<Row> {
@@ -477,8 +540,25 @@ router.post(`${adminBase}/:id/generate`, rateLimit("ai", 8), async (req, res) =>
     generated.imageIds = row.imageIds;
     generated.coverImageId = row.coverImageId;
     assertSolutionImageRefs(generated, attached.map(i => i.id));
-    generated.reviewFlags = Array.from(new Set(["Verify all technical steps and public teaser before publishing.", ...generated.reviewFlags]));
-    const [updated] = await db.update(solutions).set({ ...generated, generationError: null, updatedAt: new Date() }).where(and(eq(solutions.id, row.id), eq(solutions.status, "draft"), sql`xmin::text = ${row.rowVersion}`)).returning();
+    generated.reviewFlags = Array.from(new Set(["Verify all technical steps before publishing.", ...generated.reviewFlags]));
+    const publicMetadata = safePublicMetadata(generated);
+    const updated = await db.transaction(async tx => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('solutions-public-metadata'))`);
+      const safeSlug = await allocateSafeSlug(tx, generated, row.id);
+      if (row.publishedAt && row.slug !== safeSlug) {
+        await tx.insert(slugHistory).values({ oldSlug: row.slug, solutionId: row.id }).onConflictDoNothing();
+      }
+      const [saved] = await tx.update(solutions).set({
+        ...generated,
+        slug: safeSlug,
+        publicTitle: publicMetadata.title,
+        publicExcerpt: publicMetadata.excerpt,
+        publicCategory: publicMetadata.category,
+        generationError: null,
+        updatedAt: new Date(),
+      }).where(and(eq(solutions.id, row.id), eq(solutions.status, "draft"), sql`xmin::text = ${row.rowVersion}`)).returning();
+      return saved;
+    });
     if (!updated) { res.status(409).json({ message: "Draft changed during generation; saved edits were preserved. Retry generation." }); return; }
     let completed = updated;
     try {

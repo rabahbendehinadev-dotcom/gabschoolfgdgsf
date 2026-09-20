@@ -11,16 +11,16 @@ test("published solution notification targets the existing active-user audience 
   const notification = buildSolutionPublishedNotification({
     id: 7,
     slug: "tecno-spark-30c-frp",
-    title: "Tecno Spark 30C FRP via Meta Mode",
-    excerpt: "Protected teaser",
+    publicTitle: "Tecno Spark 30C — FRP",
+    publicExcerpt: "Solution technique pour le problème FRP sur Tecno Spark 30C.",
     brand: "Tecno",
     model: "Spark 30C",
     category: "FRP",
-    tool: "UnlockTool",
+    publicCategory: "FRP",
   }, 3);
   assert.equal(notification.audienceType, "all");
   assert.equal(notification.title, "🛠️ حل تقني جديد");
-  assert.equal(notification.body, "Tecno Spark 30C — FRP باستخدام UnlockTool");
+  assert.equal(notification.body, "Tecno Spark 30C — FRP");
   assert.equal(notification.targetPath, "/solutions/tecno-spark-30c-frp");
   assert.equal(notification.dedupeKey, "solution-published-7");
   assert.equal(notification.adminId, 3);

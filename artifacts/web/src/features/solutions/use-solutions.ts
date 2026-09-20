@@ -34,7 +34,7 @@ async function responseError(response: Response): Promise<never> {
   throw Object.assign(new Error(data?.error || data?.message || `Erreur serveur (${response.status})`), { status: response.status, data });
 }
 
-export function useSolutionsPublic(params: { search?: string; brand?: string; category?: string; tool?: string; page?: number; pageSize?: number }) {
+export function useSolutionsPublic(params: { search?: string; brand?: string; category?: string; page?: number; pageSize?: number }) {
   const { getAuthHeaders, token } = useAuth();
 
   return useQuery({
@@ -44,7 +44,6 @@ export function useSolutionsPublic(params: { search?: string; brand?: string; ca
       if (params.search) q.set("search", params.search);
       if (params.brand) q.set("brand", params.brand);
       if (params.category) q.set("category", params.category);
-      if (params.tool) q.set("tool", params.tool);
       if (params.page) q.set("page", params.page.toString());
       if (params.pageSize) q.set("pageSize", params.pageSize.toString());
 
@@ -62,8 +61,22 @@ export function useSolutionTaxonomiesPublic() {
     queryFn: async () => {
       const res = await fetch("/api/solutions/taxonomies", getAuthHeaders());
       if (!res.ok) throw new Error("Failed to fetch taxonomies");
-      return (await res.json()) as { taxonomies: SolutionTaxonomy[]; brands: string[]; categories: string[]; tools: string[] };
+      return (await res.json()) as { taxonomies: SolutionTaxonomy[]; brands: string[]; categories: string[] };
     },
+    staleTime: 60 * 60 * 1000
+  });
+}
+
+export function useSolutionTaxonomiesAdmin() {
+  const { getAdminAuthHeaders, adminToken } = useAuth();
+  return useQuery({
+    queryKey: ["admin-solutions-taxonomies", adminToken],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/solutions/taxonomies", getAdminAuthHeaders());
+      if (!res.ok) throw new Error("Failed to fetch admin taxonomies");
+      return (await res.json()) as { taxonomies: SolutionTaxonomy[] };
+    },
+    enabled: !!adminToken,
     staleTime: 60 * 60 * 1000
   });
 }

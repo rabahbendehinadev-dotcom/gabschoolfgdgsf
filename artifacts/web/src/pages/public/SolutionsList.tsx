@@ -10,15 +10,14 @@ import { fr } from "date-fns/locale";
 import { useSolutionMeta } from "@/features/solutions/use-solution-meta";
 
 export function SolutionsList() {
-  useSolutionMeta("الحلول التقنية", "ابحث في مكتبة حلول إصلاح الهواتف حسب الماركة والموديل والأداة. شروحات تقنية وصور وخطوات موثوقة للمشتركين.");
+  useSolutionMeta("الحلول التقنية", "ابحث في مكتبة حلول إصلاح الهواتف حسب الماركة والموديل والمشكلة.");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [brand, setBrand] = useState("");
   const [category, setCategory] = useState("");
-  const [tool, setTool] = useState("");
   const [page, setPage] = useState(1);
 
-  const { data, isLoading, error } = useSolutionsPublic({ search: debouncedSearch, brand, category, tool, page, pageSize: 12 });
+  const { data, isLoading, error } = useSolutionsPublic({ search: debouncedSearch, brand, category, page, pageSize: 12 });
   const { data: tax } = useSolutionTaxonomiesPublic();
 
   // Simple debounce
@@ -50,16 +49,13 @@ export function SolutionsList() {
           <div className="relative flex-1 w-full">
             <Search className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
             <Input
-              placeholder="ابحث عن موديل، أداة، أو مشكلة..."
+              placeholder="ابحث عن ماركة، موديل، أو مشكلة..."
               className="pr-12 py-6 text-lg bg-slate-50 border-slate-200 focus-visible:ring-primary rounded-xl"
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             />
           </div>
           <div className="flex flex-wrap w-full md:w-auto gap-3">
-            <select aria-label="الأداة" className="h-12 rounded-xl border border-slate-200 bg-slate-50 px-3" value={tool} onChange={e => { setTool(e.target.value); setPage(1); }}>
-              <option value="">كل الأدوات</option>{tax?.tools.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
             <select
               className="flex h-12 w-full md:w-40 items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               value={brand} onChange={e => { setBrand(e.target.value); setPage(1); }}
@@ -137,13 +133,7 @@ export function SolutionsList() {
                     </p>
 
                     <div className="flex items-center justify-between pt-4 border-t border-slate-100 mt-auto">
-                      <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
-                        {sol.tool && (
-                          <Badge variant="outline" className="bg-slate-50 text-slate-600 font-normal px-2">
-                            {sol.tool}
-                          </Badge>
-                        )}
-                      </div>
+                      <div />
                       <div className="flex items-center text-primary text-sm font-bold gap-1 group-hover:translate-x-1 transition-transform">
                         <span>عرض الحل</span>
                         <ChevronRight className="h-4 w-4 rotate-180" />

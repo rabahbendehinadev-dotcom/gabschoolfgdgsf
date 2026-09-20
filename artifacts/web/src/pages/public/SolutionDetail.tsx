@@ -1,5 +1,6 @@
 import { useSolutionMeta } from "@/features/solutions/use-solution-meta";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
+import { useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { useSolutionDetail } from "@/features/solutions/use-solutions";
 import { SolutionArticle } from "@/features/solutions/Article";
@@ -8,8 +9,14 @@ import { Loader2, Lock, Smartphone } from "lucide-react";
 
 export function SolutionDetail({ slug }: { slug: string }) {
   const { data, isLoading, error } = useSolutionDetail(slug);
+  const [, setLocation] = useLocation();
   const { user } = useAuth();
   useSolutionMeta(data?.solution.title || "الحلول التقنية", data?.solution.excerpt || "مكتبة الحلول التقنية لإصلاح الهواتف");
+  useEffect(() => {
+    if (data?.solution.slug && data.solution.slug !== slug) {
+      setLocation(`/solutions/${data.solution.slug}`, { replace: true });
+    }
+  }, [data?.solution.slug, slug, setLocation]);
 
   if (isLoading) return <div className="flex items-center justify-center min-h-[70vh]"><Loader2 className="animate-spin text-primary h-10 w-10" /></div>;
   if (error || !data) return <div className="text-center min-h-[60vh] py-24 px-4" dir="rtl"><h1 className="text-2xl font-bold">تعذر تحميل الحل</h1><p role="alert">{error?.message || "الحل غير متوفر"}</p><Link href="/solutions" className="text-primary underline">العودة للمكتبة</Link></div>;
@@ -26,7 +33,7 @@ export function SolutionDetail({ slug }: { slug: string }) {
             <div className="grid md:grid-cols-3 gap-8 items-start">
               <div className="md:col-span-2 space-y-4">
                 <div className="flex gap-2 flex-wrap">
-                  {[solution.category, solution.subcategory, solution.tool].filter(Boolean).map((value, i) => (
+                  {[solution.category].filter(Boolean).map((value, i) => (
                     <Badge key={i} variant="secondary" className="bg-primary/10 text-primary hover:bg-primary/20 border-transparent px-3 py-1 font-bold">{value}</Badge>
                   ))}
                 </div>
@@ -35,7 +42,6 @@ export function SolutionDetail({ slug }: { slug: string }) {
                 <p className="font-semibold text-slate-800" dir="ltr">{solution.brand} {solution.model}</p>
                 {solution.publishedAt && <time className="text-sm text-slate-500 font-medium" dateTime={solution.publishedAt}>{new Date(solution.publishedAt).toLocaleDateString("fr-FR")}</time>}
                 <div className="flex flex-wrap gap-2 pt-2">
-                  {solution.tags.map((tag, i) => <Badge key={i} variant="outline" className="text-slate-500">{tag}</Badge>)}
                 </div>
               </div>
               <div className="aspect-[4/3] rounded-2xl border border-[#F3DFCF] overflow-hidden bg-[#FFF4E8] p-1 shadow-[0_4px_18px_rgba(120,72,32,0.06)]">

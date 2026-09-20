@@ -1,4 +1,4 @@
-import { db, solutionsTable } from "@workspace/db";
+import { db, notificationsTable, solutionsTable } from "@workspace/db";
 import { and, eq, isNull } from "drizzle-orm";
 import { createNotification, type CreateNotificationInput } from "./notifications";
 
@@ -10,32 +10,31 @@ export function buildSolutionPublishedNotification(
   solution: {
     id: number;
     slug: string;
-    title: string;
-    excerpt: string;
+    publicTitle: string;
+    publicExcerpt: string;
     brand: string;
     model: string;
     category: string;
-    tool: string;
+    publicCategory: string;
   },
   adminId: number | null,
 ): CreateNotificationInput {
-  const subject = [solution.brand, solution.model].filter(Boolean).join(" ").trim() || solution.title;
-  const operation = solution.category || solution.title;
-  const tool = solution.tool ? ` باستخدام ${solution.tool}` : "";
+  const subject = [solution.brand, solution.model].filter(Boolean).join(" ").trim() || solution.publicTitle;
+  const operation = solution.publicCategory || solution.publicTitle;
   return {
     type: "solution_published",
     title: "🛠️ حل تقني جديد",
-    body: `${subject} — ${operation}${tool}`,
+    body: `${subject} — ${operation}`,
     adminId,
     audienceType: "all",
     targetType: "page",
     targetId: solution.id,
     targetPath: `/solutions/${encodeURIComponent(solution.slug)}`,
     metadata: {
-      solutionTitle: solution.title,
+      solutionTitle: solution.publicTitle,
       brand: solution.brand,
       model: solution.model,
-      category: solution.category,
+      category: solution.publicCategory,
       cta: "عرض الحل",
     },
     dedupeKey: `solution-published-${solution.id}`,
@@ -63,5 +62,25 @@ export async function retryPendingSolutionNotifications(): Promise<void> {
         message: error instanceof Error ? error.message : String(error),
       });
     }
+  }
+}
+
+export async function redactExistingSolutionNotifications(): Promise<void> {
+  const existing = await db.select().from(notificationsTable).where(eq(notificationsTable.type, "solution_published"));
+  for (const notification of existing) {
+    if (!notification.targetId) continue;
+    const [solution] = await db.select().from(solutionsTable).where(eq(solutionsTable.id, notification.targetId)).limit(1);
+    if (!solution) continue;
+    await db.update(notificationsTable).set({
+      body: solution.publicTitle,
+      targetPath: `/solutions/${encodeURIComponent(solution.slug)}`,
+      metadata: {
+        solutionTitle: solution.publicTitle,
+        brand: solution.brand,
+        model: solution.model,
+        category: solution.publicCategory,
+        cta: "عرض الحل",
+      },
+    }).where(eq(notificationsTable.id, notification.id));
   }
 }

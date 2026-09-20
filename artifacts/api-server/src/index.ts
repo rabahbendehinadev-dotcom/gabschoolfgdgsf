@@ -7,7 +7,8 @@ import { resolveVideoParts, extractDriveFileId } from "./lib/googleDrive";
 import { startImageOptimizeWorker } from "./lib/imageOptimize";
 import { assertDeviceCredentialSecretConfigured } from "./lib/deviceSecurity";
 import type { ObjectPart } from "./lib/videoStorage";
-import { retryPendingSolutionNotifications } from "./lib/solutionNotifications";
+import { redactExistingSolutionNotifications, retryPendingSolutionNotifications } from "./lib/solutionNotifications";
+import { repairSolutionPublicMetadata } from "./lib/solutionPrivacy";
 
 const rawPort = process.env["PORT"];
 
@@ -372,6 +373,9 @@ async function runMigrations() {
         slug TEXT NOT NULL UNIQUE,
         title TEXT NOT NULL DEFAULT '',
         excerpt TEXT NOT NULL DEFAULT '',
+        public_title TEXT NOT NULL DEFAULT '',
+        public_excerpt TEXT NOT NULL DEFAULT '',
+        public_category TEXT NOT NULL DEFAULT '',
         brand TEXT NOT NULL DEFAULT '',
         model TEXT NOT NULL DEFAULT '',
         category TEXT NOT NULL DEFAULT '',
@@ -396,6 +400,30 @@ async function runMigrations() {
         updated_at TIMESTAMP NOT NULL DEFAULT NOW()
       )
     `);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS solution_slug_history (
+        old_slug TEXT PRIMARY KEY,
+        solution_id INTEGER NOT NULL REFERENCES solutions(id) ON DELETE CASCADE,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS solution_slug_history_solution_idx ON solution_slug_history(solution_id)`);
+    await db.execute(sql`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'solutions' AND column_name = 'public_title'
+        ) THEN
+          ALTER TABLE solutions ADD COLUMN public_title TEXT NOT NULL DEFAULT '';
+          ALTER TABLE solutions ADD COLUMN public_excerpt TEXT NOT NULL DEFAULT '';
+          ALTER TABLE solutions ADD COLUMN public_category TEXT NOT NULL DEFAULT '';
+        END IF;
+      END $$;
+    `);
+    await db.execute(sql`ALTER TABLE solutions ADD COLUMN IF NOT EXISTS public_title TEXT NOT NULL DEFAULT ''`);
+    await db.execute(sql`ALTER TABLE solutions ADD COLUMN IF NOT EXISTS public_excerpt TEXT NOT NULL DEFAULT ''`);
+    await db.execute(sql`ALTER TABLE solutions ADD COLUMN IF NOT EXISTS public_category TEXT NOT NULL DEFAULT ''`);
     await db.execute(sql`ALTER TABLE solutions ADD COLUMN IF NOT EXISTS ai_cover_image_id UUID`);
     await db.execute(sql`ALTER TABLE solutions ADD COLUMN IF NOT EXISTS custom_cover_image_id UUID`);
     await db.execute(sql`ALTER TABLE solutions ADD COLUMN IF NOT EXISTS cover_generation_error TEXT`);
@@ -426,12 +454,12 @@ async function runMigrations() {
     await db.execute(sql`CREATE INDEX IF NOT EXISTS solutions_discovery_idx ON solutions(status, published_at)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS solutions_filters_idx ON solutions(brand, category, tool)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS solution_images_solution_idx ON solution_images(solution_id)`);
+    await db.execute(sql`DROP INDEX IF EXISTS solutions_search_idx`);
     await db.execute(sql`
-      CREATE INDEX IF NOT EXISTS solutions_search_idx ON solutions USING gin (
+      CREATE INDEX solutions_search_idx ON solutions USING gin (
         to_tsvector(
           'simple',
-          title || ' ' || brand || ' ' || model || ' ' || category || ' ' ||
-          tool || ' ' || tags::text || ' ' || keywords::text
+          public_title || ' ' || public_excerpt || ' ' || brand || ' ' || model || ' ' || public_category
         )
       )
     `);
@@ -598,7 +626,7 @@ async function runAutoStorageMigration(): Promise<void> {
   }
 }
 
-runMigrations().then(() => ensureSeed()).then(() => retryPendingSolutionNotifications()).then(() => {
+runMigrations().then(() => repairSolutionPublicMetadata()).then(() => ensureSeed()).then(() => redactExistingSolutionNotifications()).then(() => retryPendingSolutionNotifications()).then(() => {
   app.listen(port, () => {
     console.log(`Server listening on port ${port}`);
     // Videos stay in Drive; migration and the 720p/FFmpeg worker remain disabled.

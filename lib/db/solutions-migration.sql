@@ -3,6 +3,7 @@ BEGIN;
 CREATE TABLE IF NOT EXISTS solution_taxonomies (id serial PRIMARY KEY, kind text NOT NULL, name text NOT NULL, parent_id integer);
 CREATE TABLE IF NOT EXISTS solutions (
  id serial PRIMARY KEY, slug text NOT NULL UNIQUE, title text NOT NULL DEFAULT '', excerpt text NOT NULL DEFAULT '',
+ public_title text NOT NULL DEFAULT '', public_excerpt text NOT NULL DEFAULT '', public_category text NOT NULL DEFAULT '',
  brand text NOT NULL DEFAULT '', model text NOT NULL DEFAULT '', category text NOT NULL DEFAULT '', subcategory text NOT NULL DEFAULT '', tool text NOT NULL DEFAULT '',
  tags jsonb NOT NULL DEFAULT '[]', keywords jsonb NOT NULL DEFAULT '[]', raw_input text NOT NULL DEFAULT '', content jsonb NOT NULL DEFAULT '{}',
  image_ids jsonb NOT NULL DEFAULT '[]', cover_image_id uuid, ai_cover_image_id uuid, custom_cover_image_id uuid,
@@ -10,6 +11,25 @@ CREATE TABLE IF NOT EXISTS solutions (
  status text NOT NULL DEFAULT 'draft', created_by integer NOT NULL, published_at timestamp, publication_notification_sent_at timestamp,
  created_at timestamp NOT NULL DEFAULT now(), updated_at timestamp NOT NULL DEFAULT now()
 );
+CREATE TABLE IF NOT EXISTS solution_slug_history (
+ old_slug text PRIMARY KEY, solution_id integer NOT NULL REFERENCES solutions(id) ON DELETE CASCADE,
+ created_at timestamp NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS solution_slug_history_solution_idx ON solution_slug_history(solution_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'solutions' AND column_name = 'public_title'
+  ) THEN
+    ALTER TABLE solutions ADD COLUMN public_title text NOT NULL DEFAULT '';
+    ALTER TABLE solutions ADD COLUMN public_excerpt text NOT NULL DEFAULT '';
+    ALTER TABLE solutions ADD COLUMN public_category text NOT NULL DEFAULT '';
+  END IF;
+END $$;
+ALTER TABLE solutions ADD COLUMN IF NOT EXISTS public_title text NOT NULL DEFAULT '';
+ALTER TABLE solutions ADD COLUMN IF NOT EXISTS public_excerpt text NOT NULL DEFAULT '';
+ALTER TABLE solutions ADD COLUMN IF NOT EXISTS public_category text NOT NULL DEFAULT '';
 CREATE TABLE IF NOT EXISTS solution_images (id uuid PRIMARY KEY, solution_id integer NOT NULL REFERENCES solutions(id) ON DELETE CASCADE, object_path text NOT NULL, name text NOT NULL, width integer NOT NULL, height integer NOT NULL);
 CREATE INDEX IF NOT EXISTS solutions_discovery_idx ON solutions(status,published_at);
 CREATE INDEX IF NOT EXISTS solutions_filters_idx ON solutions(brand,category,tool);
@@ -28,5 +48,6 @@ BEGIN
     WHERE status = 'published';
   END IF;
 END $$;
-CREATE INDEX IF NOT EXISTS solutions_search_idx ON solutions USING gin (to_tsvector('simple',title || ' ' || brand || ' ' || model || ' ' || category || ' ' || tool || ' ' || tags::text || ' ' || keywords::text));
+DROP INDEX IF EXISTS solutions_search_idx;
+CREATE INDEX solutions_search_idx ON solutions USING gin (to_tsvector('simple',public_title || ' ' || public_excerpt || ' ' || brand || ' ' || model || ' ' || public_category));
 COMMIT;
