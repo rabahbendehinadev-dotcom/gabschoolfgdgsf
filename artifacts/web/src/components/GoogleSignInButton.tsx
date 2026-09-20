@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { Loader2 } from "lucide-react";
 import { getGoogleLoginErrorDescription } from "@/lib/googleLoginError";
+import { useLocale } from "@/i18n";
 
 declare global {
   interface Window {
@@ -81,6 +82,7 @@ export function GoogleSignInButton({ redirectTo = "/videos" }: { redirectTo?: st
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const googleLoginMut = useGoogleLogin();
+  const { locale, t } = useLocale();
 
   const wrapperRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLDivElement>(null);
@@ -113,7 +115,7 @@ export function GoogleSignInButton({ redirectTo = "/videos" }: { redirectTo?: st
     googleLoginMut.mutate({ data: { credential: response.credential } }, {
       onSuccess: (res) => {
         setAuth(res.token, res.user, res.deviceCredential);
-        toast({ title: "تم تسجيل الدخول بنجاح", className: "bg-green-600 text-white border-none" });
+        toast({ title: t("student.google.success"), className: "bg-green-600 text-white border-none" });
         void navigateAfterLogin(res.token, res.user.phone, res.deviceCredential);
       },
       onError: (err) => {
@@ -125,10 +127,10 @@ export function GoogleSignInButton({ redirectTo = "/videos" }: { redirectTo?: st
           localStorage.setItem("device_credential", apiErr.data.deviceCredential);
         }
         const description = getGoogleLoginErrorDescription(apiErr);
-        toast({ variant: "destructive", title: "فشل تسجيل الدخول عبر Google", description });
+        toast({ variant: "destructive", title: t("student.google.error"), description });
       },
     });
-  }, [googleLoginMut, setAuth, toast, navigateAfterLogin]);
+  }, [googleLoginMut, setAuth, toast, navigateAfterLogin, t]);
 
   // Keep latest handler in a ref so the init effect only depends on clientId.
   const handlerRef = useRef(handleCredential);
@@ -190,7 +192,7 @@ export function GoogleSignInButton({ redirectTo = "/videos" }: { redirectTo?: st
             text: "signin_with",
             shape: "rectangular",
             logo_alignment: "center",
-            locale: "ar",
+            locale,
             width,
           });
 
@@ -207,7 +209,7 @@ export function GoogleSignInButton({ redirectTo = "/videos" }: { redirectTo?: st
       .catch(() => { if (!cancelled) setGisStatus("error"); });
 
     return () => { cancelled = true; };
-  }, [clientId]);
+  }, [clientId, locale]);
 
   const pending = googleLoginMut.isPending;
   // Google not configured at all, or its script failed to load (true outage).
@@ -230,7 +232,7 @@ export function GoogleSignInButton({ redirectTo = "/videos" }: { redirectTo?: st
         <button
           type="button"
           tabIndex={-1}
-          aria-label="الدخول بواسطة Google"
+           aria-label={t("student.google.signIn")}
           aria-hidden="true"
           disabled={pending}
           className="pointer-events-none absolute inset-0 flex items-center justify-center gap-3 rounded-xl border-2 border-gray-300 bg-white text-lg font-bold text-gray-700 shadow-md transition-all duration-200 group-hover:border-primary/50 group-hover:bg-gray-50 group-hover:shadow-lg group-active:scale-[0.99] group-focus-within:border-primary group-focus-within:ring-2 group-focus-within:ring-primary/40"
@@ -240,7 +242,7 @@ export function GoogleSignInButton({ redirectTo = "/videos" }: { redirectTo?: st
           ) : (
             <>
               <GoogleIcon className="h-6 w-6" />
-              <span>الدخول بواسطة Google</span>
+              <span>{t("student.google.signIn")}</span>
             </>
           )}
         </button>
@@ -274,7 +276,7 @@ export function GoogleSignInButton({ redirectTo = "/videos" }: { redirectTo?: st
             role="status"
           >
             <GoogleIcon className="h-5 w-5 opacity-50" />
-            تسجيل الدخول عبر Google غير متاح حالياً
+            {t("student.google.unavailable")}
           </div>
         )}
       </div>

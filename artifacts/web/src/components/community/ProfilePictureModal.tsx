@@ -3,6 +3,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, Button } from "@/comp
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { Camera, Loader2, CheckCircle } from "lucide-react";
+import { useLocale } from "@/i18n";
+import { commerceMessage } from "@/i18n/communityCommerceMessages";
 
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
 
@@ -49,6 +51,8 @@ export function ProfilePictureModal({
   onOpenChange: (v: boolean) => void;
   onSaved?: () => void;
 }) {
+  const { locale, direction } = useLocale();
+  const m = (key: string) => commerceMessage(locale, key);
   const { user, token, updateUser } = useAuth();
   const { toast } = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -74,11 +78,11 @@ export function ProfilePictureModal({
   const handleFile = (f: File | null) => {
     if (!f) return;
     if (!f.type.startsWith("image/")) {
-      toast({ title: "يرجى اختيار صورة (JPEG, PNG…)", variant: "destructive" });
+      toast({ title: m("chooseImage"), variant: "destructive" });
       return;
     }
     if (f.size > MAX_BYTES) {
-      toast({ title: "الصورة كبيرة جداً (الحد 5 MB)", variant: "destructive" });
+      toast({ title: `${m("uploadFailed")} (5 MB)`, variant: "destructive" });
       return;
     }
     if (preview) URL.revokeObjectURL(preview);
@@ -100,14 +104,14 @@ export function ProfilePictureModal({
       };
       updateUser(updatedUser);
       setDone(true);
-      toast({ title: "تم حفظ الصورة الشخصية بنجاح ✓" });
+       toast({ title: m("pictureSaved") });
       setTimeout(() => {
         close(false);
         onSaved?.();
       }, 1000);
     } catch (err: unknown) {
       toast({
-        title: "تعذّر رفع الصورة",
+         title: m("uploadFailed"),
         description: err instanceof Error ? err.message : undefined,
         variant: "destructive",
       });
@@ -118,14 +122,14 @@ export function ProfilePictureModal({
 
   return (
     <Dialog open={open} onOpenChange={close}>
-      <DialogContent className="max-w-sm rounded-3xl" dir="rtl">
+      <DialogContent className="max-w-sm rounded-3xl" dir={direction}>
         <DialogHeader>
-          <DialogTitle className="text-right text-lg font-extrabold">الصورة الشخصية</DialogTitle>
+          <DialogTitle className="text-right text-lg font-extrabold">{m("profilePicture")}</DialogTitle>
         </DialogHeader>
 
         <div className="flex flex-col items-center gap-5 py-2">
           <p className="text-center text-sm text-muted-foreground leading-relaxed">
-            يجب إضافة صورة شخصية قبل النشر أو التعليق في Community GAB.
+            {m("profilePictureRequired")}
           </p>
 
           <button
@@ -134,11 +138,11 @@ export function ProfilePictureModal({
             className="relative h-28 w-28 overflow-hidden rounded-full border-2 border-dashed border-primary/40 bg-muted transition-opacity hover:opacity-85"
           >
             {preview ? (
-              <img src={preview} alt="معاينة" className="h-full w-full object-cover" />
+              <img src={preview} alt={m("preview")} className="h-full w-full object-cover" />
             ) : (
               <div className="flex h-full w-full flex-col items-center justify-center gap-1.5">
                 <Camera className="h-8 w-8 text-muted-foreground/60" />
-                <span className="text-[11px] text-muted-foreground">اختر صورة</span>
+                <span className="text-[11px] text-muted-foreground">{m("chooseImage")}</span>
               </div>
             )}
             {done && (
@@ -163,7 +167,7 @@ export function ProfilePictureModal({
               onClick={() => close(false)}
               disabled={uploading}
             >
-              لاحقاً
+              {m("later")}
             </Button>
             <Button
               className="flex-1 rounded-2xl"
@@ -173,10 +177,10 @@ export function ProfilePictureModal({
               {uploading ? (
                 <>
                   <Loader2 className="ml-2 h-4 w-4 animate-spin" />
-                  جارٍ الرفع…
+                  {m("uploading")}
                 </>
               ) : (
-                "حفظ الصورة"
+                m("savePicture")
               )}
             </Button>
           </div>

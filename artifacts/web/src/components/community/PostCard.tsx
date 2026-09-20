@@ -13,6 +13,8 @@ import {
 import { CommunityPost } from "@workspace/api-client-react/src/generated/api.schemas";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import { useLocale } from "@/i18n";
+import { commerceMessage } from "@/i18n/communityCommerceMessages";
 import {
   Card,
   Button,
@@ -42,19 +44,21 @@ import {
   BarChart2
 } from "lucide-react";
 
-function timeAgo(iso: string): string {
+function timeAgo(iso: string, locale: "ar" | "fr" | "en"): string {
   const diff = Date.now() - new Date(iso).getTime();
   const m = Math.floor(diff / 60000);
-  if (m < 1) return "الآن";
-  if (m < 60) return `منذ ${m} دقيقة`;
+  if (m < 1) return commerceMessage(locale, "now");
+  if (m < 60) return locale === "ar" ? `منذ ${m} دقيقة` : locale === "fr" ? `Il y a ${m} min` : `${m} min ago`;
   const h = Math.floor(m / 60);
-  if (h < 24) return `منذ ${h} ساعة`;
+  if (h < 24) return locale === "ar" ? `منذ ${h} ساعة` : locale === "fr" ? `Il y a ${h} h` : `${h} hr ago`;
   const d = Math.floor(h / 24);
-  if (d < 30) return `منذ ${d} يوم`;
-  return new Date(iso).toLocaleDateString("ar");
+  if (d < 30) return locale === "ar" ? `منذ ${d} يوم` : locale === "fr" ? `Il y a ${d} j` : `${d} days ago`;
+  return new Date(iso).toLocaleDateString(locale);
 }
 
 export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: number }) {
+  const { locale, direction } = useLocale();
+  const m = (key: string) => commerceMessage(locale, key);
   const { user, getAuthHeaders } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -94,9 +98,9 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
     mutation: {
       onSuccess: () => {
         invalidateFeed();
-        toast({ title: "تم حذف المنشور" });
+         toast({ title: m("postDeleted") });
       },
-      onError: () => toast({ title: "تعذّر حذف المنشور", variant: "destructive" }),
+      onError: () => toast({ title: m("postDeleteFailed"), variant: "destructive" }),
     },
   });
 
@@ -106,9 +110,9 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
       onSuccess: () => {
         invalidateFeed();
         setEditOpen(false);
-        toast({ title: "تم تحديث المنشور" });
+         toast({ title: m("postUpdated") });
       },
-      onError: () => toast({ title: "تعذّر تحديث المنشور", variant: "destructive" }),
+      onError: () => toast({ title: m("postUpdateFailed"), variant: "destructive" }),
     },
   });
 
@@ -126,7 +130,7 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
 
   const toggleLike = () => {
     if (!user) {
-      toast({ title: "سجّل الدخول للإعجاب بالمنشورات" });
+      toast({ title: m("loginLike") });
       return;
     }
     if (liked) {
@@ -166,7 +170,7 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
 
   const handleVote = (optionIndex: number) => {
     if (!user) {
-      toast({ title: "سجّل الدخول للتصويت" });
+      toast({ title: m("loginVote") });
       return;
     }
     if (post.myPollVote != null) return;
@@ -257,7 +261,7 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
               )}
             </div>
             <div className="flex items-center gap-2 text-[13px] text-slate-500 font-bold mt-0.5">
-              <span>{timeAgo(post.createdAt)}</span>
+              <span>{timeAgo(post.createdAt, locale)}</span>
               {post.category && (
                 <>
                   <span className="w-1 h-1 rounded-full bg-slate-300" />
@@ -269,29 +273,29 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
 
           <div className="flex items-center gap-2">
             {post.isPinned && (
-              <span className="flex items-center gap-1 px-2.5 py-1 bg-red-50 text-red-600 rounded-md text-[11px] font-bold border border-red-100" title="مثبّت">
+              <span className="flex items-center gap-1 px-2.5 py-1 bg-red-50 text-red-600 rounded-md text-[11px] font-bold border border-red-100" title={m("pinned")}>
                 <Pin className="h-3.5 w-3.5 fill-current" />
               </span>
             )}
             {post.isImportant && (
-              <span className="flex items-center gap-1 px-2.5 py-1 bg-purple-50 text-purple-600 rounded-md text-[11px] font-bold border border-purple-100" title="مهم">
+              <span className="flex items-center gap-1 px-2.5 py-1 bg-purple-50 text-purple-600 rounded-md text-[11px] font-bold border border-purple-100" title={m("important")}>
                 <AlertCircle className="h-3.5 w-3.5" />
               </span>
             )}
             {solved && (
-              <span className="flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-600 rounded-md text-[11px] font-bold border border-emerald-100" title="تم الحل">
+              <span className="flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-600 rounded-md text-[11px] font-bold border border-emerald-100" title={m("solved")}>
                 <CheckCircle2 className="h-3.5 w-3.5" />
               </span>
             )}
             {post.isQuestion && (
               <span className="flex items-center gap-1 px-2.5 py-1 bg-blue-50 text-blue-600 rounded-md text-[11px] font-bold border border-blue-100" title="سؤال">
-                سؤال
+                {m("question")}
               </span>
             )}
             {post.isFeatured && (
                <span className="flex items-center gap-1 px-2.5 py-1 bg-amber-50 text-amber-600 rounded-md text-[11px] font-bold border border-amber-100">
                  <Star className="h-3 w-3 fill-current" />
-                 مميّز
+                 {m("featured")}
                </span>
             )}
 
@@ -335,7 +339,7 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
                               className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-emerald-700 font-medium hover:bg-emerald-50"
                             >
                               <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                              {solved ? "إعادة فتح السؤال" : "تعليم كمحلول"}
+                              {solved ? m("reopenQuestion") : m("markSolved")}
                             </button>
                           )}
                           <button
@@ -349,7 +353,7 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
                             data-testid={`button-edit-${post.id}`}
                             className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-slate-700 font-medium hover:bg-slate-50"
                           >
-                            <Pencil className="h-4 w-4 text-slate-400" /> تعديل
+                            <Pencil className="h-4 w-4 text-slate-400" /> {m("editPost")}
                           </button>
                           <button
                             type="button"
@@ -361,7 +365,7 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
                             data-testid={`button-delete-${post.id}`}
                             className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-red-600 font-medium hover:bg-red-50"
                           >
-                            <Trash2 className="h-4 w-4 text-red-500" /> حذف
+                              <Trash2 className="h-4 w-4 text-red-500" /> {m("delete")}
                           </button>
                         </>
                       )}
@@ -376,7 +380,7 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
                           data-testid={`button-report-${post.id}`}
                           className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-slate-600 font-medium hover:bg-slate-50"
                         >
-                          <Flag className="h-4 w-4 text-slate-400" /> إبلاغ
+                          <Flag className="h-4 w-4 text-slate-400" /> {m("report")}
                         </button>
                       )}
                     </motion.div>
@@ -409,7 +413,7 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
             <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4">
               <div className="flex items-center gap-2 mb-4 text-slate-700 font-bold text-sm">
                 <BarChart2 className="w-5 h-5 text-orange-500" />
-                استطلاع رأي
+                {m("pollLabel")}
               </div>
               <div className="space-y-2.5">
                 {post.pollOptions.map((opt, idx) => {
@@ -463,7 +467,7 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
                 })}
               </div>
               <div className="mt-4 text-[13px] font-bold text-slate-500">
-                {totalPollVotes} صوت
+                {totalPollVotes} {m("vote")}
               </div>
             </div>
           </div>
@@ -490,7 +494,7 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
               }`}
             >
               <ThumbsUp className={`h-5 w-5 ${liked ? "fill-orange-500 text-orange-500" : "text-slate-400"}`} />
-              <span data-testid={`text-likes-${post.id}`}>{likes > 0 ? likes : "إعجاب"}</span>
+              <span data-testid={`text-likes-${post.id}`}>{likes > 0 ? likes : m("like")}</span>
             </button>
 
             {/* Comment */}
@@ -503,11 +507,11 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
               }`}
             >
               <MessageCircle className={`h-5 w-5 ${showComments ? "fill-orange-500/20 text-orange-500" : "text-slate-400"}`} />
-              <span data-testid={`text-comments-${post.id}`}>{commentsCount > 0 ? commentsCount : "تعليق"}</span>
+              <span data-testid={`text-comments-${post.id}`}>{commentsCount > 0 ? commentsCount : m("comment")}</span>
             </button>
           </div>
 
-          <div className="flex items-center gap-4 text-slate-500 font-bold px-3" title="عدد المشاهدات" aria-label="عدد المشاهدات">
+          <div className="flex items-center gap-4 text-slate-500 font-bold px-3" title={m("views")} aria-label={m("views")}>
             {/* Views */}
             <div className="flex items-center gap-1.5 text-[14px]">
               <Eye className="h-5 w-5 text-slate-400" />
@@ -539,9 +543,9 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
 
       {/* Edit dialog */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="rounded-3xl" dir="rtl">
+        <DialogContent className="rounded-3xl" dir={direction}>
           <DialogHeader>
-            <DialogTitle>تعديل المنشور</DialogTitle>
+            <DialogTitle>{m("editPost")}</DialogTitle>
           </DialogHeader>
           <Textarea
             value={editText}
@@ -552,7 +556,7 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
           />
           <DialogFooter className="gap-2">
             <Button variant="ghost" onClick={() => setEditOpen(false)}>
-              إلغاء
+              {m("cancel")}
             </Button>
             <Button
               onClick={() => updM.mutate({ id: post.id, data: { content: editText.trim() || null } })}
@@ -560,7 +564,7 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
               className="bg-orange-500 hover:bg-orange-600 text-white"
             >
               {updM.isPending && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
-              حفظ
+              {m("save")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -568,13 +572,13 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
 
       {/* Report dialog */}
       <Dialog open={reportOpen} onOpenChange={(v) => { if (!reporting) { setReportOpen(v); if (!v) { setReportReason(""); setReportSent(false); } } }}>
-        <DialogContent className="rounded-3xl" dir="rtl">
+        <DialogContent className="rounded-3xl" dir={direction}>
           <DialogHeader>
-            <DialogTitle>الإبلاغ عن المنشور</DialogTitle>
+            <DialogTitle>{m("reportPost")}</DialogTitle>
           </DialogHeader>
           {reportSent ? (
             <p className="py-4 text-center text-sm font-semibold text-green-600">
-              تم إرسال بلاغك، شكراً لمساعدتنا ✓
+              {m("reportSent")}
             </p>
           ) : (
             <>
@@ -583,10 +587,10 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
                 onChange={(e) => setReportReason(e.target.value)}
                 rows={3}
                 className="resize-none rounded-2xl"
-                placeholder="سبب البلاغ (اختياري)…"
+                placeholder={m("reportReason")}
               />
               <DialogFooter className="gap-2">
-                <Button variant="ghost" onClick={() => setReportOpen(false)} disabled={reporting}>إلغاء</Button>
+                <Button variant="ghost" onClick={() => setReportOpen(false)} disabled={reporting}>{m("cancel")}</Button>
                 <Button
                   variant="destructive"
                   disabled={reporting}
@@ -607,7 +611,7 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
                   }}
                 >
                   {reporting && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
-                  إرسال البلاغ
+                  {m("sendReport")}
                 </Button>
               </DialogFooter>
             </>
@@ -617,16 +621,16 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
 
       {/* Delete confirm */}
       <Dialog open={confirmDel} onOpenChange={setConfirmDel}>
-        <DialogContent className="rounded-3xl" dir="rtl">
+        <DialogContent className="rounded-3xl" dir={direction}>
           <DialogHeader>
-            <DialogTitle>حذف المنشور</DialogTitle>
+            <DialogTitle>{m("deletePost")}</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-slate-500">
-            هل أنت متأكد من حذف هذا المنشور؟ لا يمكن التراجع عن هذا الإجراء.
+            {m("confirmDelete")}
           </p>
           <DialogFooter className="gap-2 mt-4">
             <Button variant="ghost" onClick={() => setConfirmDel(false)} className="rounded-xl">
-              إلغاء
+              {m("cancel")}
             </Button>
             <Button
               variant="destructive"
@@ -635,7 +639,7 @@ export function PostCard({ post, index = 0 }: { post: CommunityPost; index?: num
               className="rounded-xl"
             >
               {delM.isPending && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
-              حذف
+              {m("delete")}
             </Button>
           </DialogFooter>
         </DialogContent>

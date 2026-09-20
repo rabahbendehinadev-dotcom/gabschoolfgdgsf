@@ -8,8 +8,11 @@ import { Search, Filter, Loader2, ChevronRight, Wrench, Smartphone, Crown, Lock 
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { useSolutionMeta } from "@/features/solutions/use-solution-meta";
+import { useLocale } from "@/i18n";
+import { learningT } from "@/i18n/learningMessages";
 
 export function SolutionsList() {
+  const { locale, direction } = useLocale();
   useSolutionMeta("الحلول التقنية", "ابحث في مكتبة حلول إصلاح الهواتف حسب الماركة والموديل والمشكلة.");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -30,17 +33,17 @@ export function SolutionsList() {
   const categories = tax?.categories || [];
 
   return (
-    <div className="bg-slate-50 min-h-screen py-8 pb-24" dir="rtl">
+    <div className="bg-slate-50 min-h-screen py-8 pb-24" dir={direction}>
       <div className="container mx-auto px-4 max-w-6xl space-y-8">
 
         {/* Header */}
         <div className="text-center space-y-4">
-          <Badge className="bg-primary/10 text-primary border-primary/20 mb-2 px-3 py-1">جديد</Badge>
+          <Badge className="bg-primary/10 text-primary border-primary/20 mb-2 px-3 py-1">{learningT(locale, "solutions.new", "جديد")}</Badge>
           <h1 className="text-3xl md:text-5xl font-extrabold text-slate-900 tracking-tight">
-            الحلول التقنية
+            {learningT(locale, "solutions.title", "الحلول التقنية")}
           </h1>
           <p className="text-slate-600 max-w-2xl mx-auto text-lg leading-relaxed">
-            مكتبة شاملة لحلول إصلاح الهواتف، السوفتوير، فك الحماية، والمزيد. موثوقة ومدعومة بالشرح والصور.
+            {learningT(locale, "solutions.tryFilters", "مكتبة شاملة لحلول إصلاح الهواتف، موثوقة ومدعومة بالشرح والصور.")}
           </p>
         </div>
 
@@ -49,7 +52,7 @@ export function SolutionsList() {
           <div className="relative flex-1 w-full">
             <Search className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
             <Input
-              placeholder="ابحث عن ماركة، موديل، أو مشكلة..."
+              placeholder={learningT(locale, "solutions.search", "ابحث عن ماركة، موديل، أو مشكلة...")}
               className="pr-12 py-6 text-lg bg-slate-50 border-slate-200 focus-visible:ring-primary rounded-xl"
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
@@ -60,21 +63,21 @@ export function SolutionsList() {
               className="flex h-12 w-full md:w-40 items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               value={brand} onChange={e => { setBrand(e.target.value); setPage(1); }}
             >
-              <option value="">كل الماركات</option>
+              <option value="">{learningT(locale, "solutions.allBrands", "كل الماركات")}</option>
               {brands.map(b => <option key={b} value={b}>{b}</option>)}
             </select>
             <select
               className="flex h-12 w-full md:w-48 items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               value={category} onChange={e => { setCategory(e.target.value); setPage(1); }}
             >
-              <option value="">كل الأقسام</option>
+              <option value="">{learningT(locale, "solutions.allCategories", "كل الأقسام")}</option>
               {categories.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
         </div>
 
         {/* Results */}
-        {error && <p role="alert" className="text-red-700">تعذر تحميل الحلول. {error.message}</p>}
+        {error && <p role="alert" className="text-red-700">{learningT(locale, "solutions.loadingError", "تعذر تحميل الحلول")} — {error.message}</p>}
         {isLoading ? (
           <div className="flex items-center justify-center h-64">
             <Loader2 className="h-10 w-10 animate-spin text-primary" />
@@ -82,8 +85,8 @@ export function SolutionsList() {
         ) : data?.solutions.length === 0 ? (
           <div className="text-center py-20 bg-white rounded-2xl border border-slate-200 shadow-sm">
             <Wrench className="h-12 w-12 text-slate-300 mx-auto mb-4" />
-            <h3 className="text-xl font-bold text-slate-700">لم يتم العثور على نتائج</h3>
-            <p className="text-slate-500 mt-2">حاول البحث بكلمات مختلفة أو تعديل الفلاتر.</p>
+            <h3 className="text-xl font-bold text-slate-700">{learningT(locale, "solutions.noResults", "لم يتم العثور على نتائج")}</h3>
+            <p className="text-slate-500 mt-2">{learningT(locale, "solutions.tryFilters", "حاول البحث بكلمات مختلفة أو تعديل الفلاتر.")}</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -135,7 +138,7 @@ export function SolutionsList() {
                     <div className="flex items-center justify-between pt-4 border-t border-slate-100 mt-auto">
                       <div />
                       <div className="flex items-center text-primary text-sm font-bold gap-1 group-hover:translate-x-1 transition-transform">
-                        <span>عرض الحل</span>
+                        <span>{learningT(locale, "solutions.view", "عرض الحل")}</span>
                         <ChevronRight className="h-4 w-4 rotate-180" />
                       </div>
                     </div>
@@ -151,13 +154,13 @@ export function SolutionsList() {
         {data && data.pages > 1 && (
           <div className="flex justify-center gap-2 pt-8">
             <Button variant="outline" disabled={page === data.pages} onClick={() => setPage(p => p + 1)}>
-              التالي
+              {learningT(locale, "solutions.next", "التالي")}
             </Button>
             <div className="flex items-center px-4 font-medium text-slate-600">
-              {page} من {data.pages}
+              {learningT(locale, "solutions.page", "{page} من {pages}", { page, pages: data.pages })}
             </div>
             <Button variant="outline" disabled={page === 1} onClick={() => setPage(p => p - 1)}>
-              السابق
+              {learningT(locale, "solutions.previous", "السابق")}
             </Button>
           </div>
         )}

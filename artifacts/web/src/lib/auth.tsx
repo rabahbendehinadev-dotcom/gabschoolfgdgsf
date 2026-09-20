@@ -185,6 +185,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           prev?.subscriptionExpiresAt !== fresh.subscriptionExpiresAt ||
           prev?.subscriptionIsExpired !== fresh.subscriptionIsExpired ||
           prev?.communityRole !== fresh.communityRole ||
+          prev?.locale !== fresh.locale ||
+          prev?.localeManuallySelected !== fresh.localeManuallySelected ||
           prev?.phone !== fresh.phone;
         if (!changed) return prev;
         localStorage.setItem("user", JSON.stringify(fresh));

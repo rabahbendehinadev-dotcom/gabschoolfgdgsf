@@ -12,6 +12,8 @@ import {
 } from "@workspace/api-client-react/src/generated/api.schemas";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import { useLocale } from "@/i18n";
+import { commerceMessage } from "@/i18n/communityCommerceMessages";
 import {
   Dialog,
   DialogContent,
@@ -46,6 +48,8 @@ export function CreatePostDialog({
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
+  const { locale, direction } = useLocale();
+  const m = (key: string) => commerceMessage(locale, key);
   const { user, getAuthHeaders } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -181,18 +185,18 @@ export function CreatePostDialog({
 
       queryClient.invalidateQueries({ queryKey: getGetCommunityFeedQueryKey() });
       queryClient.invalidateQueries({ queryKey: getGetCommunitySummaryQueryKey() });
-      toast({ title: "تم نشر منشورك بنجاح" });
+      toast({ title: m("postPublished") });
       reset();
       onOpenChange(false);
     } catch {
-      toast({ title: "تعذّر نشر المنشور، حاول مجدداً", variant: "destructive" });
+      toast({ title: m("postPublishFailed"), variant: "destructive" });
       setSubmitting(false);
     }
   };
 
   return (
     <Dialog open={open} onOpenChange={close}>
-      <DialogContent className="max-w-xl rounded-3xl p-0 overflow-hidden flex flex-col max-h-[90vh]" dir="rtl">
+      <DialogContent className="max-w-xl rounded-3xl p-0 overflow-hidden flex flex-col max-h-[90vh]" dir={direction}>
         <DialogHeader className="px-6 py-4 border-b border-slate-100 flex-shrink-0 bg-white z-10">
           <DialogTitle className="flex items-center gap-2">
             {step === "preview" && (
@@ -201,7 +205,7 @@ export function CreatePostDialog({
               </button>
             )}
             <Crown className="h-5 w-5 text-orange-500" />
-            {step === "compose" ? "مشاركة جديدة" : "معاينة المنشور"}
+            {step === "compose" ? m("newShare") : m("previewPost")}
           </DialogTitle>
         </DialogHeader>
 
@@ -211,7 +215,7 @@ export function CreatePostDialog({
               {/* Category & Title */}
               <div className="space-y-4">
                 <div>
-                  <Label className="text-slate-700 font-bold mb-2 inline-block">القسم</Label>
+                  <Label className="text-slate-700 font-bold mb-2 inline-block">{m("category")}</Label>
                   <div className="flex flex-wrap gap-2">
                     {CATEGORIES.map(c => (
                       <button
@@ -230,11 +234,11 @@ export function CreatePostDialog({
                 </div>
 
                 <div>
-                  <Label className="text-slate-700 font-bold mb-2 inline-block">عنوان المنشور (اختياري)</Label>
+                  <Label className="text-slate-700 font-bold mb-2 inline-block">{m("postTitle")}</Label>
                   <Input
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    placeholder="عنوان قصير يلخص موضوعك..."
+                    placeholder={m("postTitlePlaceholder")}
                     className="rounded-xl border-slate-200 bg-slate-50 focus:bg-white text-[15px]"
                   />
                 </div>
@@ -250,7 +254,7 @@ export function CreatePostDialog({
                     value={content}
                     onChange={(e) => setContent(e.target.value)}
                     rows={5}
-                    placeholder="شارك خبرتك، سؤالاً، أو إنجازاً مع Community GAB…"
+                    placeholder={m("postBodyPlaceholder")}
                     className="resize-none rounded-2xl border-slate-200 bg-slate-50 focus:bg-white text-[15px]"
                   />
 
@@ -287,7 +291,7 @@ export function CreatePostDialog({
                     <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
                       <div className="flex items-center gap-2 text-slate-700 font-bold mb-2">
                         <BarChart2 className="w-5 h-5 text-orange-500" />
-                        خيارات الاستطلاع
+                        {m("pollOptions")}
                       </div>
                       {pollOptions.map((opt, idx) => (
                         <div key={idx} className="flex items-center gap-2">
@@ -306,7 +310,7 @@ export function CreatePostDialog({
                       ))}
                       {pollOptions.length < 6 && (
                         <Button variant="outline" onClick={addPollOption} className="w-full rounded-xl border-dashed bg-transparent hover:bg-white text-slate-500">
-                          + إضافة خيار
+                          + {m("addOption")}
                         </Button>
                       )}
                     </div>
@@ -389,17 +393,17 @@ export function CreatePostDialog({
               <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
                 <label className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-600 transition-colors hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200 whitespace-nowrap">
                   <ImagePlus className="h-4 w-4 text-emerald-500" />
-                  صور
+                  {m("image")}
                   <input type="file" accept="image/*" multiple hidden disabled={submitting} onChange={(e) => { handleFiles(e.target.files); e.target.value = ""; }} />
                 </label>
                 <label className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-600 transition-colors hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200 whitespace-nowrap">
                   <Video className="h-4 w-4 text-blue-500" />
-                  فيديو
+                  {m("video")}
                   <input type="file" accept="video/*" multiple hidden disabled={submitting} onChange={(e) => { handleFiles(e.target.files); e.target.value = ""; }} />
                 </label>
                 <label className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-600 transition-colors hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200 whitespace-nowrap">
                   <FileText className="h-4 w-4 text-purple-500" />
-                  ملف
+                  {m("file")}
                   <input type="file" accept="*/*" multiple hidden disabled={submitting} onChange={(e) => { handleFiles(e.target.files); e.target.value = ""; }} />
                 </label>
                 <button
@@ -409,7 +413,7 @@ export function CreatePostDialog({
                   }`}
                 >
                   <BarChart2 className={`h-4 w-4 ${postMode === "poll" ? "text-orange-600" : "text-amber-500"}`} />
-                  استطلاع
+                  {m("poll")}
                 </button>
               </div>
 
@@ -439,7 +443,7 @@ export function CreatePostDialog({
             <div className="flex items-center justify-between gap-3">
               <div className="rounded-xl bg-orange-500/5 px-3 py-2 text-xs font-bold text-slate-500 border border-orange-100/50">
                 <Crown className="ml-1 inline h-3.5 w-3.5 text-orange-500" />
-                الوسائط حصرية لأعضاء VIP
+                {m("mediaVip")}
               </div>
               <Button
                 onClick={submit}
@@ -449,12 +453,12 @@ export function CreatePostDialog({
                 {submitting ? (
                   <>
                     <Loader2 className="ml-2 h-4 w-4 animate-spin" />
-                    جارٍ النشر…
+                    {m("publishing")}
                   </>
                 ) : (
                   <>
                     <Send className="ml-2 h-4 w-4" />
-                    تأكيد ونشر
+                    {m("confirmPublish")}
                   </>
                 )}
               </Button>

@@ -9,6 +9,7 @@ import step2Img from "@assets/ios-install/step2.png";
 import step3Img from "@assets/ios-install/step3.png";
 import step4Img from "@assets/ios-install/step4.png";
 import step5Img from "@assets/ios-install/step5.png";
+import { useLocale } from "@/i18n";
 
 type IosInstallGuideProps = {
   open: boolean;
@@ -24,49 +25,49 @@ const IN_APP_LABEL: Record<NonNullable<InAppBrowser>, string> = {
   twitter: "X",
   linkedin: "LinkedIn",
   line: "LINE",
-  webview: "هذا التطبيق",
+  webview: "student.ios.thisApp",
 };
 
 type Step = {
   img: string;
-  title: string;
-  desc: string;
+  titleKey: string;
+  descKey: string;
   wide?: boolean;
 };
 
 const STEPS: Step[] = [
   {
     img: step1Img,
-    title: "اضغط على زر المشاركة",
-    desc: "في شريط الأدوات أسفل متصفح Safari، اضغط على زر المشاركة (Share).",
+    titleKey: "student.ios.step1.title",
+    descKey: "student.ios.step1.desc",
   },
   {
     img: step2Img,
-    title: "اختر «En voir plus»",
-    desc: "من قائمة الخيارات، اضغط على «En voir plus» لعرض المزيد.",
+    titleKey: "student.ios.step2.title",
+    descKey: "student.ios.step2.desc",
   },
   {
     img: step3Img,
-    title: "اضغط على «Sur l'écran d'accueil»",
-    desc: "ابحث عن خيار «Sur l'écran d'accueil» ثم اضغط عليه.",
+    titleKey: "student.ios.step3.title",
+    descKey: "student.ios.step3.desc",
   },
   {
     img: step4Img,
-    title: "أضف التطبيق إلى الشاشة الرئيسية",
-    desc: "يمكنك تغيير الاسم إذا أردت، ثم اضغط على «Ajouter».",
+    titleKey: "student.ios.step4.title",
+    descKey: "student.ios.step4.desc",
     wide: true,
   },
   {
     img: step5Img,
-    title: "تم التثبيت بنجاح!",
-    desc: "تمت إضافة أيقونة GAB School إلى الشاشة الرئيسية.",
+    titleKey: "student.ios.step5.title",
+    descKey: "student.ios.step5.desc",
     wide: true,
   },
 ];
 
 /* -------------------------------- step card ------------------------------- */
 
-function StepCard({ step, index }: { step: Step; index: number }) {
+function StepCard({ step, index, t }: { step: Step; index: number; t: (key: string) => string }) {
   const isDone = index === STEPS.length - 1;
   return (
     <motion.div
@@ -88,9 +89,9 @@ function StepCard({ step, index }: { step: Step; index: number }) {
         {isDone ? <Check className="h-4 w-4" strokeWidth={3} /> : index + 1}
       </span>
 
-      <h3 className="text-start text-base font-extrabold leading-snug">{step.title}</h3>
+      <h3 className="text-start text-base font-extrabold leading-snug">{t(step.titleKey)}</h3>
       <p className="mt-1.5 text-start text-[13px] leading-relaxed text-muted-foreground">
-        {step.desc}
+        {t(step.descKey)}
       </p>
 
       {/* screenshot stage */}
@@ -98,7 +99,7 @@ function StepCard({ step, index }: { step: Step; index: number }) {
         <div className="w-full max-w-[220px] overflow-hidden rounded-2xl bg-white shadow-lg shadow-black/10 ring-1 ring-black/5">
           <img
             src={step.img}
-            alt={step.title}
+            alt={t(step.titleKey)}
             loading="lazy"
             className="block w-full select-none"
             draggable={false}
@@ -112,6 +113,7 @@ function StepCard({ step, index }: { step: Step; index: number }) {
 /* -------------------------------- component ------------------------------- */
 
 export function IosInstallGuide({ open, onOpenChange }: IosInstallGuideProps) {
+  const { direction, t } = useLocale();
   const [copied, setCopied] = useState(false);
   const [showSafariHelp, setShowSafariHelp] = useState(false);
 
@@ -140,16 +142,16 @@ export function IosInstallGuide({ open, onOpenChange }: IosInstallGuideProps) {
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
         <DialogPrimitive.Content
-          dir="rtl"
+           dir={direction}
           className="fixed inset-0 z-[60] flex flex-col bg-background outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:slide-out-to-bottom-4 data-[state=open]:slide-in-from-bottom-4"
         >
           {/* sticky top bar */}
           <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-background/80 px-4 py-3 backdrop-blur pt-[max(0.75rem,env(safe-area-inset-top))]">
             <DialogPrimitive.Close className="flex h-9 w-9 items-center justify-center rounded-full text-foreground/60 transition-colors hover:bg-muted hover:text-foreground">
               <X className="h-5 w-5" />
-              <span className="sr-only">إغلاق</span>
+              <span className="sr-only">{t("student.ios.close")}</span>
             </DialogPrimitive.Close>
-            <span className="text-sm font-bold text-muted-foreground">دليل التثبيت</span>
+               <span className="text-sm font-bold text-muted-foreground">{t("student.ios.title")}</span>
             <span className="h-9 w-9" aria-hidden="true" />
           </div>
 
@@ -166,15 +168,12 @@ export function IosInstallGuide({ open, onOpenChange }: IosInstallGuideProps) {
                   <Compass className="h-10 w-10" />
                 </motion.div>
                 <DialogPrimitive.Title className="text-lg font-extrabold">
-                  افتح الرابط في Safari أولاً
+                  {t("student.ios.openSafariTitle")}
                 </DialogPrimitive.Title>
                 <DialogPrimitive.Description className="mt-2 max-w-xs text-sm leading-relaxed text-muted-foreground">
-                  أنت تتصفّح حالياً داخل تطبيق{" "}
-                  <span className="font-semibold text-foreground">
-                    {inApp ? IN_APP_LABEL[inApp] : ""}
-                  </span>
-                  ، ولا يمكن تثبيت التطبيق من هنا. انسخ الرابط ثم افتحه في متصفح Safari لإكمال
-                  التثبيت.
+                   {t("student.ios.openSafariDescription", {
+                     app: inApp ? (IN_APP_LABEL[inApp].startsWith("student.") ? t(IN_APP_LABEL[inApp]) : IN_APP_LABEL[inApp]) : "",
+                   })}
                 </DialogPrimitive.Description>
 
                 <AnimatePresence>
@@ -186,14 +185,8 @@ export function IosInstallGuide({ open, onOpenChange }: IosInstallGuideProps) {
                       className="overflow-hidden"
                     >
                       <div className="mt-4 w-full max-w-xs rounded-2xl border border-border bg-muted/40 p-4 text-start text-xs leading-relaxed text-muted-foreground">
-                        <p className="mb-1 font-semibold text-foreground">كيفية الفتح في Safari:</p>
-                        ١. اضغط على زر القائمة <span className="font-bold">(•••)</span> في أعلى أو
-                        أسفل الشاشة.
-                        <br />
-                        ٢. اختر <span className="font-bold">«فتح في المتصفح»</span> أو{" "}
-                        <span className="font-bold">«Open in Safari»</span>.
-                        <br />
-                        ٣. أعد فتح هذه الصفحة ثم اضغط «تثبيت التطبيق».
+                         <p className="mb-1 font-semibold text-foreground">{t("student.ios.safariHelpTitle")}</p>
+                         {t("student.ios.safariHelp").split("\n").map((line) => <span key={line}>{line}<br /></span>)}
                       </div>
                     </motion.div>
                   )}
@@ -207,7 +200,7 @@ export function IosInstallGuide({ open, onOpenChange }: IosInstallGuideProps) {
                   className="h-12 w-full gap-2 rounded-2xl text-base font-bold"
                 >
                   {copied ? <Check className="h-5 w-5" /> : <Copy className="h-5 w-5" />}
-                  {copied ? "تم نسخ الرابط ✓" : "نسخ الرابط"}
+                   {copied ? t("student.ios.copied") : t("student.ios.copyLink")}
                 </Button>
                 <Button
                   onClick={() => setShowSafariHelp((v) => !v)}
@@ -216,7 +209,7 @@ export function IosInstallGuide({ open, onOpenChange }: IosInstallGuideProps) {
                   className="h-12 w-full gap-2 rounded-2xl text-base font-semibold"
                 >
                   <Compass className="h-5 w-5" />
-                  كيفية فتحه في Safari
+                   {t("student.ios.safariHowTo")}
                 </Button>
               </div>
             </div>
@@ -235,18 +228,17 @@ export function IosInstallGuide({ open, onOpenChange }: IosInstallGuideProps) {
                     <Smartphone className="h-7 w-7" />
                   </span>
                   <DialogPrimitive.Title className="text-2xl font-extrabold tracking-tight sm:text-3xl">
-                    تثبيت التطبيق على <span className="text-primary">iPhone</span>
+                     {t("student.ios.installOn")} <span className="text-primary">iPhone</span>
                   </DialogPrimitive.Title>
                   <DialogPrimitive.Description className="mx-auto mt-2.5 max-w-md text-sm leading-relaxed text-muted-foreground sm:text-base">
-                    أضف <span className="font-semibold text-foreground">GAB School</span> إلى الشاشة
-                    الرئيسية لتجربة أفضل
+                     {t("student.ios.addDescription")}
                   </DialogPrimitive.Description>
                 </motion.div>
 
                 {/* steps grid: 1 col on mobile, 2 on md, 3+2 on lg (6-col base) */}
                 <div className="grid grid-cols-1 gap-x-5 gap-y-9 md:grid-cols-2 lg:grid-cols-6">
                   {STEPS.map((step, i) => (
-                    <StepCard key={i} step={step} index={i} />
+                     <StepCard key={i} step={step} index={i} t={t} />
                   ))}
                 </div>
 
@@ -259,8 +251,7 @@ export function IosInstallGuide({ open, onOpenChange }: IosInstallGuideProps) {
                 >
                   <Lightbulb className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
                   <p className="text-[13px] leading-relaxed text-foreground/80 sm:text-sm">
-                    <span className="font-bold text-foreground">نصيحة:</span> بعد التثبيت، ستجد
-                    التطبيق على الشاشة الرئيسية ويمكنك فتحه كتطبيق كامل بدون متصفح.
+                     {t("student.ios.tip")}
                   </p>
                 </motion.div>
 
@@ -272,7 +263,7 @@ export function IosInstallGuide({ open, onOpenChange }: IosInstallGuideProps) {
                     className="h-12 w-full gap-2 rounded-2xl text-base font-bold"
                   >
                     <Check className="h-5 w-5" />
-                    تمّ، فهمت الخطوات
+                     {t("student.ios.done")}
                   </Button>
                 </div>
               </div>

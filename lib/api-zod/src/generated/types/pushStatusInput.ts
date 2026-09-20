@@ -10,4 +10,5 @@ import type { PushStatusInputPermission } from "./pushStatusInputPermission";
 export interface PushStatusInput {
   permission: PushStatusInputPermission;
   supported: boolean;
+  endpoint?: string;
 }

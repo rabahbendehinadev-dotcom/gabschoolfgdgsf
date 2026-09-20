@@ -84,6 +84,7 @@ import type {
   UnreadCountResponse,
   UpdateCategoryInput,
   UpdateCommunityPostInput,
+  UpdateLocaleInput,
   UpdateMyAvatarBody,
   UpdatePhoneInput,
   UpdatePlanInput,
@@ -840,6 +841,92 @@ export const useUpdateMyPhone = <
   TContext
 > => {
   return useMutation(getUpdateMyPhoneMutationOptions(options));
+};
+
+/**
+ * @summary Persist the current user's platform language
+ */
+export const getUpdateMyLocaleUrl = () => {
+  return `/api/auth/me/locale`;
+};
+
+export const updateMyLocale = async (
+  updateLocaleInput: UpdateLocaleInput,
+  options?: RequestInit,
+): Promise<UserProfile> => {
+  return customFetch<UserProfile>(getUpdateMyLocaleUrl(), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateLocaleInput),
+  });
+};
+
+export const getUpdateMyLocaleMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateMyLocale>>,
+    TError,
+    { data: BodyType<UpdateLocaleInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateMyLocale>>,
+  TError,
+  { data: BodyType<UpdateLocaleInput> },
+  TContext
+> => {
+  const mutationKey = ["updateMyLocale"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateMyLocale>>,
+    { data: BodyType<UpdateLocaleInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateMyLocale(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateMyLocaleMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateMyLocale>>
+>;
+export type UpdateMyLocaleMutationBody = BodyType<UpdateLocaleInput>;
+export type UpdateMyLocaleMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Persist the current user's platform language
+ */
+export const useUpdateMyLocale = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateMyLocale>>,
+    TError,
+    { data: BodyType<UpdateLocaleInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateMyLocale>>,
+  TError,
+  { data: BodyType<UpdateLocaleInput> },
+  TContext
+> => {
+  return useMutation(getUpdateMyLocaleMutationOptions(options));
 };
 
 /**

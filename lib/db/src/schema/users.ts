@@ -1,4 +1,5 @@
-import { pgTable, serial, text, varchar, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, varchar, boolean, timestamp, check } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -12,6 +13,8 @@ export const usersTable = pgTable("users", {
   profileImage: text("profile_image"),
   accountType: varchar("account_type", { length: 20 }).notNull().default("normal"),
   communityRole: varchar("community_role", { length: 20 }).notNull().default("student"),
+  locale: varchar("locale", { length: 5 }).notNull().default("ar"),
+  localeManuallySelected: boolean("locale_manually_selected").notNull().default(false),
   subscriptionType: varchar("subscription_type", { length: 20 }).notNull().default("demo"),
   subscriptionStartedAt: timestamp("subscription_started_at"),
   subscriptionExpiresAt: timestamp("subscription_expires_at"),
@@ -33,7 +36,7 @@ export const usersTable = pgTable("users", {
   securityBlockedAt: timestamp("security_blocked_at"),
   securityBlockedReason: text("security_blocked_reason"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, (t) => [check("users_locale_check", sql`${t.locale} IN ('ar', 'fr', 'en')`)]);
 
 export const insertUserSchema = createInsertSchema(usersTable).omit({ id: true, createdAt: true });
 export type InsertUser = z.infer<typeof insertUserSchema>;

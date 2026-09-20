@@ -9,6 +9,8 @@ import {
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { isActiveVip, isVideoLocked } from "@/lib/videoAccess";
+import { useLocale } from "@/i18n";
+import { learningT } from "@/i18n/learningMessages";
 
 type SectionVideo = {
   id: number;
@@ -36,6 +38,7 @@ function CategoryCard({
   index: number;
   onClick: () => void;
 }) {
+  const { locale } = useLocale();
   const accent = section.accentColor || "#f97316";
   const count = section.videos.length;
 
@@ -70,7 +73,7 @@ function CategoryCard({
         <div className="flex-1 min-w-0">
           <p className="font-bold text-foreground leading-snug truncate">{section.name}</p>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            {count === 0 ? "قريباً" : count === 1 ? "درس واحد" : `${count} دروس`}
+            {count === 0 ? learningT(locale, "learning.comingSoon", "قريباً") : `${count} ${learningT(locale, "learning.lessons", "دروس")}`}
           </p>
           {/* Accent bar */}
           <div
@@ -143,6 +146,7 @@ function LessonRow({ video, index, locked }: { video: SectionVideo; index: numbe
 
 /* ════════════════════════════════════════════════════════════ */
 export function CourseDetail({ id }: { id: number }) {
+  const { locale, direction } = useLocale();
   const { user, getAuthHeaders } = useAuth();
   const isVip = isActiveVip(user);
 
@@ -158,7 +162,7 @@ export function CourseDetail({ id }: { id: number }) {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center" dir="rtl">
+      <div className="flex min-h-[60vh] items-center justify-center" dir={direction}>
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
@@ -166,27 +170,27 @@ export function CourseDetail({ id }: { id: number }) {
 
   if (isLocked) {
     return (
-      <div className="flex min-h-[70vh] flex-col items-center justify-center gap-6 text-center px-4" dir="rtl">
+      <div className="flex min-h-[70vh] flex-col items-center justify-center gap-6 text-center px-4" dir={direction}>
         <div className="flex h-24 w-24 items-center justify-center rounded-3xl bg-amber-500/10 border border-amber-500/20">
           <Lock className="h-12 w-12 text-amber-400" />
         </div>
         <div className="max-w-sm">
-          <h2 className="text-2xl font-extrabold text-foreground mb-3">الدورة غير مفعلة</h2>
+          <h2 className="text-2xl font-extrabold text-foreground mb-3">{learningT(locale, "learning.courseInactive", "الدورة غير مفعلة")}</h2>
           <p className="text-muted-foreground leading-relaxed">
             {user
-              ? "هذه الدورة غير مفعلة في حسابك. تواصل مع الإدارة لتفعيل الوصول إليها."
-              : "يجب تسجيل الدخول أولاً للوصول إلى هذه الدورة."}
+              ? learningT(locale, "learning.noAccess", "هذه الدورة غير مفعلة في حسابك. تواصل مع الإدارة لتفعيل الوصول إليها.")
+              : learningT(locale, "learning.loginCourse", "يجب تسجيل الدخول أولاً للوصول إلى هذه الدورة.")}
           </p>
         </div>
         {!user ? (
           <Link href="/login">
             <button className="rounded-2xl bg-primary px-8 py-3 text-sm font-bold text-white shadow-md shadow-primary/30 hover:opacity-90 transition-opacity">
-              تسجيل الدخول
+              {learningT(locale, "learning.login", "تسجيل الدخول")}
             </button>
           </Link>
         ) : (
           <button onClick={() => navigate("/courses")} className="text-sm font-medium text-primary hover:underline">
-            العودة إلى الدورات
+            {learningT(locale, "learning.backToCourses", "العودة إلى الدورات")}
           </button>
         )}
       </div>
@@ -195,11 +199,11 @@ export function CourseDetail({ id }: { id: number }) {
 
   if (isError || !playlist) {
     return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 text-center" dir="rtl">
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 text-center" dir={direction}>
         <GraduationCap className="h-12 w-12 text-muted-foreground/40" />
-        <p className="text-muted-foreground">الدورة غير موجودة</p>
+        <p className="text-muted-foreground">{learningT(locale, "learning.courseUnavailable", "الدورة غير موجودة")}</p>
         <button onClick={() => navigate("/courses")} className="text-sm font-medium text-primary hover:underline">
-          العودة إلى الدورات
+          {learningT(locale, "learning.backToCourses", "العودة إلى الدورات")}
         </button>
       </div>
     );
@@ -211,7 +215,7 @@ export function CourseDetail({ id }: { id: number }) {
   const vipCount = sections.reduce((a, s) => a + s.videos.filter(v => v.accessType === "vip").length, 0);
 
   return (
-    <div className="min-h-screen bg-background pb-28" dir="rtl">
+    <div className="min-h-screen bg-background pb-28" dir={direction}>
 
       {/* ── Header ── */}
       <div className="border-b border-white/8 bg-card/80 backdrop-blur-sm px-4 py-5 sm:px-6">
@@ -220,7 +224,7 @@ export function CourseDetail({ id }: { id: number }) {
           <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
             <button onClick={() => navigate("/courses")} className="hover:text-foreground transition-colors flex items-center gap-1">
               <ArrowRight className="h-3.5 w-3.5" />
-              الدورات
+              {learningT(locale, "learning.backToCourses", "الدورات")}
             </button>
             {activeSection && (
               <>
@@ -259,11 +263,11 @@ export function CourseDetail({ id }: { id: number }) {
               <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                 <span className="flex items-center gap-1">
                   <FolderOpen className="h-3.5 w-3.5 text-primary" />
-                  {sections.length} {sections.length === 1 ? "تصنيف" : "تصنيفات"}
+                    {sections.length} {sections.length === 1 ? learningT(locale, "learning.category", "تصنيف") : learningT(locale, "learning.categories", "تصنيفات")}
                 </span>
                 <span className="flex items-center gap-1">
                   <PlayCircle className="h-3.5 w-3.5 text-primary" />
-                  {totalLessons === 0 ? "لا توجد دروس بعد" : `${totalLessons} درس`}
+                  {totalLessons === 0 ? learningT(locale, "learning.noLessonsYet", "لا توجد دروس بعد") : `${totalLessons} ${learningT(locale, "learning.lesson", "درس")}`}
                 </span>
                 {vipCount > 0 && (
                   <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-amber-400 font-medium border border-amber-500/20">
@@ -292,7 +296,7 @@ export function CourseDetail({ id }: { id: number }) {
               {sections.length === 0 ? (
                 <div className="py-20 text-center">
                   <FolderOpen className="mx-auto mb-3 h-10 w-10 text-muted-foreground/30" />
-                  <p className="text-sm text-muted-foreground">لم يتم ربط أي تصنيف بهذه الدورة بعد</p>
+                   <p className="text-sm text-muted-foreground">{learningT(locale, "learning.noCategories", "لم يتم ربط أي تصنيف بهذه الدورة بعد")}</p>
                 </div>
               ) : (
                 <div className="flex flex-col gap-3">
@@ -325,19 +329,19 @@ export function CourseDetail({ id }: { id: number }) {
                   className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
                 >
                   <ArrowLeft className="h-4 w-4" />
-                  رجوع
+                  {learningT(locale, "learning.back", "رجوع")}
                 </button>
                 <div className="h-4 w-px bg-border" />
                 <h2 className="font-bold text-foreground">{activeSection.name}</h2>
                 <span className="text-xs text-muted-foreground">
-                  ({activeSection.videos.length === 0 ? "قريباً" : `${activeSection.videos.length} درس`})
+                   ({activeSection.videos.length === 0 ? learningT(locale, "learning.comingSoon", "قريباً") : `${activeSection.videos.length} ${learningT(locale, "learning.lesson", "درس")}`})
                 </span>
               </div>
 
               {activeSection.videos.length === 0 ? (
                 <div className="py-16 text-center">
                   <PlayCircle className="mx-auto mb-3 h-10 w-10 text-muted-foreground/30" />
-                  <p className="text-sm text-muted-foreground">لا توجد دروس في هذا التصنيف بعد</p>
+                   <p className="text-sm text-muted-foreground">{learningT(locale, "learning.noLessonsCategory", "لا توجد دروس في هذا التصنيف بعد")}</p>
                 </div>
               ) : (
                 <div className="flex flex-col gap-2.5">
@@ -352,11 +356,11 @@ export function CourseDetail({ id }: { id: number }) {
                 <div className="mt-6 rounded-2xl border border-amber-500/20 bg-amber-500/5 p-5 text-center">
                   <Lock className="mx-auto mb-2 h-7 w-7 text-amber-400" />
                   <p className="mb-3 text-sm font-semibold text-foreground">
-                    بعض الدروس متاحة لأعضاء VIP فقط
+                     {learningT(locale, "learning.vipSome", "بعض الدروس متاحة لأعضاء VIP فقط")}
                   </p>
                   <Link href="/subscribe">
                     <button className="rounded-xl bg-primary px-6 py-2.5 text-sm font-bold text-white shadow-md shadow-primary/25 hover:opacity-90 transition-opacity">
-                      اشترك الآن للوصول الكامل
+                       {learningT(locale, "learning.fullVip", "اشترك الآن للوصول الكامل")}
                     </button>
                   </Link>
                 </div>

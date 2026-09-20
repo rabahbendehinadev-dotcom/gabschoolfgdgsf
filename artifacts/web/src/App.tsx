@@ -10,6 +10,7 @@ import { BottomNav } from "@/components/layout/BottomNav";
 import { Footer } from "@/components/layout/Footer";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { NotificationGate } from "@/components/notifications/NotificationGate";
+import { useLocale } from "@/i18n";
 
 const Home = lazy(() => import("@/pages/public/Home").then((module) => ({ default: module.Home })));
 const Login = lazy(() => import("@/pages/public/Login").then((module) => ({ default: module.Login })));
@@ -52,8 +53,13 @@ const NotFound = lazy(() => import("@/pages/not-found"));
 const queryClient = new QueryClient();
 
 function PublicLayout({ children }: { children: React.ReactNode }) {
+  const { direction } = useLocale();
   return (
-    <div className="min-h-screen flex flex-col rtl pb-[calc(70px_+_env(safe-area-inset-bottom))] lg:pb-0" dir="rtl">
+    <div
+      className="min-h-screen flex flex-col pb-[var(--mobile-bottom-nav-height)] lg:pb-0"
+      dir={direction}
+      style={{ "--mobile-bottom-nav-height": "calc(70px + 1px + env(safe-area-inset-bottom))" } as React.CSSProperties}
+    >
       <Navbar />
       <main className="flex-1">{children}</main>
       <Footer />
@@ -61,6 +67,17 @@ function PublicLayout({ children }: { children: React.ReactNode }) {
       <NotificationGate />
     </div>
   );
+}
+
+function LocaleAccountSync() {
+  const { user, bootstrapped } = useAuth();
+  const { applySavedLocale } = useLocale();
+  useEffect(() => {
+    if (bootstrapped && user?.localeManuallySelected && user.locale) {
+      applySavedLocale(user.locale);
+    }
+  }, [bootstrapped, user?.locale, user?.localeManuallySelected, applySavedLocale]);
+  return null;
 }
 
 // New users (signed up via Google with no WhatsApp number yet) must provide one
@@ -88,7 +105,7 @@ function GatedRouter() {
   // never mounts a lesson page or fires its data requests before redirecting.
   if (phoneMissing && !onCompletePhone) {
     return (
-      <div className="min-h-screen flex items-center justify-center" dir="rtl">
+      <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
@@ -223,11 +240,12 @@ function App() {
           <AuthProvider>
             <Suspense
               fallback={
-                <div className="min-h-screen flex items-center justify-center" dir="rtl">
+                <div className="min-h-screen flex items-center justify-center">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
               }
             >
+              <LocaleAccountSync />
               <GatedRouter />
             </Suspense>
           </AuthProvider>

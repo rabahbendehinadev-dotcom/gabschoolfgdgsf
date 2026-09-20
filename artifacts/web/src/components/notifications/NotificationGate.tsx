@@ -18,9 +18,11 @@ import { useToast } from "@/hooks/use-toast";
 import {
   isPushSupported,
   getNotificationPermission,
+  getCurrentPushEndpoint,
   enablePushSubscription,
   ensureFreshSubscription,
 } from "@/lib/push";
+import { useLocale } from "@/i18n";
 
 /**
  * Mandatory, professional push opt-in flow shown after login on the public app.
@@ -47,7 +49,76 @@ import {
 const DENIED_DISMISS_KEY = "gab-push-denied-dismissed";
 const IOS_DISMISS_KEY = "gab-push-ios-dismissed";
 
-type Mode = "hidden" | "mandatory" | "denied" | "ios";
+type Mode = "hidden" | "mandatory" | "denied" | "repair" | "ios";
+
+const copy = {
+  ar: {
+    mandatoryTitle: "ابقَ على اطلاع مع GAB ONLINE",
+    mandatoryDescription: "فعّل الإشعارات لتصلك أحدث الدورات والحلول التقنية وإعلانات المنصة.",
+    enable: "تفعيل الإشعارات",
+    browserPrompt: "ستظهر نافذة من المتصفح، اختر «السماح» لإتمام التفعيل.",
+    deniedTitle: "الإشعارات معطّلة في المتصفح",
+    deniedDescription: "افتح إعدادات الموقع في متصفحك واسمح بالإشعارات، ثم أعد التحقق.",
+    settingsSteps: ["افتح إعدادات الموقع من رمز القفل بجانب العنوان.", "اختر الإشعارات ثم «السماح».", "ارجع إلى GAB ONLINE واضغط زر إعادة التحقق."],
+    recheck: "لقد سمحت بالإشعارات",
+    later: "لاحقاً",
+    repairTitle: "نحتاج إلى إعادة تفعيل الإشعارات",
+    repairDescription: "الإذن متاح، لكن لم نتمكن من حفظ اشتراك هذا الجهاز. حاول إعادة التفعيل.",
+    retry: "إعادة المحاولة",
+    enabledTitle: "تم تفعيل الإشعارات",
+    enabledDescription: "ستصلك الآن أحدث الدروس والإعلانات المهمة أولاً بأول.",
+    iosTitle: "ثبّت التطبيق لتفعيل الإشعارات",
+    iosDescription: "على الآيفون، تصلك الإشعارات بعد إضافة المنصة إلى الشاشة الرئيسية.",
+    iosSteps: ["اضغط زر المشاركة.", "اختر «إضافة إلى الشاشة الرئيسية».", "افتح المنصة من الأيقونة الجديدة ثم فعّل الإشعارات."],
+    iosLater: "فهمت، لاحقاً",
+    pendingTitle: "لم يتم التفعيل بعد",
+    pendingDescription: "اضغط على «تفعيل الإشعارات» ثم اختر «السماح».",
+  },
+  fr: {
+    mandatoryTitle: "Restez informé avec GAB ONLINE",
+    mandatoryDescription: "Activez les notifications pour recevoir les nouveaux cours, solutions techniques et annonces importantes.",
+    enable: "Activer les notifications",
+    browserPrompt: "Une fenêtre du navigateur va s’ouvrir. Choisissez « Autoriser » pour terminer.",
+    deniedTitle: "Les notifications sont désactivées",
+    deniedDescription: "Ouvrez les réglages du site dans votre navigateur, autorisez les notifications, puis vérifiez à nouveau.",
+    settingsSteps: ["Ouvrez les réglages du site depuis l’icône de cadenas.", "Choisissez Notifications puis « Autoriser ».", "Revenez sur GAB ONLINE et vérifiez à nouveau."],
+    recheck: "J’ai autorisé les notifications",
+    later: "Plus tard",
+    repairTitle: "Réactivation des notifications nécessaire",
+    repairDescription: "L’autorisation est accordée, mais l’abonnement de cet appareil n’a pas pu être enregistré. Réessayez.",
+    retry: "Réessayer",
+    enabledTitle: "Notifications activées",
+    enabledDescription: "Vous recevrez les nouveaux cours et annonces importantes.",
+    iosTitle: "Installez l’application pour activer les notifications",
+    iosDescription: "Sur iPhone, ajoutez la plateforme à l’écran d’accueil pour recevoir les notifications.",
+    iosSteps: ["Appuyez sur le bouton Partager.", "Choisissez « Sur l’écran d’accueil ».", "Ouvrez la plateforme depuis la nouvelle icône et activez les notifications."],
+    iosLater: "Compris, plus tard",
+    pendingTitle: "Activation non terminée",
+    pendingDescription: "Appuyez sur « Activer les notifications », puis choisissez « Autoriser ».",
+  },
+  en: {
+    mandatoryTitle: "Stay informed with GAB ONLINE",
+    mandatoryDescription: "Enable notifications for new courses, technical solutions, and important platform announcements.",
+    enable: "Enable notifications",
+    browserPrompt: "Your browser will ask for permission. Choose “Allow” to finish.",
+    deniedTitle: "Notifications are disabled",
+    deniedDescription: "Open this site’s browser settings, allow notifications, then check again.",
+    settingsSteps: ["Open site settings from the lock icon beside the address.", "Choose Notifications, then “Allow”.", "Return to GAB ONLINE and check again."],
+    recheck: "I allowed notifications",
+    later: "Later",
+    repairTitle: "Notifications need to be re-enabled",
+    repairDescription: "Permission is available, but this device subscription could not be saved. Please try again.",
+    retry: "Try again",
+    enabledTitle: "Notifications enabled",
+    enabledDescription: "You’ll receive new courses and important announcements.",
+    iosTitle: "Install the app to enable notifications",
+    iosDescription: "On iPhone, add the platform to your Home Screen to receive notifications.",
+    iosSteps: ["Tap the Share button.", "Choose “Add to Home Screen”.", "Open the platform from the new icon and enable notifications."],
+    iosLater: "Got it, later",
+    pendingTitle: "Activation not completed",
+    pendingDescription: "Press “Enable notifications”, then choose “Allow”.",
+  },
+} as const;
 
 function isIOS(): boolean {
   if (typeof navigator === "undefined") return false;
@@ -85,6 +156,7 @@ function safeSetItem(key: string, value: string): void {
 
 export function NotificationGate() {
   const { user, getAuthHeaders, bootstrapped } = useAuth();
+  const { locale, direction } = useLocale();
   const { toast } = useToast();
 
   const [mode, setMode] = useState<Mode>("hidden");
@@ -102,7 +174,8 @@ export function NotificationGate() {
       supported: boolean,
     ): Promise<PushStatusResponse | null> => {
       try {
-        return await reportPushStatus({ permission, supported }, getAuthHeaders());
+        const endpoint = supported ? await getCurrentPushEndpoint() : undefined;
+        return await reportPushStatus({ permission, supported, endpoint }, getAuthHeaders());
       } catch {
         return null;
       }
@@ -172,8 +245,8 @@ export function NotificationGate() {
       // Happy path: this device already granted — make sure it is subscribed
       // and recorded, then never show any UI.
       if (supported && getNotificationPermission() === "granted") {
-        await subscribeAndSave();
-        if (!cancelled) setMode("hidden");
+        const healed = await subscribeAndSave();
+        if (!cancelled) setMode(healed ? "hidden" : "repair");
         return;
       }
 
@@ -184,8 +257,10 @@ export function NotificationGate() {
       const status = await report(localPerm, supported);
       if (cancelled) return;
 
-      // Already reachable on at least one device → never bother them again.
-      if (status?.enabled) {
+      // A saved endpoint only proves this device is currently reachable when
+      // the browser still reports granted permission. Browsers may retain an
+      // old subscription object after permission is reset or denied.
+      if (localPerm === "granted" && status?.enabled) {
         setMode("hidden");
         return;
       }
@@ -241,10 +316,10 @@ export function NotificationGate() {
     remindRef.current = false;
     setMode("hidden");
     toast({
-      title: "تم تفعيل الإشعارات ✅",
-      description: "ستصلك الآن أحدث الدروس والإعلانات المهمة أولاً بأول.",
+      title: `${copy[locale].enabledTitle} ✅`,
+      description: copy[locale].enabledDescription,
     });
-  }, [toast]);
+  }, [toast, locale]);
 
   // Mandatory modal: the only path forward is to grant.
   const handleEnable = useCallback(async () => {
@@ -265,8 +340,8 @@ export function NotificationGate() {
       } else {
         await report("default", true);
         toast({
-          title: "لم يتم التفعيل بعد",
-          description: "اضغط على \"تفعيل الإشعارات\" ثم اختر \"السماح\".",
+          title: copy[locale].pendingTitle,
+          description: copy[locale].pendingDescription,
           variant: "destructive",
         });
       }
@@ -282,8 +357,8 @@ export function NotificationGate() {
       const perm = getNotificationPermission();
       if (perm !== "granted") {
         toast({
-          title: "الإشعارات لا تزال معطّلة",
-          description: "فعّل الإشعارات لهذا الموقع من إعدادات المتصفح ثم أعد المحاولة.",
+          title: copy[locale].deniedTitle,
+          description: copy[locale].deniedDescription,
           variant: "destructive",
         });
         return;
@@ -294,8 +369,8 @@ export function NotificationGate() {
         finishEnabled();
       } else {
         toast({
-          title: "تعذّر إكمال التفعيل",
-          description: "حاول مرة أخرى بعد قليل.",
+          title: copy[locale].repairTitle,
+          description: copy[locale].repairDescription,
           variant: "destructive",
         });
       }
@@ -316,6 +391,7 @@ export function NotificationGate() {
     setMode("hidden");
   }, [ackReminderIfNeeded]);
 
+  const ui = copy[locale];
   const backdrop =
     "fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/70 p-4 backdrop-blur-md";
   const panel =
@@ -326,7 +402,7 @@ export function NotificationGate() {
       {mode !== "hidden" && (
         <motion.div
           key="gate"
-          dir="rtl"
+          dir={direction}
           className={backdrop}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -346,10 +422,10 @@ export function NotificationGate() {
                   <BellRing className="h-10 w-10 text-white" />
                 </span>
                 <h2 className="text-xl font-extrabold leading-snug text-slate-900">
-                  لا تفوت الدروس الجديدة والإعلانات المهمة
+                  {ui.mandatoryTitle}
                 </h2>
                 <p className="mt-3 text-[15px] leading-relaxed text-slate-500">
-                  فعّل الإشعارات لتصلك الدروس الجديدة وتنبيهات المجتمع فور نشرها، حتى عندما يكون التطبيق مغلقاً.
+                  {ui.mandatoryDescription}
                 </p>
                 <Button
                   onClick={handleEnable}
@@ -359,45 +435,42 @@ export function NotificationGate() {
                   {busy ? (
                     <Loader2 className="h-5 w-5 animate-spin" />
                   ) : (
-                    "✅ تفعيل الإشعارات"
+                    `✅ ${ui.enable}`
                   )}
                 </Button>
                 <p className="mt-3 text-xs text-slate-400">
-                  ستظهر نافذة من المتصفح، اختر "السماح" لإتمام التفعيل.
+                  {ui.browserPrompt}
                 </p>
               </div>
             )}
 
-            {mode === "denied" && (
+            {(mode === "denied" || mode === "repair") && (
               <div className="flex flex-col items-center px-6 pb-7 pt-9 text-center">
                 <span className="mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-rose-400 to-red-500 shadow-lg shadow-red-500/30">
                   <Settings className="h-10 w-10 text-white" />
                 </span>
                 <h2 className="text-xl font-extrabold leading-snug text-slate-900">
-                  الإشعارات معطّلة في المتصفح
+                  {mode === "repair" ? ui.repairTitle : ui.deniedTitle}
                 </h2>
                 <p className="mt-3 text-[15px] leading-relaxed text-slate-500">
-                  لتفعيلها مجدداً، افتح إعدادات الموقع في متصفحك واسمح بالإشعارات:
+                  {mode === "repair" ? ui.repairDescription : ui.deniedDescription}
                 </p>
-                <ol className="mt-4 w-full space-y-2 rounded-2xl bg-slate-50 p-4 text-right text-sm text-slate-600">
-                  <li>١. اضغط على رمز القفل 🔒 بجانب عنوان الموقع.</li>
-                  <li>٢. ابحث عن "الإشعارات" (Notifications).</li>
-                  <li>٣. غيّر الإعداد إلى "السماح" (Allow).</li>
-                  <li>٤. ارجع إلى هنا واضغط الزر بالأسفل.</li>
-                </ol>
+                {mode === "denied" && <ol className="mt-4 w-full space-y-2 rounded-2xl bg-slate-50 p-4 text-right text-sm text-slate-600">
+                  {ui.settingsSteps.map((step, index) => <li key={step}>{index + 1}. {step}</li>)}
+                </ol>}
                 <Button
                   onClick={handleRecheck}
                   disabled={busy}
                   className="mt-6 h-14 w-full rounded-2xl text-base font-bold"
                 >
-                  {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : "لقد قمت بالتفعيل"}
+                  {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : mode === "repair" ? ui.retry : ui.recheck}
                 </Button>
                 <button
                   type="button"
                   onClick={dismissDenied}
                   className="mt-3 text-sm font-medium text-slate-400 transition-colors hover:text-slate-600"
                 >
-                  لاحقاً
+                  {ui.later}
                 </button>
               </div>
             )}
@@ -408,26 +481,25 @@ export function NotificationGate() {
                   <Smartphone className="h-10 w-10 text-white" />
                 </span>
                 <h2 className="text-xl font-extrabold leading-snug text-slate-900">
-                  ثبّت التطبيق لتفعيل الإشعارات
+                  {ui.iosTitle}
                 </h2>
                 <p className="mt-3 text-[15px] leading-relaxed text-slate-500">
-                  على الآيفون، تصلك الإشعارات بعد إضافة المنصة إلى الشاشة الرئيسية:
+                  {ui.iosDescription}
                 </p>
-                <ol className="mt-4 w-full space-y-2 rounded-2xl bg-slate-50 p-4 text-right text-sm text-slate-600">
-                  <li className="flex items-center justify-end gap-2">
-                    <span>١. اضغط زر المشاركة</span>
+                  <ol className="mt-4 w-full space-y-2 rounded-2xl bg-slate-50 p-4 text-right text-sm text-slate-600">
+                   <li className="flex items-center justify-end gap-2">
+                     <span>{ui.iosSteps[0]}</span>
                     <Share className="h-4 w-4 text-blue-500" />
                   </li>
-                  <li>٢. اختر "إضافة إلى الشاشة الرئيسية".</li>
-                  <li>٣. افتح المنصة من الأيقونة الجديدة.</li>
-                  <li>٤. فعّل الإشعارات عند ظهور الطلب.</li>
+                   <li>{ui.iosSteps[1]}</li>
+                   <li>{ui.iosSteps[2]}</li>
                 </ol>
                 <button
                   type="button"
                   onClick={dismissIos}
                   className="mt-6 text-sm font-semibold text-slate-500 transition-colors hover:text-slate-700"
                 >
-                  فهمت، لاحقاً
+                   {ui.iosLater}
                 </button>
               </div>
             )}

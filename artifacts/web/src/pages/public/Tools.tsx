@@ -13,6 +13,8 @@ import {
   LogIn, GraduationCap, Sparkles, Eye, EyeOff
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useLocale } from "@/i18n";
+import { learningT } from "@/i18n/learningMessages";
 
 interface PublicTool {
   id: number;
@@ -128,6 +130,7 @@ type ModalState =
   | { type: "upgrade"; tool: PublicTool };
 
 export function Tools() {
+  const { locale, direction } = useLocale();
   const { user, getAuthHeaders } = useAuth();
   const { toast } = useToast();
   const [search, setSearch] = useState("");
@@ -228,7 +231,7 @@ export function Tools() {
   }
 
   return (
-    <div className="min-h-screen" dir="rtl">
+    <div className="min-h-screen" dir={direction}>
       {/* Hero */}
       <div className="relative overflow-hidden bg-gradient-to-b from-primary/10 via-background to-background pb-8 pt-16">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/20 via-transparent to-transparent pointer-events-none" />
@@ -250,7 +253,7 @@ export function Tools() {
             <Input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="ابحث عن أداة..."
+              placeholder={learningT(locale, "learning.searchTool", "ابحث عن أداة...")}
               className="pe-10 h-12 rounded-2xl bg-background/60 backdrop-blur border-border/60 text-base"
             />
           </div>
@@ -305,7 +308,7 @@ export function Tools() {
         ) : filtered.length === 0 ? (
           <div className="text-center py-24">
             <Wrench className="w-16 h-16 text-muted-foreground/30 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold mb-2">لا توجد أدوات</h3>
+            <h3 className="text-xl font-semibold mb-2">{learningT(locale, "learning.noTools", "لا توجد أدوات")}</h3>
             <p className="text-muted-foreground">
               {search || categoryFilter !== "all" ? "لم يتطابق أي بحث مع نتائج الأدوات" : "لم تُضف أي أدوات بعد"}
             </p>
@@ -359,7 +362,7 @@ export function Tools() {
 
       {/* Password Modal */}
       <Dialog open={modal.type === "password"} onOpenChange={open => { if (!open) { setModal({ type: "none" }); setPassword(""); } }}>
-        <DialogContent className="sm:max-w-md" dir="rtl">
+        <DialogContent className="sm:max-w-md" dir={direction}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-start">
               <KeyRound className="w-5 h-5 text-primary" />
@@ -378,7 +381,7 @@ export function Tools() {
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && handlePasswordSubmit()}
-                placeholder="أدخل كلمة المرور..."
+                placeholder={learningT(locale, "learning.password", "أدخل كلمة المرور...")}
                 className="pe-10"
                 autoFocus
               />
@@ -426,7 +429,7 @@ export function Tools() {
 
       {/* Upgrade Modal (VIP) — يظهر لكل من ليس VIP، زائر أو مسجّل */}
       <Dialog open={modal.type === "upgrade"} onOpenChange={open => { if (!open) setModal({ type: "none" }); }}>
-        <DialogContent className="sm:max-w-md" dir="rtl">
+        <DialogContent className="sm:max-w-md" dir={direction}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-start">
               <Crown className="w-5 h-5 text-amber-400" />

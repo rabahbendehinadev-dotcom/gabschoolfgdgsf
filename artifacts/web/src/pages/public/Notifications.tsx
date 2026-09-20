@@ -18,6 +18,7 @@ import { useAuth } from "@/lib/auth";
 import { Button, Skeleton } from "@/components/ui";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { useLocale } from "@/i18n";
 import { isPushSupported, resubscribePush } from "@/lib/push";
 import {
   Bell,
@@ -66,31 +67,32 @@ function getFamily(type: string): string {
   return "system";
 }
 
-function formatRelative(iso: string): string {
+function formatRelative(iso: string, locale: string, t: (key: string, values?: Record<string, string | number>) => string): string {
   const then = new Date(iso).getTime();
   if (Number.isNaN(then)) return "";
   const sec = Math.floor((Date.now() - then) / 1000);
-  if (sec < 60) return "الآن";
+  if (sec < 60) return t("notifications.now");
   const min = Math.floor(sec / 60);
-  if (min < 60) return `قبل ${min} دقيقة`;
+  if (min < 60) return t("notifications.minutesAgo", { count: min });
   const hr = Math.floor(min / 60);
-  if (hr < 24) return `قبل ${hr} ساعة`;
+  if (hr < 24) return t("notifications.hoursAgo", { count: hr });
   const day = Math.floor(hr / 24);
-  if (day < 7) return `قبل ${day} يوم`;
-  return new Date(iso).toLocaleDateString("ar-DZ", { dateStyle: "medium" });
+  if (day < 7) return t("notifications.daysAgo", { count: day });
+  return new Date(iso).toLocaleDateString(locale, { dateStyle: "medium" });
 }
 
 type FilterType = "all" | "lessons" | "community" | "vip" | "system";
 
 const TABS: { id: FilterType; label: string }[] = [
-  { id: "all", label: "الكل" },
-  { id: "lessons", label: "الدروس" },
-  { id: "community", label: "Community" },
-  { id: "vip", label: "VIP" },
-  { id: "system", label: "النظام" },
+  { id: "all", label: "notifications.all" },
+  { id: "lessons", label: "notifications.lessons" },
+  { id: "community", label: "notifications.community" },
+  { id: "vip", label: "nav.vip" },
+  { id: "system", label: "notifications.system" },
 ];
 
 export function Notifications() {
+  const { locale, t } = useLocale();
   const { user, getAuthHeaders } = useAuth();
   const { toast } = useToast();
   const [, navigate] = useLocation();
@@ -260,7 +262,7 @@ export function Notifications() {
                 : "bg-secondary/70 text-secondary-foreground hover:bg-secondary/90"
             )}
           >
-            {tab.label}
+            {t(tab.label)}
           </button>
         ))}
       </div>
@@ -366,7 +368,7 @@ export function Notifications() {
                             </div>
                             <span className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground whitespace-nowrap shrink-0 pt-1">
                               {!n.isRead && <span className="h-1.5 w-1.5 rounded-full bg-primary shadow-sm" />}
-                              {formatRelative(n.createdAt)}
+                              {formatRelative(n.createdAt, locale, t)}
                             </span>
                           </div>
 

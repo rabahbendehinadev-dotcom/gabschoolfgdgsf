@@ -7,6 +7,7 @@
  */
 import type { UserProfileAccountType } from "./userProfileAccountType";
 import type { UserProfileCommunityRole } from "./userProfileCommunityRole";
+import type { UserProfileLocale } from "./userProfileLocale";
 import type { UserProfileSubscriptionType } from "./userProfileSubscriptionType";
 
 export interface UserProfile {
@@ -21,5 +22,7 @@ export interface UserProfile {
   phone?: string | null;
   profileImageUrl?: string | null;
   communityRole: UserProfileCommunityRole;
+  locale: UserProfileLocale;
+  localeManuallySelected: boolean;
   createdAt: Date;
 }

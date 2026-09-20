@@ -3,6 +3,8 @@ import { CommunityMediaItem } from "@workspace/api-client-react/src/generated/ap
 import { LockedMedia } from "./LockedMedia";
 import { CommunityVideoPlayer } from "./CommunityVideoPlayer";
 import { X, Play, FileText, Download } from "lucide-react";
+import { useLocale } from "@/i18n";
+import { commerceMessage } from "@/i18n/communityCommerceMessages";
 
 function Cell({
   item,
@@ -19,6 +21,8 @@ function Cell({
   onZoom: (url: string) => void;
   onPlay: (id: number) => void;
 }) {
+  const { locale } = useLocale();
+  const m = (key: string) => commerceMessage(locale, key);
   if (item.locked) {
     return (
       <div className={className}>
@@ -40,7 +44,7 @@ function Cell({
           <FileText className="h-6 w-6" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="truncate text-[15px] font-black text-slate-900 group-hover:text-orange-600 transition-colors">{item.fileName || "ملف مرفق"}</p>
+          <p className="truncate text-[15px] font-black text-slate-900 group-hover:text-orange-600 transition-colors">{item.fileName || m("attachedFile")}</p>
           <p className="text-[13px] font-bold text-slate-500 mt-0.5">
             {item.sizeBytes ? (item.sizeBytes / 1024 / 1024).toFixed(2) + " MB" : ""}
           </p>
@@ -110,6 +114,8 @@ export function MediaGrid({
   media: CommunityMediaItem[];
   username?: string | null;
 }) {
+  const { locale } = useLocale();
+  const m = (key: string) => commerceMessage(locale, key);
   const [zoom, setZoom] = useState<string | null>(null);
   const [playing, setPlaying] = useState<number | null>(null);
 
@@ -224,7 +230,7 @@ export function MediaGrid({
             type="button"
             className="absolute right-4 top-4 z-10 flex h-11 w-11 items-center justify-center rounded-full border border-white/25 bg-black/55 text-white shadow-lg backdrop-blur-md transition-colors hover:bg-black/75"
             onClick={() => setZoom(null)}
-            aria-label="إغلاق"
+            aria-label={m("closeDialog")}
           >
             <X className="h-5 w-5" />
           </button>

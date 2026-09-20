@@ -21,6 +21,16 @@ export function getNotificationPermission(): NotificationPermission | "unsupport
   return Notification.permission;
 }
 
+export async function getCurrentPushEndpoint(): Promise<string | undefined> {
+  if (!isPushSupported()) return undefined;
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    return (await registration.pushManager.getSubscription())?.endpoint;
+  } catch {
+    return undefined;
+  }
+}
+
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");

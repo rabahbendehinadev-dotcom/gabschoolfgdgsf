@@ -243,6 +243,39 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /auth/me/locale:
+    patch:
+      operationId: updateMyLocale
+      tags: [auth]
+      summary: Persist the current user's platform language
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateLocaleInput"
+      responses:
+        "200":
+          description: Locale updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /videos:
     get:
       operationId: getVideos
@@ -1825,6 +1858,15 @@ components:
       required:
         - phone
 
+    UpdateLocaleInput:
+      type: object
+      properties:
+        locale:
+          type: string
+          enum: [ar, fr, en]
+      required:
+        - locale
+
     AuthResponse:
       type: object
       properties:
@@ -1879,6 +1921,8 @@ components:
           enum: [default, granted, denied, unsupported]
         supported:
           type: boolean
+        endpoint:
+          type: string
       required:
         - permission
         - supported
@@ -1957,6 +2001,11 @@ components:
         communityRole:
           type: string
           enum: [admin, formateur, student]
+        locale:
+          type: string
+          enum: [ar, fr, en]
+        localeManuallySelected:
+          type: boolean
         createdAt:
           type: string
           format: date-time
@@ -1967,6 +2016,8 @@ components:
         - accountType
         - subscriptionType
         - communityRole
+        - locale
+        - localeManuallySelected
         - isActive
         - createdAt
 

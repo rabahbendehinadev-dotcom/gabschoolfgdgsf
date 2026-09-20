@@ -76,6 +76,28 @@ async function runMigrations() {
         ADD COLUMN IF NOT EXISTS phone VARCHAR(20)
     `);
     await db.execute(sql`
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS locale VARCHAR(5) NOT NULL DEFAULT 'ar'
+    `);
+    await db.execute(sql`
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS locale_manually_selected BOOLEAN NOT NULL DEFAULT FALSE
+    `);
+    await db.execute(sql`
+      UPDATE users SET locale = 'ar'
+      WHERE locale IS NULL OR locale NOT IN ('ar', 'fr', 'en')
+    `);
+    await db.execute(sql`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = 'users_locale_check'
+        ) THEN
+          ALTER TABLE users ADD CONSTRAINT users_locale_check CHECK (locale IN ('ar', 'fr', 'en'));
+        END IF;
+      END $$;
+    `);
+    await db.execute(sql`
       CREATE TABLE IF NOT EXISTS activity_logs (
         id SERIAL PRIMARY KEY,
         user_id INTEGER,

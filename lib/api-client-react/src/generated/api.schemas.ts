@@ -43,6 +43,19 @@ export interface UpdatePhoneInput {
   phone: string;
 }
 
+export type UpdateLocaleInputLocale =
+  (typeof UpdateLocaleInputLocale)[keyof typeof UpdateLocaleInputLocale];
+
+export const UpdateLocaleInputLocale = {
+  ar: "ar",
+  fr: "fr",
+  en: "en",
+} as const;
+
+export interface UpdateLocaleInput {
+  locale: UpdateLocaleInputLocale;
+}
+
 export type UserProfileAccountType =
   (typeof UserProfileAccountType)[keyof typeof UserProfileAccountType];
 
@@ -70,6 +83,15 @@ export const UserProfileCommunityRole = {
   student: "student",
 } as const;
 
+export type UserProfileLocale =
+  (typeof UserProfileLocale)[keyof typeof UserProfileLocale];
+
+export const UserProfileLocale = {
+  ar: "ar",
+  fr: "fr",
+  en: "en",
+} as const;
+
 export interface UserProfile {
   id: number;
   username: string;
@@ -82,6 +104,8 @@ export interface UserProfile {
   phone?: string | null;
   profileImageUrl?: string | null;
   communityRole: UserProfileCommunityRole;
+  locale: UserProfileLocale;
+  localeManuallySelected: boolean;
   createdAt: string;
 }
 
@@ -121,6 +145,7 @@ export const PushStatusInputPermission = {
 export interface PushStatusInput {
   permission: PushStatusInputPermission;
   supported: boolean;
+  endpoint?: string;
 }
 
 export interface PushStatusResponse {

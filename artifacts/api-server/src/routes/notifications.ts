@@ -11,6 +11,7 @@ import { userAuthNoIpLimit } from "../middlewares/auth";
 import { getVapidPublicKey } from "../lib/webPush";
 import { safeAppThumbnailUrl } from "../lib/notifications";
 import { SavePushSubscriptionBody, DeletePushSubscriptionBody, ReportPushStatusBody } from "@workspace/api-zod";
+import { localizedNotificationBody, localizedNotificationTitle } from "../lib/notificationLocale";
 
 const router: IRouter = Router();
 
@@ -62,8 +63,8 @@ router.get("/notifications", userAuthNoIpLimit, async (req: Request, res: Respon
         return {
           id: r.id,
           type: r.type,
-          title: r.title,
-          body: r.body,
+          title: localizedNotificationTitle(r.type, r.title, req.user!.locale),
+          body: localizedNotificationBody(r.type, r.body ?? "", req.user!.locale, metadata),
           targetType: r.targetType,
           targetId: r.targetId ?? null,
           targetPath: r.targetPath ?? null,
@@ -232,7 +233,7 @@ const REMINDER_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
 
 // A user is "enabled" iff they have at least one push subscription that hasn't
 // been pruned for delivery failures — the only proof we can actually reach them.
-async function loadPushState(userId: number): Promise<{
+async function loadPushState(userId: number, endpoint?: string): Promise<{
   enabled: boolean;
   permission: string;
   supported: boolean;
@@ -249,16 +250,19 @@ async function loadPushState(userId: number): Promise<{
     .where(eq(usersTable.id, userId))
     .limit(1);
 
-  const [activeSub] = await db
-    .select({ id: pushSubscriptionsTable.id })
-    .from(pushSubscriptionsTable)
-    .where(
-      and(
-        eq(pushSubscriptionsTable.userId, userId),
-        isNull(pushSubscriptionsTable.failedAt),
-      ),
-    )
-    .limit(1);
+  const [activeSub] = endpoint
+    ? await db
+        .select({ id: pushSubscriptionsTable.id })
+        .from(pushSubscriptionsTable)
+        .where(
+          and(
+            eq(pushSubscriptionsTable.userId, userId),
+            eq(pushSubscriptionsTable.endpoint, endpoint),
+            isNull(pushSubscriptionsTable.failedAt),
+          ),
+        )
+        .limit(1)
+    : [];
 
   const enabled = !!activeSub;
   const ageMs = user ? Date.now() - new Date(user.createdAt).getTime() : 0;
@@ -276,7 +280,8 @@ async function loadPushState(userId: number): Promise<{
 // GET /notifications/push-status — current opt-in state for the gate.
 router.get("/notifications/push-status", userAuthNoIpLimit, async (req: Request, res: Response) => {
   try {
-    res.json(await loadPushState(req.user!.id));
+    const endpoint = typeof req.query.endpoint === "string" ? req.query.endpoint : undefined;
+    res.json(await loadPushState(req.user!.id, endpoint));
   } catch (error: unknown) {
     res.status(500).json({
       message: error instanceof Error ? error.message : "Failed to load push status",
@@ -294,7 +299,7 @@ router.post("/notifications/push-status", userAuthNoIpLimit, async (req: Request
       return;
     }
     const userId = req.user!.id;
-    const { permission, supported } = parsed.data;
+    const { permission, supported, endpoint } = parsed.data;
 
     await db
       .update(usersTable)
@@ -309,7 +314,7 @@ router.post("/notifications/push-status", userAuthNoIpLimit, async (req: Request
         .where(and(eq(usersTable.id, userId), isNull(usersTable.pushEnabledAt)));
     }
 
-    res.json(await loadPushState(userId));
+    res.json(await loadPushState(userId, endpoint));
   } catch (error: unknown) {
     res.status(500).json({
       message: error instanceof Error ? error.message : "Failed to update push status",

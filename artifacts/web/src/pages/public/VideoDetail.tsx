@@ -7,11 +7,14 @@ import { Crown, ArrowRight, PlaySquare, Lock, CalendarDays, Tag, Download } from
 import { Link } from "wouter";
 import { formatDate } from "@/lib/utils";
 import { CourseVideoPlayer } from "@/components/CourseVideoPlayer";
+import { useLocale } from "@/i18n";
+import { learningT } from "@/i18n/learningMessages";
 
 const FALLBACK_THUMB =
   "https://images.unsplash.com/photo-1580927752452-89d86da3fa0a?w=800&q=80";
 
 export function VideoDetail() {
+  const { locale, direction } = useLocale();
   const [, params] = useRoute("/videos/:id");
   const [, navigate] = useLocation();
   const { user, getAuthHeaders, bootstrapped } = useAuth();
@@ -55,7 +58,7 @@ export function VideoDetail() {
           {/* رابط العودة */}
           <Link href="/videos" className="inline-flex items-center text-muted-foreground hover:text-primary mb-8 transition-colors font-medium group">
             <ArrowRight className="w-4 h-4 ml-2 group-hover:-translate-x-1 transition-transform" />
-            العودة للدروس
+            {learningT(locale, "learning.backToLessons", "العودة للدروس")}
           </Link>
 
           {/* العنوان */}
@@ -95,26 +98,26 @@ export function VideoDetail() {
               </div>
               <p className="text-white font-bold text-lg mb-1.5">
                 {isVipRequired
-                  ? "مخصص لحسابات VIP فقط"
+                  ? learningT(locale, "learning.vipOnly", "مخصص لحسابات VIP فقط")
                   : user
-                    ? "ترقية حسابك للمشاهدة"
-                    : "اشترك لمشاهدة هذا الدرس"}
+                    ? learningT(locale, "learning.upgradeWatch", "ترقية حسابك للمشاهدة")
+                    : learningT(locale, "learning.subscribeWatch", "اشترك لمشاهدة هذا الدرس")}
               </p>
               <p className="text-white/70 text-sm mb-5 max-w-sm">
                 {isVipRequired
-                  ? "هذا الدرس حصري لأعضاء VIP. قم بترقية حسابك للوصول الكامل."
+                  ? learningT(locale, "learning.vipLessonHint", "هذا الدرس حصري لأعضاء VIP. قم بترقية حسابك للوصول الكامل.")
                   : user
-                    ? "قم بالاشتراك الآن للوصول إلى جميع الدروس."
-                    : "سجّل الدخول واشترك للوصول إلى جميع الدروس."}
+                    ? learningT(locale, "learning.subscribeAll", "قم بالاشتراك الآن للوصول إلى جميع الدروس.")
+                    : learningT(locale, "learning.loginSubscribe", "سجّل الدخول واشترك للوصول إلى جميع الدروس.")}
               </p>
               <Link href={user ? "/subscribe" : "/login"}>
                 <Button size="lg" className="gap-2 shadow-lg">
                   {isVipRequired ? (
-                    <><Crown className="w-4 h-4" /> ترقية إلى VIP</>
+                    <><Crown className="w-4 h-4" /> {learningT(locale, "learning.upgradeVip", "ترقية إلى VIP")}</>
                   ) : user ? (
-                    <><Lock className="w-4 h-4" /> عرض الاشتراكات</>
+                    <><Lock className="w-4 h-4" /> {learningT(locale, "learning.watchAll", "عرض الاشتراكات")}</>
                   ) : (
-                    <><Lock className="w-4 h-4" /> تسجيل الدخول</>
+                    <><Lock className="w-4 h-4" /> {learningT(locale, "learning.login", "تسجيل الدخول")}</>
                   )}
                 </Button>
               </Link>
@@ -125,7 +128,7 @@ export function VideoDetail() {
           {preview?.description && (
             <Card className="p-6 glass-card">
               <h3 className="text-lg font-bold mb-4 text-primary border-b border-border pb-3">
-                وصف الدرس
+                {learningT(locale, "learning.lessonDescription", "وصف الدرس")}
               </h3>
               <div className="text-foreground/80 leading-loose whitespace-pre-wrap text-[15px]">
                 {preview.description}
@@ -147,8 +150,8 @@ export function VideoDetail() {
       <div className="min-h-[80vh] flex items-center justify-center p-4">
         <Card className="max-w-md w-full p-8 text-center glass-card">
           <Lock className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-          <h2 className="text-xl font-bold mb-4">تعذر تحميل الدرس</h2>
-          <Link href="/videos"><Button variant="outline">العودة للمكتبة</Button></Link>
+          <h2 className="text-xl font-bold mb-4">{learningT(locale, "learning.lessonUnavailable", "تعذر تحميل الدرس")}</h2>
+          <Link href="/videos"><Button variant="outline">{learningT(locale, "learning.library", "العودة للمكتبة")}</Button></Link>
         </Card>
       </div>
     );
@@ -190,7 +193,7 @@ export function VideoDetail() {
                 <Badge variant="vip"><Crown className="w-3 h-3 ml-1" /> VIP</Badge>
               )}
               {video.accessType === "visitor" && (
-                <Badge variant="outline" className="border-green-500/40 text-green-400">مجاني</Badge>
+                <Badge variant="outline" className="border-green-500/40 text-green-400">{learningT(locale, "learning.free", "مجاني")}</Badge>
               )}
             </div>
 
@@ -208,7 +211,7 @@ export function VideoDetail() {
                     }`}
                   >
                     <PlaySquare className="w-3.5 h-3.5" />
-                    {part.label || `الجزء ${i + 1}`}
+                    {part.label || `${learningT(locale, "learning.part", "الجزء")} ${i + 1}`}
                   </button>
                 ))}
               </div>
@@ -238,7 +241,7 @@ export function VideoDetail() {
                 <div className="absolute inset-0 flex items-center justify-center">
                   <p className="text-foreground/40 text-sm flex items-center gap-2">
                     <PlaySquare className="w-5 h-5" />
-                    الفيديو غير متاح لهذا الحساب
+                    {learningT(locale, "learning.videoUnavailable", "الفيديو غير متاح لهذا الحساب")}
                   </p>
                 </div>
               </div>
@@ -261,8 +264,8 @@ export function VideoDetail() {
                       <Crown className="w-3.5 h-3.5 text-amber-300" />
                       <span className="text-xs font-bold text-amber-300 uppercase tracking-wider">VIP</span>
                     </div>
-                    <p className="font-bold text-white text-base leading-tight">تحميل البرنامج</p>
-                    <p className="text-xs text-emerald-100/80 mt-0.5">حصري لأعضاء VIP</p>
+                    <p className="font-bold text-white text-base leading-tight">{learningT(locale, "learning.downloadTool", "تحميل البرنامج")}</p>
+                  <p className="text-xs text-emerald-100/80 mt-0.5">{learningT(locale, "learning.vipOnly", "حصري لأعضاء VIP")}</p>
                   </div>
                 </a>
               </div>
@@ -272,7 +275,7 @@ export function VideoDetail() {
             {video.description && (
               <Card className="p-6 glass-card">
                 <h3 className="text-lg font-bold mb-4 text-primary border-b border-border pb-3">
-                  وصف الدرس
+                  {learningT(locale, "learning.lessonDescription", "وصف الدرس")}
                 </h3>
                 <div className="text-foreground/80 leading-loose whitespace-pre-wrap text-[15px]">
                   {video.description}

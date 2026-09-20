@@ -14,6 +14,8 @@ import iphoneLocked from "@assets/generated_images/hero_iphone_locked.webp";
 import iphoneHome from "@assets/generated_images/hero_iphone_home.webp";
 import androidUnlock from "@assets/generated_images/hero_android_unlock.webp";
 import tabletClean from "@assets/generated_images/hero_tablet_clean.webp";
+import { useLocale } from "@/i18n";
+import { learningT } from "@/i18n/learningMessages";
 
 const HOME_ACCENTS = [
   { from: "#f97316", to: "#fb923c" },
@@ -25,6 +27,7 @@ const HOME_ACCENTS = [
 ];
 
 function HomeCourseCard({ playlist, index }: { playlist: Playlist & { imageUrl?: string | null; thumbnailUrl?: string | null }; index: number }) {
+  const { locale, direction } = useLocale();
   const accent = HOME_ACCENTS[index % HOME_ACCENTS.length];
   const lessonCount = playlist.videos?.length ?? 0;
   const cardImage = (playlist as any).thumbnailUrl || playlist.imageUrl || null;
@@ -71,7 +74,7 @@ function HomeCourseCard({ playlist, index }: { playlist: Playlist & { imageUrl?:
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
           <div className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full bg-black/70 backdrop-blur-sm px-2.5 py-1 text-xs font-bold text-white">
             <PlayCircle className="h-3.5 w-3.5" />
-            {lessonCount > 0 ? `${lessonCount} درس` : "قريباً"}
+            {lessonCount > 0 ? `${lessonCount} ${learningT(locale, "learning.lesson", "درس")}` : learningT(locale, "learning.comingSoon", "قريباً")}
           </div>
         </div>
 
@@ -83,7 +86,7 @@ function HomeCourseCard({ playlist, index }: { playlist: Playlist & { imageUrl?:
           )}
           <div className="mt-3 flex items-center gap-1 text-xs font-bold" style={{ color: accent.from }}>
             <ArrowLeft className="h-3.5 w-3.5" />
-            ابدأ التعلم
+            {learningT(locale, "learning.start", "ابدأ التعلم")}
           </div>
         </div>
       </motion.div>
@@ -92,6 +95,7 @@ function HomeCourseCard({ playlist, index }: { playlist: Playlist & { imageUrl?:
 }
 
 function HomeCoursesSection() {
+  const { locale, direction } = useLocale();
   const { data: playlists, isLoading } = useGetPlaylists();
 
   /* تسخين أغلفة الدورات وصور الأقسام مسبقاً — تكون جاهزة قبل دخول الزائر */
@@ -110,15 +114,15 @@ function HomeCoursesSection() {
   if (isLoading || visible.length === 0) return null;
 
   return (
-    <section className="py-16 bg-background" dir="rtl">
+    <section className="py-16 bg-background" dir={direction}>
       <div className="container mx-auto px-4">
         <div className="text-center mb-10">
           <div className="inline-flex items-center gap-2 mb-3 px-4 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-sm font-semibold">
             <GraduationCap className="w-4 h-4" />
-            تعلّم من الأفضل
+             {learningT(locale, "learning.highQuality", "تعلّم من الأفضل")}
           </div>
-          <h2 className="text-3xl md:text-4xl font-black tracking-tight text-foreground">الدورات المتوفرة</h2>
-          <p className="mt-3 text-muted-foreground text-sm">اختر دورتك وابدأ رحلتك نحو الاحتراف</p>
+          <h2 className="text-3xl md:text-4xl font-black tracking-tight text-foreground">{learningT(locale, "learning.availableCourses", "الدورات المتوفرة")}</h2>
+          <p className="mt-3 text-muted-foreground text-sm">{learningT(locale, "learning.chooseCourse", "اختر دورتك وابدأ رحلتك نحو الاحتراف")}</p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 max-w-5xl mx-auto">
@@ -130,7 +134,7 @@ function HomeCoursesSection() {
         <div className="text-center mt-10">
           <Link href="/courses">
             <Button variant="outline" className="rounded-full px-8 gap-2 h-11 font-semibold">
-              عرض جميع الدورات
+              {learningT(locale, "learning.allCourses", "عرض جميع الدورات")}
               <ArrowLeft className="w-4 h-4" />
             </Button>
           </Link>

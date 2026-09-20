@@ -27,6 +27,8 @@ declare global {
         phone: string | null;
         profileImage: string | null;
         communityRole: string;
+        locale: "ar" | "fr" | "en";
+        localeManuallySelected: boolean;
       };
       admin?: {
         id: number;
@@ -117,6 +119,8 @@ async function authenticateUser(
     phone: user.phone ?? null,
     profileImage: user.profileImage ?? null,
     communityRole: user.communityRole,
+    locale: user.locale as "ar" | "fr" | "en",
+    localeManuallySelected: user.localeManuallySelected,
   };
   req.userCreatedAt = user.createdAt;
   req.securitySessionId = payload.sessionId;
@@ -194,6 +198,8 @@ export async function userAuthAllowExpired(req: Request, res: Response, next: Ne
     phone: user.phone ?? null,
     profileImage: user.profileImage ?? null,
     communityRole: user.communityRole,
+    locale: user.locale as "ar" | "fr" | "en",
+    localeManuallySelected: user.localeManuallySelected,
   };
   req.userCreatedAt = user.createdAt;
   req.securitySessionId = payload.sessionId;
@@ -235,6 +241,8 @@ export async function optionalUserAuth(req: Request, _res: Response, next: NextF
       phone: user.phone ?? null,
       profileImage: user.profileImage ?? null,
       communityRole: user.communityRole,
+      locale: user.locale as "ar" | "fr" | "en",
+      localeManuallySelected: user.localeManuallySelected,
     };
     req.userCreatedAt = user.createdAt;
     req.securitySessionId = payload.sessionId;

@@ -6,9 +6,11 @@ import { IosInstallGuide } from "@/components/IosInstallGuide";
 import { useAuth } from "@/lib/auth";
 import { LogOut, User, Crown, Menu, X, CreditCard, Home, Users, GraduationCap, Wrench } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useLocale, type Locale } from "@/i18n";
 
 export function Navbar() {
   const { user, logout } = useAuth();
+  const { locale, setLocale, t } = useLocale();
   const [location] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   // The iOS install guide lives at the Navbar root (always mounted) so closing
@@ -16,12 +18,12 @@ export function Navbar() {
   const [iosGuideOpen, setIosGuideOpen] = useState(false);
 
   const navLinks = [
-    { href: "/",          label: "الرئيسية",     icon: <Home className="w-4 h-4" /> },
-    { href: "/courses",   label: "الدورات",      icon: <GraduationCap className="w-4 h-4" /> },
-    { href: "/tools",     label: "مكتبة أدوات GAB",      icon: <Wrench className="w-4 h-4" /> },
-    { href: "/solutions", label: "الحلول التقنية", icon: <Wrench className="w-4 h-4" /> },
-    { href: "/community", label: "Community GAB",    icon: <Users className="w-4 h-4" /> },
-    { href: "/subscribe", label: "الاشتراكات",   icon: <CreditCard className="w-4 h-4" /> },
+    { href: "/",          label: t("nav.home"),     icon: <Home className="w-4 h-4" /> },
+    { href: "/courses",   label: t("nav.courses"),      icon: <GraduationCap className="w-4 h-4" /> },
+    { href: "/tools",     label: t("nav.tools"),      icon: <Wrench className="w-4 h-4" /> },
+    { href: "/solutions", label: t("nav.solutions"), icon: <Wrench className="w-4 h-4" /> },
+    { href: "/community", label: t("nav.community"),    icon: <Users className="w-4 h-4" /> },
+    { href: "/subscribe", label: t("nav.subscriptions"),   icon: <CreditCard className="w-4 h-4" /> },
   ];
 
   return (
@@ -62,6 +64,19 @@ export function Navbar() {
           {/* Left col: Actions (RTL — visually on left) */}
           <div className="hidden lg:flex items-center gap-4 justify-end">
             <InstallAppButton mode="navbar" onShowIosGuide={() => setIosGuideOpen(true)} />
+            <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span className="sr-only">{t("language.label")}</span>
+              <select
+                aria-label={t("language.label")}
+                value={locale}
+                onChange={event => setLocale(event.target.value as Locale)}
+                className="h-9 rounded-full border border-border bg-white px-2.5 text-xs font-medium"
+              >
+                <option value="ar">{t("language.ar")}</option>
+                <option value="fr">{t("language.fr")}</option>
+                <option value="en">{t("language.en")}</option>
+              </select>
+            </label>
             {user ? (
               <div className="flex items-center gap-3">
                 {user.accountType === "vip" && (
@@ -81,13 +96,13 @@ export function Navbar() {
             ) : (
               <div className="flex items-center gap-2.5">
                 <Link href="/login">
-                  <Button variant="ghost" className="text-foreground/70 hover:text-foreground">دخول</Button>
+                  <Button variant="ghost" className="text-foreground/70 hover:text-foreground">{t("nav.login")}</Button>
                 </Link>
                 <Link href="/register">
-                  <Button variant="outline" className="rounded-full px-5 border-border hover:border-primary/50">حساب جديد</Button>
+                  <Button variant="outline" className="rounded-full px-5 border-border hover:border-primary/50">{t("nav.register")}</Button>
                 </Link>
                 <Link href="/subscribe">
-                  <Button className="rounded-full px-6 shadow-md shadow-primary/25">اشترك الآن</Button>
+                  <Button className="rounded-full px-6 shadow-md shadow-primary/25">{t("nav.subscribe")}</Button>
                 </Link>
               </div>
             )}
@@ -97,13 +112,13 @@ export function Navbar() {
           <div className="flex lg:hidden items-center gap-2 justify-end col-start-3">
             {user?.accountType === "vip" && (
               <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-500/15 border border-orange-500/30 text-orange-500 text-[11px] font-bold">
-                <Crown className="w-3 h-3" /> VIP
+                <Crown className="w-3 h-3" /> {t("nav.vip")}
               </div>
             )}
             <button
               onClick={() => setMobileOpen(v => !v)}
               className="flex items-center justify-center w-8 h-8 rounded-lg bg-muted/60 border border-border text-foreground/70 hover:text-foreground hover:bg-muted transition-all"
-              aria-label="القائمة"
+               aria-label={t("nav.menu")}
             >
               {mobileOpen ? <X className="w-[18px] h-[18px]" /> : <Menu className="w-[18px] h-[18px]" />}
             </button>
@@ -123,6 +138,19 @@ export function Navbar() {
             className="lg:hidden border-t border-border bg-white/95 backdrop-blur-xl overflow-hidden"
           >
             <div className="container mx-auto px-4 py-4 flex flex-col gap-1">
+              <label className="flex items-center justify-between gap-3 px-4 py-3 text-sm font-medium text-foreground/70">
+                <span>{t("language.label")}</span>
+                <select
+                  aria-label={t("language.label")}
+                  value={locale}
+                  onChange={event => setLocale(event.target.value as Locale)}
+                  className="rounded-lg border border-border bg-white px-2 py-1.5"
+                >
+                  <option value="ar">{t("language.ar")}</option>
+                  <option value="fr">{t("language.fr")}</option>
+                  <option value="en">{t("language.en")}</option>
+                </select>
+              </label>
               {navLinks
                 .filter(link => !["/", "/courses", "/community"].includes(link.href))
                 .map(link => (
@@ -160,8 +188,8 @@ export function Navbar() {
                     onClick={() => { logout(); setMobileOpen(false); }}
                     className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-destructive hover:bg-destructive/10 transition-all w-full"
                   >
-                    <LogOut className="w-4 h-4" />
-                    تسجيل الخروج
+                     <LogOut className="w-4 h-4" />
+                     {t("nav.logout")}
                   </button>
                 </div>
               )}

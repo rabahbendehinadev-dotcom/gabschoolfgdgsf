@@ -57,6 +57,8 @@ export const LoginResponse = zod.object({
     phone: zod.string().nullish(),
     profileImageUrl: zod.string().nullish(),
     communityRole: zod.enum(["admin", "formateur", "student"]),
+    locale: zod.enum(["ar", "fr", "en"]),
+    localeManuallySelected: zod.boolean(),
     createdAt: zod.date(),
   }),
 });
@@ -87,6 +89,8 @@ export const GoogleLoginResponse = zod.object({
     phone: zod.string().nullish(),
     profileImageUrl: zod.string().nullish(),
     communityRole: zod.enum(["admin", "formateur", "student"]),
+    locale: zod.enum(["ar", "fr", "en"]),
+    localeManuallySelected: zod.boolean(),
     createdAt: zod.date(),
   }),
 });
@@ -126,6 +130,8 @@ export const GetMeResponse = zod.object({
   phone: zod.string().nullish(),
   profileImageUrl: zod.string().nullish(),
   communityRole: zod.enum(["admin", "formateur", "student"]),
+  locale: zod.enum(["ar", "fr", "en"]),
+  localeManuallySelected: zod.boolean(),
   createdAt: zod.date(),
 });
 
@@ -171,6 +177,32 @@ export const UpdateMyPhoneResponse = zod.object({
   phone: zod.string().nullish(),
   profileImageUrl: zod.string().nullish(),
   communityRole: zod.enum(["admin", "formateur", "student"]),
+  locale: zod.enum(["ar", "fr", "en"]),
+  localeManuallySelected: zod.boolean(),
+  createdAt: zod.date(),
+});
+
+/**
+ * @summary Persist the current user's platform language
+ */
+export const UpdateMyLocaleBody = zod.object({
+  locale: zod.enum(["ar", "fr", "en"]),
+});
+
+export const UpdateMyLocaleResponse = zod.object({
+  id: zod.number(),
+  username: zod.string(),
+  email: zod.string(),
+  accountType: zod.enum(["vip", "normal"]),
+  subscriptionType: zod.enum(["demo", "monthly", "annual", "lifetime"]),
+  subscriptionExpiresAt: zod.date().nullish(),
+  subscriptionIsExpired: zod.boolean().optional(),
+  isActive: zod.boolean(),
+  phone: zod.string().nullish(),
+  profileImageUrl: zod.string().nullish(),
+  communityRole: zod.enum(["admin", "formateur", "student"]),
+  locale: zod.enum(["ar", "fr", "en"]),
+  localeManuallySelected: zod.boolean(),
   createdAt: zod.date(),
 });
 
@@ -1571,6 +1603,7 @@ export const GetPushStatusResponse = zod.object({
 export const ReportPushStatusBody = zod.object({
   permission: zod.enum(["default", "granted", "denied", "unsupported"]),
   supported: zod.boolean(),
+  endpoint: zod.string().optional(),
 });
 
 export const ReportPushStatusResponse = zod.object({

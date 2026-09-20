@@ -3,19 +3,23 @@ import { Card, Badge, Button } from "@/components/ui";
 import { User, Crown, Calendar, ShieldAlert, LogOut } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { Link } from "wouter";
+import { useLocale } from "@/i18n";
+import { accountMessage } from "@/i18n/accountMessages";
 
 export function Dashboard() {
   const { user, logout } = useAuth();
+  const { locale, direction } = useLocale();
+  const m = (key: string) => accountMessage(locale, key);
 
   if (!user) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
         <Card className="p-8 text-center glass-card max-w-md w-full">
           <User className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-50" />
-          <h2 className="text-2xl font-bold mb-2">يجب تسجيل الدخول أولاً</h2>
-          <p className="text-muted-foreground mb-6">سجل دخولك لعرض معلومات حسابك</p>
+          <h2 className="text-2xl font-bold mb-2">{m("mustLogin")}</h2>
+          <p className="text-muted-foreground mb-6">{m("loginToAccount")}</p>
           <Link href="/login">
-            <Button className="w-full">تسجيل الدخول</Button>
+            <Button className="w-full">{m("login")}</Button>
           </Link>
         </Card>
       </div>
@@ -30,9 +34,9 @@ export function Dashboard() {
   }[user.subscriptionType] || user.subscriptionType;
 
   return (
-    <div className="min-h-screen py-12">
+    <div className="min-h-screen py-12" dir={direction}>
       <div className="container mx-auto px-4 max-w-4xl">
-        <h1 className="text-3xl font-bold mb-8">حسابي</h1>
+        <h1 className="text-3xl font-bold mb-8">{m("account")}</h1>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Profile Card */}
@@ -48,9 +52,9 @@ export function Dashboard() {
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-2">
                   <h2 className="text-2xl font-bold">{user.username}</h2>
                   {isVIP ? (
-                    <Badge variant="vip" className="w-fit mx-auto sm:mx-0">حساب VIP</Badge>
+                    <Badge variant="vip" className="w-fit mx-auto sm:mx-0">{m("vipAccount")}</Badge>
                   ) : (
-                    <Badge variant="secondary" className="w-fit mx-auto sm:mx-0">حساب عادي</Badge>
+                    <Badge variant="secondary" className="w-fit mx-auto sm:mx-0">{m("regularAccount")}</Badge>
                   )}
                 </div>
                 <p className="text-muted-foreground mb-6">{user.email}</p>
@@ -58,17 +62,17 @@ export function Dashboard() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-muted/60 p-4 rounded-xl border border-border">
                     <div className="text-sm text-muted-foreground mb-1 flex items-center justify-center sm:justify-start gap-2">
-                      <Crown className="w-4 h-4 text-primary" /> نوع الاشتراك
+                       <Crown className="w-4 h-4 text-primary" /> {m("plan")}
                     </div>
                     <div className="font-bold text-lg">{planName}</div>
                   </div>
                   <div className="bg-muted/60 p-4 rounded-xl border border-border">
                     <div className="text-sm text-muted-foreground mb-1 flex items-center justify-center sm:justify-start gap-2">
-                      <Calendar className="w-4 h-4 text-primary" /> تاريخ الانتهاء
+                       <Calendar className="w-4 h-4 text-primary" /> {m("expires")}
                     </div>
                     <div className="font-bold text-lg">
                       {user.subscriptionType === 'lifetime' 
-                        ? 'غير محدود' 
+                         ? m("unlimited")
                         : user.subscriptionExpiresAt ? formatDate(user.subscriptionExpiresAt) : '-'}
                     </div>
                   </div>
@@ -82,24 +86,24 @@ export function Dashboard() {
             {!isVIP && (
               <Card className="p-6 bg-gradient-to-br from-amber-500/10 to-orange-600/10 border-orange-500/30 text-center">
                 <Crown className="w-12 h-12 text-orange-400 mx-auto mb-4" />
-                <h3 className="font-bold text-lg mb-2 text-orange-500">قم بترقية حسابك</h3>
-                <p className="text-sm text-muted-foreground mb-4">احصل على وصول كامل لجميع دروس الفلاش والديكوداج الحصرية.</p>
+                 <h3 className="font-bold text-lg mb-2 text-orange-500">{m("upgrade")}</h3>
+                 <p className="text-sm text-muted-foreground mb-4">{m("upgradeText")}</p>
                 <Link href="/#pricing">
-                  <Button className="w-full bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold">عرض الباقات</Button>
+                   <Button className="w-full bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold">{m("plans")}</Button>
                 </Link>
               </Card>
             )}
 
             <Card className="p-6 glass-card">
-              <h3 className="font-bold mb-4 flex items-center gap-2">
-                <ShieldAlert className="w-5 h-5 text-primary" /> إعدادات الأمان
+               <h3 className="font-bold mb-4 flex items-center gap-2">
+                 <ShieldAlert className="w-5 h-5 text-primary" /> {m("security")}
               </h3>
               <div className="space-y-3">
                 <div className="text-xs text-muted-foreground p-3 bg-muted/40 rounded-lg mb-4 border border-border">
-                   تتم حماية حسابك عبر الأجهزة المصرح بها. لتغيير جهاز، يرجى التواصل مع الإدارة.
+                   {m("securityText")}
                 </div>
                 <Button variant="outline" className="w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/10" onClick={logout}>
-                  <LogOut className="w-4 h-4 ml-2" /> تسجيل الخروج
+                   <LogOut className="w-4 h-4 me-2" /> {m("logout")}
                 </Button>
               </div>
             </Card>

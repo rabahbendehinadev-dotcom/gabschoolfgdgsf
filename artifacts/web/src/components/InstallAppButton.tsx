@@ -3,6 +3,7 @@ import { Download } from "lucide-react";
 import { Button } from "@/components/ui";
 import { usePwaInstall } from "@/hooks/usePwaInstall";
 import { IosInstallGuide } from "@/components/IosInstallGuide";
+import { useLocale } from "@/i18n";
 
 type InstallAppButtonProps = {
   /** "navbar" = compact pill for the header, "menu" = full-width row for the mobile menu. */
@@ -21,6 +22,7 @@ type InstallAppButtonProps = {
 
 export function InstallAppButton({ mode = "navbar", onNavigate, onShowIosGuide }: InstallAppButtonProps) {
   const { canInstall, isStandalone, isIOS, promptInstall } = usePwaInstall();
+  const { t } = useLocale();
   const [iosOpen, setIosOpen] = useState(false);
 
   // Already running as an installed app → nothing to offer.
@@ -64,7 +66,7 @@ export function InstallAppButton({ mode = "navbar", onNavigate, onShowIosGuide }
           className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-foreground/80 hover:bg-muted hover:text-foreground transition-all w-full text-start"
         >
           <Download className="w-4 h-4" />
-          تثبيت التطبيق
+          {t("student.install")}
         </button>
       ) : (
         <Button
@@ -75,7 +77,7 @@ export function InstallAppButton({ mode = "navbar", onNavigate, onShowIosGuide }
           className="rounded-full gap-1.5 border-primary/30 text-primary hover:bg-primary/10 hover:text-primary hover:border-primary/50"
         >
           <Download className="w-4 h-4" />
-          تثبيت التطبيق
+          {t("student.install")}
         </Button>
       )}
 

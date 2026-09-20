@@ -9,6 +9,8 @@ import { Card, Badge, Button } from "@/components/ui";
 import { useAuth } from "@/lib/auth";
 import { useGetVideo, getGetVideoQueryKey } from "@workspace/api-client-react/src/generated/api";
 import { CourseVideoPlayer } from "@/components/CourseVideoPlayer";
+import { useLocale } from "@/i18n";
+import { learningT } from "@/i18n/learningMessages";
 
 const FALLBACK_THUMB =
   "https://images.unsplash.com/photo-1580927752452-89d86da3fa0a?w=800&q=80";
@@ -37,6 +39,7 @@ function formatDuration(d?: string | number | null): string | null {
 }
 
 export function CoursePlayer({ lessons, accessInfo }: CoursePlayerProps) {
+  const { locale, direction } = useLocale();
   const { user, getAuthHeaders } = useAuth();
   const isLoggedIn = !!user;
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -120,7 +123,7 @@ export function CoursePlayer({ lessons, accessInfo }: CoursePlayerProps) {
   const description = detail?.description || currentLesson?.description;
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6" dir="rtl">
+    <div className="flex flex-col lg:flex-row gap-6" dir={direction}>
       {/* ════════ المشغّل (يسار على الكمبيوتر، أعلى على الجوال) ════════ */}
       <div ref={playerRef} className="flex-1 min-w-0 lg:order-2 scroll-mt-24">
         {/* منطقة الفيديو */}
@@ -145,12 +148,12 @@ export function CoursePlayer({ lessons, accessInfo }: CoursePlayerProps) {
             style={{ aspectRatio: "16 / 9" }}
           >
             <PlaySquare className="h-10 w-10 text-muted-foreground" />
-            <p className="font-bold text-foreground">تعذر تحميل الدرس</p>
+            <p className="font-bold text-foreground">{learningT(locale, "learning.lessonUnavailable", "تعذر تحميل الدرس")}</p>
             <p className="text-sm text-muted-foreground">
-              أعد المحاولة بعد لحظات.
+              {learningT(locale, "learning.retryHint", "أعد المحاولة بعد لحظات.")}
             </p>
             <Button variant="outline" onClick={() => refetchDetail()}>
-              إعادة المحاولة
+                {learningT(locale, "learning.retry", "إعادة المحاولة")}
             </Button>
           </div>
         ) : activeStreamUrl ? (
@@ -168,7 +171,7 @@ export function CoursePlayer({ lessons, accessInfo }: CoursePlayerProps) {
                     }`}
                   >
                     <PlaySquare className="w-3.5 h-3.5" />
-                    {part.label || `الجزء ${i + 1}`}
+                    {part.label || `${learningT(locale, "learning.part", "الجزء")} ${i + 1}`}
                   </button>
                 ))}
               </div>
@@ -196,7 +199,7 @@ export function CoursePlayer({ lessons, accessInfo }: CoursePlayerProps) {
           >
             <div className="absolute inset-0 flex items-center justify-center">
               <p className="text-foreground/40 text-sm flex items-center gap-2">
-                <PlaySquare className="w-5 h-5" /> رابط الفيديو غير متوفر
+                <PlaySquare className="w-5 h-5" /> {learningT(locale, "learning.videoUnavailable", "رابط الفيديو غير متوفر")}
               </p>
             </div>
           </div>
@@ -206,7 +209,7 @@ export function CoursePlayer({ lessons, accessInfo }: CoursePlayerProps) {
         <div className="mt-5">
           <div className="flex items-center gap-2 mb-2 flex-wrap">
             <span className="text-xs font-bold text-primary bg-primary/10 px-2.5 py-1 rounded-full">
-              الحلقة {currentIndex + 1}
+              {learningT(locale, "learning.episode", "الحلقة")} {currentIndex + 1}
             </span>
             {currentAccess.isVipVideo && (
               <Badge
@@ -218,7 +221,7 @@ export function CoursePlayer({ lessons, accessInfo }: CoursePlayerProps) {
             )}
             {currentAccess.isVisitorVideo && (
               <Badge variant="outline" className="border-green-500/40 text-green-600">
-                مجاني
+                {learningT(locale, "learning.free", "مجاني")}
               </Badge>
             )}
             {currentDuration && (
@@ -228,7 +231,7 @@ export function CoursePlayer({ lessons, accessInfo }: CoursePlayerProps) {
             )}
             {isCurrentWatched && (
               <span className="text-xs font-semibold text-green-600 flex items-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5" /> تمت المشاهدة
+                <CheckCircle2 className="w-3.5 h-3.5" /> {learningT(locale, "learning.watched", "تمت المشاهدة")}
               </span>
             )}
           </div>
@@ -245,7 +248,7 @@ export function CoursePlayer({ lessons, accessInfo }: CoursePlayerProps) {
               disabled={currentIndex === 0}
               className="gap-1.5 rounded-xl"
             >
-              <ChevronRight className="w-4 h-4" /> الدرس السابق
+              <ChevronRight className="w-4 h-4" /> {learningT(locale, "learning.previousLesson", "الدرس السابق")}
             </Button>
             <Button
               variant="outline"
@@ -253,7 +256,7 @@ export function CoursePlayer({ lessons, accessInfo }: CoursePlayerProps) {
               disabled={currentIndex >= total - 1}
               className="gap-1.5 rounded-xl"
             >
-              الدرس التالي <ChevronLeft className="w-4 h-4" />
+              {learningT(locale, "learning.nextLesson", "الدرس التالي")} <ChevronLeft className="w-4 h-4" />
             </Button>
             <Button
               onClick={() => currentLesson && toggleWatched(currentLesson.id)}
@@ -264,7 +267,7 @@ export function CoursePlayer({ lessons, accessInfo }: CoursePlayerProps) {
               }`}
             >
               <Check className="w-4 h-4" />
-              {isCurrentWatched ? "تم وضع علامة كمُشاهَد" : "تمت مشاهدة الدرس"}
+              {isCurrentWatched ? learningT(locale, "learning.markWatched", "تم وضع علامة كمُشاهَد") : learningT(locale, "learning.markUnwatched", "تمت مشاهدة الدرس")}
             </Button>
           </div>
 
@@ -285,9 +288,9 @@ export function CoursePlayer({ lessons, accessInfo }: CoursePlayerProps) {
                   <span className="text-xs font-bold text-amber-300 uppercase tracking-wider">VIP</span>
                 </div>
                 <p className="font-bold text-white text-base leading-tight">
-                  تحميل البرنامج
+                  {learningT(locale, "learning.download", "تحميل البرنامج")}
                 </p>
-                <p className="text-xs text-emerald-100/80 mt-0.5">حصري لأعضاء VIP</p>
+                <p className="text-xs text-emerald-100/80 mt-0.5">{learningT(locale, "learning.vipOnly", "حصري لأعضاء VIP")}</p>
               </div>
             </a>
           )}
@@ -295,7 +298,7 @@ export function CoursePlayer({ lessons, accessInfo }: CoursePlayerProps) {
           {/* وصف الدرس — يظهر مباشرة على الكمبيوتر فقط (على الجوال يصبح أكورديون أسفل القائمة) */}
           {description && (
             <div className="mt-5 hidden rounded-2xl border border-border bg-card p-5 lg:block">
-              <h3 className="text-base font-bold mb-2.5 text-primary">وصف الدرس</h3>
+              <h3 className="text-base font-bold mb-2.5 text-primary">{learningT(locale, "learning.lessonDescription", "وصف الدرس")}</h3>
               <p className="text-foreground/75 leading-loose whitespace-pre-wrap text-sm">
                 {description}
               </p>
@@ -310,10 +313,10 @@ export function CoursePlayer({ lessons, accessInfo }: CoursePlayerProps) {
           <div className="p-4 border-b border-border bg-muted/30">
             <div className="flex items-center gap-2">
               <ListVideo className="w-5 h-5 text-primary" />
-              <h3 className="font-bold text-base">قائمة الدروس</h3>
+              <h3 className="font-bold text-base">{learningT(locale, "learning.lessonList", "قائمة الدروس")}</h3>
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              {total} {total === 1 ? "درس" : "دروس"}
+              {total} {learningT(locale, "learning.lessons", "دروس")}
             </p>
           </div>
 
@@ -374,12 +377,12 @@ export function CoursePlayer({ lessons, accessInfo }: CoursePlayerProps) {
                           isCurrent ? "text-primary" : "text-foreground/50"
                         }`}
                       >
-                        الحلقة {i + 1}
+                        {learningT(locale, "learning.episode", "الحلقة")} {i + 1}
                       </span>
                       {a.isVipVideo && <Crown className="w-3 h-3 text-amber-500" />}
                       {a.isVisitorVideo && (
                         <span className="text-[9px] font-bold text-green-600 bg-green-500/10 px-1.5 rounded-full">
-                          مجاني
+                          {learningT(locale, "learning.free", "مجاني")}
                         </span>
                       )}
                     </div>
@@ -393,14 +396,14 @@ export function CoursePlayer({ lessons, accessInfo }: CoursePlayerProps) {
                     <div className="mt-auto pt-1 flex items-center gap-1.5">
                       {lessonWatched ? (
                         <span className="text-[10px] font-semibold text-green-600 flex items-center gap-1">
-                          <CheckCircle2 className="w-3 h-3" /> تمت المشاهدة
+                          <CheckCircle2 className="w-3 h-3" /> {learningT(locale, "learning.watched", "تمت المشاهدة")}
                         </span>
                       ) : a.videoLocked ? (
                         <span className="text-[10px] font-medium text-foreground/40 flex items-center gap-1">
-                          <Lock className="w-3 h-3" /> {a.isVipVideo ? "VIP" : "مقفل"}
+                          <Lock className="w-3 h-3" /> {a.isVipVideo ? "VIP" : learningT(locale, "learning.locked", "مقفل")}
                         </span>
                       ) : (
-                        <span className="text-[10px] font-medium text-foreground/45">متاح</span>
+                        <span className="text-[10px] font-medium text-foreground/45">{learningT(locale, "learning.available", "متاح")}</span>
                       )}
                     </div>
                   </div>
@@ -422,7 +425,7 @@ export function CoursePlayer({ lessons, accessInfo }: CoursePlayerProps) {
           >
             <span className="flex items-center gap-2 text-base font-bold text-primary">
               <FileText className="h-4 w-4" />
-              وصف الدرس
+              {learningT(locale, "learning.lessonDescription", "وصف الدرس")}
             </span>
             <ChevronDown
               className={`h-5 w-5 text-primary transition-transform duration-300 ${descOpen ? "rotate-180" : ""}`}
@@ -460,6 +463,7 @@ function LockedPane({
   subscribeHref: string;
   thumb?: string | null;
 }) {
+  const { locale } = useLocale();
   return (
     <div
       className="relative w-full rounded-2xl overflow-hidden border border-border"
@@ -481,18 +485,18 @@ function LockedPane({
         <p className="text-white font-bold text-lg mb-1.5">{access.lockMessage}</p>
         <p className="text-white/70 text-sm mb-5 max-w-sm">
           {access.isVipVideo
-            ? "هذا الدرس حصري لأعضاء VIP. قم بترقية حسابك للوصول الكامل."
-            : "اشترك الآن للوصول إلى جميع دروس هذا القسم."}
+            ? learningT(locale, "learning.vipLessonHint", "هذا الدرس حصري لأعضاء VIP. قم بترقية حسابك للوصول الكامل.")
+            : learningT(locale, "learning.subscribeAllHint", "اشترك الآن للوصول إلى جميع دروس هذا القسم.")}
         </p>
         <Link href={subscribeHref}>
           <Button size="lg" className="gap-2 shadow-lg">
             {access.isVipVideo ? (
               <>
-                <Crown className="w-4 h-4" /> ترقية إلى VIP
+                <Crown className="w-4 h-4" /> {learningT(locale, "learning.upgradeVip", "ترقية إلى VIP")}
               </>
             ) : (
               <>
-                <Lock className="w-4 h-4" /> عرض الاشتراكات
+                <Lock className="w-4 h-4" /> {learningT(locale, "learning.watchAll", "عرض الاشتراكات")}
               </>
             )}
           </Button>

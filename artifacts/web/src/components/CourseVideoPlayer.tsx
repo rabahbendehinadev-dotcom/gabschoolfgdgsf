@@ -10,6 +10,8 @@ import { AnimatePresence, motion } from "framer-motion";
 import type HlsType from "hls.js";
 import { Button } from "@/components/ui";
 import { cn } from "@/lib/utils";
+import { useLocale } from "@/i18n";
+import { learningT } from "@/i18n/learningMessages";
 
 /* ════════════════════════════════════════════════════════════════════════
    CourseVideoPlayer — مشغّل فيديو احترافي (بمستوى YouTube / Netflix)
@@ -121,6 +123,7 @@ type PipVideo = HTMLVideoElement & {
 export function CourseVideoPlayer({
   src, hlsSrc, lowSrc, poster, title, videoId, username, email, userId, onViolation, onRetry,
 }: CourseVideoPlayerProps) {
+  const { locale, direction } = useLocale();
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
@@ -987,7 +990,7 @@ export function CourseVideoPlayer({
         className={containerClass}
         style={containerStyle}
         onMouseMove={showControls}
-        dir="rtl"
+        dir={direction}
       >
         {/* الفيديو */}
         <video
@@ -1059,7 +1062,7 @@ export function CourseVideoPlayer({
           <button
             type="button"
             onClick={togglePlay}
-            aria-label="تشغيل"
+            aria-label={learningT(locale, "player.play", "تشغيل")}
             className="absolute inset-0 z-20 flex items-center justify-center"
           >
             <span className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/90 text-white shadow-2xl shadow-primary/40 ring-4 ring-white/15 backdrop-blur-sm transition-transform duration-200 hover:scale-105 active:scale-95">
@@ -1206,7 +1209,7 @@ export function CourseVideoPlayer({
 
             {/* أزرار التحكم */}
             <div className="flex items-center gap-1 text-white sm:gap-2">
-              <CtrlBtn onClick={togglePlay} label={playing ? "إيقاف مؤقت" : "تشغيل"}>
+              <CtrlBtn onClick={togglePlay} label={playing ? learningT(locale, "player.pause", "إيقاف مؤقت") : learningT(locale, "player.play", "تشغيل")}>
                 {playing ? <Pause className="h-5 w-5 fill-current" /> : <Play className="h-5 w-5 fill-current" />}
               </CtrlBtn>
 
@@ -1219,7 +1222,7 @@ export function CourseVideoPlayer({
 
               {/* الصوت */}
               <div className="group/vol flex items-center">
-                <CtrlBtn onClick={toggleMute} label={muted ? "إلغاء الكتم" : "كتم"}>
+                <CtrlBtn onClick={toggleMute} label={muted ? learningT(locale, "player.unmute", "إلغاء الكتم") : learningT(locale, "player.mute", "كتم")}>
                   {muted || volume === 0 ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
                 </CtrlBtn>
                 <input
@@ -1245,31 +1248,31 @@ export function CourseVideoPlayer({
 
               {/* الإعدادات */}
               <div className="relative">
-                <CtrlBtn onClick={() => setSettingsOpen(o => !o)} label="الإعدادات" active={settingsOpen}>
+                <CtrlBtn onClick={() => setSettingsOpen(o => !o)} label={learningT(locale, "player.settings", "الإعدادات")} active={settingsOpen}>
                   <Settings className="h-5 w-5" />
                 </CtrlBtn>
                 {settingsOpen && (
                   <div className="absolute bottom-12 left-0 z-40 w-44 overflow-hidden rounded-xl border border-white/10 bg-black/90 p-1 text-sm text-white shadow-2xl backdrop-blur-md">
-                    <div className="px-3 py-1.5 text-[11px] font-bold text-white/50">سرعة التشغيل</div>
+                    <div className="px-3 py-1.5 text-[11px] font-bold text-white/50">{learningT(locale, "player.speed", "سرعة التشغيل")}</div>
                     {SPEEDS.map(s => (
                       <button
                         key={s}
                         onClick={() => { changeSpeed(s); setSettingsOpen(false); }}
                         className="flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-right transition-colors hover:bg-white/10"
                       >
-                        <span>{s === 1 ? "عادية" : `${s}×`}</span>
+                        <span>{s === 1 ? learningT(locale, "player.normal", "عادية") : `${s}×`}</span>
                         {speed === s && <Check className="h-4 w-4 text-primary" />}
                       </button>
                     ))}
                     {/* اختيار الجودة — يظهر فقط لفيديوهات HLS متعددة المستويات */}
                     {hlsLevels.length > 0 ? (
                       <>
-                        <div className="mt-1 border-t border-white/10 px-3 pt-1.5 text-[11px] font-bold text-white/50">الجودة</div>
+                        <div className="mt-1 border-t border-white/10 px-3 pt-1.5 text-[11px] font-bold text-white/50">{learningT(locale, "player.quality", "الجودة")}</div>
                         <button
                           onClick={() => setHlsLevel(-1)}
                           className="flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-right transition-colors hover:bg-white/10"
                         >
-                          <span>تلقائي (ABR)</span>
+                          <span>{learningT(locale, "player.autoQuality", "تلقائي (ABR)")}</span>
                           {manualLevel === -1 && <Check className="h-4 w-4 text-primary" />}
                         </button>
                         {hlsLevels.map(l => (
@@ -1285,25 +1288,25 @@ export function CourseVideoPlayer({
                       </>
                     ) : lowSrc && !useHls ? (
                       <>
-                        <div className="mt-1 border-t border-white/10 px-3 pt-1.5 text-[11px] font-bold text-white/50">الجودة</div>
+                        <div className="mt-1 border-t border-white/10 px-3 pt-1.5 text-[11px] font-bold text-white/50">{learningT(locale, "player.quality", "الجودة")}</div>
                         <button
                           onClick={() => setLowQuality(true)}
                           className="flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-right transition-colors hover:bg-white/10"
                         >
-                          <span>720p — أخف وأسرع</span>
+                          <span>{learningT(locale, "player.lightQuality", "720p — أخف وأسرع")}</span>
                           {preferLow && <Check className="h-4 w-4 text-primary" />}
                         </button>
                         <button
                           onClick={() => setLowQuality(false)}
                           className="flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-right transition-colors hover:bg-white/10"
                         >
-                          <span>الجودة الأصلية</span>
+                          <span>{learningT(locale, "player.originalQuality", "الجودة الأصلية")}</span>
                           {!preferLow && <Check className="h-4 w-4 text-primary" />}
                         </button>
                       </>
                     ) : (
                       <div className="mt-1 flex items-center justify-between border-t border-white/10 px-3 py-2 text-[11px] text-white/50">
-                        <span>الجودة</span>
+                        <span>{learningT(locale, "player.quality", "الجودة")}</span>
                         <span className="font-bold text-white/80">{quality}</span>
                       </div>
                     )}
@@ -1391,7 +1394,7 @@ export function CourseVideoPlayer({
       </div>
 
       {/* شريط التحذير أسفل المشغّل */}
-      <div className="mt-3 flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/5 p-3 md:p-4" dir="rtl">
+      <div className="mt-3 flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/5 p-3 md:p-4" dir={direction}>
         <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-red-400 md:h-5 md:w-5" />
         <p className="text-xs font-semibold leading-relaxed text-red-200 md:text-sm">{SECURITY_WARNING_TEXT}</p>
       </div>

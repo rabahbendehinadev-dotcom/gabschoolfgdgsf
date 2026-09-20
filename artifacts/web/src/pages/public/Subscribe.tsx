@@ -12,6 +12,8 @@ import {
 import { Infinity as InfinityIcon } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
+import { useLocale } from "@/i18n";
+import { commerceMessage } from "@/i18n/communityCommerceMessages";
 
 const WHATSAPP_NUMBER = "213772339494";
 
@@ -26,11 +28,11 @@ type PlanWithCourses = SubscriptionPlan & {
   courses?: { id: number; title: string; thumbnail: string | null; lessonCount: number; description: string }[];
 };
 
-function durationLabel(days: number | null | undefined): string {
-  if (!days) return "مدى الحياة";
-  if (days >= 360) return `${Math.round(days / 30)} شهراً`;
-  if (days >= 28) return `${Math.round(days / 30)} أشهر`;
-  return `${days} يوم`;
+function durationLabel(days: number | null | undefined, locale: "ar" | "fr" | "en"): string {
+  if (!days) return commerceMessage(locale, "foreverPayment");
+  if (days >= 360) return `${Math.round(days / 30)} ${locale === "ar" ? "شهراً" : locale === "fr" ? "mois" : "months"}`;
+  if (days >= 28) return `${Math.round(days / 30)} ${locale === "ar" ? "أشهر" : locale === "fr" ? "mois" : "months"}`;
+  return `${days} ${locale === "ar" ? "يوم" : locale === "fr" ? "jours" : "days"}`;
 }
 
 function planIcon(type: string) {
@@ -41,6 +43,8 @@ function planIcon(type: string) {
 
 /* ── Premium WhatsApp Button ─────────────────────────────────────── */
 function WhatsAppButton({ onClick, size = "md" }: { onClick: () => void; size?: "sm" | "md" }) {
+  const { locale } = useLocale();
+  const m = (key: string) => commerceMessage(locale, key);
   const isLg = size === "md";
   return (
     <motion.button
@@ -66,15 +70,17 @@ function WhatsAppButton({ onClick, size = "md" }: { onClick: () => void; size?: 
         >
           <MessageCircle className={`fill-white/20 stroke-white ${isLg ? "w-5 h-5" : "w-4.5 h-4.5"}`} />
         </motion.div>
-        <span className={isLg ? "text-base" : "text-sm"}>استفسر عبر واتساب</span>
+        <span className={isLg ? "text-base" : "text-sm"}>{m("askWhatsapp")}</span>
       </div>
-      <span className="text-green-100/80 text-xs font-normal relative">رد في أقل من 5 دقائق</span>
+      <span className="text-green-100/80 text-xs font-normal relative">{m("replyFive")}</span>
     </motion.button>
   );
 }
 
 /* ── Contact (Secondary) Button ─────────────────────────────────── */
 function ContactButton({ onClick, size = "md" }: { onClick: () => void; size?: "sm" | "md" }) {
+  const { locale } = useLocale();
+  const m = (key: string) => commerceMessage(locale, key);
   const isLg = size === "md";
   return (
     <motion.button
@@ -91,20 +97,22 @@ function ContactButton({ onClick, size = "md" }: { onClick: () => void; size?: "
     >
       <div className="flex items-center gap-2.5 relative">
         <Headphones className={isLg ? "w-5 h-5" : "w-4 h-4"} />
-        <span className={isLg ? "text-base" : "text-sm"}>تحدث مع مستشارنا</span>
+        <span className={isLg ? "text-base" : "text-sm"}>{m("talkAdvisor")}</span>
       </div>
-      <span className="text-xs font-normal opacity-70">خدمة مباشرة ومجانية</span>
+      <span className="text-xs font-normal opacity-70">{m("directFree")}</span>
     </motion.button>
   );
 }
 
 /* ── Trust Strip ─────────────────────────────────────────────────── */
 function TrustStrip() {
+  const { locale } = useLocale();
+  const m = (key: string) => commerceMessage(locale, key);
   const items = [
-    { icon: "🟢", label: "رد سريع" },
-    { icon: "🛡️", label: "دعم مباشر" },
-    { icon: "✅", label: "تفعيل بعد التأكيد" },
-    { icon: "💬", label: "خدمة عبر واتساب" },
+    { icon: "🟢", label: m("quickReply") },
+    { icon: "🛡️", label: m("directSupport") },
+    { icon: "✅", label: m("activationConfirmed") },
+    { icon: "💬", label: m("whatsappService") },
   ];
   return (
     <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 mt-5">
@@ -134,6 +142,8 @@ function CopyButton({ value }: { value: string }) {
 interface PaymentModalProps { plan: PlanWithCourses; onClose: () => void; }
 
 function PaymentModal({ plan, onClose }: PaymentModalProps) {
+  const { locale, direction } = useLocale();
+  const m = (key: string) => commerceMessage(locale, key);
   const { user } = useAuth();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -148,7 +158,7 @@ function PaymentModal({ plan, onClose }: PaymentModalProps) {
   const [submissionId, setSubmissionId] = useState<number | null>(null);
 
   const mainCourse = plan.courses?.[0];
-  const dur = durationLabel(plan.durationDays);
+   const dur = durationLabel(plan.durationDays, locale);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return;
@@ -223,7 +233,7 @@ function PaymentModal({ plan, onClose }: PaymentModalProps) {
   );
 
   return (
-    <div className="space-y-4 py-1" dir="rtl">
+      <div className="space-y-4 py-1" dir={direction}>
       {/* Plan summary */}
       <div className="flex items-center gap-3 p-4 rounded-2xl bg-gradient-to-l from-primary/10 to-orange-600/5 border border-primary/20">
         {mainCourse?.thumbnail ? (
@@ -248,7 +258,7 @@ function PaymentModal({ plan, onClose }: PaymentModalProps) {
           <button key={s} onClick={() => setStep(s)}
             className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-semibold transition-all ${step === s ? "bg-primary text-white shadow-lg shadow-primary/25" : "bg-muted text-muted-foreground hover:bg-muted/80 border border-border"}`}>
             <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${step === s ? "bg-white/20" : "bg-border"}`}>{i + 1}</span>
-            {s === "methods" ? "طرق الدفع" : "إرسال الإيصال"}
+            {s === "methods" ? m("paymentMethods") : m("sendReceipt")}
           </button>
         ))}
       </div>
@@ -256,7 +266,7 @@ function PaymentModal({ plan, onClose }: PaymentModalProps) {
       <AnimatePresence mode="wait">
         {step === "methods" ? (
           <motion.div key="methods" initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 12 }} className="space-y-2.5">
-            <p className="text-xs text-muted-foreground">اختر طريقة الدفع وانسخ رقم الحساب لإتمام التحويل:</p>
+            <p className="text-xs text-muted-foreground">{m("choosePayment")}</p>
             {PAYMENT_METHODS.map(m => (
               <div key={m.id} onClick={() => setSelectedMethod(m.id)}
                 className={`p-3.5 rounded-xl border cursor-pointer transition-all ${m.color} ${selectedMethod === m.id ? "ring-2 ring-primary border-primary/40" : "hover:border-border/80"}`}>
@@ -277,14 +287,14 @@ function PaymentModal({ plan, onClose }: PaymentModalProps) {
               </div>
             ))}
             <Button className="w-full h-11 mt-1 font-bold gap-2" onClick={() => setStep("proof")}>
-              التالي — رفع إيصال الدفع
+              {m("nextUpload")}
               <ChevronRight className="w-4 h-4" />
             </Button>
           </motion.div>
         ) : (
           <motion.div key="proof" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }} className="space-y-4">
             <div className="space-y-2">
-              <Label className="font-semibold">اسمك الكامل *</Label>
+              <Label className="font-semibold">{m("fullName")}</Label>
               <Input placeholder="مثال: أحمد بن علي" value={customerName} onChange={e => setCustomerName(e.target.value)} className="h-11" />
             </div>
             <div className="space-y-2">
@@ -305,7 +315,7 @@ function PaymentModal({ plan, onClose }: PaymentModalProps) {
                   className="w-full flex flex-col items-center justify-center gap-3 border-2 border-dashed border-border rounded-xl p-8 text-muted-foreground hover:border-primary/50 hover:text-primary hover:bg-primary/5 transition-all">
                   <Upload className="w-8 h-8" />
                   <div className="text-center">
-                    <p className="text-sm font-medium">انقر لرفع صورة الإيصال</p>
+                  <p className="text-sm font-medium">{m("uploadReceipt")}</p>
                     <p className="text-xs opacity-60 mt-0.5">PNG, JPG, WEBP</p>
                   </div>
                 </button>
@@ -317,10 +327,10 @@ function PaymentModal({ plan, onClose }: PaymentModalProps) {
               <p>• سيُفتح واتساب مع رسالة تلقائية</p>
               <p>• انتظر تأكيد الأدمن وتفعيل حسابك</p>
             </div>
-            <Button
+              <Button
               className="w-full h-12 bg-gradient-to-r from-green-600 to-emerald-500 hover:from-green-700 hover:to-emerald-600 font-bold text-base gap-2 shadow-lg shadow-green-500/20"
               onClick={handleSubmit} disabled={submitting || uploading || !customerName.trim()}>
-              {submitting || uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><MessageCircle className="w-5 h-5" /> إرسال عبر واتساب <Send className="w-4 h-4" /></>}
+               {submitting || uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><MessageCircle className="w-5 h-5" /> {m("sendWhatsapp")} <Send className="w-4 h-4" /></>}
             </Button>
           </motion.div>
         )}
@@ -335,14 +345,16 @@ function PlanCard({ plan, index, onSubscribe, onWhatsApp }: {
   onSubscribe: (p: PlanWithCourses) => void;
   onWhatsApp: () => void;
 }) {
+  const { locale } = useLocale();
+  const m = (key: string) => commerceMessage(locale, key);
   const courses = plan.courses ?? [];
   const mainCourse = courses[0];
   const isHighlighted = plan.type === "annual" || (plan.type !== "demo" && index === 0 && courses.length > 0);
   const isDemo = plan.type === "demo";
-  const dur = durationLabel(plan.durationDays);
+  const dur = durationLabel(plan.durationDays, locale);
   const totalLessons = courses.reduce((s, c) => s + c.lessonCount, 0);
 
-  const badge = isHighlighted ? "الأكثر طلباً" : courses.length === 1 ? "دورة كاملة" : courses.length > 1 ? `${courses.length} دورات` : null;
+  const badge = isHighlighted ? m("popular") : courses.length === 1 ? m("fullCourse") : courses.length > 1 ? `${courses.length} ${m("courses")}` : null;
 
   return (
     <motion.div
@@ -401,8 +413,8 @@ function PlanCard({ plan, index, onSubscribe, onWhatsApp }: {
         <div>
           <h3 className="font-black text-lg leading-tight mb-1">
             {courses.length > 1
-              ? `${courses.length} دورات شاملة`
-              : mainCourse?.title || (plan.type === "demo" ? "وصول تجريبي" : plan.type)}
+              ? `${courses.length} ${m("courses")}`
+              : mainCourse?.title || (plan.type === "demo" ? m("limitedAccess") : plan.type)}
           </h3>
           {courses.length > 1 && (
             <p className="text-xs text-muted-foreground">{courses.map(c => c.title).join(" · ")}</p>
@@ -415,7 +427,7 @@ function PlanCard({ plan, index, onSubscribe, onWhatsApp }: {
             {totalLessons > 0 && (
               <span className="inline-flex items-center gap-1 text-xs text-muted-foreground bg-muted px-2.5 py-1 rounded-lg">
                 <BookOpen className="w-3.5 h-3.5" />
-                {totalLessons} درس
+                {totalLessons} {m("lesson")}
               </span>
             )}
           </div>
@@ -444,22 +456,22 @@ function PlanCard({ plan, index, onSubscribe, onWhatsApp }: {
                 <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${isHighlighted ? "bg-primary/15 text-primary" : "bg-green-500/15 text-green-400"}`}>
                   <Check className="w-3 h-3" />
                 </div>
-                <span>دعم فني مباشر</span>
+                  <span>{m("liveSupport")}</span>
               </li>
               {plan.type !== "demo" && (
                 <li className="flex items-center gap-2 text-sm">
                   <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${isHighlighted ? "bg-primary/15 text-primary" : "bg-green-500/15 text-green-400"}`}>
                     <ShieldCheck className="w-3 h-3" />
                   </div>
-                  <span>تحديثات مستمرة</span>
+                  <span>{m("updates")}</span>
                 </li>
               )}
             </>
           ) : (
             <>
               {(isDemo
-                ? ["وصول محدود للدروس", "مشاهدة عينات مجانية", "دعم Community GAB"]
-                : ["جميع الدروس المتاحة", "تحديثات مستمرة", "دعم فني أولوي"]
+                ? [m("limitedAccess"), m("freeSamples"), m("communityDescription")]
+                : [m("allLessons"), m("updates"), m("prioritySupport")]
               ).map(p => (
                 <li key={p} className="flex items-center gap-2 text-sm">
                   <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${isHighlighted ? "bg-primary/15 text-primary" : "bg-green-500/15 text-green-400"}`}>
@@ -482,7 +494,7 @@ function PlanCard({ plan, index, onSubscribe, onWhatsApp }: {
               {plan.price}
               <span className="text-base font-semibold text-muted-foreground ml-1">DA</span>
             </p>
-            <p className="text-xs text-muted-foreground mt-0.5">{!plan.durationDays ? "دفعة واحدة للأبد" : `لمدة ${dur}`}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{!plan.durationDays ? m("foreverPayment") : `${m("forDuration")} ${dur}`}</p>
           </div>
           {/* Payment methods mini */}
           {!isDemo && (
@@ -508,7 +520,7 @@ function PlanCard({ plan, index, onSubscribe, onWhatsApp }: {
             }`}
             variant={isHighlighted ? "default" : "ghost"}
           >
-            {isDemo ? "ابدأ مجاناً" : "اشترك الآن"}
+            {isDemo ? m("startFree") : m("subscribeNow")}
             {!isDemo && <ChevronRight className="w-4 h-4 mr-1" />}
           </Button>
           {!isDemo && (
@@ -522,12 +534,14 @@ function PlanCard({ plan, index, onSubscribe, onWhatsApp }: {
 
 /* ── Main Page ─────────────────────────────────────────────────────── */
 export function Subscribe() {
+  const { locale, direction } = useLocale();
+  const m = (key: string) => commerceMessage(locale, key);
   const { data: rawPlans, isLoading } = useGetSubscriptionPlans();
   const plans = rawPlans as PlanWithCourses[] | undefined;
   const [selectedPlan, setSelectedPlan] = useState<PlanWithCourses | null>(null);
 
   const openWhatsApp = () => window.open(
-    `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent("مرحباً 👋\nأريد الاستفسار عن الاشتراك في منصة GAB School")}`,
+    `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(m("whatsappAsk"))}`,
     "_blank"
   );
 
@@ -539,20 +553,20 @@ export function Subscribe() {
   const visiblePlans = plans?.filter(p => !p.isHidden) ?? [];
 
   return (
-    <div className="min-h-screen py-12 px-4" dir="rtl">
+    <div className="min-h-screen py-12 px-4" dir={direction}>
       <div className="container mx-auto max-w-6xl">
 
         {/* Header */}
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-14">
           <span className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 text-primary rounded-full px-4 py-1.5 text-sm font-medium mb-5">
-            <Crown className="w-4 h-4" /> اشتراكات المنصة
+            <Crown className="w-4 h-4" /> {m("subscriptions")}
           </span>
           <h1 className="text-4xl md:text-5xl font-black mb-4 leading-tight">
-            ابدأ رحلتك في{" "}
-            <span className="text-primary">إصلاح الهواتف</span>
+            {m("startJourney")}{" "}
+            <span className="text-primary">{m("phoneRepair")}</span>
           </h1>
           <p className="text-lg text-foreground/60 max-w-xl mx-auto mb-6">
-            اختر الباقة المناسبة وتمتع بوصول كامل للدورات الاحترافية
+            {m("choosePlan")}
           </p>
           {/* Premium CTA buttons */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full sm:w-auto">
@@ -577,7 +591,7 @@ export function Subscribe() {
             ))}
           </div>
         ) : visiblePlans.length === 0 ? (
-          <div className="text-center py-20 text-muted-foreground">لا توجد باقات متاحة حالياً</div>
+          <div className="text-center py-20 text-muted-foreground">{m("noPlans")}</div>
         ) : (
           <div className={`grid gap-6 items-start ${
             visiblePlans.length === 1 ? "grid-cols-1 max-w-md mx-auto"
@@ -594,10 +608,10 @@ export function Subscribe() {
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}
           className="mt-14 flex flex-wrap items-center justify-center gap-6 text-sm text-muted-foreground">
           {[
-            { icon: <ShieldCheck className="w-4 h-4 text-green-400" />, label: "دفع آمن ومضمون" },
-            { icon: <MessageCircle className="w-4 h-4 text-green-400" />, label: "دعم عبر واتساب" },
-            { icon: <BookOpen className="w-4 h-4 text-primary" />, label: "محتوى احترافي حصري" },
-            { icon: <Crown className="w-4 h-4 text-amber-400" />, label: "تفعيل فوري بعد التأكيد" },
+            { icon: <ShieldCheck className="w-4 h-4 text-green-400" />, label: m("securePayment") },
+            { icon: <MessageCircle className="w-4 h-4 text-green-400" />, label: m("whatsappSupport") },
+            { icon: <BookOpen className="w-4 h-4 text-primary" />, label: m("exclusiveContent") },
+            { icon: <Crown className="w-4 h-4 text-amber-400" />, label: m("instantActivation") },
           ].map(b => (
             <div key={b.label} className="flex items-center gap-2">{b.icon}<span>{b.label}</span></div>
           ))}
@@ -608,7 +622,7 @@ export function Subscribe() {
           <Link href="/videos">
             <Button variant="ghost" className="text-muted-foreground hover:text-primary">
               <ArrowRight className="w-4 h-4 ml-2" />
-              العودة لمكتبة الدروس
+              {m("backToLessons")}
             </Button>
           </Link>
         </div>
@@ -626,7 +640,7 @@ export function Subscribe() {
           bg-gradient-to-br from-[#25D366] via-[#20c45c] to-[#128C7E]
           shadow-2xl shadow-green-500/50 border border-green-400/30
           transition-shadow duration-300 hover:shadow-[0_8px_30px_rgba(37,211,102,0.5)]"
-        title="تواصل عبر واتساب"
+        title={m("contactWhatsapp")}
       >
         <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 2.5 }}>
           <MessageCircle className="w-7 h-7 text-white fill-white/20" />
@@ -637,11 +651,11 @@ export function Subscribe() {
 
       {/* Payment Dialog */}
       <Dialog open={!!selectedPlan} onOpenChange={o => { if (!o) setSelectedPlan(null); }}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto" dir="rtl">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto" dir={direction}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-right">
               <Crown className="w-5 h-5 text-primary" />
-              إتمام الاشتراك
+              {m("completeSubscription")}
             </DialogTitle>
           </DialogHeader>
           {selectedPlan && <PaymentModal plan={selectedPlan} onClose={() => setSelectedPlan(null)} />}

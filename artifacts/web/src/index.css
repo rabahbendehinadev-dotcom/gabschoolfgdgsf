@@ -41,7 +41,6 @@
 @layer base {
   body {
     @apply bg-background text-foreground antialiased selection:bg-primary/30 selection:text-primary overflow-x-hidden;
-    direction: rtl;
   }
   
   h1, h2, h3, h4, h5, h6 {

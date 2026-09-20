@@ -1,5 +1,7 @@
 import { Link } from "wouter";
 import { Lock, Crown, Play } from "lucide-react";
+import { useLocale } from "@/i18n";
+import { commerceMessage } from "@/i18n/communityCommerceMessages";
 
 /**
  * Teaser shown to non-entitled viewers. The image src is a server-provided,
@@ -14,6 +16,8 @@ export function LockedMedia({
   mediaType: "image" | "video" | "file";
   className?: string;
 }) {
+  const { locale } = useLocale();
+  const m = (key: string) => commerceMessage(locale, key);
   return (
     <div className={`relative h-full w-full overflow-hidden bg-muted ${className || ""}`}>
       {previewUrl ? (
@@ -40,21 +44,19 @@ export function LockedMedia({
 
         <div className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 px-3 py-1 text-xs font-extrabold text-white shadow-lg">
           <Crown className="h-3.5 w-3.5" />
-          حصري لأعضاء VIP
+          {m("vipOnly")}
         </div>
 
         <p className="max-w-[16rem] text-sm font-semibold text-white/90">
           {mediaType === "video"
-            ? "هذا الفيديو متاح لأعضاء VIP فقط"
-            : mediaType === "file"
-            ? "هذا الملف متاح لأعضاء VIP فقط"
-            : "هذه الصورة متاحة لأعضاء VIP فقط"}
+             ? m("vipOnly")
+             : m("vipOnly")}
         </p>
 
         <Link href="/subscribe">
           <span className="inline-flex cursor-pointer items-center gap-1.5 rounded-full bg-white px-4 py-2 text-sm font-bold text-orange-600 shadow-md transition-shadow hover:shadow-lg">
             <Crown className="h-4 w-4" />
-            ترقية العضوية
+             {m("upgradeVip")}
           </span>
         </Link>
       </div>

@@ -18,23 +18,27 @@ import {
   Cpu, Code, Bell, Plus, Image as ImageIcon, Video,
   FileText, BarChart2, Loader2, ThumbsUp, Lock
 } from "lucide-react";
+import { useLocale } from "@/i18n";
+import { commerceMessage } from "@/i18n/communityCommerceMessages";
 
 const PAGE_SIZE = 10;
 
 const CATEGORIES = [
-  { id: "all", label: "الكل", icon: LayoutGrid, active: true },
-  { id: "help", label: "مساعدة عامة", icon: HelpCircle },
+  { id: "all", label: "all", icon: LayoutGrid, active: true },
+  { id: "help", label: "help", icon: HelpCircle },
   { id: "iphone", label: "iPhone", icon: Smartphone },
   { id: "android", label: "Android", icon: Smartphone },
-  { id: "frp", label: "FRP & Unlock", icon: Unlock },
-  { id: "hw", label: "Hardware", icon: Cpu },
-  { id: "sw", label: "Software", icon: Code },
-  { id: "tools", label: "Tools & برامج", icon: Wrench },
-  { id: "solved", label: "حلول وتم حلها", icon: CheckCircle },
-  { id: "news", label: "أخبار وتحديثات", icon: Bell },
+  { id: "frp", label: "frp", icon: Unlock },
+  { id: "hw", label: "hw", icon: Cpu },
+  { id: "sw", label: "sw", icon: Code },
+  { id: "tools", label: "tools", icon: Wrench },
+  { id: "solved", label: "solved", icon: CheckCircle },
+  { id: "news", label: "news", icon: Bell },
 ];
 
 function CommunitySubscriberGate() {
+  const { locale } = useLocale();
+  const m = (key: string) => commerceMessage(locale, key);
   return (
     <div
       className="relative min-h-[540px] overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm"
@@ -65,14 +69,14 @@ function CommunitySubscriberGate() {
             <Lock className="h-6 w-6" />
           </div>
           <h2 className="text-lg font-black text-slate-900 sm:text-2xl">
-            مجتمع GAB مخصص للمشتركين
+            {m("communitySubscriberTitle")}
           </h2>
           <p className="mx-auto mt-2 max-w-sm text-[13px] font-medium leading-6 text-slate-600 sm:mt-3 sm:text-[14px] sm:leading-7">
-            انضم إلى مجتمع الطلبة والمحترفين، شارك أسئلتك واستفد من الحلول والتجارب الحقيقية لأعضاء GAB.
+            {m("communitySubscriberText")}
           </p>
           <Link href="/subscribe">
             <Button className="mt-4 h-11 w-full rounded-2xl bg-orange-500 text-[14px] font-black text-white shadow-sm shadow-orange-500/20 hover:bg-orange-600 sm:mt-6 sm:h-12 sm:text-[15px]">
-              عرض الاشتراكات
+              {m("viewSubscriptions")}
             </Button>
           </Link>
         </div>
@@ -82,16 +86,18 @@ function CommunitySubscriberGate() {
 }
 
 function CommunityPublicAbout() {
+  const { locale } = useLocale();
+  const m = (key: string) => commerceMessage(locale, key);
   return (
     <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-      <h3 className="mb-3 text-[16px] font-black text-slate-900">حول المجتمع</h3>
+        <h3 className="mb-3 text-[16px] font-black text-slate-900">{m("communityAbout")}</h3>
       <p className="text-[14px] font-medium leading-relaxed text-slate-500">
-        مساحة مخصصة لأعضاء GAB لمشاركة الخبرات، طرح الأسئلة، وإيجاد الحلول للمشاكل التقنية.
+        {m("communityAboutText")}
       </p>
       <div className="mt-5 flex items-start gap-3 rounded-2xl border border-orange-100 bg-orange-50/70 p-4">
         <Lock className="mt-0.5 h-4 w-4 shrink-0 text-orange-500" />
         <p className="text-[12px] font-bold leading-5 text-slate-600">
-          تفاصيل الأعضاء والنشاط متاحة للمشتركين فقط.
+          {m("communityMembersOnly")}
         </p>
       </div>
     </div>
@@ -99,6 +105,8 @@ function CommunityPublicAbout() {
 }
 
 export function Community() {
+  const { locale, direction } = useLocale();
+  const m = (key: string) => commerceMessage(locale, key);
   const { user, getAuthHeaders, bootstrapped } = useAuth();
   const [createOpen, setCreateOpen] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
@@ -144,7 +152,7 @@ export function Community() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] pb-16" dir="rtl">
+    <div className="min-h-screen bg-[#F8FAFC] pb-16" dir={direction}>
       {/* HERO SECTION */}
       <div className="container mx-auto px-4 mt-6 max-w-[1450px]">
         <div className="bg-[#0F172A] rounded-[32px] border border-slate-800 relative overflow-hidden shadow-xl mb-8">
@@ -156,20 +164,20 @@ export function Community() {
 
           <div className="relative z-10 px-6 py-10 md:py-12 flex flex-col items-center text-center">
               <h1 className="text-3xl md:text-[40px] font-black text-white mb-4 tracking-tight drop-shadow-sm leading-tight">GAB Community</h1>
-              <p className="text-slate-300 text-sm md:text-[16px] mb-8 font-medium max-w-lg">مجتمع طلبة ومحترفي صيانة وبرمجة الهواتف</p>
+              <p className="text-slate-300 text-sm md:text-[16px] mb-8 font-medium max-w-lg">{m("communityDescription")}</p>
 
               <div className="flex flex-wrap items-center justify-center gap-3 md:gap-4">
                   <span className="flex items-center gap-2 text-[13px] font-bold text-slate-200 bg-white/5 border border-white/10 px-4 py-2.5 rounded-2xl backdrop-blur-md">
-                    <MessageCircle className="w-4 h-4 text-orange-400" /> تفاعل ونقاش مفيد
+                    <MessageCircle className="w-4 h-4 text-orange-400" /> {m("usefulDiscussion")}
                   </span>
                   <span className="flex items-center gap-2 text-[13px] font-bold text-slate-200 bg-white/5 border border-white/10 px-4 py-2.5 rounded-2xl backdrop-blur-md">
-                    <Shield className="w-4 h-4 text-emerald-400" /> حلول عملية
+                    <Shield className="w-4 h-4 text-emerald-400" /> {m("practicalSolutions")}
                   </span>
                   <span className="flex items-center gap-2 text-[13px] font-bold text-slate-200 bg-white/5 border border-white/10 px-4 py-2.5 rounded-2xl backdrop-blur-md">
-                    <Users className="w-4 h-4 text-blue-400" /> مساعدة متبادلة
+                    <Users className="w-4 h-4 text-blue-400" /> {m("mutualHelp")}
                   </span>
                   <span className="flex items-center gap-2 text-[13px] font-bold text-slate-200 bg-white/5 border border-white/10 px-4 py-2.5 rounded-2xl backdrop-blur-md">
-                    <Wrench className="w-4 h-4 text-purple-400" /> تطوير مستمر
+                    <Wrench className="w-4 h-4 text-purple-400" /> {m("continuousDevelopment")}
                   </span>
               </div>
           </div>
@@ -195,7 +203,7 @@ export function Community() {
               }`}
             >
               <c.icon className="w-4 h-4" />
-              {c.label}
+              {["iPhone", "Android"].includes(c.label) ? c.label : m(c.label)}
             </button>
           ))}
         </div>
@@ -209,7 +217,7 @@ export function Community() {
               <Search className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
               <input
                 type="text"
-                placeholder="ابحث في المجتمع..."
+                placeholder={m("searchCommunity")}
                 disabled
                 title="ميزة البحث غير متوفرة حالياً"
                 aria-label="البحث غير متوفر حالياً"
@@ -220,7 +228,7 @@ export function Community() {
 
             {/* Categories Card */}
             <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-sm">
-              <h3 className="font-black text-[16px] text-slate-900 mb-4 px-2">الأقسام</h3>
+              <h3 className="font-black text-[16px] text-slate-900 mb-4 px-2">{m("sections")}</h3>
               <div className="space-y-1">
                 {CATEGORIES.map(c => (
                   <button
@@ -237,7 +245,7 @@ export function Community() {
                   >
                     <div className="flex items-center gap-3">
                       <c.icon className={`w-5 h-5 ${c.active ? 'text-orange-500' : 'text-slate-400'}`} />
-                      {c.label}
+                      {["iPhone", "Android"].includes(c.label) ? c.label : m(c.label)}
                     </div>
                   </button>
                 ))}
@@ -252,7 +260,7 @@ export function Community() {
                   className="w-full flex items-center justify-center gap-2 py-2 text-[13px] font-bold text-slate-400 cursor-not-allowed hover:text-slate-500 transition-colors"
                 >
                   <LayoutGrid className="w-4 h-4" />
-                  عرض جميع الأقسام
+                  {m("allSections")}
                 </button>
               </div>
             </div>
@@ -266,7 +274,7 @@ export function Community() {
             {/* Top Filters & New Post Action */}
             <div className="flex items-center justify-between bg-white p-3 rounded-3xl border border-slate-200 shadow-sm">
               <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-                  <button className="px-5 py-2.5 rounded-2xl bg-orange-50 text-orange-600 text-[14px] font-black whitespace-nowrap transition-colors" data-testid="filter-newest">الأحدث</button>
+                  <button className="px-5 py-2.5 rounded-2xl bg-orange-50 text-orange-600 text-[14px] font-black whitespace-nowrap transition-colors" data-testid="filter-newest">{m("newest")}</button>
                   <button disabled title="غير متوفر حالياً" aria-label="فلتر الأكثر تفاعلاً غير متوفر" data-testid="filter-popular-disabled" className="px-5 py-2.5 rounded-2xl text-slate-500 text-[14px] font-bold opacity-60 cursor-not-allowed whitespace-nowrap transition-colors hover:bg-slate-50">الأكثر تفاعلاً</button>
                   <button disabled title="غير متوفر حالياً" aria-label="فلتر بدون إجابة غير متوفر" data-testid="filter-unanswered-disabled" className="px-5 py-2.5 rounded-2xl text-slate-500 text-[14px] font-bold opacity-60 cursor-not-allowed whitespace-nowrap transition-colors hover:bg-slate-50">بدون إجابة</button>
                   <button disabled title="غير متوفر حالياً" aria-label="فلتر المحفوظات غير متوفر" data-testid="filter-saved-disabled" className="px-5 py-2.5 rounded-2xl text-slate-500 text-[14px] font-bold opacity-60 cursor-not-allowed whitespace-nowrap transition-colors hover:bg-slate-50">المحفوظات</button>
@@ -277,7 +285,7 @@ export function Community() {
                   onClick={handleComposerClick}
                   data-testid="button-new-post-header"
                 >
-                    <Plus className="w-4 h-4 ml-1.5" /> منشور جديد
+                    <Plus className="w-4 h-4 ml-1.5" /> {m("newPost")}
                 </Button>
               )}
             </div>
@@ -304,12 +312,12 @@ export function Community() {
                         </div>
                       )}
                       <div className="flex-1 bg-slate-50 group-hover:bg-slate-100 transition-colors border border-slate-200 rounded-2xl px-5 py-3.5 text-[15px] text-slate-500 font-bold">
-                          شارك سؤالاً أو فكرة مع أعضاء المجتمع...
+                          {m("shareQuestion")}
                       </div>
                   </div>
                   <div className="flex items-center gap-6 px-2 sm:px-16 border-t border-slate-100 pt-4">
                       <button onClick={handleComposerClick} data-testid="button-inline-image" className="flex items-center gap-2 text-[14px] font-black text-slate-600 hover:text-orange-600 transition-colors">
-                        <ImageIcon className="w-5 h-5 text-emerald-500"/> صورة
+                        <ImageIcon className="w-5 h-5 text-emerald-500"/> {m("image")}
                       </button>
                       <button disabled title="ميزة الفيديو غير متوفرة حالياً" aria-label="فيديو غير متوفر" data-testid="button-inline-video-disabled" className="flex items-center gap-2 text-[14px] font-black text-slate-400 cursor-not-allowed opacity-70">
                         <Video className="w-5 h-5 text-blue-400"/> فيديو
@@ -351,13 +359,13 @@ export function Community() {
             ) : posts.length === 0 ? (
               <div className="rounded-[24px] border-2 border-dashed border-slate-200 bg-white py-20 text-center shadow-sm">
                 <MessageCircle className="mx-auto mb-4 h-16 w-16 text-slate-300" />
-                <p className="font-black text-slate-800 text-xl">لا توجد منشورات بعد</p>
+                <p className="font-black text-slate-800 text-xl">{m("noPosts")}</p>
                 <p className="mt-2 text-[15px] font-medium text-slate-500 mb-8 max-w-sm mx-auto">
-                  {canPost ? "كن أول من يبدأ النقاش ويشارك خبراته في مجتمع GAB" : "عُد قريباً لمتابعة جديد Community GAB"}
+                  {canPost ? m("firstDiscussion") : m("comeBack")}
                 </p>
                 {canPost && (
                   <Button onClick={handleComposerClick} data-testid="button-create-post-empty" className="rounded-2xl bg-orange-500 hover:bg-orange-600 text-white font-black h-12 px-8 shadow-sm shadow-orange-500/20 active:scale-[0.98] transition-all">
-                    إنشاء أول منشور
+                    {m("createFirstPost")}
                   </Button>
                 )}
               </div>
@@ -382,7 +390,7 @@ export function Community() {
                   {isFetchingNextPage ? (
                     <>
                       <Loader2 className="ml-2 h-5 w-5 animate-spin" />
-                      جارٍ التحميل…
+                      {m("loading")}
                     </>
                   ) : (
                     "تحميل المزيد"
@@ -451,7 +459,7 @@ export function Community() {
                      <span className="block text-[11px] font-black text-orange-600 mb-1">آخر منشور</span>
                      <span className="block text-[13px] font-bold text-slate-700 line-clamp-2">{summary.latestPost.label}</span>
                    </a>
-                 ) : <p className="text-[13px] font-bold text-slate-400">لا توجد منشورات بعد</p>}
+                 ) : <p className="text-[13px] font-bold text-slate-400">{m("noPosts")}</p>}
                  {summary?.latestSolution ? (
                    <a href={`#post-${summary.latestSolution.id}`} className="block rounded-2xl bg-emerald-50 p-3 hover:bg-emerald-100 transition-colors">
                      <span className="block text-[11px] font-black text-emerald-700 mb-1">آخر حل</span>

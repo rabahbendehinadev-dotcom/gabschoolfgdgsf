@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { z } from "zod";
 import { sendPushToAdmins } from "../lib/adminWebPush";
 import { db, usersTable, adminsTable, subscriptionPlansTable, activityLogsTable, adminSessionsTable, userSecuritySessionsTable } from "@workspace/db";
 import { eq, and, gte, sql, lt, count } from "drizzle-orm";
@@ -62,6 +63,8 @@ function buildUserPayload(user: {
   phone: string | null | undefined;
   profileImage?: string | null;
   communityRole: string;
+  locale: string;
+  localeManuallySelected?: boolean;
   createdAt: Date;
 }) {
   const exp = user.subscriptionExpiresAt;
@@ -79,6 +82,8 @@ function buildUserPayload(user: {
     phone: user.phone ?? null,
     profileImageUrl: user.profileImage ? `/api/users/${user.id}/avatar` : null,
     communityRole: user.communityRole,
+    locale: user.locale === "fr" || user.locale === "en" ? user.locale : "ar",
+    localeManuallySelected: user.localeManuallySelected === true,
     createdAt: user.createdAt.toISOString(),
   };
 }
@@ -424,6 +429,21 @@ router.patch("/auth/me/phone", userAuthAllowExpired, async (req, res) => {
     res.json(buildUserPayload(updated));
   } catch (error: unknown) {
     res.status(400).json({ message: error instanceof Error ? error.message : "Failed to update phone" });
+  }
+});
+
+const localeBody = z.object({ locale: z.enum(["ar", "fr", "en"]) }).strict();
+router.patch("/auth/me/locale", userAuthAllowExpired, async (req, res) => {
+  try {
+    const { locale } = localeBody.parse(req.body);
+    const [updated] = await db.update(usersTable)
+      .set({ locale, localeManuallySelected: true })
+      .where(eq(usersTable.id, req.user!.id))
+      .returning();
+    if (!updated) { res.status(404).json({ message: "User not found" }); return; }
+    res.json(buildUserPayload(updated));
+  } catch (error: unknown) {
+    res.status(400).json({ message: error instanceof Error ? error.message : "Invalid locale" });
   }
 });
 

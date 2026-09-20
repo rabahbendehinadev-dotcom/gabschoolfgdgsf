@@ -8,10 +8,12 @@ import {
 } from "@workspace/api-client-react/src/generated/api";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
+import { useLocale } from "@/i18n";
 
 export function BottomNav() {
   const [location] = useLocation();
   const { user, getAuthHeaders } = useAuth();
+  const { direction, t } = useLocale();
 
   const { data: unread } = useQuery({
     queryKey: getGetUnreadNotificationCountQueryKey(),
@@ -24,19 +26,22 @@ export function BottomNav() {
   const unreadCount = user ? unread?.count ?? 0 : 0;
 
   const items = [
-    { label: "الرئيسية", icon: Home, href: "/", match: (l: string) => l === "/" },
-    { label: "الدورات", icon: GraduationCap, href: "/courses", match: (l: string) => l === "/courses" },
-    { label: "Community", icon: Users, href: "/community", match: (l: string) => l === "/community" || l.startsWith("/community/") },
-    { label: "الإشعارات", icon: Bell, href: "/notifications", match: (l: string) => l.startsWith("/notifications") },
-    { label: "حسابي", icon: User, href: user ? "/dashboard" : "/login", match: (l: string) => l === "/dashboard" },
+    { label: t("nav.home"), icon: Home, href: "/", match: (l: string) => l === "/" },
+    { label: t("nav.courses"), icon: GraduationCap, href: "/courses", match: (l: string) => l === "/courses" },
+    { label: t("nav.community"), icon: Users, href: "/community", match: (l: string) => l === "/community" || l.startsWith("/community/") },
+    { label: t("nav.notifications"), icon: Bell, href: "/notifications", match: (l: string) => l.startsWith("/notifications") },
+    { label: t("nav.account"), icon: User, href: user ? "/dashboard" : "/login", match: (l: string) => l === "/dashboard" },
   ];
 
   return (
     <nav
-      dir="rtl"
-      aria-label="التنقل السفلي"
-      className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-white/95 backdrop-blur-xl shadow-[0_-4px_24px_rgba(15,23,42,0.08)] lg:hidden"
-      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      dir={direction}
+      aria-label={items.map(item => item.label).join(", ")}
+      className="fixed inset-x-0 bottom-0 z-50 box-border border-t border-border bg-white/95 backdrop-blur-xl shadow-[0_-4px_24px_rgba(15,23,42,0.08)] lg:hidden"
+      style={{
+        height: "calc(70px + 1px + env(safe-area-inset-bottom))",
+        paddingBottom: "env(safe-area-inset-bottom)",
+      }}
     >
       <ul className="mx-auto flex h-[70px] max-w-md items-stretch justify-around px-1">
         {items.map((item) => {

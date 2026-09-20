@@ -7,8 +7,9 @@ import {
   videosTable,
   userCoursesTable,
 } from "@workspace/db";
-import { and, eq, or, gt, isNull, isNotNull, inArray, not } from "drizzle-orm";
+import { and, eq, or, gt, isNull, isNotNull, inArray, not, sql } from "drizzle-orm";
 import { sendPushToUsers, type PushPayload } from "./webPush";
+import { localizedNotificationBody, localizedNotificationTitle, normalizeLocale } from "./notificationLocale";
 
 export type AudienceType = "all" | "vip" | "normal" | "user" | "category" | "course";
 export type TargetType = "post" | "lesson" | "page" | "none";
@@ -137,7 +138,10 @@ async function dispatchPush(notificationId: number, userIds: number[], payload: 
     if (attempted > 0) {
       await db
         .update(notificationsTable)
-        .set({ pushAttemptedCount: attempted, pushSuccessCount: success })
+        .set({
+          pushAttemptedCount: sql`${notificationsTable.pushAttemptedCount} + ${attempted}`,
+          pushSuccessCount: sql`${notificationsTable.pushSuccessCount} + ${success}`,
+        })
         .where(eq(notificationsTable.id, notificationId));
     }
   } catch (pushError) {
@@ -223,20 +227,38 @@ export async function createNotification(
 
   if (!result.deduped && result.recipientCount > 0) {
     const thumbnailUrl = safeAppThumbnailUrl(input.metadata?.thumbnailUrl);
-    void dispatchPush(result.notificationId, result.recipientUserIds, {
-      title: input.title,
-      body: input.body ?? "",
-      url: input.targetPath ?? undefined,
-      tag: input.dedupeKey ?? `notif-${result.notificationId}`,
-      image: thumbnailUrl,
-      actions:
-        input.type === "video"
-          ? [
-              { action: "watch", title: "شاهد الآن" },
-              { action: "later", title: "لاحقاً" },
-            ]
-          : undefined,
-    });
+    void (async () => {
+      const locales = await db.select({ id: usersTable.id, locale: usersTable.locale })
+        .from(usersTable).where(inArray(usersTable.id, result.recipientUserIds));
+      const groups = new Map<string, number[]>();
+      for (const recipient of locales) {
+        const locale = normalizeLocale(recipient.locale);
+        const group = groups.get(locale) ?? [];
+        group.push(recipient.id);
+        groups.set(locale, group);
+      }
+      for (const [locale, ids] of groups) {
+        await dispatchPush(result.notificationId, ids, {
+          title: localizedNotificationTitle(input.type, input.title, locale),
+          body: localizedNotificationBody(
+            input.type,
+            input.body ?? "",
+            locale,
+            input.metadata ?? {},
+          ),
+          url: input.targetPath ?? undefined,
+          tag: input.dedupeKey ?? `notif-${result.notificationId}`,
+          image: thumbnailUrl,
+          actions:
+            input.type === "video"
+              ? [
+                  { action: "watch", title: locale === "fr" ? "Regarder maintenant" : locale === "en" ? "Watch now" : "شاهد الآن" },
+                  { action: "later", title: locale === "fr" ? "Plus tard" : locale === "en" ? "Later" : "لاحقاً" },
+                ]
+              : undefined,
+        });
+      }
+    })().catch(() => {});
   }
 
   return {

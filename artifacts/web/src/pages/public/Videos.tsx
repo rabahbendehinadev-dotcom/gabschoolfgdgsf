@@ -12,8 +12,11 @@ import { CourseVideoPlayer } from "@/components/CourseVideoPlayer";
 import { getCategoryMeta } from "@/lib/categoryMeta";
 import { warmImages } from "@/lib/warmImages";
 import { hasActiveSubscription, isActiveVip, isVideoLocked } from "@/lib/videoAccess";
+import { useLocale } from "@/i18n";
+import { learningT } from "@/i18n/learningMessages";
 
 export function Videos() {
+  const { locale, direction } = useLocale();
   const { user, getAuthHeaders, bootstrapped } = useAuth();
   const [, navigate] = useLocation();
   const searchString = useSearch();
@@ -115,10 +118,10 @@ export function Videos() {
     const isVisitorVideo = at === "visitor";
     const videoLocked = isVideoLocked(at, user);
     const lockMessage = isVipVideo
-      ? "مخصص لحسابات VIP فقط"
+      ? learningT(locale, "learning.vipOnly", "مخصص لحسابات VIP فقط")
       : isDemo
-        ? "ترقية حسابك للمشاهدة"
-        : "اشترك لمشاهدة هذا الدرس";
+        ? learningT(locale, "learning.upgradeWatch", "ترقية حسابك للمشاهدة")
+        : learningT(locale, "learning.subscribeWatch", "اشترك لمشاهدة هذا الدرس");
     return { isVipVideo, isVisitorVideo, videoLocked, lockMessage };
   };
   const hrefFor = (videoId: number, _locked: boolean) => `/videos/${videoId}`;
@@ -182,7 +185,7 @@ export function Videos() {
                 </div>
               ) : (
                 <div className="flex aspect-video w-full items-center justify-center rounded-2xl bg-zinc-950 px-6 text-center text-sm text-white/70">
-                  الفيديو غير متاح حالياً.
+                  {learningT(locale, "learning.videoUnavailable", "الفيديو غير متاح حالياً.")}
                 </div>
               )
             )}
@@ -217,7 +220,7 @@ export function Videos() {
                   </div>
                 )}
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs text-muted-foreground">الدورة المختارة</p>
+                   <p className="text-xs text-muted-foreground">{learningT(locale, "learning.selectedCourse", "الدورة المختارة")}</p>
                   <p className="font-bold text-foreground truncate">{coursePlaylist.title}</p>
                 </div>
                 <button
@@ -225,7 +228,7 @@ export function Videos() {
                   className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors shrink-0"
                 >
                   <ArrowRight className="h-3.5 w-3.5" />
-                  كل الأقسام
+                  {learningT(locale, "learning.allCategories", "كل الأقسام")}
                 </button>
               </motion.div>
             )}
@@ -234,16 +237,18 @@ export function Videos() {
             <div ref={gridRef} className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10 scroll-mt-24">
               <div>
                 <h1 className="text-3xl md:text-4xl font-bold mb-2">
-                  {courseId && coursePlaylist ? `تصنيفات: ${coursePlaylist.title}` : "اختر القسم الذي تريد تعلّمه"}
+                   {courseId && coursePlaylist
+                     ? `${learningT(locale, "learning.categories", "تصنيفات")}: ${coursePlaylist.title}`
+                     : learningT(locale, "learning.chooseCategory", "اختر القسم الذي تريد تعلّمه")}
                 </h1>
                 <p className="text-foreground/60">
-                  {courseId ? "اختر تصنيفاً لتظهر دروسه بالأسفل" : "اختر قسماً من الكروت بالأعلى لتظهر دروسه بالأسفل، مرتّبة كمسار تعليمي متكامل"}
+                  {courseId ? learningT(locale, "learning.chooseCategoryHint", "اختر تصنيفاً لتظهر دروسه بالأسفل") : learningT(locale, "learning.chooseCategory", "اختر قسماً من الكروت بالأعلى لتظهر دروسه بالأسفل، مرتّبة كمسار تعليمي متكامل")}
                 </p>
               </div>
               <div className="w-full md:w-96 relative">
                 <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                 <Input
-                  placeholder="ابحث عن درس أو هاتف..."
+                  placeholder={learningT(locale, "learning.searchLesson", "ابحث عن درس أو هاتف...")}
                   className="pl-4 pr-10 border-border bg-background h-12 rounded-xl"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
@@ -272,8 +277,8 @@ export function Videos() {
                 ) : categories.length === 0 ? (
                   <div className="text-center py-24 bg-muted/40 rounded-2xl border border-border">
                     <LayoutGrid className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-50" />
-                    <h3 className="text-xl font-bold mb-2">لا توجد أقسام بعد</h3>
-                    <p className="text-muted-foreground">سيتم إضافة الأقسام قريباً</p>
+                    <h3 className="text-xl font-bold mb-2">{learningT(locale, "learning.noCategories", "لا توجد أقسام بعد")}</h3>
+                    <p className="text-muted-foreground">{learningT(locale, "learning.categoriesComingSoon", "سيتم إضافة الأقسام قريباً")}</p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -308,9 +313,9 @@ export function Videos() {
                     {/* رسالة: اختر قسماً لعرض دروسه */}
                     <div className="mt-12 text-center bg-muted/40 rounded-2xl border border-border py-12 px-6">
                       <LayoutGrid className="w-10 h-10 text-primary/70 mx-auto mb-3" />
-                      <h3 className="text-lg md:text-xl font-bold mb-1.5">اختر أحد الأقسام لعرض الدروس</h3>
+                      <h3 className="text-lg md:text-xl font-bold mb-1.5">{learningT(locale, "learning.chooseCategory", "اختر أحد الأقسام لعرض الدروس")}</h3>
                       <p className="text-muted-foreground text-sm max-w-md mx-auto">
-                        اضغط على أي كارت بالأعلى لتظهر دروسه هنا، مرتّبة كمسار تعليمي متكامل.
+                        {learningT(locale, "learning.chooseCategoryHint", "اضغط على أي كارت بالأعلى لتظهر دروسه هنا، مرتّبة كمسار تعليمي متكامل.")}
                       </p>
                     </div>
 
@@ -341,7 +346,7 @@ export function Videos() {
                               </div>
                               <div className="absolute top-3 right-3">
                                 <span className="inline-flex items-center gap-1 bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-md">
-                                  ✓ مجاني
+                                  ✓ {learningT(locale, "learning.free", "مجاني")}
                                 </span>
                               </div>
                               <div className="absolute bottom-4 right-4 left-4 text-right">
@@ -354,13 +359,13 @@ export function Videos() {
 
                           <div className="flex-1 text-center md:text-right space-y-5">
                             <span className="inline-block bg-primary/10 text-primary border border-primary/25 text-sm font-semibold px-4 py-1.5 rounded-full">
-                              محتوى مجاني 🎁
+                              {learningT(locale, "learning.freeContent", "محتوى مجاني")} 🎁
                             </span>
                             <h2 className="text-3xl md:text-4xl font-extrabold leading-snug">
-                              شاهد قبل الاشتراك 👇
+                              {learningT(locale, "learning.watchBefore", "شاهد قبل الاشتراك")} 👇
                             </h2>
                             <p className="text-foreground/60 text-base md:text-lg leading-relaxed max-w-md mx-auto md:mx-0">
-                              هذا فيديو حقيقي من داخل الدورة باش تشوف المستوى قبل ما تشترك
+                              {learningT(locale, "learning.freePreviewHint", "هذا فيديو حقيقي من داخل الدورة لتشاهد المستوى قبل الاشتراك")}
                             </p>
                             <div className="flex flex-col sm:flex-row gap-3 justify-center md:justify-start pt-1">
                               <Button
@@ -369,12 +374,12 @@ export function Videos() {
                                 onClick={() => setVideoModalOpen(true)}
                               >
                                 <PlayCircle className="w-5 h-5" />
-                                شاهد الفيديو الآن
+                                {learningT(locale, "learning.watchNow", "شاهد الفيديو الآن")}
                               </Button>
                               <Link href="/subscribe">
                                 <Button size="lg" variant="outline" className="gap-2 text-base h-12 px-6 w-full sm:w-auto border-border hover:border-primary/50">
                                   <Rocket className="w-5 h-5" />
-                                  اشترك وشاهد جميع الدروس
+                                  {learningT(locale, "learning.subscribeAll", "اشترك وشاهد جميع الدروس")}
                                 </Button>
                               </Link>
                             </div>
@@ -408,14 +413,15 @@ function SearchResults({
   hrefFor: (id: number, locked: boolean) => string;
   onClear: () => void;
 }) {
+  const { locale } = useLocale();
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <p className="text-foreground/70 font-medium">
-          نتائج البحث ({videos.length})
+          {learningT(locale, "learning.searchResults", "نتائج البحث")} ({videos.length})
         </p>
         <Button variant="ghost" size="sm" onClick={onClear} className="text-primary">
-          <X className="w-4 h-4 ml-1" /> مسح البحث
+          <X className="w-4 h-4 ml-1" /> {learningT(locale, "learning.clearSearch", "مسح البحث")}
         </Button>
       </div>
 
@@ -426,8 +432,8 @@ function SearchResults({
       ) : videos.length === 0 ? (
         <div className="text-center py-24 bg-muted/40 rounded-2xl border border-border">
           <Search className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-50" />
-          <h3 className="text-xl font-bold mb-2">لم يتم العثور على دروس</h3>
-          <p className="text-muted-foreground">جرب كلمات بحث أخرى</p>
+          <h3 className="text-xl font-bold mb-2">{learningT(locale, "learning.noSearchResults", "لم يتم العثور على دروس")}</h3>
+          <p className="text-muted-foreground">{learningT(locale, "learning.tryOtherSearch", "جرب كلمات بحث أخرى")}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
@@ -480,6 +486,7 @@ function CategoryDetail({
   isLocked: boolean;
   isDemo: boolean;
 }) {
+  const { locale } = useLocale();
   const meta = getCategoryMeta(category.name, category.slug);
   const Icon = meta.Icon;
   const isEmojiIcon = !!category.icon && /\p{Extended_Pictographic}/u.test(category.icon);
@@ -518,17 +525,17 @@ function CategoryDetail({
             <div className="flex items-center gap-2 mt-3">
               <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30">
                 <PlayCircle className="w-3.5 h-3.5 ml-1" />
-                {lessons.length} درس
+                {lessons.length} {learningT(locale, "learning.lesson", "درس")}
               </Badge>
               <Badge variant="outline" className="bg-muted/60">
                 <Sparkles className="w-3.5 h-3.5 ml-1" />
-                مسار تعليمي مرتب
+                {learningT(locale, "learning.learningPath", "مسار تعليمي مرتب")}
               </Badge>
             </div>
           </div>
           <Button variant="outline" onClick={onBack} className="shrink-0 gap-1.5 rounded-xl">
             <LayoutGrid className="w-4 h-4" />
-            كل الأقسام
+            {learningT(locale, "learning.allCategories", "كل الأقسام")}
           </Button>
         </div>
       </div>
@@ -544,13 +551,13 @@ function CategoryDetail({
             <Lock className="w-5 h-5 text-primary shrink-0" />
             <p className="text-sm font-medium">
               {isDemo
-                ? "حسابك التجريبي لا يتيح مشاهدة الدروس — قم بترقيته الآن"
-                : "قم بتسجيل الدخول والاشتراك للوصول إلى جميع الدروس"}
+                ? learningT(locale, "learning.demoUpgradeHint", "حسابك التجريبي لا يتيح مشاهدة الدروس — قم بترقيته الآن")
+                : learningT(locale, "learning.loginSubscribe", "قم بتسجيل الدخول والاشتراك للوصول إلى جميع الدروس")}
             </p>
           </div>
           <Link href="/subscribe">
             <Button size="sm" className="shrink-0">
-              {isDemo ? "ترقية الحساب" : "عرض الاشتراكات"}
+              {isDemo ? learningT(locale, "learning.upgrade", "ترقية الحساب") : learningT(locale, "learning.watchAll", "عرض الاشتراكات")}
             </Button>
           </Link>
         </motion.div>
@@ -566,9 +573,9 @@ function CategoryDetail({
       ) : lessons.length === 0 ? (
         <div className="text-center py-24 bg-muted/40 rounded-2xl border border-border">
           <PlayCircle className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-50" />
-          <h3 className="text-xl font-bold mb-2">لا توجد دروس في هذا القسم بعد</h3>
-          <p className="text-muted-foreground mb-6">سيتم إضافة الدروس قريباً</p>
-          <Button variant="outline" onClick={onBack}>العودة لكل الأقسام</Button>
+          <h3 className="text-xl font-bold mb-2">{learningT(locale, "learning.noLessons", "لا توجد دروس في هذا القسم بعد")}</h3>
+          <p className="text-muted-foreground mb-6">{learningT(locale, "learning.lessonsComingSoon", "سيتم إضافة الدروس قريباً")}</p>
+          <Button variant="outline" onClick={onBack}>{learningT(locale, "learning.allCategories", "العودة لكل الأقسام")}</Button>
         </div>
       ) : (
         <CoursePlayer lessons={lessons} accessInfo={accessInfo} />

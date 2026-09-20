@@ -5,6 +5,8 @@ import { motion } from "framer-motion";
 import { GraduationCap, PlayCircle, Lock, ArrowLeft, BookOpen, Star } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useState, useEffect } from "react";
+import { useLocale } from "@/i18n";
+import { learningT } from "@/i18n/learningMessages";
 
 function useUserCourseIds(token: string | null) {
   const [ids, setIds] = useState<Set<number>>(new Set());
@@ -45,6 +47,7 @@ function lessonsLabel(n: number) {
 }
 
 function CourseCard({ playlist, index, isLocked }: { playlist: Playlist & { imageUrl?: string | null; thumbnailUrl?: string | null }; index: number; isLocked: boolean }) {
+  const { locale } = useLocale();
   const accent = ACCENTS[index % ACCENTS.length];
   const lessonCount = playlist.videos?.length ?? 0;
   const cardImage = (playlist as any).thumbnailUrl || playlist.imageUrl || null;
@@ -145,8 +148,8 @@ function CourseCard({ playlist, index, isLocked }: { playlist: Playlist & { imag
               style={{ color: isLocked ? "#9ca3af" : accent.from }}
             >
               {isLocked
-                ? <><Lock className="h-4 w-4" /> مقفل — تواصل مع الإدارة</>
-                : <><ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1 duration-200" /> استعراض الدروس</>
+                ? <><Lock className="h-4 w-4" /> {learningT(locale, "learning.lockedContact", "مقفل — تواصل مع الإدارة")}</>
+                : <><ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1 duration-200" /> {learningT(locale, "learning.viewLessons", "استعراض الدروس")}</>
               }
             </div>
           </div>
@@ -157,6 +160,8 @@ function CourseCard({ playlist, index, isLocked }: { playlist: Playlist & { imag
 }
 
 export function Courses() {
+  const { locale } = useLocale();
+  const { t, direction } = useLocale();
   const { data: playlists, isLoading } = useGetPlaylists();
   const { token } = useAuth();
   const { ids: userCourseIds, loaded: coursesLoaded } = useUserCourseIds(token);
@@ -165,7 +170,7 @@ export function Courses() {
   const totalLessons = visible.reduce((acc, p) => acc + (p.videos?.length ?? 0), 0);
 
   return (
-    <div className="min-h-screen bg-background pb-28" dir="rtl">
+    <div className="min-h-screen bg-background pb-28" dir={direction}>
 
       {/* ── Hero ── */}
       <div className="relative overflow-hidden">
@@ -182,8 +187,8 @@ export function Courses() {
               <GraduationCap className="h-8 w-8" />
             </div>
             <div>
-              <h1 className="text-3xl font-black text-foreground sm:text-4xl tracking-tight">الدورات التعليمية</h1>
-              <p className="mt-2 text-base text-muted-foreground">اختر دورة وابدأ رحلتك نحو الاحتراف</p>
+              <h1 className="text-3xl font-black text-foreground sm:text-4xl tracking-tight">{t("courses.title")}</h1>
+              <p className="mt-2 text-base text-muted-foreground">{t("courses.subtitle")}</p>
             </div>
 
             {/* Stats */}
@@ -192,16 +197,16 @@ export function Courses() {
                 <div className="flex items-center gap-2 rounded-full bg-white/8 border border-white/10 px-4 py-2 text-sm">
                   <BookOpen className="h-4 w-4 text-primary" />
                   <span className="font-bold text-foreground">{visible.length}</span>
-                  <span className="text-muted-foreground">دورة</span>
+                  <span className="text-muted-foreground">{t("courses.course")}</span>
                 </div>
                 <div className="flex items-center gap-2 rounded-full bg-white/8 border border-white/10 px-4 py-2 text-sm">
                   <PlayCircle className="h-4 w-4 text-primary" />
                   <span className="font-bold text-foreground">{totalLessons}</span>
-                  <span className="text-muted-foreground">درس</span>
+                  <span className="text-muted-foreground">{t("courses.lesson")}</span>
                 </div>
                 <div className="flex items-center gap-2 rounded-full bg-white/8 border border-white/10 px-4 py-2 text-sm">
                   <Star className="h-4 w-4 text-amber-400" />
-                  <span className="text-muted-foreground">جودة عالية</span>
+                  <span className="text-muted-foreground">{t("courses.highQuality")}</span>
                 </div>
               </div>
             )}
@@ -229,8 +234,8 @@ export function Courses() {
             <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-muted">
               <GraduationCap className="h-10 w-10 text-muted-foreground opacity-40" />
             </div>
-            <p className="text-lg font-semibold text-muted-foreground">لا توجد دورات بعد</p>
-            <p className="text-sm text-muted-foreground/60">ترقّب! سيتم إضافة دورات قريباً</p>
+            <p className="text-lg font-semibold text-muted-foreground">{learningT(locale, "learning.noCourses", "لا توجد دورات بعد")}</p>
+            <p className="text-sm text-muted-foreground/60">{learningT(locale, "learning.coursesComingSoon", "ترقّب! سيتم إضافة دورات قريباً")}</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">

@@ -3,6 +3,8 @@ import { useAuth } from "@/lib/auth";
 import type { SolutionContent, SolutionDraft, SolutionMedia, SolutionCard } from "./contract";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "wouter";
+import { useLocale } from "@/i18n";
+import { learningT } from "@/i18n/learningMessages";
 import {
   Info, ListOrdered, CheckCircle2, AlertTriangle, Image as ImageIcon,
   ChevronLeft, DownloadCloud, X, Wrench, Package, Search,
@@ -89,6 +91,7 @@ export function SolutionImage({ id, admin = false, file, alt = "", className = "
 }
 
 export function SolutionArticleHero({ meta, coverFile, admin, fallbackImageId }: Pick<SolutionArticleProps, "meta" | "coverFile" | "admin"> & { fallbackImageId?: string }) {
+  const { locale } = useLocale();
   if (!meta) return null;
   const managedCoverImageId = meta.customCoverImageId || meta.aiCoverImageId || meta.coverImageId;
   return (
@@ -125,7 +128,7 @@ export function SolutionArticleHero({ meta, coverFile, admin, fallbackImageId }:
           {meta.publishedAt && (
             <div className="flex items-center gap-2 font-medium bg-[#FFF8F1] px-3 py-1 rounded-lg">
               <Calendar className="w-4 h-4 text-orange-500" />
-              <time dateTime={meta.publishedAt} className="text-slate-700">{new Date(meta.publishedAt).toLocaleDateString("fr-FR")}</time>
+              <time dateTime={meta.publishedAt} className="text-slate-700">{new Date(meta.publishedAt).toLocaleDateString(locale)}</time>
             </div>
           )}
           {!!meta.tags?.length && (
@@ -191,20 +194,21 @@ const InfoRow = ({ icon: Icon, label, value }: { icon: any, label: string, value
 };
 
 export function SolutionArticle({ content, images, admin = false, meta, coverFile, related }: SolutionArticleProps) {
+  const { locale } = useLocale();
   const usedImageIds = new Set<string>();
   content.steps?.forEach(step => step.imageIds.forEach(id => usedImageIds.add(id)));
   const unusedImages = images.filter(img => !usedImageIds.has(img.id));
 
   const navItems = [
-    { id: "introduction", label: "Introduction / مقدمة", show: !!content.introduction?.trim() },
-    { id: "prerequisites", label: "Prérequis / المتطلبات", show: !!content.requirements?.some(v => v.trim()) },
-    { id: "before-starting", label: "Avant de commencer / قبل البدء", show: !!content.beforeStarting?.some(v => v.trim()) },
-    { id: "procedure", label: "Procédure / الخطوات", show: !!content.steps?.length },
-    { id: "resources", label: "Ressources / التحميلات", show: !!content.resources?.length },
-    { id: "unused-images", label: "Autres captures / صور إضافية", show: unusedImages.length > 0 },
-    { id: "result", label: "Résultat / النتيجة", show: !!content.result?.trim(), responsive: true },
-    { id: "warnings", label: "Avertissements / تحذيرات", show: !!content.warnings?.some(w => w.trim()), responsive: true },
-    { id: "related", label: "Solutions similaires", show: !!related?.length, responsive: true },
+    { id: "introduction", label: "Introduction", show: !!content.introduction?.trim() },
+    { id: "prerequisites", label: learningT(locale, "learning.prerequisites", "Prérequis"), show: !!content.requirements?.some(v => v.trim()) },
+    { id: "before-starting", label: learningT(locale, "learning.beforeStarting", "Avant de commencer"), show: !!content.beforeStarting?.some(v => v.trim()) },
+    { id: "procedure", label: learningT(locale, "learning.procedure", "Procédure"), show: !!content.steps?.length },
+    { id: "resources", label: learningT(locale, "learning.resources", "Ressources"), show: !!content.resources?.length },
+    { id: "unused-images", label: learningT(locale, "learning.additionalImages", "Autres captures"), show: unusedImages.length > 0 },
+    { id: "result", label: learningT(locale, "learning.result", "Résultat"), show: !!content.result?.trim(), responsive: true },
+    { id: "warnings", label: learningT(locale, "learning.warnings", "Avertissements"), show: !!content.warnings?.some(w => w.trim()), responsive: true },
+    { id: "related", label: learningT(locale, "solutions.similar", "Solutions similaires"), show: !!related?.length, responsive: true },
   ].filter(i => i.show);
 
   // Shared Sidebar Blocks
@@ -215,16 +219,16 @@ export function SolutionArticle({ content, images, admin = false, meta, coverFil
         <div className="p-2 bg-orange-50 text-orange-600 rounded-xl shadow-sm border border-orange-200/70">
           <Settings className="w-5 h-5" />
         </div>
-        <h2 className="text-lg font-bold text-slate-950">Informations / معلومات</h2>
+        <h2 className="text-lg font-bold text-slate-950">{learningT(locale, "learning.information", "Informations")}</h2>
       </div>
       <div className="flex flex-col relative z-10">
-        <InfoRow icon={Smartphone} label="Marque" value={meta?.brand} />
-        <InfoRow icon={Layers} label="Modèle" value={meta?.model} />
-        <InfoRow icon={Target} label="Opération" value={content.problem} />
-        <InfoRow icon={Wrench} label="Outil" value={meta?.tool} />
-        <InfoRow icon={MonitorSmartphone} label="Catégorie" value={meta?.category} />
+        <InfoRow icon={Smartphone} label={learningT(locale, "learning.brand", "Marque")} value={meta?.brand} />
+        <InfoRow icon={Layers} label={learningT(locale, "learning.model", "Modèle")} value={meta?.model} />
+        <InfoRow icon={Target} label={learningT(locale, "learning.operation", "Opération")} value={content.problem} />
+        <InfoRow icon={Wrench} label={learningT(locale, "learning.tool", "Outil")} value={meta?.tool} />
+        <InfoRow icon={MonitorSmartphone} label={learningT(locale, "learning.category", "Catégorie")} value={meta?.category} />
         {meta?.publishedAt && (
-          <InfoRow icon={Calendar} label="Publié" value={new Date(meta.publishedAt).toLocaleDateString("fr-FR")} />
+          <InfoRow icon={Calendar} label={learningT(locale, "learning.published", "Publié")} value={new Date(meta.publishedAt).toLocaleDateString(locale)} />
         )}
       </div>
     </div>
@@ -236,7 +240,7 @@ export function SolutionArticle({ content, images, admin = false, meta, coverFil
         <div className="p-2 bg-orange-50 text-orange-600 rounded-xl shadow-sm border border-orange-200/70">
           <ListOrdered className="w-5 h-5" />
         </div>
-        <h2 className="text-lg font-bold text-slate-950">Sur cette page / في هذه الصفحة</h2>
+        <h2 className="text-lg font-bold text-slate-950">{learningT(locale, "learning.onThisPage", "Sur cette page")}</h2>
       </div>
       <nav className="flex flex-col gap-1.5 text-sm font-medium text-slate-600">
         {navItems.map((item) => (
@@ -256,7 +260,7 @@ export function SolutionArticle({ content, images, admin = false, meta, coverFil
           <CheckCircle2 className="w-6 h-6" />
         </div>
         <div className="flex-1 min-w-0">
-          <h2 className="text-lg font-bold text-emerald-950 mb-2">Résultat / النتيجة</h2>
+          <h2 className="text-lg font-bold text-emerald-950 mb-2">{learningT(locale, "learning.result", "Résultat")}</h2>
           <p className="text-emerald-900/90 whitespace-pre-wrap text-sm md:text-base leading-relaxed break-words">{content.result}</p>
         </div>
       </div>
@@ -269,7 +273,7 @@ export function SolutionArticle({ content, images, admin = false, meta, coverFil
         <div className="bg-amber-100/50 p-2 rounded-xl text-amber-600 border border-amber-200/50">
           <AlertTriangle className="w-5 h-5" />
         </div>
-        <h2 className="text-lg font-bold text-amber-950">Avertissements / تحذيرات</h2>
+        <h2 className="text-lg font-bold text-amber-950">{learningT(locale, "learning.warnings", "Avertissements")}</h2>
       </div>
       <ul className="space-y-3 text-amber-900/90 relative z-10 text-sm md:text-base">
         {content.warnings.filter(w => w.trim()).map((w, i) => (
@@ -288,7 +292,7 @@ export function SolutionArticle({ content, images, admin = false, meta, coverFil
         <div className="p-2 bg-orange-50 text-orange-600 rounded-xl shadow-sm border border-orange-200/70">
           <LinkIcon className="w-5 h-5" />
         </div>
-        <h2 className="font-bold text-slate-950 text-lg">Solutions similaires</h2>
+        <h2 className="font-bold text-slate-950 text-lg">{learningT(locale, "solutions.similar", "Solutions similaires")}</h2>
       </div>
       <div className="space-y-4">
         {related.map(item => (
@@ -324,17 +328,17 @@ export function SolutionArticle({ content, images, admin = false, meta, coverFil
           </div>
 
           {content.introduction?.trim() && (
-            <SectionCard id="introduction" title="Introduction / مقدمة" icon={Info}>
+            <SectionCard id="introduction" title={learningT(locale, "learning.introduction", "Introduction")} icon={Info}>
               <p className="whitespace-pre-wrap leading-relaxed text-slate-700 text-lg">{content.introduction}</p>
             </SectionCard>
           )}
 
           {content.requirements?.length > 0 && content.requirements.some(v => v.trim()) && (
-            <ChecklistSection id="prerequisites" title="Prérequis / المتطلبات" items={content.requirements} icon={Package} />
+            <ChecklistSection id="prerequisites" title={learningT(locale, "learning.prerequisites", "Prérequis")} items={content.requirements} icon={Package} />
           )}
 
           {content.beforeStarting?.length > 0 && content.beforeStarting.some(v => v.trim()) && (
-            <ChecklistSection id="before-starting" title="Avant de commencer / قبل البدء" items={content.beforeStarting} icon={Wrench} />
+            <ChecklistSection id="before-starting" title={learningT(locale, "learning.beforeStarting", "Avant de commencer")} items={content.beforeStarting} icon={Wrench} />
           )}
 
           {!!content.steps?.length && (
@@ -343,7 +347,7 @@ export function SolutionArticle({ content, images, admin = false, meta, coverFil
                 <div className="p-2 bg-orange-50 text-orange-600 rounded-xl shadow-sm border border-orange-200/70">
                   <ListOrdered className="w-5 h-5" />
                 </div>
-                <h2 className="text-xl md:text-2xl font-bold text-slate-950 tracking-tight">Procédure / الخطوات</h2>
+                <h2 className="text-xl md:text-2xl font-bold text-slate-950 tracking-tight">{learningT(locale, "learning.procedure", "Procédure")}</h2>
               </div>
               <div data-testid="timeline-solution-procedure" className="relative border-s-2 border-orange-200 ms-4 md:ms-6 ps-8 md:ps-12 space-y-8 md:space-y-12">
                 {content.steps.map((step, i) => (
@@ -378,7 +382,7 @@ export function SolutionArticle({ content, images, admin = false, meta, coverFil
                 <div className="p-2 bg-orange-50 text-orange-600 rounded-xl shadow-sm border border-orange-200/70">
                   <DownloadCloud className="w-5 h-5" />
                 </div>
-                <h2 className="text-xl md:text-2xl font-bold text-slate-950 tracking-tight">Ressources / التحميلات</h2>
+                <h2 className="text-xl md:text-2xl font-bold text-slate-950 tracking-tight">{learningT(locale, "learning.resources", "Ressources")}</h2>
               </div>
               <div className="grid sm:grid-cols-2 gap-5 w-full">
                 {content.resources.map((res, i) => {
@@ -404,7 +408,7 @@ export function SolutionArticle({ content, images, admin = false, meta, coverFil
           )}
 
           {unusedImages.length > 0 && (
-            <SectionCard id="unused-images" title="Autres captures / صور إضافية" icon={ImageIcon}>
+            <SectionCard id="unused-images" title={learningT(locale, "learning.additionalImages", "Autres captures")} icon={ImageIcon}>
               <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-5">
                 {unusedImages.map(image => (
                   <div key={image.id} className="rounded-2xl overflow-hidden border-2 border-[#F3DFCF] bg-[#FFF4E8] p-1.5 group shadow-[0_4px_16px_rgba(120,72,32,0.06)] transition-all hover:shadow-[0_8px_24px_rgba(120,72,32,0.09)] hover:border-orange-200">

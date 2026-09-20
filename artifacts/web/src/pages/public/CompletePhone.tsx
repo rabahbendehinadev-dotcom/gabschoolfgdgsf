@@ -11,17 +11,17 @@ import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { MessageCircle, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
+import { useLocale } from "@/i18n";
+import { accountMessage } from "@/i18n/accountMessages";
 
-const phoneSchema = z.object({
-  phone: z
-    .string()
-    .min(1, "رقم الواتساب مطلوب")
-    .refine((value) => isValidPhoneNumber(value), "أدخل رقم واتساب دولي صحيح مع رمز الدولة"),
-});
-
-type PhoneForm = z.infer<typeof phoneSchema>;
+type PhoneForm = { phone: string };
 
 export function CompletePhone() {
+  const { locale, direction } = useLocale();
+  const m = (key: string) => accountMessage(locale, key);
+  const phoneSchema = z.object({
+    phone: z.string().min(1, m("phoneRequired")).refine((value) => isValidPhoneNumber(value), m("phoneInvalid")),
+  });
   const [, navigate] = useLocation();
   const { token, user, bootstrapped, updateUser, logout, getAuthHeaders } = useAuth();
   const { toast } = useToast();
@@ -60,7 +60,7 @@ export function CompletePhone() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden" dir="rtl">
+    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden" dir={direction}>
       <div className="absolute inset-0 bg-gradient-to-br from-background via-background to-primary/10" />
 
       <motion.div
@@ -72,16 +72,16 @@ export function CompletePhone() {
           <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/20 text-primary glow-primary mb-6">
             <MessageCircle className="h-7 w-7" />
           </div>
-          <h1 className="text-3xl font-bold mb-2">خطوة أخيرة</h1>
+          <h1 className="text-3xl font-bold mb-2">{m("finalStep")}</h1>
           <p className="text-foreground/60">
-            أدخل رقم الواتساب الخاص بك لإكمال إنشاء حسابك والدخول إلى الدروس
+            {m("phoneSubtitle")}
           </p>
         </div>
 
         <Card className="p-8 glass-card">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
             <div className="space-y-2">
-              <Label>رقم الواتساب</Label>
+              <Label>{m("whatsapp")}</Label>
               <Controller
                 name="phone"
                 control={control}
@@ -96,18 +96,18 @@ export function CompletePhone() {
               />
               {errors.phone && <p className="text-sm text-destructive">{errors.phone.message}</p>}
               <p className="text-xs text-foreground/50">
-                اختر دولتك وأدخل رقم واتساب صحيح — ندعم جميع الدول
+                {m("phoneHint")}
               </p>
             </div>
 
             <Button type="submit" className="w-full h-12 text-lg" disabled={updatePhoneMut.isPending}>
-              {updatePhoneMut.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : "حفظ والمتابعة"}
+              {updatePhoneMut.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : m("saveContinue")}
             </Button>
           </form>
 
           <div className="mt-6 text-center text-sm text-foreground/60 border-t border-border pt-6">
             <button type="button" onClick={logout} className="text-primary hover:underline font-bold">
-              تسجيل الخروج
+              {m("logout")}
             </button>
           </div>
         </Card>
