@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 
-const TOKENS = ["0", "1", "A", "B", "C", "D", "E", "F", "0x", "FF", "A1", "7E", "3C", "<>", "{}", "[]", "#", "+", "/"];
-const MAX_VISIBLE = 10;
+const TOKENS = ["01", "10", "FF", "A1", "7E", "3C", "0x", "HEX", "<>", "{}", "[]", "#", "+", "/", "A", "B", "C", "D", "E", "F", "0xFF", "A1:7E", "01FF", "3C:A1", "FF01"];
+const MAX_VISIBLE = 36;
 const MIN_INTERVAL_MS = 55;
 const MIN_DISTANCE_PX = 16;
 
@@ -41,21 +41,31 @@ export function CursorDecodingTrail() {
       lastX = pendingX;
       lastY = pendingY;
 
-      const particle = document.createElement("span");
-      const angle = tokenIndex * 2.399963;
-      const offset = 7 + (tokenIndex % 3) * 2;
-      particle.textContent = TOKENS[tokenIndex % TOKENS.length];
-      particle.className = `gab-cursor-code${pendingInteractive && tokenIndex % 3 === 0 ? " is-interactive" : ""}`;
-      particle.style.left = `${pendingX + Math.cos(angle) * offset}px`;
-      particle.style.top = `${pendingY + Math.sin(angle) * offset}px`;
-      particle.style.setProperty("--trail-x", `${-5 - (tokenIndex % 4) * 2}px`);
-      particle.style.setProperty("--trail-y", `${-9 - (tokenIndex % 3) * 3}px`);
-      particle.style.setProperty("--trail-rotate", `${-5 + (tokenIndex % 5) * 2.5}deg`);
-      tokenIndex += 1;
+      const fragmentCount = 3 + (tokenIndex % 4);
 
-      particle.addEventListener("animationend", () => removeParticle(particle), { once: true });
-      layer.appendChild(particle);
-      visible.push(particle);
+      for (let fragment = 0; fragment < fragmentCount; fragment += 1) {
+        const particle = document.createElement("span");
+        const sequence = tokenIndex + fragment;
+        const angle = sequence * 2.399963 + fragment * 0.52;
+        const offset = 10 + (sequence % 5) * 4;
+        const colorSlot = sequence % 20;
+        const colorClass = colorSlot < 13 ? "" : colorSlot < 17 ? " is-amber" : " is-teal";
+
+        particle.textContent = TOKENS[sequence % TOKENS.length];
+        particle.className = `gab-cursor-code${colorClass}${pendingInteractive && fragment === 0 ? " is-interactive" : ""}`;
+        particle.style.left = `${pendingX + Math.cos(angle) * offset}px`;
+        particle.style.top = `${pendingY + Math.sin(angle) * offset}px`;
+        particle.style.setProperty("--trail-x", `${-5 - (sequence % 5) * 2}px`);
+        particle.style.setProperty("--trail-y", `${-12 - (sequence % 4) * 4}px`);
+        particle.style.setProperty("--trail-rotate", `${-10 + (sequence % 7) * 3.25}deg`);
+        particle.style.setProperty("--trail-size", `${8 + (sequence % 3)}px`);
+        particle.style.setProperty("--trail-duration", `${720 + (sequence % 5) * 45}ms`);
+
+        particle.addEventListener("animationend", () => removeParticle(particle), { once: true });
+        layer.appendChild(particle);
+        visible.push(particle);
+      }
+      tokenIndex += fragmentCount;
 
       while (visible.length > MAX_VISIBLE) removeParticle(visible[0]);
     };

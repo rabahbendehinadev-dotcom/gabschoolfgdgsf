@@ -138,21 +138,43 @@
     --trail-x: -8px;
     --trail-y: -12px;
     --trail-rotate: 0deg;
+    --trail-size: 9px;
+    --trail-duration: 800ms;
     position: absolute;
-    color: rgb(20 184 166 / 0.46);
-    font: 600 8px/1 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    letter-spacing: -0.04em;
+    color: rgb(249 115 22 / 0.9);
+    font: 700 var(--trail-size)/1 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    letter-spacing: -0.03em;
     white-space: nowrap;
     pointer-events: none;
     user-select: none;
     will-change: transform, opacity;
+    text-shadow:
+      0 0 3px rgb(255 255 255 / 0.42),
+      0 1px 2px rgb(48 20 4 / 0.5),
+      0 0 6px rgb(249 115 22 / 0.28);
     transform: translate3d(-50%, -50%, 0);
     opacity: 0;
-    animation: gab-cursor-code-fade 620ms cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+    animation: gab-cursor-code-fade var(--trail-duration) cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+  }
+
+  .gab-cursor-code.is-amber {
+    color: rgb(245 158 11 / 0.86);
+    text-shadow:
+      0 0 3px rgb(255 255 255 / 0.4),
+      0 1px 2px rgb(48 20 4 / 0.48),
+      0 0 6px rgb(245 158 11 / 0.25);
+  }
+
+  .gab-cursor-code.is-teal {
+    color: rgb(13 148 136 / 0.78);
+    text-shadow:
+      0 0 3px rgb(255 255 255 / 0.44),
+      0 1px 2px rgb(3 38 36 / 0.46),
+      0 0 5px rgb(20 184 166 / 0.2);
   }
 
   .gab-cursor-code.is-interactive {
-    color: rgb(249 115 22 / 0.58);
+    color: rgb(251 146 60 / 0.96);
   }
 }
 
@@ -162,7 +184,7 @@
     transform: translate3d(-50%, -50%, 0) scale(0.88);
   }
   18% {
-    opacity: 0.62;
+    opacity: 0.88;
   }
   100% {
     opacity: 0;
