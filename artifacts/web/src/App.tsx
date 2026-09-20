@@ -58,7 +58,7 @@ function PublicLayout({ children }: { children: React.ReactNode }) {
     <div
       className="min-h-screen flex flex-col pb-[var(--mobile-bottom-nav-height)] xl:pb-0"
       dir={direction}
-      style={{ "--mobile-bottom-nav-height": "calc(70px + 1px + env(safe-area-inset-bottom))" } as React.CSSProperties}
+      style={{ "--mobile-bottom-nav-height": "calc(79px + env(safe-area-inset-bottom))" } as React.CSSProperties}
     >
       <Navbar />
       <main className="flex-1">{children}</main>

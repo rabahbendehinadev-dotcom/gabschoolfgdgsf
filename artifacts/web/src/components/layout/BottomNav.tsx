@@ -1,6 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
+import { createPortal } from "react-dom";
 import { Home, GraduationCap, Users, Bell, User, Lightbulb, Wrench } from "lucide-react";
 import {
   getUnreadNotificationCount,
@@ -35,11 +36,13 @@ export function BottomNav() {
     { label: t("nav.account"), icon: User, href: user ? "/dashboard" : "/login", match: (l: string) => l === "/dashboard" || l.startsWith("/dashboard/") || l === "/login" || l === "/register" || l === "/complete-phone" },
   ];
 
-  return (
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <nav
       dir={direction}
       aria-label={items.map(item => item.label).join(", ")}
-      className="fixed inset-x-0 bottom-0 z-50 box-border border-t border-border bg-white/95 backdrop-blur-xl shadow-[0_-4px_24px_rgba(15,23,42,0.08)] xl:hidden"
+      className="fixed inset-x-0 bottom-0 z-[100] box-border border-t border-border bg-white/95 backdrop-blur-xl shadow-[0_-4px_24px_rgba(15,23,42,0.08)] xl:hidden"
       style={{
         height: "calc(70px + 1px + env(safe-area-inset-bottom))",
         paddingBottom: "env(safe-area-inset-bottom)",
@@ -96,6 +99,7 @@ export function BottomNav() {
           );
         })}
       </ul>
-    </nav>
+    </nav>,
+    document.body,
   );
 }
