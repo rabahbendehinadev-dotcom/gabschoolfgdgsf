@@ -13,11 +13,13 @@ import usersRouter from "./users";
 import notificationsRouter from "./notifications";
 import toolsRouter from "./tools";
 import solutionsRouter from "./solutions";
+import heroBannersRouter from "./heroBanners";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(solutionsRouter);
+router.use(heroBannersRouter);
 router.use(authRouter);
 router.use(videosRouter);
 router.use(categoriesRouter);

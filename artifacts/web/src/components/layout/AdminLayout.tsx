@@ -11,7 +11,7 @@ import {
   LayoutDashboard, Users, Video, FolderTree, CreditCard, LogOut,
   ShieldAlert, Activity, BadgeCheck, Banknote, KeyRound, Wrench,
   Megaphone, Bell, BellOff, BellRing, X, Share, PlusSquare, Menu,
-  AlertTriangle, GraduationCap, MessageSquare, UserCog, ClipboardList,
+  AlertTriangle, GraduationCap, MessageSquare, UserCog, ClipboardList, ImageIcon,
 } from "lucide-react";
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
@@ -118,6 +118,7 @@ const NAV_SECTIONS: Array<{ section: string; items: AdminNavItem[] }> = [
       { name: "Vidéos",               path: "/bendehinaonline97/videos",              icon: Video, access: "manage_content" },
       { name: "Solutions",            path: "/bendehinaonline97/solutions",           icon: Wrench, access: "manage_solutions" },
       { name: "Catégories",           path: "/bendehinaonline97/categories",          icon: FolderTree, access: "manage_content" },
+      { name: "Gestion des bannières",path: "/bendehinaonline97/hero-banners",        icon: ImageIcon, access: "manage_content" },
       { name: "Outils",               path: "/bendehinaonline97/tools",               icon: Wrench, access: "manage_tools" },
       { name: "Cat. d'outils",        path: "/bendehinaonline97/tool-categories",     icon: FolderTree, access: "manage_tools" },
       { name: "Communauté",           path: "/bendehinaonline97/community",           icon: MessageSquare, access: "manage_community" },

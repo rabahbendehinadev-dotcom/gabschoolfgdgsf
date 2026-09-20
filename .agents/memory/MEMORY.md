@@ -53,3 +53,4 @@
 - [Solutions boundaries](solutions-security-boundary.md) — generic storage consumers can leak private screenshots; use shared namespace isolation and PostgreSQL row versions for concurrency.
 - [Solutions public privacy](solutions-public-privacy.md) — visitor surfaces use a strict safe projection; technical metadata and non-AI covers stay VIP/admin-only.
 - [Locale preference precedence](locale-preference-precedence.md) — browser language applies until a user explicitly selects a language; DB default Arabic must not override first-visit detection.
+- [Managed banner media lifecycle](managed-banner-media-lifecycle.md) — DB metadata and object deletion are non-atomic; use a durable cleanup queue, serialized ordering, and disjoint reorder ranges.

@@ -47,6 +47,7 @@ export function requiredAdminAccessForApi(method: string, requestPath: string): 
 
   if (path.startsWith("/admin/security/")) return "manage_device_security";
   if (path === "/admin/solutions" || path.startsWith("/admin/solutions/")) return "manage_solutions";
+  if (path === "/admin/hero-banners" || path.startsWith("/admin/hero-banners/")) return "manage_content";
   if (path === "/admin/stats") return "view_analytics";
   if (path === "/admin/subscriptions" || path.startsWith("/admin/payments")) return "manage_subscriptions";
   if (

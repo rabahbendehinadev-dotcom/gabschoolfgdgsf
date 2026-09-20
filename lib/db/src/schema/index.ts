@@ -27,3 +27,4 @@ export * from "./courseAccessLogs";
 export * from "./adminCoursePermissions";
 export * from "./security";
 export * from "./solutions";
+export * from "./heroBanners";

@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "test:solutions": "tsx --test src/lib/solutions.test.ts",
+    "test:hero-banners": "NODE_ENV=development tsx scripts/test-hero-banners-integration.ts",
     "dev": "NODE_ENV=development tsx ./src/index.ts",
     "build": "tsx ./build.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",

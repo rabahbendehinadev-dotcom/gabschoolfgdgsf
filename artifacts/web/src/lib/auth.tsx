@@ -73,7 +73,8 @@ export function requiredAdminAccessForPath(path: string): AdminAccessRequirement
   if (
     path.startsWith("/bendehinaonline97/courses") ||
     path.startsWith("/bendehinaonline97/videos") ||
-    path.startsWith("/bendehinaonline97/categories")
+    path.startsWith("/bendehinaonline97/categories") ||
+    path.startsWith("/bendehinaonline97/hero-banners")
   ) return "manage_content";
   if (path.startsWith("/bendehinaonline97/solutions")) return "manage_solutions";
   if (

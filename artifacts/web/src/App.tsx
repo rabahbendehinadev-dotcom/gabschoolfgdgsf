@@ -49,6 +49,7 @@ const SolutionsList = lazy(() => import("@/pages/public/SolutionsList").then((mo
 const SolutionDetail = lazy(() => import("@/pages/public/SolutionDetail").then((module) => ({ default: module.SolutionDetail })));
 const AdminSolutions = lazy(() => import("@/pages/admin/Solutions").then((module) => ({ default: module.AdminSolutions })));
 const AdminSolutionForm = lazy(() => import("@/pages/admin/SolutionForm").then((module) => ({ default: module.AdminSolutionForm })));
+const AdminHeroBanners = lazy(() => import("@/pages/admin/HeroBanners").then((module) => ({ default: module.AdminHeroBanners })));
 const NotFound = lazy(() => import("@/pages/not-found"));
 
 const queryClient = new QueryClient();
@@ -176,6 +177,9 @@ function Router() {
       </Route>
       <Route path="/bendehinaonline97/categories">
         <AdminLayout><AdminCategories /></AdminLayout>
+      </Route>
+      <Route path="/bendehinaonline97/hero-banners">
+        <AdminLayout><AdminHeroBanners /></AdminLayout>
       </Route>
       <Route path="/bendehinaonline97/plans">
         <AdminLayout><AdminPlans /></AdminLayout>

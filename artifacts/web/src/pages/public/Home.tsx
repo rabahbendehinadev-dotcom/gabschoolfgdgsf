@@ -16,6 +16,7 @@ import androidUnlock from "@assets/generated_images/hero_android_unlock.webp";
 import tabletClean from "@assets/generated_images/hero_tablet_clean.webp";
 import { useLocale } from "@/i18n";
 import { learningT } from "@/i18n/learningMessages";
+import { HomeHeroBanners } from "@/components/public/HomeHeroBanners";
 
 const HOME_ACCENTS = [
   { from: "#f97316", to: "#fb923c" },
@@ -252,6 +253,8 @@ export function Home() {
 
           </div>
         </div>
+
+        <HomeHeroBanners />
 
         {/* ── Wave divider to light body ── */}
         <div className="absolute bottom-0 left-0 right-0 z-20">
