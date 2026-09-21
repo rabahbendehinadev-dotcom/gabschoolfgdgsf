@@ -3,13 +3,28 @@ import { motion, useReducedMotion } from "framer-motion";
 import { fetchActiveHeroBanners, type HeroBanner } from "@/features/heroBanners/api";
 
 const SHOW_DELAY_MS = 2500;
-const ROTATION_MS = 4500;
+const DESKTOP_ROTATION_MS = 4500;
+const MOBILE_ROTATION_MS = 8000;
+const MOBILE_MEDIA_QUERY = "(max-width: 767px)";
 
 export function HomeHeroBanners() {
   const [banners, setBanners] = useState<HeroBanner[]>([]);
   const [visible, setVisible] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [isMobile, setIsMobile] = useState(false);
+  const [isTouchPaused, setIsTouchPaused] = useState(false);
   const reducedMotion = useReducedMotion();
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia(MOBILE_MEDIA_QUERY);
+    const syncViewport = () => {
+      setIsMobile(mediaQuery.matches);
+      if (!mediaQuery.matches) setIsTouchPaused(false);
+    };
+    syncViewport();
+    mediaQuery.addEventListener("change", syncViewport);
+    return () => mediaQuery.removeEventListener("change", syncViewport);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -30,12 +45,12 @@ export function HomeHeroBanners() {
   }, [banners.length]);
 
   useEffect(() => {
-    if (!visible || reducedMotion || banners.length < 2) return;
+    if (!visible || reducedMotion || banners.length < 2 || (isMobile && isTouchPaused)) return;
     const rotationTimer = window.setInterval(() => {
       setActiveIndex((index) => (index + 1) % banners.length);
-    }, ROTATION_MS);
+    }, isMobile ? MOBILE_ROTATION_MS : DESKTOP_ROTATION_MS);
     return () => window.clearInterval(rotationTimer);
-  }, [banners.length, reducedMotion, visible]);
+  }, [banners.length, isMobile, isTouchPaused, reducedMotion, visible]);
 
   const preloadUrls = useMemo(
     () => banners.flatMap((banner) => [banner.desktopImageUrl, banner.mobileImageUrl]).filter(Boolean) as string[],
@@ -53,9 +68,18 @@ export function HomeHeroBanners() {
 
   return (
     <div
-      className={`pointer-events-none absolute inset-0 z-[15] overflow-hidden transition-opacity ${reducedMotion ? "duration-0" : "duration-1000"} ${visible ? "opacity-100" : "opacity-0"}`}
+      className={`pointer-events-auto absolute inset-0 z-[15] overflow-hidden transition-opacity md:pointer-events-none ${reducedMotion ? "duration-0" : "duration-1000"} ${visible ? "opacity-100" : "opacity-0"}`}
       aria-label="Promotional banners"
       aria-live={reducedMotion ? "polite" : "off"}
+      onTouchStart={() => {
+        if (isMobile) setIsTouchPaused(true);
+      }}
+      onTouchEnd={() => {
+        if (isMobile) setIsTouchPaused(false);
+      }}
+      onTouchCancel={() => {
+        if (isMobile) setIsTouchPaused(false);
+      }}
     >
       <div className="absolute inset-0 bg-neutral-950/45" />
       <div className="absolute inset-0 flex items-center justify-center p-5 sm:p-8 lg:p-12">
