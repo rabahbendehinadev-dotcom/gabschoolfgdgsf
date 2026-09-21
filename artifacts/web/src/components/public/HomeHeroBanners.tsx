@@ -46,11 +46,11 @@ export function HomeHeroBanners() {
 
   useEffect(() => {
     if (!visible || reducedMotion || banners.length < 2 || (isMobile && isTouchPaused)) return;
-    const rotationTimer = window.setInterval(() => {
+    const rotationTimer = window.setTimeout(() => {
       setActiveIndex((index) => (index + 1) % banners.length);
     }, isMobile ? MOBILE_ROTATION_MS : DESKTOP_ROTATION_MS);
-    return () => window.clearInterval(rotationTimer);
-  }, [banners.length, isMobile, isTouchPaused, reducedMotion, visible]);
+    return () => window.clearTimeout(rotationTimer);
+  }, [activeIndex, banners.length, isMobile, isTouchPaused, reducedMotion, visible]);
 
   const preloadUrls = useMemo(
     () => banners.flatMap((banner) => [banner.desktopImageUrl, banner.mobileImageUrl]).filter(Boolean) as string[],
