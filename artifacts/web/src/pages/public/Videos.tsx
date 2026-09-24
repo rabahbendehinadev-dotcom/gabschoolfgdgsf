@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { Link, useSearch, useLocation } from "wouter";
-import { useGetVideos, useGetCategories, useGetVideo, getGetVideoQueryKey, useGetPlaylist } from "@workspace/api-client-react/src/generated/api";
+import { useGetVideos, useGetCategories, useGetVideo, getGetVideoQueryKey, getGetPlaylistQueryKey, useGetPlaylist } from "@workspace/api-client-react/src/generated/api";
 import { useAuth } from "@/lib/auth";
 import { Card, Badge, Button, Input, Dialog, DialogContent } from "@/components/ui";
 import { Search, PlayCircle, Lock, X, Rocket, LayoutGrid, Sparkles, Loader2, GraduationCap, ArrowRight } from "lucide-react";
@@ -42,7 +42,7 @@ export function Videos() {
   /* بيانات الدورة المختارة — لعرض البانر والعنوان فقط */
   const { data: coursePlaylist } = useGetPlaylist(courseId ?? 0, {
     request: getAuthHeaders(),
-    query: { enabled: !!courseId },
+    query: { queryKey: getGetPlaylistQueryKey(courseId ?? 0), enabled: !!courseId },
   });
 
   const selectCategory = (id?: number) => {
@@ -109,14 +109,15 @@ export function Videos() {
   const isLoggedIn = !!user;
   const isDemo = user?.subscriptionType === "demo";
   const isVipUser = isActiveVip(user);
-  const isLocked = !isVipUser && !hasActiveSubscription(user);
+  const courseLocked = (coursePlaylist as typeof coursePlaylist & { locked?: boolean } | undefined)?.locked === true;
+  const isLocked = courseLocked || (!isVipUser && !hasActiveSubscription(user));
 
   /* ── منطق وصول الفيديو (لم يتغير) ── */
   const accessInfo = (video: { accessType?: string }) => {
     const at = video.accessType || "normal";
     const isVipVideo = at === "vip";
     const isVisitorVideo = at === "visitor";
-    const videoLocked = isVideoLocked(at, user);
+    const videoLocked = (courseLocked && !isVisitorVideo) || isVideoLocked(at, user);
     const lockMessage = isVipVideo
       ? learningT(locale, "learning.vipOnly", "مخصص لحسابات VIP فقط")
       : isDemo
@@ -306,6 +307,7 @@ export function Videos() {
                       onBack={() => selectCategory(undefined)}
                       isLocked={isLocked}
                       isDemo={isDemo}
+                      isLoggedIn={isLoggedIn}
                     />
                   </section>
                 ) : (
@@ -477,6 +479,7 @@ function CategoryDetail({
   onBack,
   isLocked,
   isDemo,
+  isLoggedIn,
 }: {
   category: { id: number; name: string; slug: string; icon?: string | null; description?: string | null; imageUrl?: string | null; accentColor?: string | null };
   lessons: any[];
@@ -485,6 +488,7 @@ function CategoryDetail({
   onBack: () => void;
   isLocked: boolean;
   isDemo: boolean;
+  isLoggedIn: boolean;
 }) {
   const { locale } = useLocale();
   const meta = getCategoryMeta(category.name, category.slug);
@@ -555,9 +559,9 @@ function CategoryDetail({
                 : learningT(locale, "learning.loginSubscribe", "قم بتسجيل الدخول والاشتراك للوصول إلى جميع الدروس")}
             </p>
           </div>
-          <Link href="/subscribe">
+           <Link href={isLoggedIn ? "/subscribe" : "/login"}>
             <Button size="sm" className="shrink-0">
-              {isDemo ? learningT(locale, "learning.upgrade", "ترقية الحساب") : learningT(locale, "learning.watchAll", "عرض الاشتراكات")}
+               {!isLoggedIn ? learningT(locale, "learning.login", "تسجيل الدخول") : isDemo ? learningT(locale, "learning.upgrade", "ترقية الحساب") : learningT(locale, "learning.watchAll", "عرض الاشتراكات")}
             </Button>
           </Link>
         </motion.div>

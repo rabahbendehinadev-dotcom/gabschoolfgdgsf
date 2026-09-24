@@ -79,19 +79,16 @@ router.get("/playlists", optionalUserAuth, async (req: Request, res: Response) =
           .orderBy(asc(videosTable.partNumber))
       : [];
 
-    const accessibleCourseIds = req.user
-      ? await getAccessibleCourseIds(req.user.id, playlistIds)
-      : new Set<number>();
     const result = filtered.map(({ playlist, categoryName }) => {
       // Find all categories linked to this playlist
       const catIds = linkedCategories
-        .filter(c => (c as typeof c & { linkedPlaylistId?: number | null }).linkedPlaylistId === playlist.id)
+        .filter(c => c.isVisible && c.linkedPlaylistId === playlist.id)
         .map(c => c.id);
-      const videos = allVideos.filter(v => catIds.includes(v.categoryId!));
-      const entitledVideos = videos.filter(video =>
-        video.accessType === "visitor" || accessibleCourseIds.has(playlist.id),
+      const videos = allVideos.filter(video =>
+        catIds.includes(video.categoryId!) &&
+        (video.playlistId == null || video.playlistId === playlist.id),
       );
-      return buildPlaylistResponse({ ...playlist, categoryName: categoryName ?? "" }, entitledVideos);
+      return buildPlaylistResponse({ ...playlist, categoryName: categoryName ?? "" }, videos);
     });
 
     res.json(result);
@@ -120,39 +117,44 @@ router.get("/playlists/:id", optionalUserAuth, async (req: Request, res: Respons
     const user = req.user;
     const hasAccess = user ? await hasCourseEntitlement(user.id, id) : false;
 
-    if (!hasAccess) {
-      const imageUrl = (row.playlist as typeof row.playlist & { imageUrl?: string | null }).imageUrl ?? null;
-      res.json({
-        id: row.playlist.id,
-        title: row.playlist.title,
-        description: row.playlist.description,
-        imageUrl,
-        isVisible: row.playlist.isVisible,
-        createdAt: row.playlist.createdAt.toISOString(),
-        locked: true,
-        sections: [],
-        videos: [],
-      });
-      return;
-    }
-
     // Find all categories linked to this playlist
     const linkedCats = await db.select().from(categoriesTable)
-      .where(eq(
-        (categoriesTable as typeof categoriesTable & { linkedPlaylistId: typeof categoriesTable.id }).linkedPlaylistId,
-        id
-      ))
+      .where(and(eq(categoriesTable.linkedPlaylistId, id), eq(categoriesTable.isVisible, true)))
       .orderBy(asc(categoriesTable.sortOrder));
 
-    let allVideos: (typeof videosTable.$inferSelect)[] = [];
-    if (linkedCats.length > 0) {
-      const catIds = linkedCats.map(c => c.id);
-      allVideos = await db.select().from(videosTable)
-        .where(inArray(videosTable.categoryId, catIds))
-        .orderBy(asc(videosTable.partNumber));
-    }
+    const catIds = linkedCats.map(c => c.id);
+    const allVideos = await db.select({
+      id: videosTable.id,
+      title: videosTable.title,
+      thumbnailUrl: videosTable.thumbnailUrl,
+      partNumber: videosTable.partNumber,
+      accessType: videosTable.accessType,
+      categoryId: videosTable.categoryId,
+      createdAt: videosTable.createdAt,
+    }).from(videosTable)
+      .leftJoin(categoriesTable, eq(videosTable.categoryId, categoriesTable.id))
+      .where(and(
+        eq(videosTable.isVisible, true),
+        or(isNull(videosTable.categoryId), eq(categoriesTable.isVisible, true)),
+        or(
+          eq(videosTable.playlistId, id),
+          catIds.length > 0
+            ? and(isNull(videosTable.playlistId), inArray(videosTable.categoryId, catIds))
+            : undefined,
+        ),
+      ))
+      .orderBy(asc(videosTable.partNumber), asc(videosTable.id));
 
-    const visibleVideos = allVideos.filter(v => v.isVisible);
+    const linkedVideos = allVideos.filter(v => catIds.includes(v.categoryId!));
+    const directVideos = allVideos.filter(v => !catIds.includes(v.categoryId!));
+    const catalogVideo = (v: typeof allVideos[number]) => ({
+      id: v.id,
+      title: v.title,
+      thumbnailUrl: v.thumbnailUrl,
+      partNumber: v.partNumber,
+      accessType: v.accessType,
+      createdAt: v.createdAt.toISOString(),
+    });
 
     // Build sections: one per linked category
     const sections = linkedCats.map(cat => ({
@@ -160,18 +162,19 @@ router.get("/playlists/:id", optionalUserAuth, async (req: Request, res: Respons
       name: cat.name,
       imageUrl: (cat as typeof cat & { imageUrl?: string | null }).imageUrl ?? null,
       accentColor: (cat as typeof cat & { accentColor?: string | null }).accentColor ?? null,
-      videos: visibleVideos
+      videos: linkedVideos
         .filter(v => v.categoryId === cat.id)
-        .map(v => ({
-          id: v.id,
-          title: v.title,
-          thumbnailUrl: v.thumbnailUrl,
-          partNumber: v.partNumber,
-          accessType: v.accessType,
-          isVisible: v.isVisible,
-          createdAt: v.createdAt.toISOString(),
-        })),
+        .map(catalogVideo),
     }));
+    if (directVideos.length > 0) {
+      sections.push({
+        id: -id,
+        name: row.playlist.title,
+        imageUrl: null,
+        accentColor: null,
+        videos: directVideos.map(catalogVideo),
+      });
+    }
 
     const imageUrl = (row.playlist as typeof row.playlist & { imageUrl?: string | null }).imageUrl ?? null;
 
@@ -182,17 +185,10 @@ router.get("/playlists/:id", optionalUserAuth, async (req: Request, res: Respons
       imageUrl,
       isVisible: row.playlist.isVisible,
       createdAt: row.playlist.createdAt.toISOString(),
+      locked: !hasAccess,
       sections,
       // flat videos list kept for backward compat
-      videos: visibleVideos.map(v => ({
-        id: v.id,
-        title: v.title,
-        thumbnailUrl: v.thumbnailUrl,
-        partNumber: v.partNumber,
-        accessType: v.accessType,
-        isVisible: v.isVisible,
-        createdAt: v.createdAt.toISOString(),
-      })),
+      videos: allVideos.map(catalogVideo),
     });
   } catch (error: unknown) {
     res.status(500).json({ message: error instanceof Error ? error.message : "Failed to fetch playlist" });

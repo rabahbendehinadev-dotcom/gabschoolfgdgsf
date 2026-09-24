@@ -98,6 +98,12 @@ router.get("/videos", optionalUserAuth, async (req, res) => {
     ── */
     let linkedCategoryIds: number[] | undefined;
     if (playlistId && Number.isFinite(playlistId)) {
+      const [course] = await db.select({ id: playlistsTable.id }).from(playlistsTable)
+        .where(and(eq(playlistsTable.id, playlistId), eq(playlistsTable.isVisible, true))).limit(1);
+      if (!course) {
+        res.json([]);
+        return;
+      }
       const linked = await db
         .select({ id: categoriesTable.id })
         .from(categoriesTable)
@@ -113,11 +119,6 @@ router.get("/videos", optionalUserAuth, async (req, res) => {
         return;
       }
 
-      /* إذا لم تكن هناك أقسام مرتبطة بالدورة — أعد مصفوفة فارغة فوراً */
-      if (linkedCategoryIds.length === 0 && categoryId === undefined) {
-        res.json([]);
-        return;
-      }
     }
 
     const conditions = [
@@ -127,13 +128,16 @@ router.get("/videos", optionalUserAuth, async (req, res) => {
 
     if (categoryId) {
       conditions.push(eq(videosTable.categoryId, categoryId));
-    } else if (linkedCategoryIds !== undefined && linkedCategoryIds.length > 0) {
-      /* فلتر الفيديوهات: تابعة للأقسام المرتبطة بالدورة أو مرتبطة بها مباشرة */
+    }
+    if (linkedCategoryIds !== undefined) {
+      /* فلتر الفيديوهات حسب الدورة الفعلية؛ الانتماء المباشر يتقدّم على انتماء القسم */
       conditions.push(
         or(
-          inArray(videosTable.categoryId, linkedCategoryIds),
           eq(videosTable.playlistId, playlistId!),
-        ),
+          linkedCategoryIds.length > 0
+            ? and(isNull(videosTable.playlistId), inArray(videosTable.categoryId, linkedCategoryIds))
+            : undefined,
+        ) as ReturnType<typeof eq>,
       );
     }
 
@@ -165,6 +169,7 @@ router.get("/videos", optionalUserAuth, async (req, res) => {
       ? await getAccessibleCourseIds(req.user.id, courseIds)
       : new Set<number>();
     let filtered = results.filter(video => {
+      if (linkedCategoryIds !== undefined) return true; // Course catalog metadata only, never playback URLs.
       if (video.accessType === "visitor") return true;
       const courseId = video.playlistId ?? video.categoryLinkedPlaylistId;
       return courseId == null || accessibleCourseIds.has(courseId);

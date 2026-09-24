@@ -114,7 +114,7 @@ function LessonRow({ video, index, locked }: { video: SectionVideo; index: numbe
           </div>
 
           {video.thumbnailUrl && (
-            <div className="hidden sm:block h-12 w-20 shrink-0 overflow-hidden rounded-lg bg-muted">
+            <div className="h-12 w-20 shrink-0 overflow-hidden rounded-lg bg-muted">
               <img
                 src={video.thumbnailUrl}
                 alt={video.title}
@@ -151,7 +151,7 @@ export function CourseDetail({ id }: { id: number }) {
   const isVip = isActiveVip(user);
 
   const computeLocked = (v: SectionVideo): boolean => {
-    return isVideoLocked(v.accessType, user);
+    return (isLocked && v.accessType !== "visitor") || isVideoLocked(v.accessType, user);
   };
   const [, navigate] = useLocation();
   const [activeSection, setActiveSection] = useState<Section | null>(null);
@@ -164,35 +164,6 @@ export function CourseDetail({ id }: { id: number }) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center" dir={direction}>
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  if (isLocked) {
-    return (
-      <div className="flex min-h-[70vh] flex-col items-center justify-center gap-6 text-center px-4" dir={direction}>
-        <div className="flex h-24 w-24 items-center justify-center rounded-3xl bg-amber-500/10 border border-amber-500/20">
-          <Lock className="h-12 w-12 text-amber-400" />
-        </div>
-        <div className="max-w-sm">
-          <h2 className="text-2xl font-extrabold text-foreground mb-3">{learningT(locale, "learning.courseInactive", "الدورة غير مفعلة")}</h2>
-          <p className="text-muted-foreground leading-relaxed">
-            {user
-              ? learningT(locale, "learning.noAccess", "هذه الدورة غير مفعلة في حسابك. تواصل مع الإدارة لتفعيل الوصول إليها.")
-              : learningT(locale, "learning.loginCourse", "يجب تسجيل الدخول أولاً للوصول إلى هذه الدورة.")}
-          </p>
-        </div>
-        {!user ? (
-          <Link href="/login">
-            <button className="rounded-2xl bg-primary px-8 py-3 text-sm font-bold text-white shadow-md shadow-primary/30 hover:opacity-90 transition-opacity">
-              {learningT(locale, "learning.login", "تسجيل الدخول")}
-            </button>
-          </Link>
-        ) : (
-          <button onClick={() => navigate("/courses")} className="text-sm font-medium text-primary hover:underline">
-            {learningT(locale, "learning.backToCourses", "العودة إلى الدورات")}
-          </button>
-        )}
       </div>
     );
   }
@@ -282,6 +253,18 @@ export function CourseDetail({ id }: { id: number }) {
 
       {/* ── Content ── */}
       <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
+        {isLocked && (
+          <div className="mb-6 flex items-center justify-between gap-4 rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4">
+            <p className="text-sm text-foreground">
+              {learningT(locale, "learning.loginSubscribe", "قم بتسجيل الدخول والاشتراك للوصول إلى جميع الدروس")}
+            </p>
+            <Link href={user ? "/subscribe" : "/login"} className="shrink-0 rounded-xl bg-primary px-4 py-2 text-sm font-bold text-white">
+              {user
+                ? learningT(locale, "learning.watchAll", "عرض الاشتراكات")
+                : learningT(locale, "learning.login", "تسجيل الدخول")}
+            </Link>
+          </div>
+        )}
         <AnimatePresence mode="wait">
 
           {/* ── View A: Categories ── */}
@@ -358,7 +341,7 @@ export function CourseDetail({ id }: { id: number }) {
                   <p className="mb-3 text-sm font-semibold text-foreground">
                      {learningT(locale, "learning.vipSome", "بعض الدروس متاحة لأعضاء VIP فقط")}
                   </p>
-                  <Link href="/subscribe">
+                   <Link href={user ? "/subscribe" : "/login"}>
                     <button className="rounded-xl bg-primary px-6 py-2.5 text-sm font-bold text-white shadow-md shadow-primary/25 hover:opacity-90 transition-opacity">
                        {learningT(locale, "learning.fullVip", "اشترك الآن للوصول الكامل")}
                     </button>
