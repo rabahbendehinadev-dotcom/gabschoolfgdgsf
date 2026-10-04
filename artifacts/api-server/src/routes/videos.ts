@@ -12,6 +12,7 @@ import { parseLowParts } from "../lib/driveTranscode";
 import { resolveAvailableHlsParts, buildMasterPlaylist, renderMediaPlaylist, buildHlsBasePath, RENDITION_NAME_RE, SAFE_SEGMENT_RE } from "../lib/hlsStorage";
 import { getPresignedR2VideoUrl, getR2VideoMetadata, streamR2Video } from "../lib/r2Video";
 import { validateSecuritySession } from "../lib/deviceSecurity";
+import { createVideoPlaybackTrace, traceVideoAuthentication } from "../lib/videoPlaybackTrace";
 
 /* ── Per-token concurrent-connection guard ────────────────────────────────
    Tracks how many in-flight streaming responses are using each stream token.
@@ -196,12 +197,13 @@ router.get("/videos", optionalUserAuth, async (req, res) => {
   }
 });
 
-router.get("/videos/:id", optionalUserAuth, async (req, res) => {
+router.get("/videos/:id", traceVideoAuthentication(optionalUserAuth), async (req, res) => {
+  const trace: ReturnType<typeof createVideoPlaybackTrace> = res.locals.videoPlaybackTrace;
   try {
     const user = req.user;
     const id = Number(req.params.id);
 
-    const [video] = await db.select({
+    const [video] = await trace.run("database.lesson", () => db.select({
       id: videosTable.id,
       title: videosTable.title,
       description: videosTable.description,
@@ -227,7 +229,7 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
     .from(videosTable)
     .leftJoin(categoriesTable, eq(videosTable.categoryId, categoriesTable.id))
     .where(eq(videosTable.id, id))
-    .limit(1);
+    .limit(1));
 
     if (!video || !video.isVisible) {
       res.status(404).json({ message: "Video not found" });
@@ -235,7 +237,9 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
     }
 
     const accessType = video.accessType || "normal";
-    const canonical = user ? await getCanonicalUserEntitlement(user.id) : null;
+    const canonical = user
+      ? await trace.run("entitlement.account", () => getCanonicalUserEntitlement(user.id))
+      : null;
     const isVipUser = !!canonical?.paid;
     const isSubscribed = !!canonical?.paid;
 
@@ -276,7 +280,7 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
         await denyVideoAccess("يجب تسجيل الدخول لمشاهدة هذا الفيديو");
         return;
       }
-      const courseEntitlement = await getCourseEntitlement(user.id, coursePlaylistId);
+      const courseEntitlement = await trace.run("entitlement.course", () => getCourseEntitlement(user.id, coursePlaylistId));
       if (!courseEntitlement.allowed) {
         await denyVideoAccess("ليس لديك صلاحية الوصول لهذه الدورة");
         return;
@@ -305,17 +309,18 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
     );
 
     if (user) {
-      await db.insert(visitLogsTable).values({ userId: user.id, path: `/videos/${id}`, ip: getClientIp(req) });
+      await trace.run("database.visit", () => db.insert(visitLogsTable).values({ userId: user.id, path: `/videos/${id}`, ip: getClientIp(req) }));
     }
 
     // Fetch playlist info if video belongs to a playlist
     let playlistInfo = null;
     if (video.playlistId) {
-      const [pl] = await db.select().from(playlistsTable).where(eq(playlistsTable.id, video.playlistId)).limit(1);
-      const siblingVideos = await db.select({
+      const playlistId = video.playlistId;
+      const [pl] = await trace.run("database.playlist", () => db.select().from(playlistsTable).where(eq(playlistsTable.id, playlistId)).limit(1));
+      const siblingVideos = await trace.run("database.siblings", () => db.select({
         id: videosTable.id, title: videosTable.title, partNumber: videosTable.partNumber,
         thumbnailUrl: videosTable.thumbnailUrl, accessType: videosTable.accessType, isVisible: videosTable.isVisible,
-      }).from(videosTable).where(and(eq(videosTable.playlistId, video.playlistId), eq(videosTable.isVisible, true))).orderBy(asc(videosTable.partNumber));
+      }).from(videosTable).where(and(eq(videosTable.playlistId, playlistId), eq(videosTable.isVisible, true))).orderBy(asc(videosTable.partNumber)));
       if (pl) {
         playlistInfo = {
           id: pl.id, title: pl.title, description: pl.description,
@@ -325,18 +330,15 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
     }
 
     const isR2Video = video.storageProvider === "r2" && Boolean(video.r2ObjectKey);
+    // The pilot is direct R2 even when its historical DB row still says Drive.
+    // Authorization above is identical for both paths.
+    const directR2ObjectKey = R2_PILOT_OBJECTS[id] ?? (isR2Video ? video.r2ObjectKey : null);
     const partsList = isR2Video
       ? [{ label: "Vidéo", url: "" }]
       : resolveVideoParts({
           driveEmbedUrl: video.driveEmbedUrl,
           driveParts: video.driveParts,
         });
-    const availableHlsParts = await resolveAvailableHlsParts(
-      id,
-      video.hlsParts,
-      partsList.length,
-    );
-    const directR2ObjectKey = R2_PILOT_OBJECTS[id] ?? (isR2Video ? video.r2ObjectKey : null);
     const subscriptionExpiry = canonical?.period.end ?? null;
     const entitlementExpiry = subscriptionExpiry && courseEntitlementExpiry
       ? new Date(Math.min(subscriptionExpiry.getTime(), courseEntitlementExpiry.getTime()))
@@ -345,8 +347,17 @@ router.get("/videos/:id", optionalUserAuth, async (req, res) => {
       ? Math.min(4 * 60 * 60, Math.floor((entitlementExpiry.getTime() - Date.now()) / 1000))
       : undefined;
     const directR2Url = directR2ObjectKey && (r2Ttl === undefined || r2Ttl >= 1)
-      ? await getPresignedR2VideoUrl(directR2ObjectKey, r2Ttl)
+      ? await trace.run("r2.presign", () => getPresignedR2VideoUrl(directR2ObjectKey, r2Ttl))
       : null;
+    // Never probe legacy storage on the direct-R2 path. Its unavailable marker
+    // must not delay issuing an already-authorized browser-to-R2 URL.
+    const availableHlsParts = directR2ObjectKey
+      ? null
+      : await trace.run("legacy.hls_discovery", () => resolveAvailableHlsParts(
+          id,
+          video.hlsParts,
+          partsList.length,
+        ));
     let streamParts: {
       label: string;
       url?: string;

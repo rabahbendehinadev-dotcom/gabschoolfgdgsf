@@ -6,6 +6,7 @@
   "scripts": {
     "test:solutions": "tsx --test src/lib/solutions.test.ts",
     "test:hero-banners": "NODE_ENV=development tsx scripts/test-hero-banners-integration.ts",
+    "test:video-playback": "NODE_ENV=production tsx scripts/test-video-playback.ts",
     "dev": "NODE_ENV=development tsx ./src/index.ts",
     "build": "tsx ./build.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -29,6 +30,8 @@
     "libphonenumber-js": "^1.13.8",
     "multer": "^2.1.1",
     "openai": "^6.0.0",
+    "pino": "^10.0.0",
+    "pino-http": "^11.0.0",
     "sharp": "^0.35.3",
     "web-push": "^3.6.7",
     "zod": "catalog:"
@@ -44,6 +47,7 @@
     "@types/web-push": "^3.6.4",
     "esbuild": "^0.27.3",
     "playwright": "1.63.0",
+    "pino-pretty": "^13.0.0",
     "tsx": "catalog:"
   }
 }

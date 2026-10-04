@@ -2,6 +2,7 @@ import {
   objectStorageClient,
   parseObjectPath,
 } from "./objectStorage";
+import { logger } from "./logger";
 
 /* ════════════════════════════════════════════════════════════════════════
    HLS adaptive streaming for course videos — the fix for stalls + slow
@@ -146,8 +147,30 @@ const markerCache = new Map<string, {
   part: HlsPart | null;
   freshUntilMs: number;
 }>();
+const markerReads = new Map<string, Promise<HlsPart | null>>();
+const discoveryBackoff = new Map<number, number>();
+const OPTIONAL_DISCOVERY_TIMEOUT_MS = 1500;
+const DISCOVERY_BACKOFF_MS = 30_000;
 
 async function readHlsMarker(
+  videoId: number,
+  partIndex: number,
+): Promise<HlsPart | null> {
+  const cacheKey = `${videoId}/${partIndex}`;
+  const pending = markerReads.get(cacheKey);
+  if (pending) return pending;
+  // The generic storage adapter has no shared cancellation API. Deduplicate
+  // unfinished reads so a timeout never starts another socket per refresh.
+  const read = downloadHlsMarker(videoId, partIndex);
+  markerReads.set(cacheKey, read);
+  try {
+    return await read;
+  } finally {
+    markerReads.delete(cacheKey);
+  }
+}
+
+async function downloadHlsMarker(
   videoId: number,
   partIndex: number,
 ): Promise<HlsPart | null> {
@@ -194,19 +217,37 @@ export async function resolveAvailableHlsParts(
     return resolved.some(Boolean) ? resolved : null;
   }
 
+  if ((discoveryBackoff.get(videoId) ?? 0) > Date.now()) {
+    return resolved.some(Boolean) ? resolved : null;
+  }
+  discoveryBackoff.delete(videoId);
+  // Keep persisted/previously found metadata on failure; timeout is fail-open
+  // only for this optional enhancement, never for authentication/entitlement.
+  if (resolved.every(Boolean)) return resolved.some(Boolean) ? resolved : null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    await Promise.all(
+    const discovery = Promise.all(
       resolved.map(async (part, index) => {
         if (!part) resolved[index] = await readHlsMarker(videoId, index);
       }),
     );
+    await Promise.race([
+      discovery,
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error("Optional discovery timed out")), OPTIONAL_DISCOVERY_TIMEOUT_MS);
+      }),
+    ]);
   } catch (error) {
-    console.warn(
-      "[video-hls] Optional HLS detection unavailable; using MP4 fallback",
-      error instanceof Error ? error.message : error,
+    discoveryBackoff.set(videoId, Date.now() + DISCOVERY_BACKOFF_MS);
+    logger.warn(
+      { event: "video-hls", videoId, timeoutMs: OPTIONAL_DISCOVERY_TIMEOUT_MS, reason: error instanceof Error && error.message === "Optional discovery timed out" ? "timeout" : "unavailable" },
+      "Optional HLS discovery unavailable; preserving existing playback",
     );
+  } finally {
+    clearTimeout(timer);
   }
-  return resolved.some(Boolean) ? resolved : null;
+  // Late storage completions may populate the cache, not mutate this response.
+  return resolved.some(Boolean) ? resolved.slice() : null;
 }
 
 async function getPlaylistSkeleton(
